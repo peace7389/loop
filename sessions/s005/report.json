@@ -1,0 +1,79 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.3035,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "tcp_goodput_bps": 671509421,
+  "udp_loss_frac": 0.009736,
+  "tcp_retrans": 93,
+  "link_util": 1.0,
+  "weight_udp": 0.3035
+ },
+ "explanation": "The scheduler transfers unused UDP share to TCP when UDP is not backlogged, so TCP is not capped by 1-weightUdp at high UDP weights (C1, E1). Near the UDP demand threshold, however, UDP is backlogged and the scheduler gives UDP its configured share; the remaining share goes to TCP. Therefore, lowering weightUdp just below the UDP demand threshold lets UDP lose a small fraction of packets and frees that capacity for TCP, increasing TCP goodput. The tested UDP-loss boundary is between weightUdp=0.3030 and 0.3035: 0.3030 gives udp_loss_frac=0.011155 and tcp_goodput_bps=671928762, while 0.3035 gives udp_loss_frac=0.009736 and tcp_goodput_bps=671509421 (E3, C9). Thus weightUdp=0.3035 is the closest tested feasible point to the 1% UDP-loss boundary and gives the highest tested TCP goodput while satisfying udp_loss_frac <= 0.01. queuePkts=100 is adequate: larger queues did not improve TCP goodput at the threshold (E1, E3, C4), and very small queues either did not raise feasible TCP goodput or caused many TCP drops (E1, E2, E4). TcpCubic is safe because loss-based variants were tied at a UDP-safe scheduler setting, while BBR and Vegas underutilized the link (E2, C7).",
+ "holds_when": "The fixed system parameters remain as in the brief: 1 Gbps link, 50 us one-way delay, 1500-byte MTU, fixed UDP application demand of 1400-byte packets at 300 Mbps, TCP always backlogged, scheduler behavior as observed, and measurement with seed=1 and duration=10. It also holds for nearby seeds tested at weightUdp=0.3030, where outputs changed only in the last few digits (E3).",
+ "breaks_when": "It would change if UDP demand or packet size changes, if the scheduler strictly reserves UDP share instead of transferring idle share to TCP, if queue/scheduler service discipline changes, if the UDP-loss constraint is made stricter than 1%, or if different seeds/durations move the measured UDP-loss boundary enough that weightUdp=0.3035 exceeds 1% loss.",
+ "claims": [
+  {
+   "text": "The scheduler gives TCP the link share not used by UDP when UDP is not backlogged, so TCP is not capped by 1-weightUdp at high weightUdp.",
+   "evidence": [
+    "C1",
+    "E1"
+   ]
+  },
+  {
+   "text": "The UDP-loss threshold for queuePkts=100 and TcpCubic lies between weightUdp=0.3030 and 0.3035: 0.3030 has udp_loss_frac=0.011155, while 0.3035 has udp_loss_frac=0.009736.",
+   "evidence": [
+    "E3",
+    "C9"
+   ]
+  },
+  {
+   "text": "Allowing UDP loss up to the 1% limit raises TCP goodput because unserved UDP capacity is used by TCP; the best tested feasible point is weightUdp=0.3035 with tcp_goodput_bps=671509421.",
+   "evidence": [
+    "E3",
+    "C9",
+    "E2"
+   ]
+  },
+  {
+   "text": "Increasing queuePkts does not materially increase TCP goodput at the threshold; q50 and q200 at weightUdp=0.3030 match q100's UDP loss and TCP goodput, while q1000 at weightUdp=0.35 lowered TCP goodput.",
+   "evidence": [
+    "E3",
+    "E1",
+    "C4"
+   ]
+  },
+  {
+   "text": "Very small queues do not provide a feasible TCP gain: q4 at weightUdp=0.30 avoided UDP loss but did not raise TCP goodput, and q8 near weightUdp=0.3006 had many TCP drops and UDP loss above 1%.",
+   "evidence": [
+    "E1",
+    "E2",
+    "E4"
+   ]
+  },
+  {
+   "text": "At a UDP-safe scheduler setting, loss-based TCP variants are essentially tied, while BBR and Vegas underutilize the link; TcpCubic is therefore a safe choice.",
+   "evidence": [
+    "E2",
+    "C7"
+   ]
+  },
+  {
+   "text": "Seed variation at weightUdp=0.3030 is negligible for the measured outputs, supporting seed=1 as a representative tested setting.",
+   "evidence": [
+    "E3"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact optimum between weightUdp=0.3035 and 0.3036 was not tested.",
+  "Whether queuePkts=8 at weightUdp=0.3035 is feasible and whether it could beat queuePkts=100 was not tested.",
+  "Whether duration=30 or seeds other than 1 at weightUdp=0.3035 would move udp_loss_frac across the 1% boundary was not tested.",
+  "The exact scheduler service discipline when one queue is not backlogged was inferred from behavior, not directly observed."
+ ]
+}
