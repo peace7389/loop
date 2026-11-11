@@ -99,6 +99,21 @@ async function given(id) {
   return g && { ...g, params: g.knobs, fixed: g.system };
 }
 
+// A ledger in the multi-simulation format read as one experiment and one evidence record per simulation, which is
+// what this earlier page understands (the streamlined page does the same in adrs_view.js, TH_DATA.flat).
+function FLAT(led) {
+  if (!led.some(r => r.type === 'simulation')) return led;
+  const byId = Object.fromEntries(led.map(r => [r.id, r])), out = [];
+  led.forEach(r => {
+    if (['experiment', 'evidence', 'check', 'drop'].includes(r.type)) return;
+    if (r.type !== 'simulation') { out.push(r); return; }
+    const x = byId[r.parent] || { id: '?', body: {} }, b = r.body || {}, run = (x.body.runs || []).find(q => q.label === b.label) || {}, hyp = (x.body.tests || [])[0] || null, xid = x.id + ':' + b.label;
+    out.push({ id: xid, turn: r.turn, type: 'experiment', parent: hyp, ts: x.ts, body: { params: run.params || {}, clamped: run.clamped || {}, pass_if: null } });
+    out.push({ id: r.id, turn: r.turn, type: 'evidence', parent: xid, ts: r.ts, body: { run_id: b.run_id, pass_if: null, ...(b.metrics || {}), ...(b.error ? { error: b.error } : {}), ...(x.id === 'X0' ? { note: x.body.question } : {}) } });
+  });
+  return out;
+}
+
 async function load() {
   const [st, sl] = await Promise.all([get('../api/status'), get('../api/sessions')]);
   CONTROL.st = (() => { try { const j = JSON.parse(st.text); return j && j.control ? j : null; } catch (e) { return null; } })();  // null: served by a plain file server, no Control page
@@ -110,7 +125,7 @@ async function load() {
   const mine = lines(ctl.text).filter(r => r.id && r.metrics);  // operator runs started from the Control page (checks/op-*/): shown with the operator checks, never part of the AI session
   if (!man) { $('note').textContent = 'Cannot read the harness files (is the file server running in ~/project?)'; return; }
   const own = lines(idx.text);  // this session's runs; the operator's build checks (checks/build1/) are listed after them
-  const raw = { ledger: lines(led.text), index: [...own, ...lines(chk.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
+  const raw = { ledger: FLAT(lines(led.text)), index: [...own, ...lines(chk.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
                 oper: [...lines(op.text).filter(r => !r.session || r.session === ses), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))],
                 manifest: man, series, objects: (() => { try { return JSON.parse(obj.text); } catch (e) { return null; } })(),
                 // control.py knows whether a loop is running; without it: the loop writes the ledger every turn, quiet for 3 minutes = not running

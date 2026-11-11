@@ -50,6 +50,29 @@ def _mtime(path):
         return 0.0
 
 
+def _flat(led):
+    """A ledger in the multi-simulation format as this module reads a ledger: one experiment and one evidence record per
+    simulation (the same reading as TH_DATA.flat in adrs_view.js)."""
+    if not any(r.get("type") == "simulation" for r in led):
+        return led
+    by_id, out = {r["id"]: r for r in led}, []
+    for r in led:
+        if r["type"] in ("experiment", "evidence", "check", "drop"):
+            continue
+        if r["type"] != "simulation":
+            out.append(r)
+            continue
+        x, b = by_id.get(r.get("parent")) or {"id": "?", "body": {}}, r.get("body") or {}
+        run = next((q for q in x["body"].get("runs") or [] if q.get("label") == b.get("label")), {})
+        hyp, xid = (x["body"].get("tests") or [None])[0], f"{x['id']}:{b.get('label')}"
+        rules = "; ".join(q["rule"] for q in x["body"].get("rules") or [] if q.get("for") == hyp) or None
+        out.append({"id": xid, "turn": r["turn"], "type": "experiment", "parent": hyp, "ts": x.get("ts"), "body": {"params": run.get("params") or {}, "clamped": run.get("clamped") or {}, "pass_if": rules}})
+        out.append({"id": r["id"], "turn": r["turn"], "type": "evidence", "parent": xid, "ts": r.get("ts"),
+                    "body": {"run_id": b.get("run_id"), "pass_if": rules, **(b.get("metrics") or {}), **({"error": b["error"]} if b.get("error") else {}),
+                             **({"note": x["body"].get("question")} if x["id"] == "X0" else {})}})
+    return out
+
+
 def _sessions():
     """Session ids, oldest first: the folders of sessions/ that have a ledger."""
     try:
@@ -79,7 +102,8 @@ def _load(sid=None):
                     pass
             given["id"] = None
         manifest = {**given, "params": given.get("knobs") or {}, "fixed": given.get("system") or {}, "brief": given.get("id")}
-        D.update(sig=sig, sid=sid, base=base, ledger_path=ledger, ledger=_jsonl(ledger) if ledger else [], manifest=manifest,
+        written = _jsonl(ledger) if ledger else []
+        D.update(sig=sig, sid=sid, base=base, ledger_path=ledger, written=written, ledger=_flat(written), manifest=manifest,
                  index={r["id"]: r for r in _jsonl(os.path.join(base, "index.json"))},
                  oper={r["id"]: r for r in _jsonl(OPERATOR) if r.get("session") == sid})   # the build checks' lines carry no session
     return D
@@ -350,7 +374,7 @@ def _raw(sid=None):
     except (OSError, ValueError):
         objects = None
     return {"sig": f"{sid}/{len(D['ledger'])}/{len(D['index'])}",
-            "raw": {"ledger": D["ledger"], "index": list(D["index"].values()), "oper": list(D["oper"].values()), "manifest": D["manifest"],
+            "raw": {"ledger": D["written"], "index": list(D["index"].values()), "oper": list(D["oper"].values()), "manifest": D["manifest"],
                     "series": {rid: _series(D["base"], rid) for rid in D["index"]}, "running": bool(sid) and _running(sid), "objects": objects}}
 
 

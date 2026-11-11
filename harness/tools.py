@@ -15,6 +15,7 @@ KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed") 
 DEFAULT_BRIEF = "two-hosts-open"
 MODE = "share"          # operator's choice, set by loop.py; goes to the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
 RUN_TIMEOUT = 600
+BIN = NS3 / "build/scratch/two-hosts/ns3.49-two-hosts-optimized"  # the built program, started directly (several at once)
 
 def _ok(k, v):
     """Whether the program can be started with setting k = v."""
@@ -148,23 +149,40 @@ def options(clean, brief=None):
     b = brief or BRIEF
     return {**{k: v for k, v in b["system"].items() if k in OPTIONS}, **{k: s["default"] for k, s in b["knobs"].items()}, **clean}
 
-def run(params):
-    """Clamp, allocate the session's runs/<id>/, run ns-3 (no rebuild), parse metrics, append to the session's runs/index.json."""
-    clean, clamps = clamp(params)
+def run_many(param_sets):
+    """Several simulations at once, each in its own runs/<id>/ of the session: clamp, start the built program for all
+    of them, wait, parse the metrics, append to the session's runs/index.json in order. One result per set, in order."""
     RUNS = _runs()
-    ids = [int(p.name[1:]) for p in RUNS.iterdir() if re.fullmatch(r"r\d{3}", p.name)]
-    rid = f"r{max(ids, default=0) + 1:03d}"
-    out = RUNS / rid
-    out.mkdir()
-    args = " ".join(f"--{k}={v}" for k, v in options(clean).items()) + f" --out={out}"
-    t0 = time.time()
-    p = subprocess.run(["./ns3", "run", f"two-hosts {args}", "--no-build"], cwd=NS3, env={**os.environ, "TWOHOSTS_SCHED": MODE}, capture_output=True, text=True, timeout=RUN_TIMEOUT)
-    if p.returncode or not (out / "metrics.json").exists():
-        return {"id": rid, "params": clean, "clamped": clamps, "error": (p.stderr or p.stdout)[-800:]}
-    m = json.loads((out / "metrics.json").read_text())
-    with (RUNS / "index.json").open("a") as f:
-        f.write(json.dumps({"id": rid, "params": json.loads((out / "params.json").read_text()), "metrics": m}) + "\n")
-    return {"id": rid, "params": clean, "clamped": clamps, "metrics": m, "seconds": round(time.time() - t0, 1)}
+    first = max([int(p.name[1:]) for p in RUNS.iterdir() if re.fullmatch(r"r\d{3}", p.name)], default=0) + 1
+    jobs, results, deadline = [], [], time.time() + RUN_TIMEOUT
+    for i, params in enumerate(param_sets):
+        clean, clamps = clamp(params)
+        rid = f"r{first + i:03d}"
+        out = RUNS / rid
+        out.mkdir()
+        args = [f"--{k}={v}" for k, v in options(clean).items()] + [f"--out={out}"]
+        proc = subprocess.Popen([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": MODE}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        jobs.append((rid, clean, clamps, out, time.time(), proc))
+    for rid, clean, clamps, out, t0, proc in jobs:
+        try:
+            said = proc.communicate(timeout=max(1, deadline - time.time()))[0]
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            said = f"no result after {RUN_TIMEOUT} s"
+        res = {"id": rid, "params": clean, "clamped": clamps, "seconds": round(time.time() - t0, 1)}
+        if proc.returncode or not (out / "metrics.json").exists():
+            results.append({**res, "error": (said or f"exit {proc.returncode}")[-800:]})
+            continue
+        res.update(metrics=json.loads((out / "metrics.json").read_text()), used=json.loads((out / "params.json").read_text()))
+        with (RUNS / "index.json").open("a") as f:
+            f.write(json.dumps({"id": rid, "params": res["used"], "metrics": res["metrics"]}) + "\n")
+        results.append(res)
+    return results
+
+def run(params):
+    """One simulation: see run_many."""
+    return run_many([params])[0]
 
 def _dir(run_id):
     """The folder of a run of THIS session: the id must be one that the session's own index lists."""

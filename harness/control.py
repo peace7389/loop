@@ -7,7 +7,8 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
   GET  /api/sessions   that list alone
   POST /api/run        {params, mode, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
                        The brief (default two-hosts-open) gives the fixed settings and the ranges.
-  POST /api/session    {brief, budget, draft, mode, baseline, session}: starts loop.py with those flags, returns the session id.
+  POST /api/session    {brief, budget, draft, mode, baseline, session}: starts loop.py with those flags, returns the session id
+                       (budget = simulations).
                        Without "session" it is a new session (the next id sNNN) on the named brief (default two-hosts-open;
                        budget defaults to the brief's limit); with the id of an existing session it continues that one.
   POST /api/stop       stops the session that was started here
@@ -97,7 +98,8 @@ def sessions():
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
             meta = json.loads((d / "session.json").read_text()) if (d / "session.json").is_file() else {}
             CACHE[d.name] = (sig, {"id": d.name, "brief": meta.get("brief"), "records": len(recs), "runs": len(lines(idx)),
-                "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs), "turns": max([r["turn"] for r in recs], default=0),
+                "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs), "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" for r in recs),
+                "turns": max([r["turn"] for r in recs], default=0),
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None),
                 "done": any(r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done" for r in recs)})

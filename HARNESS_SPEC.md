@@ -611,6 +611,52 @@ in the ledger; `pass_if` non-empty.
 
 ### 7.4 `loop.py`
 
+**REVISED 2026-11-11 (operator; stage 3 of `~/RESTRUCTURE_PLAN.md`): several
+hypotheses, experiments of several simulations, rules checked by the harness.**
+This block replaces 7.2 (the answer format), the pseudo-code and the record list
+below, and 7.5 where they differ.
+- Answer per turn (`schema.json`): `observations`; `hypotheses` [{text,
+  prediction}]; `drop` [{id, why}]; `experiment` {kind test|explore, tests,
+  question, varied, control, runs [{label, params}], rules [{for, rule}]} or
+  null; `verdicts` [{for, result, because, next}]; `report` (null until stage
+  4); `requests`; `budget_request` {simulations, why} or null; `done`.
+- Enforced by `loop.validate` (a failure makes the turn malformed; nothing in it
+  is recorded or run): a hypothesis needs a text and gets the next id `H<n>`
+  (usable in the same answer); a drop needs an open hypothesis and a reason; a
+  verdict needs an open hypothesis that has a checked rule; a test experiment
+  needs `tests` (open hypotheses), at least one rule per tested hypothesis and no
+  rule for another; an explore experiment needs a question and no tests or
+  rules; 1 to `simulations_per_experiment` simulations with unique labels
+  (letters, digits, `_`), not more than the budget has left; every rule must be
+  readable. A verdict closes its hypothesis, as a drop does.
+- Rules (`harness/rules.py`): numbers; `measure@label` (the `@label` may be left
+  out when the experiment has one simulation); `+ - * /`, parentheses; `abs()`,
+  `min()`, `max()`; exactly one of `< <= > >= ==` per comparison; comparisons
+  joined by `AND`. Parsed by a small recursive-descent reader, never by `eval`.
+- What the harness does with an experiment (`loop.experiment`): an `experiment`
+  record (design and rules as written, each simulation's clamped params); all
+  simulations at once through `tools.run_many` (the built program started
+  directly, one process each); one `simulation` record each (label, run id,
+  params used, metrics or error); one `evidence` record with one text line per
+  simulation; one `check` record per rule (`rule`, `with_numbers`, `result`
+  held | failed, or "not checked" when a simulation it names gave no value).
+- The budget counts simulations (`--budget`, default the brief's
+  `limits.simulations`); `--max-tokens` sets the most tokens of one answer
+  (default 8000 with the draft, 3000 without).
+- Record types: `draft, hypothesis, drop, experiment, simulation, evidence,
+  check, verdict, report, note, malformed`; ids `D H W X S E C V R N M` + a
+  number. The harness's own first experiment is `X0` (explore, one simulation
+  `S0` with every setting at its default, evidence `E0`), not counted in the
+  budget. `by`: simulation = simulator; evidence, check, malformed, `X0` =
+  harness; the rest as before.
+- The prompt shows one line per record; drafts and simulation records are not
+  replayed (the evidence record has the line of each simulation); a hypothesis
+  line carries its current state; a malformed line carries the reason only.
+- Viewer, until stage 6: all three pages read such a ledger as one row per
+  simulation (`TH_DATA.flat`, `_flat`, `FLAT`), with the first tested hypothesis
+  of its experiment and, on the streamlined page, the harness's checks as the
+  prediction rows; a line on the page says so.
+
 **REVISED 2026-11-11 (operator): every ledger record has `by`**, written by the
 harness, never taken from the model's answer:
 `{id, turn, type, by, parent, body, ts}` with `by` one of `model` (what the model

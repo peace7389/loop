@@ -12,11 +12,11 @@
   },
   "tools": {
     "describe_system": "this brief, with the descriptions of the outputs and the tools",
-    "metrics": "metrics(run_id): the output values of a run",
+    "metrics": "metrics(run_id): the output values of a simulation (run ids are in the evidence lines, e.g. r003)",
     "series": "series(run_id, every_n): per-100ms samples of a run: t,udp_bps,tcp_bps,cwnd,drops_band0,drops_band1,q_band0,q_band1,qmin_band0,qmin_band1 (at most 100 rows; drops are totals since traffic began; q = packets waiting in each queue at the sample time, qmin = the fewest waiting since the previous sample; the measured seconds begin at t = 2)",
     "grep_trace": "grep_trace(run_id, pattern, limit): lines of the run's flow-monitor XML matching a regular expression (at most 50)",
-    "list_runs": "list_runs(): id, params and metrics of every run so far"
+    "list_runs": "list_runs(): id, params and metrics of every simulation of this session so far"
   },
-  "how_to_run": "An experiment is run by filling the 'experiment' field of your answer with params, the metrics you will judge, and pass_if: the criterion, stated before the run, that decides whether your prediction held. The harness runs it and attaches the evidence.",
-  "budget": "experiments left are stated in each turn"
+  "how_to_run": "An experiment is a set of simulations with one purpose, run at once. Fill the 'experiment' field of your answer: its kind (test or explore), the simulations (runs: a label and the params that differ from the defaults), and for a test the rules, comparisons written before the simulations run. The harness runs the simulations, appends the evidence (one line per simulation) and checks every rule itself.",
+  "budget": "the budget counts simulations; the number left is stated in each turn"
 }

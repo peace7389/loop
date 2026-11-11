@@ -1,38 +1,284 @@
 {
-  "type": "object",
-  "properties": {
-    "observations": {"type": "string"},
-    "hypothesis": {"anyOf": [{"type": "string"}, {"type": "null"}]},
-    "prediction": {"anyOf": [{"type": "string"}, {"type": "null"}]},
-    "experiment": {"anyOf": [
-      {"type": "object",
-       "properties": {
-         "params": {"type": "object",
-                    "properties": {"weightUdp": {"type": "number"}, "udpRate": {"type": "string"}, "queuePkts": {"type": "integer"},
-                                   "tcpVariant": {"type": "string"}, "duration": {"type": "number"}, "seed": {"type": "integer"}},
-                    "additionalProperties": false},
-         "metrics": {"type": "array", "items": {"type": "string", "enum": ["udp_goodput_bps", "tcp_goodput_bps", "udp_loss_frac", "drops_band0", "drops_band1", "tcp_retrans", "link_util", "link_rate_bps", "weight_udp"]}},
-         "pass_if": {"type": "string"}},
-       "required": ["params", "metrics", "pass_if"], "additionalProperties": false},
-      {"type": "null"}]},
-    "verdict": {"anyOf": [
-      {"type": "object",
-       "properties": {"for": {"type": "string"}, "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]},
-                      "because": {"type": "string"}, "next": {"type": "string"}},
-       "required": ["for", "result", "because", "next"], "additionalProperties": false},
-      {"type": "null"}]},
-    "requests": {"type": "array", "items": {"type": "object",
-       "properties": {"tool": {"type": "string", "enum": ["describe_system", "metrics", "series", "grep_trace", "list_runs"]},
-                      "args": {"type": "object"}},
-       "required": ["tool", "args"], "additionalProperties": false}},
-    "budget_request": {"anyOf": [
-      {"type": "object",
-       "properties": {"experiments": {"type": "integer", "description": "how many more experiments to add to the run budget"},
-                      "reason": {"type": "string", "description": "one sentence: why they are needed"}},
-       "required": ["experiments", "reason"], "additionalProperties": false},
-      {"type": "null"}]},
-    "done": {"type": "boolean"}
+ "type": "object",
+ "properties": {
+  "observations": {
+   "type": "string",
+   "description": "what you read in the ledger and the tool results"
   },
-  "required": ["observations", "hypothesis", "prediction", "experiment", "verdict", "requests", "budget_request", "done"],
-  "additionalProperties": false
+  "hypotheses": {
+   "type": "array",
+   "description": "new hypotheses; may be empty",
+   "items": {
+    "type": "object",
+    "properties": {
+     "text": {
+      "type": "string"
+     },
+     "prediction": {
+      "type": "string",
+      "description": "falsifiable: a number, a range or a direction"
+     }
+    },
+    "required": [
+     "text",
+     "prediction"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "drop": {
+   "type": "array",
+   "description": "open hypotheses you give up without a verdict; may be empty",
+   "items": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "why": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "why"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "experiment": {
+   "anyOf": [
+    {
+     "type": "object",
+     "properties": {
+      "kind": {
+       "type": "string",
+       "enum": [
+        "test",
+        "explore"
+       ]
+      },
+      "tests": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "test: ids of the open hypotheses it tests; explore: empty"
+      },
+      "question": {
+       "type": "string",
+       "description": "explore: what you want to find out; test: may be empty"
+      },
+      "varied": {
+       "type": "array",
+       "items": {
+        "type": "string",
+        "enum": [
+         "weightUdp",
+         "udpRate",
+         "queuePkts",
+         "tcpVariant",
+         "duration",
+         "seed"
+        ]
+       },
+       "description": "the knobs that differ between the simulations"
+      },
+      "control": {
+       "anyOf": [
+        {
+         "type": "string",
+         "description": "label of the simulation the others are compared with"
+        },
+        {
+         "type": "null"
+        }
+       ]
+      },
+      "runs": {
+       "type": "array",
+       "minItems": 1,
+       "maxItems": 12,
+       "items": {
+        "type": "object",
+        "properties": {
+         "label": {
+          "type": "string",
+          "description": "letters, digits and _ only"
+         },
+         "params": {
+          "type": "object",
+          "properties": {
+           "weightUdp": {
+            "type": "number"
+           },
+           "udpRate": {
+            "type": "string"
+           },
+           "queuePkts": {
+            "type": "integer"
+           },
+           "tcpVariant": {
+            "type": "string"
+           },
+           "duration": {
+            "type": "number"
+           },
+           "seed": {
+            "type": "integer"
+           }
+          },
+          "additionalProperties": false
+         }
+        },
+        "required": [
+         "label",
+         "params"
+        ],
+        "additionalProperties": false
+       }
+      },
+      "rules": {
+       "type": "array",
+       "description": "test: at least one per tested hypothesis; explore: empty",
+       "items": {
+        "type": "object",
+        "properties": {
+         "for": {
+          "type": "string",
+          "description": "hypothesis id"
+         },
+         "rule": {
+          "type": "string",
+          "description": "a comparison the harness will check, e.g. measure@label > 1.1 * measure@otherlabel"
+         }
+        },
+        "required": [
+         "for",
+         "rule"
+        ],
+        "additionalProperties": false
+       }
+      }
+     },
+     "required": [
+      "kind",
+      "tests",
+      "question",
+      "varied",
+      "control",
+      "runs",
+      "rules"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "null"
+    }
+   ]
+  },
+  "verdicts": {
+   "type": "array",
+   "description": "only for hypotheses that have a checked rule; may be empty",
+   "items": {
+    "type": "object",
+    "properties": {
+     "for": {
+      "type": "string"
+     },
+     "result": {
+      "type": "string",
+      "enum": [
+       "supported",
+       "refuted",
+       "inconclusive"
+      ]
+     },
+     "because": {
+      "type": "string"
+     },
+     "next": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "for",
+     "result",
+     "because",
+     "next"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "report": {
+   "type": "null",
+   "description": "always null for now"
+  },
+  "requests": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "tool": {
+      "type": "string",
+      "enum": [
+       "describe_system",
+       "metrics",
+       "series",
+       "grep_trace",
+       "list_runs"
+      ]
+     },
+     "args": {
+      "type": "object"
+     }
+    },
+    "required": [
+     "tool",
+     "args"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "budget_request": {
+   "anyOf": [
+    {
+     "type": "object",
+     "properties": {
+      "simulations": {
+       "type": "integer",
+       "description": "how many more simulations to add to the budget"
+      },
+      "why": {
+       "type": "string",
+       "description": "one sentence: why they are needed"
+      }
+     },
+     "required": [
+      "simulations",
+      "why"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "null"
+    }
+   ]
+  },
+  "done": {
+   "type": "boolean"
+  }
+ },
+ "required": [
+  "observations",
+  "hypotheses",
+  "drop",
+  "experiment",
+  "verdicts",
+  "report",
+  "requests",
+  "budget_request",
+  "done"
+ ],
+ "additionalProperties": false
 }

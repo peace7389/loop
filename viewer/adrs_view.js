@@ -277,6 +277,7 @@ const TASK_VIEW = {
       <div class="th-titleline"><h1>${e(P.title)}<small>${loop ? 'session' : 'run'} “${e(data.run)}”${P.brief ? ' · brief ' + e(P.brief) : ''}</small></h1>
         ${O ? `<span class="th-state${O.running ? ' live' : ''}"><i></i>${O.running ? 'Running now' : O.done ? 'Finished: the AI declared an answer' : 'Stopped before the AI declared an answer'}</span>` : ''}</div>
       <div class="th-by" data-by="operator"><p class="th-q">${loop ? who('operator') : ''}${e(P.question)}</p></div>
+      ${P.many ? '<p class="th-sm" style="margin-top:10px">This session is in the multi-simulation format: an experiment can hold several simulations, and the harness checks the AI’s rules itself. Until this page is restructured for it, each simulation is shown as one row, with the first hypothesis its experiment tested; dropped hypotheses and the experiment designs are in the ledger but not on this page.</p>' : ''}
       <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"${k === 'Scheduler mode' ? ' data-by="operator"' : ''}><dt>${k === 'Scheduler mode' ? who('operator') : ''}${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl>${legend}</header>`;
     if (!rows.length) { root.innerHTML = h + '<section class="th-sec"><p class="th-empty">No simulation has been run yet. This page fills in as runs finish.</p></section></div>'; return; }
 
@@ -468,7 +469,7 @@ const TASK_VIEW = {
         ${rest.length ? more('Every other value it recorded', `<table><tbody>${rest.map(k => `<tr><td>${e(D.PLAIN[k] || k)}</td><td class="num">${e(T._show(k, m[k]))}</td></tr>`).join('')}</tbody></table>`) : ''}`); };
     const check = r => { const x = r.h; if (!x || !x.criteria.length) return '';
       const all = x.total && x.met === x.total;
-      return `<h3>Prediction against the measurement<span>the rule was written by the AI before the run; checked here from the recorded numbers</span></h3>
+      return `<h3>Prediction against the measurement<span>the rule was written by the AI before the run; ${P.many ? 'checked by the harness' : 'checked here from the recorded numbers'}</span></h3>
         ${x.total ? `<p class="th-held"><span class="${all ? 'th-ok' : 'th-bad'}">${all ? '✓' : '✕'}</span> ${all ? (x.total === 1 ? 'The prediction held' : `All ${x.total} predictions held`) : `${x.met} of ${x.total} predictions held`}</p>` : ''}
         <table><thead><tr><th data-by="model">Measure</th><th data-by="model">Predicted</th><th class="num" data-by="simulator">Measured</th><th title="checked by this page">Held?</th></tr></thead><tbody>${x.criteria.map(c => `<tr><td data-by="model">${e(c.what)}</td><td data-by="model">${e(c.need)}</td><td class="num" data-by="simulator"><b>${e(c.measured)}</b></td>
           <td>${c.ok == null ? '<span class="th-muted">not checked</span>' : c.ok ? '<span class="th-ok">✓</span> held' : '<span class="th-bad">✕</span> missed'}</td></tr>`).join('')}</tbody></table>`; };
@@ -592,6 +593,25 @@ const TH_DATA = {
   UNIT: { queuePkts: ' packets', duration: ' s' },
   knob(k, v) { return v == null ? '–' : String(v) + (TH_DATA.UNIT[k] || ''); },
 
+  // ---- A ledger in the multi-simulation format (hypotheses, experiments of several simulations, checks by the harness)
+  // as this page reads a ledger: one experiment and one evidence record per simulation. The experiment's first tested
+  // hypothesis is the simulation's hypothesis, and the harness's checks for it become its prediction rows. Dropped
+  // hypotheses and the experiment designs themselves are not shown until the page is restructured for this format.
+  flat(led) {
+    if (!led.some(r => r.type === 'simulation')) return led;
+    const byId = Object.fromEntries(led.map(r => [r.id, r])), out = [];
+    led.forEach(r => {
+      if (['experiment', 'evidence', 'check', 'drop'].includes(r.type)) return;
+      if (r.type !== 'simulation') { out.push(r); return; }
+      const x = byId[r.parent] || { id: '?', body: {} }, b = r.body || {}, run = (x.body.runs || []).find(q => q.label === b.label) || {}, hyp = (x.body.tests || [])[0] || null, xid = x.id + ':' + b.label;
+      const checks = led.filter(c => c.type === 'check' && c.parent === x.id && (c.body || {}).for === hyp).map(c => ({ what: c.body.rule, need: 'as the AI wrote it', measured: c.body.with_numbers, ok: c.body.result === 'held' ? true : c.body.result === 'failed' ? false : null }));
+      out.push({ id: xid, turn: r.turn, type: 'experiment', by: x.by, parent: hyp, ts: x.ts, body: { params: run.params || {}, clamped: run.clamped || {}, pass_if: null } });
+      out.push({ id: r.id, turn: r.turn, type: 'evidence', by: r.by, parent: xid, ts: r.ts,
+                 body: { run_id: b.run_id, pass_if: null, ...(b.metrics || {}), ...(b.error ? { error: b.error } : {}), ...(x.id === 'X0' ? { note: x.body.question } : {}), ...(hyp ? { checks } : {}) } });
+    });
+    return out;
+  },
+
   // ---- who produced a ledger record: its own "by" (the harness writes it since 2026-11-11), else what its type implies
   SOURCES: ['model', 'harness', 'simulator', 'operator'],
   by(r) { const b = r.body || {};
@@ -685,7 +705,7 @@ const TH_DATA = {
   },
 
   build(raw, run) {
-    const D = TH_DATA, led = raw.ledger || [], man = raw.manifest || {}, fixed = man.fixed || {};
+    const D = TH_DATA, written = raw.ledger || [], led = D.flat(written), man = raw.manifest || {}, fixed = man.fixed || {};
     const index = Object.fromEntries((raw.index || []).map(r => [r.id, r])), oper = Object.fromEntries((raw.oper || []).map(r => [r.id, r]));
     const defaults = Object.fromEntries(Object.entries(man.params || {}).map(([k, v]) => [k, v.default]));
     const used = new Set(led.filter(r => r.type === 'evidence').map(r => (r.body || {}).run_id));
@@ -723,7 +743,7 @@ const TH_DATA = {
       const changed = Object.entries(params).filter(([key, val]) => val !== prev[key]).map(([key, val]) => [D.KNOB[key] || key, D.knob(key, prev[key]), D.knob(key, val)]);
       prev = params;
       const metrics = (index[rid] || {}).metrics || num(eb);
-      const crit = eb.note ? [] : D.criteria(xb.pass_if || eb.pass_if, num(eb)), checked = crit.filter(c => c.ok != null);
+      const crit = eb.checks || (eb.note ? [] : D.criteria(xb.pass_if || eb.pass_if, num(eb))), checked = crit.filter(c => c.ok != null);  // eb.checks: the harness's own checks (multi-simulation format)
       const others = Object.fromEntries(led.filter(r => r.type === 'evidence' && r.id !== ev.id).map(r => [r.id, num(r.body)]));
       hyps.push({ n, id: h.id || ev.id, turn: ev.turn, baseline: !!eb.note, by: h.id ? D.by(h) : null, text: hb.text || eb.note || '(no hypothesis was stated for this experiment)', prediction: hb.prediction, observations: hb.observations || null,
         run_id: rid, changed, settings: Object.entries(params).map(([key, val]) => [D.KNOB[key] || key, D.knob(key, val)]),
@@ -748,8 +768,8 @@ const TH_DATA = {
     const res = r => judged.filter(h => h.verdict.result === r).length, scratch = led.filter(r => r.type === 'draft' || r.type === 'scratch');
     const mins = led.length ? Math.round((new Date(led[led.length - 1].ts) - new Date(led[0].ts)) / 60000) : null;
     const latest = real[real.length - 1];
-    const bySource = Object.fromEntries(D.SOURCES.map(b => [b, led.filter(r => D.by(r) === b).length]));
-    const page = { kind: 'loop', brief: man.brief || null, by: bySource, by_derived: led.some(r => !r.by), title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',
+    const bySource = Object.fromEntries(D.SOURCES.map(b => [b, written.filter(r => D.by(r) === b).length]));
+    const page = { kind: 'loop', brief: man.brief || null, by: bySource, by_derived: written.some(r => !r.by), many: led !== written, title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',
       facts: [
         ['AI model', String((scratch.length && (scratch[scratch.length - 1].body || {}).model) || '?').split('/').pop(), 'local model on vLLM'],
         ['Thinking', scratch.length ? 'on' : 'off', scratch.length ? 'its reasoning is kept in the record' : 'no reasoning recorded'],
