@@ -21,7 +21,7 @@ details summary{cursor:pointer;color:var(--mut)}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
 </style></head><body>
 <header><h1>AI hypothesis loop over ns-3 · two hosts, one link</h1>
-<p id="sub">Reads ../ledger.jsonl, ../runs/index.json and ../runs/operator.jsonl every 5 s. Nothing here writes. The model never sees the operator's mode.</p></header>
+<p id="sub">Reads one session (?session=ID, default s001): ../sessions/ID/ledger.jsonl and runs/index.json, and ../checks/operator.jsonl, every 5 s. Nothing here writes. The model never sees the operator's mode.</p></header>
 <main>
 <section><h2>Reasoning trail</h2><div id="trail" class="muted">no ledger yet</div></section>
 <section><h2>Run detail <span id="runid" class="muted"></span></h2>
@@ -33,11 +33,12 @@ details summary{cursor:pointer;color:var(--mut)}
 const $=id=>document.getElementById(id), css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const fmt=(v,k='')=>typeof v!=='number'?String(v):/bps$/.test(k)?(v/1e9).toFixed(3)+'e9':Number.isInteger(v)?v.toLocaleString():v.toFixed(4);
 let ledger=[],runs=[],sel=null,charts={},oper={};
+const SES=new URLSearchParams(location.search).get('session')||'s001', BASE=`../sessions/${SES}/`;
 async function text(u){const r=await fetch(u+'?t='+Date.now());return r.ok?await r.text():null}
 async function load(){
-  const l=await text('../ledger.jsonl'); ledger=l?l.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
-  const o=await text('../runs/operator.jsonl'); oper={}; (o||'').split('\n').filter(Boolean).forEach(x=>{try{const j=JSON.parse(x);oper[j.id]=j}catch(e){}});
-  const r=await text('../runs/index.json'); runs=r?r.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
+  const l=await text(BASE+'ledger.jsonl'); ledger=l?l.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
+  const o=await text('../checks/operator.jsonl'); oper={}; (o||'').split('\n').filter(Boolean).forEach(x=>{try{const j=JSON.parse(x);if(j.session===SES)oper[j.id]=j}catch(e){}});
+  const r=await text(BASE+'runs/index.json'); runs=r?r.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
   if(!sel&&runs.length)sel=runs[runs.length-1].id;
   trail();runTable();scatter();if(sel)detail(sel);
 }
@@ -69,7 +70,7 @@ async function detail(id){
   const r=runs.find(x=>x.id===id);if(!r)return;$('runid').textContent='· '+id;
   $('params').innerHTML=Object.entries(r.params).map(([k,v])=>`<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')+(oper[r.id]?`<tr><td class="muted">mode (operator)</td><td>${esc(oper[r.id].mode)}</td></tr>`:'');
   $('metrics').innerHTML=Object.entries(r.metrics).map(([k,v])=>`<tr><td>${k}</td><td>${fmt(v,k)}</td></tr>`).join('');
-  const csv=await text(`../runs/${id}/series.csv`);if(!csv)return;
+  const csv=await text(`${BASE}runs/${id}/series.csv`);if(!csv)return;
   const rows=csv.trim().split('\n').slice(1).map(l=>l.split(',').map(Number));
   const t=rows.map(x=>x[0]),line=r.metrics.weight_udp*r.metrics.link_rate_bps;
   chart('c1',{type:'line',data:{labels:t,datasets:[

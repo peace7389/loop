@@ -103,6 +103,46 @@ ranges in `manifest.json`, a run budget per session.
 
 ## 4. Directory layout
 
+**REVISED 2026-11-11 (operator; stage 1 of `~/RESTRUCTURE_PLAN.md`): one folder per
+session.** This block replaces `ledger.jsonl`, `runs/` and `runs/operator.jsonl`
+in the layout below and wherever sections 2, 7 and 8 name them.
+```
+~/project/
+├── sessions/<id>/                 # one session; ids s001, s002, ...; nothing is shared between sessions
+│   ├── ledger.jsonl               # append-only, written only by loop.py
+│   ├── runs/index.json            # this session's simulations only
+│   ├── runs/<run>/                # params.json, metrics.json, series.csv, flowmon.xml (run ids r001, ... per session)
+│   └── two-hosts.cc               # the scenario source as copied when the session was created; what read_source returns
+└── checks/                        # operator-only: no function of tools.py reads here
+    ├── operator.jsonl             # {session, id, mode, seconds} per simulation, appended by loop.py
+    ├── build1/                    # the stage 1-2 runs sanity-*, share-*, cap-* and their index.json
+    ├── build2/, build3/           # the operator checks of the revised simulator
+    ├── op-<time>/, control.jsonl  # operator runs started from the viewer
+    └── sessions/<id>.log          # terminal output of a session started by control.py
+```
+- `loop.py --session <id>`: default a new id (the next free `sNNN`); an existing
+  id continues that session (no second baseline). The session folder is created
+  after the model server has answered.
+- `tools.py`: `open_session(id)` sets the one folder the tools can reach.
+  `list_runs` reads that session's `runs/index.json`; `metrics`, `series` and
+  `grep_trace` refuse (`unknown run`) any id that index does not list, so no
+  name or path can reach another session or `checks/`. `run` returns the run
+  time; it no longer writes the operator's line (loop.py does).
+- `control.py`: `GET /api/status` carries `sessions` (id, records, experiments,
+  first and last time, mode, model, running); `GET /api/sessions` is that list
+  alone; `POST /api/session` starts a new session, or continues one when given
+  `"session": "<id>"`.
+- Viewer: the page lists the sessions (newest first) and "Operator checks of the
+  simulator" in one selector, `?session=<id>`; in the ADRS main viewer each
+  session is a run of the task (`run=loop` = the newest).
+- Migration: the first session's ledger and runs `r001`-`r006` are
+  `sessions/s001/` (`r001` is the stage-3 `tools.run` test, kept with it as the
+  operator asked). Its lines in `operator.jsonl` gained `"session": "s001"`.
+  `s001` has no `two-hosts.cc` copy: the file it read was not kept.
+- Verified: in a fresh session `list_runs()` is `[]` and `metrics("cap-200m")`,
+  `metrics("r002")` are refused; the page content built for `s001` is identical,
+  character for character, to what the old single ledger gave.
+
 ```
 ~/project/
 ├── ns-3.49/                       # upstream; touch only scratch/

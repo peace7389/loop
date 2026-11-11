@@ -2,9 +2,10 @@
 ddloop and topoloop are: this module answers the page's own JSON shapes from the harness's files, read-only.
 
 What maps to what (only where the harness recorded matching data):
-  run "loop"             = the ledger (ledger.jsonl): one "iteration" per experiment the model asked for
-  run "operator_checks"  = simulations in runs/index.json that no ledger evidence points to (the operator's
-                           sanity / share / cap checks): no AI
+  run "<session id>"     = one session (sessions/<id>/ledger.jsonl and runs/): one "iteration" per experiment the
+                           model asked for. Run "loop" (old links) = the newest session
+  run "operator_checks"  = the operator's sanity / share / cap simulations (checks/build1/): no AI
+  the scheduler mode of every run comes from checks/operator.jsonl (a session's lines carry its id)
   research story         = hypothesis -> prediction -> pass rule -> experiment -> the model's own verdict
   drawing (adrs_view.js) = the run's series.csv (throughput per flow, TCP window, drops per queue)
 There is NO score: the task asks the model to choose what "performance" means, and the harness records none.
@@ -16,8 +17,9 @@ import os
 import time
 
 ROOT = os.path.expanduser("~/project")
-RUNS = os.path.join(ROOT, "runs")
-LEDGER = os.path.join(ROOT, "ledger.jsonl")
+SESSIONS = os.path.join(ROOT, "sessions")
+BUILD1 = os.path.join(ROOT, "checks", "build1")
+OPERATOR = os.path.join(ROOT, "checks", "operator.jsonl")
 HERE = os.path.dirname(os.path.abspath(__file__))
 NAME = "twohosts"
 LOOP, CHECKS = "loop", "operator_checks"
@@ -47,18 +49,30 @@ def _mtime(path):
         return 0.0
 
 
-def _load():
-    """Everything the harness wrote, re-read only when a file changed."""
-    sig = (_mtime(LEDGER), _mtime(os.path.join(RUNS, "index.json")), _mtime(os.path.join(RUNS, "operator.jsonl")))
-    if _cache.get("sig") != sig:
+def _sessions():
+    """Session ids, oldest first: the folders of sessions/ that have a ledger."""
+    try:
+        return sorted(d for d in os.listdir(SESSIONS) if os.path.isfile(os.path.join(SESSIONS, d, "ledger.jsonl")))
+    except OSError:
+        return []
+
+
+def _load(sid=None):
+    """Everything the harness wrote for one session (sid None: the operator's checks), re-read only when a file changed."""
+    base = os.path.join(SESSIONS, sid, "runs") if sid else BUILD1
+    ledger = os.path.join(SESSIONS, sid, "ledger.jsonl") if sid else None
+    man = os.path.join(ROOT, "harness", "manifest.json")
+    sig = (_mtime(ledger) if ledger else 0, _mtime(os.path.join(base, "index.json")), _mtime(OPERATOR), _mtime(man))
+    D = _cache.setdefault(("load", sid), {})
+    if D.get("sig") != sig:
         try:
-            manifest = json.load(open(os.path.join(ROOT, "harness", "manifest.json")))
+            manifest = json.load(open(man))
         except (OSError, ValueError):
             manifest = {}
-        _cache.update(sig=sig, ledger=_jsonl(LEDGER), manifest=manifest,
-                      index={r["id"]: r for r in _jsonl(os.path.join(RUNS, "index.json"))},
-                      oper={r["id"]: r for r in _jsonl(os.path.join(RUNS, "operator.jsonl"))})
-    return _cache
+        D.update(sig=sig, sid=sid, base=base, ledger_path=ledger, ledger=_jsonl(ledger) if ledger else [], manifest=manifest,
+                 index={r["id"]: r for r in _jsonl(os.path.join(base, "index.json"))},
+                 oper={r["id"]: r for r in _jsonl(OPERATOR) if r.get("session") == sid})   # the build checks' lines carry no session
+    return D
 
 
 def _epoch(ts):
@@ -68,12 +82,13 @@ def _epoch(ts):
         return None
 
 
-def _running():
-    """True while harness/loop.py is alive (a process whose command names loop.py and whose folder is the project)."""
+def _running(sid):
+    """True while harness/loop.py is alive on this session (a process whose command names loop.py and whose folder is
+    the project; its --session names the session, and without one it made the newest)."""
     now = time.time()
     if now - _cache.get("run_at", 0) < 5:
-        return _cache.get("run", False)
-    alive = False
+        return _cache.get("run") == sid
+    alive = None
     for pid in os.listdir("/proc"):
         if not pid.isdigit():
             continue
@@ -81,18 +96,18 @@ def _running():
             with open(f"/proc/{pid}/cmdline", "rb") as f:
                 cmd = f.read().split(b"\0")
             if any(a.endswith(b"loop.py") for a in cmd) and os.readlink(f"/proc/{pid}/cwd").startswith(ROOT):
-                alive = True
+                alive = cmd[cmd.index(b"--session") + 1].decode(errors="replace") if b"--session" in cmd[:-1] else (_sessions() or [None])[-1]
                 break
         except OSError:
             continue
     _cache.update(run=alive, run_at=now)
-    return alive
+    return alive == sid
 
 
-def _series(run_id):
-    """series.csv as columns; drops are turned from running totals into per-sample counts."""
-    path = os.path.join(RUNS, run_id, "series.csv")
-    key = ("series", run_id, _mtime(path))
+def _series(base, run_id):
+    """series.csv of a run in folder `base`, as columns; drops are turned from running totals into per-sample counts."""
+    path = os.path.join(base, run_id, "series.csv")
+    key = ("series", path, _mtime(path))
     if key in _cache:
         return _cache[key]
     cols = {k: [] for k in ("t", "udp", "tcp", "cwnd", "d0", "d1")}
@@ -150,14 +165,14 @@ def _row(rid, params, m, mode):
             "Drops UDP q": cnt(m.get("drops_band0")), "Drops TCP q": cnt(m.get("drops_band1"))}
 
 
-def _program(i, rid, ts, params, m, error, mode, **extra):
+def _program(i, rid, ts, params, m, error, mode, base, **extra):
     good = bool(m) and not error
     metrics = {"validity": 1 if good else 0, **(m or {})}
     if error:
         metrics["error"] = error
     sol = None
     if good:
-        sol = {"run_id": rid, "params": params or {}, "metrics": m, "series": _series(rid), "mode": mode}
+        sol = {"run_id": rid, "params": params or {}, "metrics": m, "series": _series(base, rid), "mode": mode}
     p = {"id": f"x{i:03d}", "iteration": i, "timestamp": ts, "parent_id": None, "generation": 0, "metrics": metrics,
          "changes": f"run {rid}: {_params_text(params)}", "node_id": None, "island": None, "migrant": False,
          "reasoning": None, "notebook_entry": None, "lesson": None, "fail_kind": None if good else "simulation failed",
@@ -168,9 +183,9 @@ def _program(i, rid, ts, params, m, error, mode, **extra):
     return p
 
 
-def _loop_parts():
-    """The ledger joined up: per experiment its hypothesis, evidence, verdict, thinking and timing."""
-    D = _load()
+def _loop_parts(sid):
+    """A session's ledger joined up: per experiment its hypothesis, evidence, verdict, thinking and timing."""
+    D = _load(sid)
     led = D["ledger"]
     by_id = {r["id"]: r for r in led}
     verdict_for = {}
@@ -195,9 +210,9 @@ def _loop_parts():
     return led, exps
 
 
-def _loop_main():
-    D = _load()
-    led, exps = _loop_parts()
+def _loop_main(sid):
+    D = _load(sid)
+    led, exps = _loop_parts(sid)
     programs, times = [], {}
     for i, q in enumerate(exps, 1):
         e, x, h, v = q["e"], q["x"], q["h"], q["v"]
@@ -227,7 +242,7 @@ def _loop_main():
         else:
             facts.append(["Verdict", "none: a baseline has no hypothesis to judge" if eb.get("note") else "none: the loop stopped before the model judged this hypothesis"])
         tb = (q["think"] or {}).get("body") or {}
-        p = _program(i, rid, _epoch(e.get("ts")), params, m if "udp_goodput_bps" in m else None, eb.get("error"), op.get("mode"),
+        p = _program(i, rid, _epoch(e.get("ts")), params, m if "udp_goodput_bps" in m else None, eb.get("error"), op.get("mode"), D["base"],
                      reasoning=tb.get("text") or tb.get("reasoning") or None,
                      headline=result or ("baseline" if eb.get("note") else "not judged"), headline_cls=result or "pending", facts=facts,
                      changes=f"{h.get('id', 'no hypothesis')} · turn {e['turn']} · run {rid}: {_params_text(xb.get('params') or params)}")
@@ -236,7 +251,7 @@ def _loop_main():
         if q["seconds"] is not None:
             times[p["id"]] = q["seconds"]
         programs.append(p)
-    running = _running()
+    running = _running(sid)
     last = programs[-1] if programs else None
     scratch = [r for r in led if r["type"] in ("draft", "scratch")]
     model = ((scratch[-1].get("body") or {}).get("model") if scratch else None) or "?"
@@ -244,7 +259,7 @@ def _loop_main():
               "last_completed": {"iteration": last["iteration"] if last else 0, "seconds": times.get(last["id"], 0) if last else 0,
                                  "at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime((last or {}).get("timestamp") or time.time()))},
               "current": None, "server_now": time.time(), "planned_last": None, "completed": len(programs),
-              "last_activity": _mtime(LEDGER) or time.time()}
+              "last_activity": _mtime(D["ledger_path"]) or time.time()}
     fixed = D["manifest"].get("fixed") or {}
     setup = {"model": model, "thinking": bool(scratch), "thinking_budget": None,
              "thinking_note": ("<b>on</b> · each answer may use up to 8,000 tokens, thinking included" if scratch
@@ -258,7 +273,7 @@ def _loop_main():
     return {"status": status, "programs": programs, "times": times, "limits": {"llm": 1800, "eval": 600},
             "failures": [], "failure_breakdown": [], "feedback": {}, "thinking": {}, "review": False, "reviewer": None,
             "summaries": False, "setup": setup, "gpus": "viewer", "exchanges": [], "memory": {}, "research": _research(led, exps),
-            "page": _raw()}
+            "page": _raw(sid)}
 
 
 def _research(led, exps):
@@ -318,21 +333,19 @@ def _knob_value(k, v):
     return f"{v:g}" if isinstance(v, float) else f"{v}{KNOB_UNIT.get(k, '')}"
 
 
-def _raw():
-    D = _load()
+def _raw(sid=None):
+    D = _load(sid)
     try:
         objects = json.load(open(os.path.join(HERE, "objects.json")))   # the network diagram's object list (viewer only)
     except (OSError, ValueError):
         objects = None
-    return {"sig": f"{len(D['ledger'])}/{len(D['index'])}",
+    return {"sig": f"{sid}/{len(D['ledger'])}/{len(D['index'])}",
             "raw": {"ledger": D["ledger"], "index": list(D["index"].values()), "oper": list(D["oper"].values()), "manifest": D["manifest"],
-                    "series": {rid: _series(rid) for rid in D["index"]}, "running": _running(), "objects": objects}}
+                    "series": {rid: _series(D["base"], rid) for rid in D["index"]}, "running": bool(sid) and _running(sid), "objects": objects}}
 
 
 def _check_ids():
-    D = _load()
-    used = {(r.get("body") or {}).get("run_id") for r in D["ledger"] if r["type"] == "evidence"}
-    return [rid for rid in D["index"] if rid not in used]
+    return list(_load()["index"])
 
 
 def _checks_main():
@@ -340,10 +353,10 @@ def _checks_main():
     programs, times = [], {}
     for i, rid in enumerate(_check_ids(), 1):
         idx, op = D["index"][rid], D["oper"].get(rid) or {}
-        ts = _mtime(os.path.join(RUNS, rid, "metrics.json")) or None
+        ts = _mtime(os.path.join(BUILD1, rid, "metrics.json")) or None
         m = idx.get("metrics") or {}
         stage = f"build stage {op['stage']}" if op.get("stage") is not None else "harness test"
-        p = _program(i, rid, ts, idx.get("params"), m, None, op.get("mode"),
+        p = _program(i, rid, ts, idx.get("params"), m, None, op.get("mode"), BUILD1,
                      facts=[["What this is", f"An operator check ({stage}), not an AI experiment."],
                             ["Scheduler mode", op.get("mode") or "–"],
                             ["Settings", ", ".join(f"{KNOB.get(k, k)} {_knob_value(k, v)}" for k, v in (idx.get("params") or {}).items() if k in KNOB) or "all defaults"],
@@ -404,30 +417,33 @@ def task_entry():
                      "<li><b>No score:</b> the AI must say what 'performance' means, so this page shows measurements and "
                      "verdicts, not a best-so-far.</li></ul></div>",
         "invalid_note": "The simulation did not return measurements.",
-        "runs": (1 if D["ledger"] else 0) + (1 if _check_ids() else 0)}
+        "runs": len(_sessions()) + (1 if _check_ids() else 0)}
 
 
 def list_runs_main():
-    D = _load()
     out = []
-    if D["ledger"]:
-        led, exps = _loop_parts()
+    for sid in _sessions():
+        led, exps = _loop_parts(sid)
+        if not led:
+            continue
         scratch = [r for r in led if r["type"] in ("draft", "scratch")]
-        out.append({"name": LOOP, "mtime": _mtime(LEDGER), "iterations": len(exps), "running": _running(),
+        out.append({"name": sid, "mtime": _mtime(_load(sid)["ledger_path"]), "iterations": len(exps), "running": _running(sid),
                     "model": ((scratch[-1].get("body") or {}).get("model") if scratch else None) or "?", "backend": "vllm",
                     "switches": ["thinking"] if scratch else [], "started": (led[0].get("ts") or "").replace("T", " ")[:16] or None})
     ids = _check_ids()
     if ids:
-        mt = max(_mtime(os.path.join(RUNS, rid)) for rid in ids)
+        mt = max(_mtime(os.path.join(BUILD1, rid)) for rid in ids)
         out.append({"name": CHECKS, "mtime": mt, "iterations": len(ids), "running": False, "model": "none (operator checks)",
                     "backend": "cpu", "switches": ["no AI"],
-                    "started": time.strftime("%Y-%m-%d %H:%M", time.localtime(min(_mtime(os.path.join(RUNS, rid)) for rid in ids)))})
+                    "started": time.strftime("%Y-%m-%d %H:%M", time.localtime(min(_mtime(os.path.join(BUILD1, rid)) for rid in ids)))})
     return out
 
 
 def api_run_main(name):
-    if name == LOOP and _load()["ledger"]:
-        return _loop_main()
+    if name == LOOP:   # links made before sessions had their own folders: the newest session
+        name = (_sessions() or [None])[-1]
+    if name in _sessions() and _load(name)["ledger"]:
+        return _loop_main(name)
     if name == CHECKS and _check_ids():
         return _checks_main()
     return None

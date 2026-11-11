@@ -1,12 +1,15 @@
 """The loop: rebuild the prompt from the ledger, ask the model once, run what it asked, append records.
-Writes only ledger.jsonl here (runs/ files are written by tools.run). Who else may write what: control.py's docstring."""
+One session = one folder, sessions/<id>/: its ledger.jsonl is written here, its runs/ by tools.run, and nothing in it
+is shared with another session. The operator's mode of each run goes to checks/operator.jsonl, outside that folder.
+Who else may write what: control.py's docstring."""
 import argparse, json, time
 from pathlib import Path
 import requests
 import tools
 
 ROOT = Path.home() / "project"
-H, LEDGER, API = ROOT / "harness", ROOT / "ledger.jsonl", "http://127.0.0.1:18000/v1"
+H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127.0.0.1:18000/v1"
+LEDGER = SID = None  # the current session's ledger and id, set in main()
 CAP = 6000  # characters of any tool result or ledger body shown to the model
 CEILING = 150  # most experiments one invocation can be granted: --budget plus every budget_request grant
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
@@ -24,12 +27,20 @@ def append(ledger, turn, type_, parent, body, rid=None):
     ledger.append(rec)
     return rec["id"]
 
+def run(params):
+    """tools.run, plus the operator's line for it: which session, which run, which mode, how long. No tool reads that file."""
+    res = tools.run(params)
+    OPERATOR.parent.mkdir(parents=True, exist_ok=True)
+    with OPERATOR.open("a") as f:
+        f.write(json.dumps({"session": SID, "id": res["id"], "mode": tools.MODE, "seconds": res.get("seconds")}) + "\n")
+    return res
+
 def baseline(ledger):
     """Before turn 1 of a new ledger: the harness runs the default experiment once and records it as evidence E0
     (turn 0, no parent, not counted in the run budget), so the model's first turn starts from an observed record."""
     if ledger:
         return
-    res = tools.run({})
+    res = run({})
     append(ledger, 0, "evidence", None, {"run_id": res["id"], "pass_if": None, "note": "default experiment (every parameter at its default), run by the harness before turn 1",
                                          **(res.get("metrics") or {}), **({"error": res["error"]} if "error" in res else {})}, rid="E0")
 
@@ -94,6 +105,7 @@ def call(q):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--session", help="session id: its folder is sessions/<id>/ (ledger.jsonl and runs/). Default: a new id sNNN. An existing id continues that session")
     ap.add_argument("--budget", type=int, default=30, help=f"experiments granted at the start (at most {CEILING}; the model can ask for more, up to {CEILING} in total)")
     ap.add_argument("--draft", choices=["on", "off"], default="on", help="on: the model may write a draft before its JSON answer (max_tokens 8000) and the draft is kept in the ledger; off: answer only (max_tokens 1500)")
     ap.add_argument("--mode", choices=["share", "cap"], default="share")
@@ -102,9 +114,13 @@ def main():
     a = ap.parse_args()
     if a.budget > CEILING:
         ap.error(f"--budget is at most {CEILING}")
+    global LEDGER, SID
     tools.MODE = a.mode
     manifest, schema, system = tools.describe_system(), json.loads((H / "schema.json").read_text()), (H / "prompt.txt").read_text()
     model = requests.get(API + "/models", timeout=30).json()["data"][0]["id"]
+    SID = tools.open_session(a.session)  # after the model server answered, so a failed start leaves no empty session folder
+    LEDGER = tools.SESSION / "ledger.jsonl"
+    print(f"session {SID}: {tools.SESSION}", flush=True)
     ledger = load_ledger()
     if a.baseline == "on":
         baseline(ledger)
@@ -163,7 +179,7 @@ def main():
             ex = parsed["experiment"]
             clean, clamps = tools.clamp(ex.get("params") or {})
             xid = append(ledger, turn, "experiment", hid or last, {"params": clean, "clamped": clamps, "metrics": ex.get("metrics"), "pass_if": ex["pass_if"], "observations": None if hid else parsed.get("observations")})
-            res = tools.run(clean)
+            res = run(clean)
             runs_done += 1
             append(ledger, turn, "evidence", xid, {"run_id": res["id"], "pass_if": ex["pass_if"], **(res.get("metrics") or {}), **({"error": res["error"]} if "error" in res else {})})
         if parsed.get("verdict") is not None:
@@ -172,7 +188,7 @@ def main():
         if parsed.get("done"):
             append(ledger, turn, "note", last, {"text": "model declared done", "observations": parsed.get("observations")})
             break
-    print(f"stopped: {runs_done} experiments, {turn} turns, ledger {LEDGER}")
+    print(f"stopped: session {SID}, {runs_done} experiments, {turn} turns, ledger {LEDGER}")
 
 if __name__ == "__main__":
     main()

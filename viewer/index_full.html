@@ -1,8 +1,9 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Two hosts, one link</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- The harness's own viewer: a static page. It reads ../ledger.jsonl, ../runs/index.json, ../runs/operator.jsonl,
-     ../harness/manifest.json, ../runs/<id>/series.csv, objects.json and ../checks/control.jsonl every 5 s and writes nothing.
+<!-- The harness's own viewer: a static page. It shows ONE session (?session=<id>; without it the session running now, else the newest, from
+     ../api/sessions): ../sessions/<id>/ledger.jsonl and runs/, plus the operator checks in ../checks/build1/,
+     ../checks/operator.jsonl, ../harness/manifest.json, objects.json and ../checks/control.jsonl, every 5 s, and writes nothing.
      It is served by harness/control.py. Its sixth page, "Control" (CONTROL below), is the only part that can cause a
      write, and only by asking control.py: POST /api/run, /api/session, /api/stop (who may write what: control.py's docstring).
      Content and layout live in adrs_view.js (TH_DATA builds the content, TASK_VIEW.page draws it); the same
@@ -77,6 +78,7 @@ const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(n).trim();  // used by adrs_view.js
 const RUNS = [['loop', 'The AI session'], ['operator_checks', 'Operator checks (no AI)']];
 let run = new URLSearchParams(location.search).get('run') || 'loop', shown = '', series = {};
+const PINNED = new URLSearchParams(location.search).get('session'); let ses = '';  // the session this page shows
 
 async function get(url) {  // text of a file next to the harness, or null; also how long ago it was last written
   try {
@@ -89,24 +91,28 @@ async function get(url) {  // text of a file next to the harness, or null; also 
 const lines = t => (t || '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean);
 
 async function load() {
-  const st = await get('../api/status');
+  const [st, sl] = await Promise.all([get('../api/status'), get('../api/sessions')]);
   CONTROL.st = (() => { try { const j = JSON.parse(st.text); return j && j.control ? j : null; } catch (e) { return null; } })();  // null: served by a plain file server, no Control page
-  const [led, idx, op, man, obj, ctl] = await Promise.all([get('../ledger.jsonl'), get('../runs/index.json'), get('../runs/operator.jsonl'), get('../harness/manifest.json'), get('objects.json'),
+  const all = (() => { try { const j = JSON.parse(sl.text); return Array.isArray(j) ? j : []; } catch (e) { return []; } })();  // empty when a plain file server serves the page
+  const want = all.some(s => s.id === PINNED) ? PINNED : (all.find(s => s.running) || all[all.length - 1] || { id: PINNED || 's001' }).id;
+  if (want !== ses) { ses = want; series = {}; shown = ''; }  // a new session started from the Control page is shown as soon as it exists
+  const [led, idx, chk, op, man, obj, ctl] = await Promise.all([get(`../sessions/${ses}/ledger.jsonl`), get(`../sessions/${ses}/runs/index.json`), get('../checks/build1/index.json'), get('../checks/operator.jsonl'), get('../harness/manifest.json'), get('objects.json'),
     CONTROL.st && !CONTROL.st.operator_runs ? { text: '' } : get('../checks/control.jsonl')]);  // not asked for while control.py says there is none yet
   const mine = lines(ctl.text).filter(r => r.id && r.metrics);  // operator runs started from the Control page (checks/op-*/): shown with the operator checks, never part of the AI session
   if (man.text == null) { $('note').textContent = 'Cannot read the harness files (is the file server running in ~/project?)'; return; }
-  const raw = { ledger: lines(led.text), index: [...lines(idx.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
-                oper: [...lines(op.text), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))],
+  const own = lines(idx.text);  // this session's runs; the operator's build checks (checks/build1/) are listed after them
+  const raw = { ledger: lines(led.text), index: [...own, ...lines(chk.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
+                oper: [...lines(op.text).filter(r => !r.session || r.session === ses), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))],
                 manifest: JSON.parse(man.text), series, objects: (() => { try { return JSON.parse(obj.text); } catch (e) { return null; } })(),
                 // control.py knows whether a loop is running; without it: the loop writes the ledger every turn, quiet for 3 minutes = not running
-                running: CONTROL.st ? !!((CONTROL.st.session && CONTROL.st.session.running) || CONTROL.st.other_loop) : led.age != null && led.age < 180 };
-  const dir = id => (mine.some(r => r.id === id) ? '../checks/' : '../runs/');
+                running: all.length ? all.some(s => s.id === ses && s.running) : led.age != null && led.age < 180 };
+  const dir = id => (mine.some(r => r.id === id) ? '../checks/' : own.some(r => r.id === id) ? `../sessions/${ses}/runs/` : '../checks/build1/');
   await Promise.all(raw.index.filter(r => !(r.id in series)).map(async r => { series[r.id] = TH_DATA.csv((await get(`${dir(r.id)}${r.id}/series.csv`)).text); }));
   const have = { loop: raw.ledger.length > 0, operator_checks: raw.index.some(r => !raw.ledger.some(e => e.type === 'evidence' && (e.body || {}).run_id === r.id)) };
   if (!have[run]) run = have.loop ? 'loop' : 'operator_checks';
   $('runs').innerHTML = RUNS.filter(([k]) => have[k]).map(([k, t]) => `<button data-run="${k}" class="${k === run ? 'on' : ''}">${t}</button>`).join('');
   $('runs').querySelectorAll('button').forEach(b => b.onclick = () => { run = b.dataset.run; history.replaceState(null, '', '?run=' + run + location.hash); shown = ''; load(); });
-  $('note').innerHTML = `Read from the harness's files at ${new Date().toLocaleTimeString()} · refreshed every 5 s · this page writes nothing${CONTROL.st ? ' itself (its Control page asks control.py to start runs)' : ''} · <a href="index.html">the streamlined page</a>`;
+  $('note').innerHTML = `Read from the harness's files at ${new Date().toLocaleTimeString()} · refreshed every 5 s · this page writes nothing${CONTROL.st ? ' itself (its Control page asks control.py to start runs)' : ''} · session ${ses} · <a href="index.html?session=${ses}">the streamlined page</a> (choose another session there)`;
   if (!have.loop && !have.operator_checks) { $('page').innerHTML = '<div class="empty">No ledger and no runs yet. Start the loop (harness/loop.py) and this page fills in.</div>'; return; }
   // redraw only when something changed, so reading, hovering and open sections are not disturbed
   const sig = [run, raw.ledger.length, raw.index.length, Object.keys(series).length, raw.running, (obj.text || '').length, !!CONTROL.st].join('|');
@@ -175,7 +181,7 @@ const CONTROL = {
     };
     $('ct-start').onclick = async () => {
       C.busy = 'session'; C.err.session = ''; C.paint();
-      try { await C.post('../api/session', { budget: Number(ui.budget), draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline && !(C.st && C.st.ledger_records) }); } catch (x) { C.err.session = x.message; }
+      try { await C.post('../api/session', { budget: Number(ui.budget), draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline }); } catch (x) { C.err.session = x.message; }
       C.busy = ''; await load(); C.paint();
     };
     $('ct-stop').onclick = async () => {
@@ -189,13 +195,13 @@ const CONTROL = {
   // everything that follows control.py's status, redrawn in place: the forms and what is typed in them are not touched
   paint() {
     const C = CONTROL, e = TASK_VIEW._e, st = C.st, raw = C.raw; if (!C.el || !C.el.isConnected || !st || !$('ct-status')) return;
-    const S = st.session, on = S && S.running, n = st.ledger_records, P = raw.manifest.params || {};
+    const S = st.session, on = S && S.running, n = (st.sessions || []).length, P = raw.manifest.params || {};
     const flags = S ? `${S.flags.budget} experiments, draft ${S.flags.draft}, ${S.flags.mode} mode` : '';
     const lastLine = S ? String(S.output || '').trim().split('\n').pop() : '';
     $('ct-status').className = 'ct-status' + (on || st.other_loop || st.run_busy ? ' live' : '');
     $('ct-status').innerHTML = '<i></i><span>' + (on ? `<b>An AI session is running</b> (${e(S.id)}, started ${e(S.started.slice(11, 16))}: ${e(flags)}).`
       : st.other_loop ? '<b>A loop started from a terminal is running.</b> A session cannot be started or stopped from this page until it ends.'
-      : '<b>No AI session is running.</b>') + ` The ledger has ${n} record${n === 1 ? '' : 's'}.` + (st.run_busy ? ' <b>An operator simulation is running.</b>' : '') + '</span>';
+      : '<b>No AI session is running.</b>') + ` There ${n === 1 ? 'is 1 session' : 'are ' + n + ' sessions'} so far; a session started here is a new one, with its own folder.` + (st.run_busy ? ' <b>An operator simulation is running.</b>' : '') + '</span>';
     // 1. the operator run
     const secs = (raw.oper || []).map(o => { const r = (raw.index || []).find(x => x.id === o.id); return o.seconds && r && r.params && r.params.duration ? o.seconds / (r.params.duration + 1) : null; }).filter(Boolean);
     const dur = Number(C.ui.params.duration);
@@ -211,13 +217,11 @@ const CONTROL = {
          <button class="rt-btn" id="ct-open">Open it on the Runs page</button>`);
     if ($('ct-open')) $('ct-open').onclick = () => { RUN_TOOLS.ui.a = L.id; RUN_TOOLS.ui.b = ''; location.hash = '#runs'; };
     // 2. the session
-    $('ct-baseline').disabled = n > 0;
-    $('ct-basenote').textContent = n > 0 ? `not applicable: the ledger already has ${n} records, so a session continues it. The baseline is run only on an empty ledger.`
-      : 'the harness first runs the default experiment and records it as evidence E0, so the AI starts from an observed result';
+    $('ct-basenote').textContent = 'the harness first runs the default experiment and records it as evidence E0, so the AI starts from an observed result';
     $('ct-start').disabled = !!C.busy || on || st.other_loop; $('ct-stop').disabled = !!C.busy || !on;
     $('ct-start').textContent = C.busy === 'session' && !on ? 'Starting…' : 'Start session';
     $('ct-session').innerHTML = '<h3>Session</h3>' + (C.err.session ? `<p class="ct-err">${e(C.err.session)}</p>` : '') +
-      (on ? `<p><b>${e(S.id)}</b> is running: ${e(flags)}${S.flags.baseline === 'on' ? ', baseline first' : ''}.</p><p class="th-sm" style="margin-top:4px">Its experiments appear on the other pages as they finish (choose “The AI session” at the top).</p>`
+      (on ? `<p><b>${e(S.id)}</b> is running: ${e(flags)}${S.flags.baseline === 'on' ? ', baseline first' : ''}.</p><p class="th-sm" style="margin-top:4px">Its experiments appear on the other pages as they finish (this page switches to the new session by itself).</p>`
         : S ? `<p><b>${e(S.id)}</b> has ended${S.returncode === 0 ? '' : S.returncode < 0 ? ' (stopped)' : ` (exit ${e(S.returncode)})`}: ${e(flags)}.</p>${S.returncode < 0 ? '<p class="th-sm" style="margin-top:4px">An experiment that was running when it was stopped has no evidence record.</p>' : ''}`
         : '<p class="th-muted">No session has been started from this page since control.py started.</p>') +
       (S && lastLine ? `<details${on ? '' : ' open'}><summary>The loop’s own output</summary><pre>${e(S.output)}</pre></details>` : '');
@@ -225,7 +229,7 @@ const CONTROL = {
 };
 
 // ======================================================================================================
-// RUN_TOOLS: the "Runs" page. Every run in ../runs/index.json (its params.json and metrics.json values) and
+// RUN_TOOLS: the "Runs" page. Every run of the session and of the operator's checks (its params.json and metrics.json values) and
 // its series.csv, drawn with Chart.js. 1. one run over time, or two on the same axes (the second dashed),
 // with their settings side by side. 2. any setting or measure against any other, one dot per run.
 // Every time chart has one tooltip per sample (time, run id, value, drops and queue occupancy); every chart
@@ -262,7 +266,7 @@ const RUN_TOOLS = {
     const runs = raw.index || [], oper = Object.fromEntries((raw.oper || []).map(r => [r.id, r]));
     if (R.state !== 'ready' || !runs.length) {
       el.innerHTML = R.sec(1, 'Runs', 'Two runs compared, any setting against any measure, export.', `<p class="th-muted">${
-        !runs.length ? 'No runs in runs/index.json yet.' : R.state === 'loading' ? 'Loading Chart.js from the CDN…'
+        !runs.length ? 'No runs yet.' : R.state === 'loading' ? 'Loading Chart.js from the CDN…'
         : 'Chart.js could not be loaded from cdn.jsdelivr.net, so this page has no charts. The other pages do not need it.'}</p>`);
       return;
     }
@@ -309,7 +313,7 @@ const RUN_TOOLS = {
     const axisOpts = sel => [['Settings (params.json)', pk.map(k => 'p:' + k)], ['Measures (metrics.json)', mk.map(k => 'm:' + k)], ['Measures as a share of the link', rk.map(k => 'r:' + k)]]
       .filter(g => g[1].length).map(([g, ks]) => `<optgroup label="${g}">${ks.map(k => `<option value="${e(k)}"${k === sel ? ' selected' : ''}>${e(label(k))}</option>`).join('')}</optgroup>`).join('');
     const st = R.studyData(runs, label);
-    h += R.sec(2, 'Any setting or measure against any other', `Every run in runs/index.json${(raw.oper || []).some(o => o.control) ? ' and every operator run started from the Control page' : ''} is one dot. Choose what the horizontal and the vertical axis show: any key of params.json or metrics.json.`,
+    h += R.sec(2, 'Any setting or measure against any other', `Every run of this session, every operator check${(raw.oper || []).some(o => o.control) ? ' and every operator run started from the Control page' : ''} is one dot. Choose what the horizontal and the vertical axis show: any key of params.json or metrics.json.`,
       `<div class="rt-bar"><label>Horizontal axis <select id="rt-x">${axisOpts(ui.x)}</select></label><label>Vertical axis <select id="rt-y">${axisOpts(ui.y)}</select></label></div>
        <div class="th-wide"><div>
          <div class="rt-chart" style="height:380px"><canvas id="rt-c3" role="img" aria-label="${e(label(ui.y))} against ${e(label(ui.x))}, one dot per run"></canvas></div>${exp('c3')}

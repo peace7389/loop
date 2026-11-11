@@ -1,8 +1,10 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Two hosts, one link</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- The harness's own viewer: a static page. It reads ../ledger.jsonl, ../runs/index.json, ../runs/operator.jsonl,
-     ../harness/manifest.json, ../runs/<id>/series.csv and ../checks/control.jsonl every 5 s and writes nothing.
+<!-- The harness's own viewer: a static page served by harness/control.py. It asks ../api/sessions for the list of
+     sessions, then reads the chosen session's own files (../sessions/<id>/ledger.jsonl, runs/index.json,
+     runs/<run>/series.csv), ../checks/operator.jsonl (the operator's mode of each run) and ../harness/manifest.json
+     every 5 s, and writes nothing. "Operator checks" shows ../checks/build1/ and ../checks/control.jsonl instead.
      Content and layout live in adrs_view.js (TH_DATA builds the content, TASK_VIEW.page draws it); the same file
      draws this task inside the ADRS main viewer. One page: every run, then the chosen run (why it was made, its
      numbers over time, what it showed). The charts are Chart.js, loaded from the CDN by adrs_view.js.
@@ -29,17 +31,14 @@ body { margin: 0; }
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 20px 24px 40px; }
 .bar { max-width: 1280px; margin: 0 auto 14px; display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
 .bar .lbl { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
-.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.seg button { font: inherit; font-size: 13.5px; padding: 5px 14px; border: 0; background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }
-.seg button + button { border-left: 1px solid var(--border); }
-.seg button.on { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
+.pick { font: inherit; font-size: 13.5px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); cursor: pointer; }
 .bar .end { margin-left: auto; } .bar a { color: var(--text-secondary); }
 .empty { max-width: 1280px; margin: 40px auto; color: var(--text-secondary); font-size: 15px; }
 </style></head><body>
 <div class="viz-root">
   <div class="bar">
     <span class="lbl">Showing</span>
-    <span class="seg" id="runs"></span>
+    <select class="pick" id="runs" aria-label="Session to show"></select>
     <span class="end" id="note"></span>
   </div>
   <div id="page"><div class="empty">Loading the harness's files…</div></div>
@@ -47,39 +46,47 @@ body { margin: 0; }
 <script>
 const $ = id => document.getElementById(id);
 const css = n => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(n).trim();  // used by adrs_view.js
-const RUNS = [['loop', 'The AI session'], ['operator_checks', 'Operator checks (no AI)']];
-let run = new URLSearchParams(location.search).get('run') || 'loop', series = {};
+const CHECKS = 'operator_checks', Q = new URLSearchParams(location.search);
+let run = Q.get('session') || Q.get('run') || '', series = {}, listed = '';
 
-async function get(url) {  // text of a file next to the harness, or null; also how long ago it was last written
+async function get(url) {  // text of a file next to the harness, or null
   try {
     const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) return { text: null, age: null };
-    const d = Date.parse(r.headers.get('Date') || ''), m = Date.parse(r.headers.get('Last-Modified') || '');
-    return { text: await r.text(), age: isFinite(d) && isFinite(m) ? (d - m) / 1000 : null };
-  } catch (e) { return { text: null, age: null }; }
+    return { text: r.ok ? await r.text() : null };
+  } catch (e) { return { text: null }; }
 }
-const lines = t => (t || '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean);
+const json = t => { try { return JSON.parse(t); } catch (e) { return null; } };
+const lines = t => (t || '').split('\n').filter(Boolean).map(json).filter(Boolean);
+const when = ts => String(ts || '').replace('T', ' ').slice(0, 16);
 
 async function load() {
-  // control.py (when it serves this page) knows whether a loop is running; the page only reads that
-  const st = await get('../api/status'), ctl = (() => { try { const j = JSON.parse(st.text); return j && j.control ? j : null; } catch (e) { return null; } })();
-  const [led, idx, op, man, own] = await Promise.all([get('../ledger.jsonl'), get('../runs/index.json'), get('../runs/operator.jsonl'), get('../harness/manifest.json'),
-    ctl && !ctl.operator_runs ? { text: '' } : get('../checks/control.jsonl')]);  // not asked for while control.py says there is none yet
-  const mine = lines(own.text).filter(r => r.id && r.metrics);  // operator runs started from the run-control page of the full viewer (checks/op-*/): shown with the operator checks, never part of the AI session
-  if (man.text == null) { $('note').textContent = 'Cannot read the harness files (is the file server running in ~/project?)'; return; }
-  const raw = { ledger: lines(led.text), index: [...lines(idx.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
-                oper: [...lines(op.text), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))],
-                manifest: JSON.parse(man.text), series,
-                // without control.py: the loop writes the ledger every turn, quiet for 3 minutes = not running
-                running: ctl ? !!((ctl.session && ctl.session.running) || ctl.other_loop) : led.age != null && led.age < 180 };
-  const dir = id => (mine.some(r => r.id === id) ? '../checks/' : '../runs/');
-  await Promise.all(raw.index.filter(r => !(r.id in series)).map(async r => { series[r.id] = TH_DATA.csv((await get(`${dir(r.id)}${r.id}/series.csv`)).text); }));
-  const have = { loop: raw.ledger.length > 0, operator_checks: raw.index.some(r => !raw.ledger.some(e => e.type === 'evidence' && (e.body || {}).run_id === r.id)) };
-  if (!have[run]) run = have.loop ? 'loop' : 'operator_checks';
-  $('runs').innerHTML = RUNS.filter(([k]) => have[k]).map(([k, t]) => `<button data-run="${k}" class="${k === run ? 'on' : ''}">${t}</button>`).join('');
-  $('runs').querySelectorAll('button').forEach(b => b.onclick = () => { run = b.dataset.run; history.replaceState(null, '', '?run=' + run); load(); });
-  $('note').innerHTML = `Read from the harness's files at ${new Date().toLocaleTimeString()} · refreshed every 5 s · this page writes nothing · <a href="index_full.html">the earlier six-page viewer</a> (system objects, packet events, run control)`;
-  if (!have.loop && !have.operator_checks) { $('page').innerHTML = '<div class="empty">No ledger and no runs yet. Start the loop (harness/loop.py) and this page fills in.</div>'; return; }
+  const [st, sl, man] = await Promise.all([get('../api/status'), get('../api/sessions'), get('../harness/manifest.json')]);
+  const ctl = json(st.text), ses = json(sl.text);
+  if (man.text == null || !Array.isArray(ses)) { $('note').textContent = 'Cannot read the harness (this page is served by harness/control.py, which also lists the sessions; is it running in ~/project?)'; return; }
+  // which one to show: the one asked for; otherwise the session running now, otherwise the newest
+  if (run !== CHECKS && !ses.some(s => s.id === run)) run = (ses.find(s => s.running) || ses[ses.length - 1] || { id: CHECKS }).id;
+  const sig = JSON.stringify([ses.map(s => [s.id, s.experiments, s.running, s.mode]), run]);
+  if (sig !== listed) {  // the list is redrawn only when it changed, so an open list is not closed by the 5 s refresh
+    listed = sig;
+    $('runs').innerHTML = '<optgroup label="AI sessions (newest first)">' + [...ses].reverse().map(s =>
+        `<option value="${s.id}"${s.id === run ? ' selected' : ''}>${s.id} · ${s.started ? when(s.started) : 'no record yet'} · ${s.experiments} experiment${s.experiments === 1 ? '' : 's'}${s.mode ? ' · mode ' + s.mode : ''}${s.running ? ' · running now' : ''}</option>`).join('') +
+      `</optgroup><optgroup label="No AI"><option value="${CHECKS}"${run === CHECKS ? ' selected' : ''}>Operator checks of the simulator</option></optgroup>`;
+    $('runs').onchange = () => { run = $('runs').value; history.replaceState(null, '', run === CHECKS ? '?run=' + CHECKS : '?session=' + run); load(); };
+  }
+  const checks = run === CHECKS, base = checks ? '../checks/build1/' : `../sessions/${run}/runs/`, shown = run;
+  const [led, idx, op, own] = await Promise.all([checks ? { text: '' } : get(`../sessions/${run}/ledger.jsonl`), get(base + 'index.json'), get('../checks/operator.jsonl'),
+    checks && (!ctl || ctl.operator_runs) ? get('../checks/control.jsonl') : { text: '' }]);  // operator runs started from the full viewer's Control page (checks/op-*/)
+  const mine = lines(own.text).filter(r => r.id && r.metrics);
+  const index = [...lines(idx.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))];
+  // the operator's line of each run: a session's lines carry its id, the build checks carry none
+  const oper = [...lines(op.text).filter(r => (checks ? !r.session : r.session === run)), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))];
+  const dir = id => (mine.some(r => r.id === id) ? '../checks/' : base), key = id => run + '/' + id;  // run ids repeat across sessions
+  await Promise.all(index.filter(r => !(key(r.id) in series)).map(async r => { series[key(r.id)] = TH_DATA.csv((await get(`${dir(r.id)}${r.id}/series.csv`)).text); }));
+  if (shown !== run) return;  // another session was chosen while these files were loading
+  const raw = { ledger: lines(led.text), index, oper, manifest: JSON.parse(man.text), series: Object.fromEntries(index.map(r => [r.id, series[key(r.id)]])),
+                running: ses.some(s => s.id === run && s.running) };
+  $('note').innerHTML = `Read from the harness's files at ${new Date().toLocaleTimeString()} · refreshed every 5 s · this page writes nothing · <a href="index_full.html${checks ? '' : '?session=' + run}">the earlier six-page viewer</a> (system objects, packet events, run control)`;
+  if (!checks && !raw.ledger.length) { $('page').innerHTML = `<div class="empty">Session ${run} has no record yet. This page fills in as the loop writes its ledger.</div>`; return; }
   TASK_VIEW.page($('page'), { raw, run });  // it redraws only when something changed, so reading, hovering and open sections are not disturbed
 }
 

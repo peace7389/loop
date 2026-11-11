@@ -8,9 +8,9 @@
 {"id": "cap-w0.5", "mode": "cap", "stage": 2}
 {"id": "cap-w0.2", "mode": "cap", "stage": 2}
 {"id": "cap-w0.8", "mode": "cap", "stage": 2}
-{"id": "r001", "mode": "share", "seconds": 4.1}
-{"id": "r002", "mode": "share", "seconds": 27.7}
-{"id": "r003", "mode": "share", "seconds": 13.4}
-{"id": "r004", "mode": "share", "seconds": 41.0}
-{"id": "r005", "mode": "share", "seconds": 28.3}
-{"id": "r006", "mode": "share", "seconds": 85.9}
+{"session": "s001", "id": "r001", "mode": "share", "seconds": 4.1}
+{"session": "s001", "id": "r002", "mode": "share", "seconds": 27.7}
+{"session": "s001", "id": "r003", "mode": "share", "seconds": 13.4}
+{"session": "s001", "id": "r004", "mode": "share", "seconds": 41.0}
+{"session": "s001", "id": "r005", "mode": "share", "seconds": 28.3}
+{"session": "s001", "id": "r006", "mode": "share", "seconds": 85.9}

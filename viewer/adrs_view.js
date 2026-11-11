@@ -254,7 +254,7 @@ const TASK_VIEW = {
       ['Predictions, checked from the numbers', O.rules_total ? `${O.rules_met} of ${O.rules_total} held` : '–', 'each rule was written by the AI before its run'],
       P.facts[5]];
     let h = `<div class="th"><header class="th-top"><div class="th-kicker">${e(P.kicker)}</div>
-      <div class="th-titleline"><h1>${e(P.title)}<small>run “${e(data.run)}”</small></h1>
+      <div class="th-titleline"><h1>${e(P.title)}<small>${loop ? 'session' : 'run'} “${e(data.run)}”</small></h1>
         ${O ? `<span class="th-state${O.running ? ' live' : ''}"><i></i>${O.running ? 'Running now' : O.done ? 'Finished: the AI declared an answer' : 'Stopped before the AI declared an answer'}</span>` : ''}</div>
       <p class="th-q">${e(P.question)}</p>
       <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"><dt>${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl></header>`;
@@ -683,7 +683,7 @@ const TH_DATA = {
       knobs: Object.entries(man.params || {}).map(([k, v]) => ({ name: D.KNOB[k] || k, range: v.choices ? v.choices.join(' / ') : `${v.min} to ${D.knob(k, v.max)}`, default: D.knob(k, v.default) })),
       outcome: { experiments: real.length, supported: res('supported'), refuted: res('refuted'), inconclusive: res('inconclusive'), unjudged: real.filter(h => !h.verdict).length,
         rules_met: hyps.filter(h => h.total && h.met === h.total).length, rules_total: hyps.filter(h => h.total).length,
-        turns: turns.filter(t => t.turn > 0).length, wasted: count('wasted'), info: count('info'), done: count('done') > 0, running: !!raw.running,
+        turns: turns.filter(t => t.turn > 0).length, wasted: count('wasted'), info: count('info'), done: led.some(r => r.type === 'note' && (r.body || {}).text === 'model declared done'), running: !!raw.running,
         latest: latest ? { id: latest.id, text: latest.text } : null },
       turns, hyps };
     return { page, programs };
