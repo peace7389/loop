@@ -782,7 +782,7 @@ const TH_DATA = {
     const bySource = Object.fromEntries(D.SOURCES.map(b => [b, written.filter(r => D.by(r) === b).length]));
     const page = { kind: 'loop', brief: man.brief || null, by: bySource, by_derived: written.some(r => !r.by), many: led !== written, title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',
       facts: [
-        ['AI model', String((scratch.length && (scratch[scratch.length - 1].body || {}).model) || '?').split('/').pop(), 'local model on vLLM'],
+        ['AI model', String((scratch.length && (scratch[scratch.length - 1].body || {}).model) || man.model || '?').split('/').pop(), 'local model on vLLM'],
         ['Thinking', scratch.length ? 'on' : 'off', scratch.length ? 'its reasoning is kept in the record' : 'no reasoning recorded'],
         ['Session', led.length ? String(led[0].ts || '').replace('T', ' ').slice(0, 16) : '–', mins != null ? mins + ' minutes' : ''],
         ['Experiments', String(real.length), 'chosen by the AI' + (hyps.length > real.length ? ', plus 1 baseline run by the harness' : '')],

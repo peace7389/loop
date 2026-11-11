@@ -95,7 +95,9 @@ def _load(sid=None):
     if D.get("sig") != sig:
         # what the session was given: its session.json; a session made before briefs existed (and the operator's
         # checks) has none, and the open brief with the tool and output descriptions stands in
+        model = None
         try:
+            model = json.load(open(meta)).get("model")
             given = json.load(open(meta))["given"]
         except (OSError, ValueError, KeyError):
             given = {}
@@ -105,7 +107,7 @@ def _load(sid=None):
                 except (OSError, ValueError):
                     pass
             given["id"] = None
-        manifest = {**given, "params": given.get("knobs") or {}, "fixed": given.get("system") or {}, "brief": given.get("id")}
+        manifest = {**given, "params": given.get("knobs") or {}, "fixed": given.get("system") or {}, "brief": given.get("id"), "model": model}
         written = _jsonl(ledger) if ledger else []
         D.update(sig=sig, sid=sid, base=base, ledger_path=ledger, written=written, ledger=_flat(written), manifest=manifest,
                  index={r["id"]: r for r in _jsonl(os.path.join(base, "index.json"))},

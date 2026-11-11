@@ -1,6 +1,6 @@
 """The loop: rebuild the prompt from the ledger, ask the model once, do what its answer asks, append records.
 One session = one folder, sessions/<id>/, and one brief (briefs/<id>.json, the assignment): session.json (what the
-session was given) and ledger.jsonl are written here, runs/ by tools.run_many, and nothing in it is shared with another
+session was given), ledger.jsonl and drafts.jsonl are written here, runs/ by tools.run_many, and nothing in it is shared with another
 session. The scheduling policy of each simulation (the operator's choice) goes to checks/operator.jsonl, outside that folder.
 
 A turn's answer may state new hypotheses, drop hypotheses, give verdicts, and design ONE experiment: a set of
@@ -22,6 +22,7 @@ H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127
 LEDGER = SID = None  # the current session's ledger and id, set in main()
 CAP = 6000  # characters of any tool result or ledger body shown to the model
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
+NEED = "the report cannot be accepted yet: a hypothesis that has a checked decision rule needs a verdict. Still without one: "
 UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
 PREFIX = {"hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
           "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T"}
@@ -210,7 +211,7 @@ def check_report(rep, brief, ids):
         return "report.open_questions must be a list of texts (it may be empty)"
     return None
 
-def validate(t, brief, ledger, left, final=False):
+def validate(t, brief, ledger, left, final=False, insist=True):
     """None if the answer can be used as it is; otherwise the first thing wrong with it (the turn is then malformed and
     nothing in it is recorded or run). final: the budget is used up and this is the last turn."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
@@ -225,6 +226,8 @@ def validate(t, brief, ledger, left, final=False):
             return f"verdict for {v['for']}: needs a result (supported, refuted or inconclusive) and a because"
         st[v["for"]] = v["result"]
     for d in drops:
+        if d.get("id") in checked and st.get(d["id"]) == "open":
+            return f"drop: {d['id']} has a checked decision rule, so it cannot be dropped: it needs a verdict (supported, refuted or inconclusive) instead"
         if st.get(d.get("id")) != "open" or not text(d.get("why")):
             return f"drop: {d.get('id')} must be an open hypothesis, with a reason"
         st[d["id"]] = "dropped"
@@ -284,6 +287,9 @@ def validate(t, brief, ledger, left, final=False):
         err = check_report(report, brief, {r["id"] for r in ledger})
         if err:
             return err
+        waiting = sorted((h for h in checked if st.get(h) == "open"), key=lambda h: int(h[1:]))  # tested, and not judged even by this answer
+        if insist and waiting:  # refused once per session: the model is asked for these verdicts together with the report
+            return NEED + ", ".join(waiting) + ". Give their verdicts in the same answer as the report."
     if not (new or drops or verdicts or ex is not None or t.get("requests") or t.get("done") or report is not None):
         return "the answer does nothing: no hypothesis, drop, verdict, experiment or request, and done is false"
     return None
@@ -336,6 +342,7 @@ def main():
     if a.baseline == "on":
         baseline(ledger)
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
+    asked = False  # whether the model was already asked for the verdicts that were missing when it sent its report
     how, unusable = None, 0  # how the session ended (None while it runs); turns in a row without a usable answer
     count = {"calls": 0, "length": 0}  # requests answered by the model server, and how many of them ended with finish_reason "length"
 
@@ -344,7 +351,7 @@ def main():
         m = json.loads(meta.read_text())
         st = states(ledger)[0]
         m.update(ended=time.strftime("%Y-%m-%dT%H:%M:%S"), how=how or "stopped from outside", report=next((r["id"] for r in reversed(ledger) if r["type"] == "report"), None),
-                 left_open=[h for h, v in st.items() if v == "open"], turns=turn, simulations=sims, calls=count["calls"], cut_off=count["length"])
+                 left_open=[h for h, v in st.items() if v == "open"], without_verdict=[h for h in sorted(states(ledger)[1], key=lambda h: int(h[1:])) if st.get(h) == "open"], turns=turn, simulations=sims, calls=count["calls"], cut_off=count["length"])
         meta.write_text(json.dumps(m, indent=1) + "\n")
 
     if meta.exists() and json.loads(meta.read_text()).get("report"):
@@ -376,7 +383,9 @@ def main():
                 count["calls"] += 1
                 count["length"] += finish_reason == "length"
                 if a.draft == "on":
-                    last = append(ledger, turn, "draft", last, {"text": draft, "model": model, "finish_reason": finish_reason, "tokens": usage.get("completion_tokens")})
+                    last = append(ledger, turn, "draft", last, {"chars": len(draft), "tokens": usage.get("completion_tokens"), "model": model, "finish_reason": finish_reason})
+                    with (tools.SESSION / "drafts.jsonl").open("a") as f:  # the text itself: its own file, one line per draft, by the ledger id
+                        f.write(json.dumps({"id": last, "turn": turn, "text": draft}) + "\n")
                 if not content.strip() or finish_reason == "length":
                     err = f"empty content or finish_reason={finish_reason}"
                     continue
@@ -385,14 +394,17 @@ def main():
                 except ValueError as e:
                     err, parsed = f"invalid JSON: {e}", None
                     continue
-                err = validate(parsed, brief, ledger, budget - sims, final)
+                err = validate(parsed, brief, ledger, budget - sims, final, insist=not asked)
                 if err is None:
                     break
                 parsed = None
+                if err.startswith(NEED):  # said once; the next turn shows it, and the report is then taken as it comes
+                    asked = True
+                    break
             if parsed is None:
                 append(ledger, turn, "malformed", last, {"error": err, "content": content[:2000]})
                 unusable += 1
-                if final:
+                if final and not err.startswith(NEED):
                     how = "simulation limit reached, no usable report"
                 elif unusable >= UNUSABLE:  # without this a model whose every answer is cut off or refused would be asked for ever
                     append(ledger, turn, "note", ledger[-1]["id"], {"text": f"loop stopped by the harness: {UNUSABLE} turns in a row gave no usable answer"})

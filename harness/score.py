@@ -5,10 +5,9 @@ It reads the session's own session.json and report.json, the session's schedulin
 answer key of its brief (checks/keys/<brief>.json: which sweep belongs to which scheduling policy, and the checklist)
 and that sweep's table (checks/sweeps/<id>/table.csv), and writes checks/scores/<session>.json:
   - the best row of the sweep for the goal (the target, among the rows where every condition holds);
-  - the row nearest the model's recommendation, the gap between the two on the target, and whether the conditions hold there;
-  - when the recommendation is not a point of the grid: one operator simulation at exactly the recommended settings
-    (checks/scores/<session>.recommendation/), with the same gap and conditions from it, because the nearest row can sit
-    on the other side of a threshold;
+  - one operator simulation at exactly the settings the model recommends (checks/scores/<session>.recommendation/),
+    always: the gap between the best row and that simulation on the target, and whether the conditions hold in it.
+    (A row of the grid near the recommendation is not used: it can sit on the other side of a threshold.)
   - the simulations the session used, and the size of the sweep;
   - the checklist, each item yes / no / unjudged. The operator judges: --judge 2=yes, or edit the file; judgements
     already in the file are kept when the score is written again.
@@ -25,18 +24,6 @@ def number(v):
         return tools._rate_bps(v) if str(v).endswith("bps") else float(v)
     except (TypeError, ValueError):
         return None
-
-def distance(row, want, knobs):
-    """How far a sweep row is from the recommended settings: per knob the difference as a part of its range (0 or 1 for a choice)."""
-    d = 0.0
-    for k, spec in knobs.items():
-        a, b = row.get(k), want[k]
-        if "choices" in spec:
-            d += str(a) != str(b)
-        else:
-            lo, hi = number(spec["min"]), number(spec["max"])
-            d += abs(number(a) - number(b)) / ((hi - lo) or 1)
-    return d
 
 def main():
     ap = argparse.ArgumentParser(description="Score a finished session against the sweep of its brief and scheduling policy.")
@@ -82,26 +69,20 @@ def main():
     knobs = brief["knobs"]
     show = lambda r: {k: r[k] for k in knobs} | {k: r["_m"][k] for k in ("udp_goodput_bps", "tcp_goodput_bps", "udp_loss_frac", "link_util") if k in r["_m"]}
 
-    # the recommendation: the knobs the report names, the others at their defaults; the nearest row of the sweep
+    # the recommendation: the knobs the report names, the others at their defaults, measured by one operator simulation
     rec = report["recommendation"]
     want = {k: rec.get(k, spec["default"]) for k, spec in knobs.items()}
-    near = min(rows, key=lambda r: distance(r, want, knobs))
-    dist = distance(near, want, knobs)
-    gap = None if best is None else (best["_m"][target] - near["_m"][target]) * (1 if direction == "max" else -1)
+    opts = tools.options(tools.clamp(want, brief)[0], brief)
+    d = CHECKS / "scores" / f"{a.session}.recommendation"
+    d.mkdir(parents=True, exist_ok=True)
+    stamp = [opts, policy, tools.BIN.stat().st_mtime]  # run again when the settings, the policy or the built program changed
+    if not (d / "metrics.json").is_file() or not (d / "options.json").is_file() or json.loads((d / "options.json").read_text()) != stamp:
+        subprocess.run([str(tools.BIN)] + [f"--{k}={v}" for k, v in opts.items()] + [f"--out={d}"], cwd=d, check=True, capture_output=True, timeout=tools.RUN_TIMEOUT,
+                       env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy})
+        (d / "options.json").write_text(json.dumps(stamp))
+    at = json.loads((d / "metrics.json").read_text())
+    gap = None if best is None else (best["_m"][target] - at[target]) * (1 if direction == "max" else -1)
     ties = [r for r in allowed if best is not None and r["_m"][target] == best["_m"][target]]
-
-    # off the grid: measure the recommendation itself, once, by the built program (an operator simulation)
-    exact = None
-    if dist >= 1e-9:
-        opts = tools.options(tools.clamp(want, brief)[0], brief)
-        d = CHECKS / "scores" / f"{a.session}.recommendation"
-        d.mkdir(parents=True, exist_ok=True)
-        if not (d / "metrics.json").is_file() or json.loads((d / "options.json").read_text()) != [opts, policy]:
-            subprocess.run([str(tools.BIN)] + [f"--{k}={v}" for k, v in opts.items()] + [f"--out={d}"], cwd=d, check=True, capture_output=True, timeout=tools.RUN_TIMEOUT,
-                           env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy})
-            (d / "options.json").write_text(json.dumps([opts, policy]))
-        exact = json.loads((d / "metrics.json").read_text())
-    exact_gap = None if exact is None or best is None else (best["_m"][target] - exact[target]) * (1 if direction == "max" else -1)
 
     out_file = CHECKS / "scores" / f"{a.session}.json"
     old = json.loads(out_file.read_text()) if out_file.is_file() else {}
@@ -115,11 +96,10 @@ def main():
     score = {"session": a.session, "brief": brief["id"], "scheduling_policy": policy, "sweep": sweep["sweep"], "sweep_size": len(rows),
              "goal": {"target": target, "direction": direction, "conditions": conditions, "from": source},
              "best_row": show(best) if best else None, "rows_meeting_the_conditions": len(allowed), "rows_as_good_as_the_best": len(ties),
-             "recommendation": rec, "recommendation_with_defaults": want, "nearest_row": show(near), "nearest_row_distance": round(dist, 6), "on_the_grid": dist < 1e-9,
-             "conditions_hold_at_the_recommendation": dict(zip(conditions, holds(near["_m"]))),
+             "recommendation": rec, "recommendation_with_defaults": want,
+             "at_the_recommendation": {k: at[k] for k in ("udp_goodput_bps", "tcp_goodput_bps", "udp_loss_frac", "link_util")},
+             "conditions_hold_at_the_recommendation": dict(zip(conditions, holds(at))),
              "gap_on_target": gap, "gap_as_part_of_best": None if gap is None or not best["_m"][target] else gap / best["_m"][target],
-             "at_the_recommendation_itself": None if exact is None else {"measured": {k: exact[k] for k in ("udp_goodput_bps", "tcp_goodput_bps", "udp_loss_frac", "link_util")},
-                                                                         "conditions_hold": dict(zip(conditions, holds(exact))), "gap_on_target": exact_gap},
              "expected_by_the_model": report.get("expected"), "simulations_used": meta.get("simulations"), "simulations_allowed": brief["limits"]["simulations"],
              "how_the_session_ended": meta.get("how"), "left_open": meta.get("left_open"), "checklist": checklist}
     out_file.parent.mkdir(parents=True, exist_ok=True)
@@ -133,15 +113,11 @@ def main():
               + f"   ({len(allowed)} rows meet the conditions; {len(ties)} are as good as the best)")
     else:
         print("no row of the sweep meets the conditions")
-    print(f"the model's recommendation: " + ", ".join(f"{k}={v}" for k, v in rec.items()) + f"   -> nearest row{'' if dist < 1e-9 else f' (not on the grid, distance {dist:.4f})'}: "
-          + ", ".join(f"{k}={near[k]}" for k in knobs) + f"; {target} = {unit(near['_m'][target])}")
-    print("conditions at the recommendation: " + (", ".join(f"{c}: {'holds' if ok else 'DOES NOT HOLD'}" for c, ok in zip(conditions, holds(near["_m"]))) or "none"))
+    print("the model's recommendation: " + ", ".join(f"{k}={v}" for k, v in rec.items()) + f"   -> one operator simulation at exactly these settings: {target} = {unit(at[target])}")
+    print("conditions at the recommendation: " + (", ".join(f"{c}: {'holds' if ok else 'DOES NOT HOLD'}" for c, ok in zip(conditions, holds(at))) or "none"))
     if gap is not None:
-        print(f"GAP on {target}, best row minus nearest row: {unit(gap)} ({100 * gap / best['_m'][target]:.3f}% of the best)")
-    if exact is not None:
-        print(f"at the recommendation itself (one operator simulation): {target} = {unit(exact[target])}; "
-              + (", ".join(f"{c}: {'holds' if ok else 'DOES NOT HOLD'}" for c, ok in zip(conditions, holds(exact))) or "no conditions")
-              + (f"; GAP, best row minus this: {unit(exact_gap)} ({100 * exact_gap / best['_m'][target]:.3f}% of the best)" if exact_gap is not None else ""))
+        print(f"GAP on {target}, best row of the sweep minus the recommendation: {unit(gap)} ({100 * gap / best['_m'][target]:.3f}% of the best)"
+              + ("  [the recommendation is better than every row of the sweep that meets the conditions]" if gap < 0 else ""))
     print(f"SIMULATIONS: the session used {meta.get('simulations')} of {brief['limits']['simulations']} allowed; the sweep has {len(rows)}")
     print("checklist (the operator's judgement): " + "; ".join(f"{c['n']}. {c['judgement']}" for c in checklist))
     print(f"written: {out_file}")

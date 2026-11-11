@@ -68,7 +68,7 @@ async function given(meta) {
     if (!standIn) { const [b, m] = await Promise.all([get('../briefs/two-hosts-open.json'), get('../harness/manifest.json')]); standIn = json(b.text) && json(m.text) ? { ...json(b.text), ...json(m.text), id: null } : null; }
     g = standIn;
   }
-  return g && { ...g, params: g.knobs, fixed: g.system, brief: g.id };
+  return g && { ...g, params: g.knobs, fixed: g.system, brief: g.id, model: (meta && meta.model) || null };
 }
 
 async function load() {

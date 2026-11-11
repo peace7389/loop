@@ -24,6 +24,14 @@ using namespace ns3;
 
 static uint64_t g_udpTxPkts = 0;
 static uint64_t g_udpRxPkts = 0;
+// udp_loss_frac counts the UDP packets SENT inside the measured seconds, and how many of exactly those arrived
+// (whenever they arrived), so a packet sent just before the measured seconds and received inside them is not counted.
+static int64_t g_winFrom = 0; // the measured seconds, in ns
+static int64_t g_winTo = 0;
+static uint64_t g_udpTxWin = 0;  // UDP packets sent inside them
+static uint64_t g_udpRxWin = 0;  // of those, the ones that arrived
+static uint64_t g_uidFirst = 0;  // uid of the first and of the last UDP packet sent inside them
+static uint64_t g_uidLast = 0;
 static uint64_t g_linkTxBytes = 0;
 static uint32_t g_cwnd = 0;
 static uint64_t g_tcpRetrans = 0;
@@ -134,11 +142,25 @@ static void TcpRxEv(std::string ctx, Ptr<const Packet> p, const TcpHeader& h, Pt
 static void UdpTx(Ptr<const Packet> p)
 {
     ++g_udpTxPkts;
+    int64_t now = Simulator::Now().GetNanoSeconds();
+    if (now >= g_winFrom && now < g_winTo)
+    {
+        if (g_udpTxWin == 0)
+        {
+            g_uidFirst = p->GetUid();
+        }
+        g_uidLast = p->GetUid();
+        ++g_udpTxWin;
+    }
     Ev("create", "udp0", "udp", 'u', p->GetUid(), p->GetSize(), 0);
 }
 static void UdpRx(Ptr<const Packet> p, const Address&)
 {
     ++g_udpRxPkts;
+    if (g_udpTxWin > 0 && p->GetUid() >= g_uidFirst && p->GetUid() <= g_uidLast)
+    {
+        ++g_udpRxWin;
+    }
     Ev("deliver", "udp1", "udp", 'u', p->GetUid(), p->GetSize(), 0);
 }
 static void LinkTx(Ptr<const Packet> p) { g_linkTxBytes += p->GetSize(); }
@@ -304,6 +326,8 @@ main(int argc, char* argv[])
     const double tStart = 1.0;
     const double tMeasure = tStart + warmup;
     const double tStop = tMeasure + duration;
+    g_winFrom = Seconds(tMeasure).GetNanoSeconds();
+    g_winTo = Seconds(tStop).GetNanoSeconds();
     // Each sender starts up to 10 ms after tStart; the offsets depend on --seed.
     Ptr<UniformRandomVariable> offset = CreateObject<UniformRandomVariable>();
     const double udpAt = tStart + offset->GetValue(0.0, 0.01);
@@ -406,8 +430,7 @@ main(int argc, char* argv[])
     uint64_t linkBps = DataRate(linkRate).GetBitRate();
     double udpBps = (c1.udpRxBytes - c0.udpRxBytes) * 8.0 / duration;
     double tcpBps = (c1.tcpRxBytes - c0.tcpRxBytes) * 8.0 / duration;
-    uint64_t udpTx = c1.udpTxPkts - c0.udpTxPkts;
-    double loss = udpTx ? 1.0 - double(c1.udpRxPkts - c0.udpRxPkts) / double(udpTx) : 0.0;
+    double loss = g_udpTxWin ? 1.0 - double(g_udpRxWin) / double(g_udpTxWin) : 0.0;
     double util = (c1.linkTxBytes - c0.linkTxBytes) * 8.0 / duration / double(linkBps);
 
     std::ofstream pj(out + "/params.json");

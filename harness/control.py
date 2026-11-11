@@ -12,7 +12,8 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
                        Without "session" it is a new session (the next id sNNN) on the named brief (default two-hosts-open;
                        budget defaults to the brief's limit); with the id of an existing session it continues that one.
   POST /api/stop       stops the session that was started here
-  POST /api/sweep      {brief, policy, grid: {knob: [values]}}: every combination of the grid, run by the built program
+  POST /api/sweep      {brief, policy, grid: {knob: [values]}} (or {add_to: <sweep id>, grid, rerun}: more combinations
+                       into an existing sweep's table): every combination of the grid, run by the built program
                        directly, at most 64 at a time -> checks/sweeps/<id>/table.csv (one row per simulation) and
                        status.json (progress). One sweep at a time. Returns the sweep's status, with its id.
   GET  /api/sweep/<id> that sweep's status.json
@@ -210,14 +211,16 @@ def write_status(folder, st):
     tmp.replace(folder / "status.json")
 
 
-def run_sweep(folder, brief, policy, combos, st, stop):
+def run_sweep(folder, brief, policy, combos, st, stop, kept=()):
     """Every combination, at most PARALLEL at a time, by the built program directly. One row per simulation in
-    table.csv, in the order they finish (sorted by number at the end); a run's own folder is removed once its row is written."""
+    table.csv, in the order they finish (sorted by number at the end); a run's own folder is removed once its row is written.
+    kept: the rows of the table that stay as they are when combinations are added to an existing sweep."""
     cols = ["i", *tools.OPTIONS, *tools.MANIFEST["outputs"], "seconds", "error"]
-    rows, running, nxt, t_start = [], {}, 0, time.time()
+    rows, running, nxt, t_start, first = list(kept), {}, 0, time.time(), len(kept)
     with (folder / "table.csv").open("w", newline="") as f:
         out = csv.DictWriter(f, cols)
         out.writeheader()
+        out.writerows(rows)
         while running or (nxt < len(combos) and not stop.is_set()):
             while nxt < len(combos) and len(running) < PARALLEL and not stop.is_set():
                 opts, d = tools.options(combos[nxt], brief), folder / "runs" / str(nxt)
@@ -232,7 +235,7 @@ def run_sweep(folder, brief, policy, combos, st, stop):
                     proc.kill()
                 if proc.poll() is None:
                     continue
-                row = {"i": i, **opts, "seconds": round(time.time() - t0, 1)}
+                row = {"i": first + i, **opts, "seconds": round(time.time() - t0, 1)}
                 if proc.returncode == 0 and (d / "metrics.json").exists():
                     row.update(json.loads((d / "metrics.json").read_text()))
                 else:
@@ -255,7 +258,16 @@ def run_sweep(folder, brief, policy, combos, st, stop):
 
 
 def start_sweep(body):
-    """A grid of knob values for one brief and one scheduling policy; every combination is one simulation."""
+    """A grid of knob values for one brief and one scheduling policy; every combination is one simulation.
+    With "add_to": <sweep id> the grid's combinations that the sweep does not have yet are added to its table (same brief
+    and policy); with "rerun": true as well, every combination the table already has is run again too (after the
+    simulator changed), so the whole table comes from one build. The table as it was is kept beside it."""
+    old = None
+    if body.get("add_to") is not None:
+        old = sweep_status(str(body["add_to"]))
+        if old["state"] == "running":
+            raise Refused(409, f"sweep {old['id']} is still running")
+        body = {**body, "brief": old["brief"], "policy": old["policy"]}
     policy, grid = body.get("policy", "share"), body.get("grid")
     try:
         brief = tools.load_brief(body.get("brief", tools.DEFAULT_BRIEF))
@@ -273,20 +285,31 @@ def start_sweep(body):
                 raise Refused(400, f"{k}={v!r} cannot be read: {e}")
             if clamps:
                 raise Refused(400, f"{k}={v!r} is outside what the brief allows")
-    combos = [dict(zip(grid, c)) for c in itertools.product(*grid.values())]
+    combos, kept = [dict(zip(grid, c)) for c in itertools.product(*grid.values())], []
+    if old:
+        knobs, same = brief["knobs"], lambda c: tools.same(tools.options(c, brief))
+        value = lambda k, v: v if "choices" in knobs[k] or isinstance(knobs[k]["min"], str) else int(float(v)) if isinstance(knobs[k]["min"], int) and isinstance(knobs[k]["max"], int) else float(v)
+        have = [{**r, "i": int(r["i"])} for r in csv.DictReader((CHECKS / "sweeps" / old["id"] / "table.csv").open()) if not r.get("error")]
+        earlier = [{k: value(k, r[k]) for k in knobs} for r in have]
+        seen = {same(c) for c in earlier}
+        new = [c for c in combos if same(c) not in seen]
+        combos, kept = (earlier + new, []) if body.get("rerun") else (new, have)
     if len(combos) > SWEEP_MAX:
         raise Refused(400, f"the grid has {len(combos)} combinations; a sweep is at most {SWEEP_MAX}")
     with LOCK:
         if SWEEP and SWEEP["thread"].is_alive():
             raise Refused(409, f"sweep {SWEEP['id']} is still running")
-        sid = "sw-" + time.strftime("%Y%m%d-%H%M%S")
+        sid = old["id"] if old else "sw-" + time.strftime("%Y%m%d-%H%M%S")
         folder = CHECKS / "sweeps" / sid
-        folder.mkdir(parents=True)
-        st = {"id": sid, "brief": brief["id"], "policy": policy, "grid": grid, "total": len(combos), "done": 0, "failed": 0, "running": 0, "state": "running",
+        folder.mkdir(parents=True, exist_ok=True)
+        st = {"id": sid, "brief": brief["id"], "policy": policy, "grid": grid, "total": len(kept) + len(combos), "done": len(kept), "failed": 0, "running": 0, "state": "running",
               "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "ended": None, "seconds": 0}
+        if old:  # the grids the table was made from, in order; the table as it was stays beside the new one
+            st.update(grid=old["grid"], added=[*old.get("added", []), {"grid": grid, "rerun": bool(body.get("rerun")), "at": st["started"]}], first_started=old.get("first_started", old["started"]))
+            shutil.copy(folder / "table.csv", folder / f"table.before-{time.strftime('%Y%m%d-%H%M%S')}.csv")
         write_status(folder, st)
         stop = threading.Event()
-        thread = threading.Thread(target=run_sweep, args=(folder, brief, policy, combos, st, stop), daemon=True)
+        thread = threading.Thread(target=run_sweep, args=(folder, brief, policy, combos, st, stop, kept), daemon=True)
         SWEEP.clear()
         SWEEP.update(id=sid, thread=thread, stop=stop)
         thread.start()

@@ -6,7 +6,7 @@ The ledger is the complete record of everything you have hypothesised, run, obse
 
 1. observations: what you read in the ledger and in the tool results.
 2. hypotheses: new claims about how the system behaves, each with a falsifiable prediction (a number, a range, or a direction). Any number of hypotheses may be open at the same time. The harness numbers them in order: if the last hypothesis in the ledger is H3, your first new one is H4, the next H5. You may use those ids in the same answer.
-3. drop: open hypotheses you give up without a verdict, each with a reason.
+3. drop: open hypotheses you give up without a verdict, each with a reason. Only a hypothesis none of whose decision rules has been checked can be dropped; once one has been checked, the hypothesis needs a verdict.
 4. experiment: at most one per turn. An experiment is a set of simulations with one purpose; the harness runs them all at once. It may hold several simulations, for example a control and variations of one setting, so that one simulation can be compared with another.
    - kind "test": tests lists the ids of the open hypotheses it tests, and decision_rules has at least one decision rule for each of them.
    - kind "explore": question says what you want to find out; tests and decision_rules stay empty. Use it when you do not yet have a claim to test.
@@ -24,5 +24,6 @@ The ledger is the complete record of everything you have hypothesised, run, obse
    - explanation: why this setting is best. holds_when: the conditions under which your answer stays valid. breaks_when: the conditions under which it would change.
    - claims: the statements your answer rests on, each with evidence: the ids of the ledger records that support it (for example E3, C5). Every id must exist in the ledger; a report that cites an id that does not exist is rejected.
    - open_questions: what you could not settle.
+   Before the report, give a verdict on every hypothesis that has a checked decision rule; the verdicts can be in the same answer as the report.
 
 Be concrete and quantitative. Prefer experiments that distinguish between explanations.

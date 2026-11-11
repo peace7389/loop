@@ -91,8 +91,9 @@
  {
   "check": "11",
   "params": "duration 2; duration 30",
-  "predicted": "every metric within 2% of the duration-10 run (counts of drops and retransmissions compared per second)",
+  "predicted": "every metric within 2% of the duration-10 run (counts of drops and retransmissions compared per second); a count under 50 events is exempt (operator, 2026-11-11: one event more or less is then already over the limit)",
   "measured": "duration 2: largest difference 5.63% (drops_band1); over 2%: {'drops_band1': '5.63%', 'tcp_retrans': '5.63%'}; tcp_retrans 15 in 2 s = 7.50/s against 7.10/s | duration 30: largest difference 0.47% (drops_band1); tcp_retrans 214 in 30 s = 7.13/s against 7.10/s",
-  "pass": false
+  "pass": true,
+  "note": "first recorded as FAIL on the 2% rule alone: at duration 2 the TCP queue's drops and the retransmissions are 15 events (7.5 per second against 7.1). The operator accepted it and changed the check to exempt counts under 50 events; with that it passes."
  }
 ]

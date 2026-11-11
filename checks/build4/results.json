@@ -1,0 +1,49 @@
+[
+ {
+  "build": "build4, 2026-11-11 (repair B1 of ~/CHECKS_AND_REPAIRS.md): udp_loss_frac now counts the UDP packets sent inside the measured seconds and how many of exactly those arrived, so it cannot be negative. Nothing else in the scenario changed.",
+  "how": "operator checks 1-4 re-run with the same options as build3; every metric compared; series.csv is byte-identical in all six runs",
+  "was_negative": "share, weightUdp 0.32, queuePkts 4, TcpNewReno, udpRate 300Mbps: -1.1e-05 in build3, 0.0 in build4 (folder b1-was-negative)"
+ },
+ {
+  "check": "1 UDP alone",
+  "other_metrics_changed": [],
+  "udp_loss_frac_build3": 0.510489,
+  "udp_loss_frac_build4": 0.510489,
+  "pass": true
+ },
+ {
+  "check": "2 TCP alone",
+  "other_metrics_changed": [],
+  "udp_loss_frac_build3": 0.0,
+  "udp_loss_frac_build4": 0.0,
+  "pass": true
+ },
+ {
+  "check": "3 share, weight 0.2",
+  "other_metrics_changed": [],
+  "udp_loss_frac_build3": 0.902093,
+  "udp_loss_frac_build4": 0.902093,
+  "pass": true
+ },
+ {
+  "check": "3 share, weight 0.5",
+  "other_metrics_changed": [],
+  "udp_loss_frac_build3": 0.755237,
+  "udp_loss_frac_build4": 0.755237,
+  "pass": true
+ },
+ {
+  "check": "3 share, weight 0.8",
+  "other_metrics_changed": [],
+  "udp_loss_frac_build3": 0.608256,
+  "udp_loss_frac_build4": 0.608256,
+  "pass": true
+ },
+ {
+  "check": "4 share, UDP 200 Mbps",
+  "other_metrics_changed": [],
+  "udp_loss_frac_build3": 6e-06,
+  "udp_loss_frac_build4": 0.0,
+  "pass": true
+ }
+]

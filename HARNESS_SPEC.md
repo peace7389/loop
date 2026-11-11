@@ -332,6 +332,9 @@ still more than the link holds.
 | TcpNewReno, queuePkts 4 | 0.5764 | every interval |
 | linkDelay 5 ms (queuePkts 8, Cubic; not a manifest parameter) | 0.6810 | every interval |
 
+**Check 11 was accepted by the operator on 2026-11-11 with the rule changed to
+exempt any count under 50 events; it is recorded as pass with that note.**
+
 **Checks 5 to 11 (2026-11-11, from `~/CHECKS_AND_REPAIRS.md`; outputs in
 `checks/build3/`, results appended to `checks/build3/results.json`).** 5a
 (queuePkts 4, TcpNewReno): UDP/link 0.5764, pass. 5b (queuePkts 4, TcpCubic):
@@ -724,6 +727,22 @@ below, and 7.5 where they differ.
   after the first was cut off at the 16,000-token limit, and without this the
   model would have been asked for ever. `SIGHUP` (its terminal closed) is
   recorded like `SIGTERM`.
+- **Repairs from `~/CHECKS_AND_REPAIRS.md` (2026-11-11).** B1: `udp_loss_frac`
+  counts the UDP packets sent inside the measured seconds and how many of
+  exactly those arrived (by packet uid), so it cannot be negative; nothing else
+  in the scenario changed (build 4: checks 1-4 give the same value for every
+  other metric and the same `series.csv`; the largest change of `udp_loss_frac`
+  is 0.000006). Both sweep tables were made again with build 4. B2: a
+  hypothesis that has a checked decision rule cannot be dropped (it needs a
+  verdict); a final report sent while such a hypothesis has no verdict is
+  refused once, with the list, and accepted as it comes the next time;
+  `session.json` lists them as `without_verdict` (and all open ones as
+  `left_open`). B3: the text of each draft is a line of
+  `sessions/<id>/drafts.jsonl` (`id`, `turn`, `text`); its ledger record keeps
+  `chars`, `tokens`, `model`, `finish_reason` and no text. The five existing
+  sessions were converted with `harness/move_drafts.py` (every other ledger
+  line byte-identical). Not done: the viewer does not show a draft's text any
+  more, and the on-request loading is still to be written.
 - **Stage 5 (2026-11-11): the operator's side.** All of it is under `checks/`;
   no function of `tools.py` reads there. (a) Sweep: `POST /api/sweep` {brief,
   policy, grid {knob: [values]}} runs every combination by the built program

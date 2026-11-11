@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --weightUdp=0.5 --udpRate=200Mbps --out=/home/chunguck.kim/project/checks/build4/c04-share-udp200m
+exit 0, 23.4 s
