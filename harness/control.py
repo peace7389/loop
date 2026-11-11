@@ -13,7 +13,7 @@ Who writes what (the write-ownership rule):
                checks/sessions/<id>.log (a session's terminal output). It starts and stops loop.py and does nothing else.
   the viewer   nothing. Its Control page only calls the three POST endpoints above.
 An operator run is made by the built program directly, never by tools.run, so it never reaches runs/index.json: no tool
-the model has can see it. The scheduler mode is passed on the command line only, as before; the model never sees it.
+the model has can see it. The scheduler mode reaches the simulation as the environment variable TWOHOSTS_SCHED only; the model never sees it.
 
 Who may call it. The server listens on 127.0.0.1 only (there is no option to change that). This machine is shared, so
 that alone would let any local user start runs; a POST is therefore accepted only when the connection was opened by a
@@ -95,15 +95,15 @@ def operator_run(body):
         rid = "op-" + time.strftime("%Y%m%d-%H%M%S")
         out = CHECKS / rid
         out.mkdir(parents=True)
-        args = [f"--{k}={v}" for k, v in clean.items()] + [f"--mode={mode}", f"--out={out}"]
+        args = [f"--{k}={v}" for k, v in clean.items()] + [f"--out={out}"]
         t0 = time.time()
         try:
-            p = subprocess.run([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib")}, capture_output=True, text=True, timeout=tools.RUN_TIMEOUT)
+            p = subprocess.run([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": mode}, capture_output=True, text=True, timeout=tools.RUN_TIMEOUT)
             code, err = p.returncode, (p.stderr or p.stdout)[-800:]
         except subprocess.TimeoutExpired:
             code, err = "timeout", f"no result after {tools.RUN_TIMEOUT} s"
         seconds = round(time.time() - t0, 1)
-        (out / "command.txt").write_text(f"two-hosts {' '.join(args)}\nexit {code}, {seconds} s\n")
+        (out / "command.txt").write_text(f"TWOHOSTS_SCHED={mode} two-hosts {' '.join(args)}\nexit {code}, {seconds} s\n")
         if code != 0 or not (out / "metrics.json").exists():
             raise Refused(500, f"the simulation failed (exit {code}): {err}")
         rec = {"id": rid, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "mode": mode, "seconds": seconds, "clamped": clamps,

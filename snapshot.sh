@@ -5,6 +5,7 @@
 #   HARNESS_SPEC.md     <- ~/ADRS/openevolve/HARNESS_SPEC.md   (the build specification)
 set -euo pipefail
 cd "$(dirname "$0")"
+rm -rf scratch/two-hosts   # an exact copy: a file renamed or removed in the ns-3 tree must not stay behind here
 mkdir -p scratch/two-hosts
 cp -p ns-3.49/scratch/two-hosts/* scratch/two-hosts/
 cp -p "$HOME/ADRS/openevolve/HARNESS_SPEC.md" HARNESS_SPEC.md

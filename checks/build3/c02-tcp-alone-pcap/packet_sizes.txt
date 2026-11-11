@@ -1,0 +1,2 @@
+IP packet lengths seen at node 0, sent and received (length: count): [(52, 24770), (56, 2), (60, 881), (68, 34), (76, 122), (1268, 1), (1500, 50568)]
+IP fragments: 0

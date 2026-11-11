@@ -10,13 +10,13 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | Path | What it is |
 |---|---|
 | `HARNESS_SPEC.md` | The build specification: purpose, decisions, what was verified against ns-3 |
-| `scratch/two-hosts/` | The ns-3 scenario: `two-hosts.cc` and the weighted scheduler `wrr-queue-disc.{h,cc}` (a copy; it is built inside an ns-3.49 tree) |
+| `scratch/two-hosts/` | The ns-3 scenario: `two-hosts.cc` and the scheduler `link-queue-disc.{h,cc}` (a copy; it is built inside an ns-3.49 tree) |
 | `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, runs what it asked |
 | `harness/tools.py` | Everything the model can reach: read-only tools and `run()` |
 | `harness/manifest.json`, `prompt.txt`, `schema.json` | The task as the model sees it, the prompt, the answer format |
 | `harness/control.py` | The operator's small server for the viewer (port 8600); `make_trace.py` records packet events |
 | `ledger.jsonl` | The AI session's record: draft (what the model wrote before its answer), hypothesis, experiment, evidence, verdict, note, malformed |
-| `runs/index.json` | Every run the model can see: id, params, metrics. `runs/operator.jsonl`: the scheduler mode of each (hidden from the model) |
+| `runs/index.json` | Every run the model can see: id, params, metrics. `runs/operator.jsonl`: the scheduler mode of each (hidden from the model; it reaches the simulation as the environment variable `TWOHOSTS_SCHED`, not as an option) |
 | `runs/<id>/` | One simulation: `params.json`, `metrics.json`, `series.csv` (a sample every 0.1 s) |
 | `checks/` | Operator checks of the simulator itself (no AI), with the command of each |
 | `trace/` | Short packet-level event recordings made by the operator |

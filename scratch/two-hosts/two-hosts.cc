@@ -1,5 +1,5 @@
 // two-hosts: two nodes on one point-to-point link. Node 0 sends UDP (OnOff) and TCP (BulkSend)
-// to node 1 at the same time. A queue disc on node 0's device decides how the link is shared.
+// to node 1 at the same time. A queue disc on node 0's device decides which packet the link carries next.
 // Writes <out>/metrics.json, <out>/series.csv and <out>/flowmon.xml. --out must be absolute.
 // Traffic runs for warmup + duration seconds; metrics.json covers the last `duration` seconds only.
 // series.csv covers the whole run (drops there are totals since the start of traffic).
@@ -14,7 +14,7 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/traffic-control-module.h"
 
-#include "wrr-queue-disc.h"
+#include "link-queue-disc.h"
 
 #include <filesystem>
 #include <fstream>
@@ -37,7 +37,7 @@ static Ptr<QueueDisc> g_band[2];
 // One row per thing that happens to a packet inside the window. Rows with the same `ev` happened inside the
 // same simulator event (their order within it is the order the code ran, not cause before effect).
 // `key` names the packet through its whole life: u<uid> a UDP packet, t<sequence number> a TCP data segment
-// (segments cut from one application write share a uid, so the uid cannot be used), a<uid> a pure TCP ACK.
+// (segments cut from one application write have the same uid, so the uid cannot be used), a<uid> a pure TCP ACK.
 static void
 Ev(const char* kind, const char* obj, const char* flow, char tag, uint64_t id, uint32_t size, int64_t info)
 {
@@ -231,7 +231,6 @@ main(int argc, char* argv[])
     double duration = 10;
     uint32_t seed = 1;
     double weightUdp = 0.5;
-    std::string mode = "share";
     std::string out;
     bool pcap = false;
     double warmup = 1.0;
@@ -249,8 +248,7 @@ main(int argc, char* argv[])
     cmd.AddValue("queuePkts", "Queue length per band in packets", queuePkts);
     cmd.AddValue("duration", "Seconds of traffic", duration);
     cmd.AddValue("seed", "Random run number", seed);
-    cmd.AddValue("weightUdp", "Share of the link configured for UDP, 0.05-0.95", weightUdp);
-    cmd.AddValue("mode", "Scheduler mode", mode);
+    cmd.AddValue("weightUdp", "Part of the link configured for UDP, 0.05-0.95", weightUdp);
     cmd.AddValue("out", "Absolute output directory", out);
     cmd.AddValue("pcap", "Write pcap traces", pcap);
     cmd.AddValue("warmup", "Seconds of traffic before the measured window", warmup);
@@ -290,10 +288,8 @@ main(int argc, char* argv[])
     stack.Install(nodes);
 
     // Scheduler on the sending device: two bands, UDP (socket priority 6) in band 0, TCP in band 1.
-    // --mode goes to the scheduler as given.
     TrafficControlHelper tch;
-    uint16_t h = tch.SetRootQueueDisc("ns3::WrrQueueDisc", "WeightUdp", DoubleValue(weightUdp),
-                                      "Mode", StringValue(mode), "LinkRate", DataRateValue(DataRate(linkRate)));
+    uint16_t h = tch.SetRootQueueDisc("ns3::LinkQueueDisc", "WeightUdp", DoubleValue(weightUdp));
     TrafficControlHelper::ClassIdList cids = tch.AddQueueDiscClasses(h, 2, "ns3::QueueDiscClass");
     std::string qsize = std::to_string(queuePkts) + "p";
     tch.AddChildQueueDisc(h, cids[0], "ns3::FifoQueueDisc", "MaxSize", StringValue(qsize));

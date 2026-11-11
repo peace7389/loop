@@ -1,0 +1,39 @@
+[
+ {
+  "build": "build3, 2026-11-11: scheduler renamed LinkQueueDisc, mode from the environment variable TWOHOSTS_SCHED (no --mode option), link rate read from the device",
+  "how": "the built program run directly with TWOHOSTS_SCHED=share and the same options as build2 (command.txt in each folder); metrics.json, series.csv and params.json compared byte for byte with build2",
+  "not_run": "checks 5-11 (check 5 is to be rewritten first)"
+ },
+ {
+  "check": "1 UDP alone",
+  "params": "weightUdp=0.95 udpRate=2Gbps tcp=0 (TCP sender off)",
+  "predicted": "UDP = 1400/1430 = 0.9790 Gbps (\u00b11%), TCP = 0, link use \u2248 1.00",
+  "measured": "UDP 0.9790 Gbps, TCP 0.0000 Gbps, link use 1.0000",
+  "pass": true,
+  "same_files_as_build2": true
+ },
+ {
+  "check": "2 TCP alone",
+  "params": "udpRate=0bps (UDP sender off); packet sizes from a 0.6 s pcap run",
+  "predicted": "TCP \u2248 1448/1500 = 0.965 Gbps (\u00b11.5%; 0.964 with the 2-byte link header), few retransmissions (<1% of segments), no packet over 1500 bytes, no 32-byte tails",
+  "measured": "TCP 0.9640 Gbps, UDP 0.0000 Gbps, link use 1.0000, tcp_retrans 120 in 10 s, largest packet 1500 bytes, 32-byte packets 0, IP fragments 0",
+  "pass": true,
+  "same_files_as_build2": true
+ },
+ {
+  "check": "3 share, saturated",
+  "params": "weightUdp=0.2, 0.5, 0.8 (defaults otherwise)",
+  "predicted": "UDP/link = weight \u00d7 0.979 within \u00b13%: 0.1958, 0.4895, 0.7832; link use \u2248 1.00; drops in both bands > 0",
+  "measured": "w=0.2: UDP/link 0.1958, TCP/link 0.7712, use 1.0000, drops 1,610,880 / 102, retrans 102; w=0.5: UDP/link 0.4895, TCP/link 0.4820, use 1.0000, drops 1,348,637 / 71, retrans 71; w=0.8: UDP/link 0.7835, TCP/link 0.1925, use 1.0000, drops 1,086,172 / 31, retrans 31",
+  "pass": true,
+  "same_files_as_build2": true
+ },
+ {
+  "check": "4 share, UDP 200 Mbps",
+  "params": "weightUdp=0.5 udpRate=200Mbps",
+  "predicted": "UDP \u2248 0.196 Gbps (\u00b13%), drops_band0 = 0, TCP \u2248 0.76 Gbps (\u00b13%), link use \u2248 1.00",
+  "measured": "UDP 0.2000 Gbps, drops_band0 0, TCP 0.7671 Gbps, link use 1.0000",
+  "pass": true,
+  "same_files_as_build2": true
+ }
+]

@@ -1,5 +1,5 @@
-#ifndef WRR_QUEUE_DISC_H
-#define WRR_QUEUE_DISC_H
+#ifndef LINK_QUEUE_DISC_H
+#define LINK_QUEUE_DISC_H
 
 #include "ns3/data-rate.h"
 #include "ns3/event-id.h"
@@ -10,7 +10,7 @@ namespace ns3
 {
 
 // Two-band scheduler: band 0 = socket priority 6 (UDP here), band 1 = everything else.
-class WrrQueueDisc : public QueueDisc
+class LinkQueueDisc : public QueueDisc
 {
   public:
     enum Mode
@@ -19,8 +19,8 @@ class WrrQueueDisc : public QueueDisc
         CAP
     };
     static TypeId GetTypeId();
-    WrrQueueDisc();
-    ~WrrQueueDisc() override;
+    LinkQueueDisc();
+    ~LinkQueueDisc() override;
 
   private:
     bool DoEnqueue(Ptr<QueueDiscItem> item) override;
@@ -31,8 +31,8 @@ class WrrQueueDisc : public QueueDisc
 
     double m_weightUdp;
     uint32_t m_quantum;
-    Mode m_mode;
-    DataRate m_linkRate;
+    Mode m_mode;         // from the environment variable TWOHOSTS_SCHED (share | cap), default share
+    DataRate m_linkRate; // the DataRate of the device this queue disc is installed on
     int64_t m_deficit[2];
     uint32_t m_cur;
     DataRate m_rate[2];

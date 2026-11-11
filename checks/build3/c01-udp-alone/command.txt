@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --weightUdp=0.95 --udpRate=2Gbps --tcp=0 --out=/home/chunguck.kim/project/checks/build3/c01-udp-alone
+exit 0, 11.9 s

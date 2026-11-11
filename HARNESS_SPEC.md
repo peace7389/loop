@@ -342,6 +342,32 @@ carries no comment near it that explains what it does. There is no
 `--policy` flag and no TBF anywhere in the scenario.
 
 ### 6.2 `WrrQueueDisc` (to write)
+
+**REVISED 2026-11-11 (operator, after session 1: the model read `Mode="share"`
+and the class name `WrrQueueDisc` in `two-hosts.cc` and so never had to test
+which behaviour it faced). This block replaces every mention below and in
+sections 4, 6.1, 7.3 and 9 of the old names, of `--mode` and of the `Mode` /
+`LinkRate` attributes:**
+- The class is `ns3::LinkQueueDisc` in `link-queue-disc.{h,cc}` (still not
+  readable by the model). Its attributes are `WeightUdp` and `Quantum` only.
+- `two-hosts.cc` has no `--mode` option and passes only `WeightUdp` and the
+  queue size. Its comments and help strings are reworded so that
+  `grep -n -i -w -E "mode|share|shared|cap|wrr|weighted|token|bucket|deficit" two-hosts.cc`
+  prints nothing (the same holds for `two-hosts --PrintHelp`).
+- The mode comes from the environment variable `TWOHOSTS_SCHED` (`share` |
+  `cap`; unset = `share`; any other value aborts the run before it writes a
+  file). The link rate used in `cap` mode is read from the `DataRate` attribute
+  of the device the queue disc is installed on.
+- `tools.run`, `control.py` and `make_trace.py` set `TWOHOSTS_SCHED` in the
+  child process's environment. `runs/operator.jsonl` records the mode as before;
+  `make_trace.py --mode=cap` is still how the operator asks for it there.
+- Verified: operator checks 1-4 re-run with this build
+  (`checks/build3/results.json`) give `metrics.json`, `series.csv` and
+  `params.json` byte-identical to `checks/build2/`; a `cap` and a `share`
+  recording (`udpRate=200Mbps`) are byte-identical to the build-2 recordings in
+  `trace/`.
+- Still open: `list_runs` returns every run in `runs/index.json`, including the
+  operator's stage-2 runs whose folder names contain `share` / `cap`.
 A two-band, work-conserving, byte-based weighted scheduler, i.e. deficit
 round robin. Specification:
 

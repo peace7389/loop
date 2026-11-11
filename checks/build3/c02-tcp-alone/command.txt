@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --udpRate=0bps --out=/home/chunguck.kim/project/checks/build3/c02-tcp-alone
+exit 0, 24.6 s

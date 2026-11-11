@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --udpRate=0bps --duration=0.3 --warmup=0.3 --pcap=1 --out=/home/chunguck.kim/project/checks/build3/c02-tcp-alone-pcap
+exit 0, 2.7 s

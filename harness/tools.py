@@ -1,11 +1,11 @@
 """Read-only tools plus run(): all the model can reach. Paths are fixed here; callers pass ids and names only."""
-import json, re, subprocess, time
+import json, os, re, subprocess, time
 from pathlib import Path
 
 ROOT = Path.home() / "project"
 NS3, RUNS, HARNESS = ROOT / "ns-3.49", ROOT / "runs", ROOT / "harness"
 MANIFEST = json.loads((HARNESS / "manifest.json").read_text())
-MODE = "share"          # operator's choice, set by loop.py; written to runs/operator.jsonl, never to anything a tool returns
+MODE = "share"          # operator's choice, set by loop.py; goes to the simulation as the environment variable TWOHOSTS_SCHED and to runs/operator.jsonl, never to anything a tool returns
 RUN_TIMEOUT = 600
 
 def describe_system():
@@ -46,9 +46,9 @@ def run(params):
     rid = f"r{max(ids, default=0) + 1:03d}"
     out = RUNS / rid
     out.mkdir()
-    args = " ".join(f"--{k}={v}" for k, v in clean.items()) + f" --mode={MODE} --out={out}"
+    args = " ".join(f"--{k}={v}" for k, v in clean.items()) + f" --out={out}"
     t0 = time.time()
-    p = subprocess.run(["./ns3", "run", f"two-hosts {args}", "--no-build"], cwd=NS3, capture_output=True, text=True, timeout=RUN_TIMEOUT)
+    p = subprocess.run(["./ns3", "run", f"two-hosts {args}", "--no-build"], cwd=NS3, env={**os.environ, "TWOHOSTS_SCHED": MODE}, capture_output=True, text=True, timeout=RUN_TIMEOUT)
     if p.returncode or not (out / "metrics.json").exists():
         return {"id": rid, "params": clean, "clamped": clamps, "error": (p.stderr or p.stdout)[-800:]}
     m = json.loads((out / "metrics.json").read_text())

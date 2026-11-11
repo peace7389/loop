@@ -1,53 +1,59 @@
-#include "wrr-queue-disc.h"
+#include "link-queue-disc.h"
 
+#include "ns3/abort.h"
 #include "ns3/double.h"
-#include "ns3/enum.h"
 #include "ns3/log.h"
+#include "ns3/net-device-queue-interface.h"
+#include "ns3/net-device.h"
 #include "ns3/object-factory.h"
 #include "ns3/simulator.h"
 #include "ns3/socket.h"
 #include "ns3/uinteger.h"
 
+#include <cstdlib>
+#include <string>
+
 namespace ns3
 {
 
-NS_LOG_COMPONENT_DEFINE("WrrQueueDisc");
-NS_OBJECT_ENSURE_REGISTERED(WrrQueueDisc);
+NS_LOG_COMPONENT_DEFINE("LinkQueueDisc");
+NS_OBJECT_ENSURE_REGISTERED(LinkQueueDisc);
 
 TypeId
-WrrQueueDisc::GetTypeId()
+LinkQueueDisc::GetTypeId()
 {
     static TypeId tid =
-        TypeId("ns3::WrrQueueDisc")
+        TypeId("ns3::LinkQueueDisc")
             .SetParent<QueueDisc>()
             .SetGroupName("TrafficControl")
-            .AddConstructor<WrrQueueDisc>()
+            .AddConstructor<LinkQueueDisc>()
             .AddAttribute("WeightUdp", "Share of the link configured for band 0",
-                          DoubleValue(0.5), MakeDoubleAccessor(&WrrQueueDisc::m_weightUdp),
+                          DoubleValue(0.5), MakeDoubleAccessor(&LinkQueueDisc::m_weightUdp),
                           MakeDoubleChecker<double>(0.05, 0.95))
             .AddAttribute("Quantum", "Bytes added to a band's deficit per visit (share), burst (cap)",
-                          UintegerValue(3000), MakeUintegerAccessor(&WrrQueueDisc::m_quantum),
-                          MakeUintegerChecker<uint32_t>(1))
-            .AddAttribute("Mode", "share or cap", EnumValue(SHARE),
-                          MakeEnumAccessor<Mode>(&WrrQueueDisc::m_mode),
-                          MakeEnumChecker(SHARE, "share", CAP, "cap"))
-            .AddAttribute("LinkRate", "Rate of the link this queue disc feeds",
-                          DataRateValue(DataRate("1Gbps")),
-                          MakeDataRateAccessor(&WrrQueueDisc::m_linkRate), MakeDataRateChecker());
+                          UintegerValue(3000), MakeUintegerAccessor(&LinkQueueDisc::m_quantum),
+                          MakeUintegerChecker<uint32_t>(1));
     return tid;
 }
 
-WrrQueueDisc::WrrQueueDisc()
-    : QueueDisc(QueueDiscSizePolicy::NO_LIMITS)
+LinkQueueDisc::LinkQueueDisc()
+    : QueueDisc(QueueDiscSizePolicy::NO_LIMITS),
+      m_mode(SHARE)
 {
+    // The mode is the operator's choice and is not a command-line option or an attribute:
+    // it comes from the environment of the process.
+    const char* env = std::getenv("TWOHOSTS_SCHED");
+    const std::string mode = env ? env : "share";
+    NS_ABORT_MSG_IF(mode != "share" && mode != "cap", "TWOHOSTS_SCHED must be share or cap, got '" << mode << "'");
+    m_mode = (mode == "cap") ? CAP : SHARE;
 }
 
-WrrQueueDisc::~WrrQueueDisc()
+LinkQueueDisc::~LinkQueueDisc()
 {
 }
 
 bool
-WrrQueueDisc::DoEnqueue(Ptr<QueueDiscItem> item)
+LinkQueueDisc::DoEnqueue(Ptr<QueueDiscItem> item)
 {
     SocketPriorityTag tag;
     uint8_t prio = item->GetPacket()->PeekPacketTag(tag) ? (tag.GetPriority() & 0x0f) : 0;
@@ -56,7 +62,7 @@ WrrQueueDisc::DoEnqueue(Ptr<QueueDiscItem> item)
 }
 
 void
-WrrQueueDisc::Refill()
+LinkQueueDisc::Refill()
 {
     Time now = Simulator::Now();
     double dt = (now - m_lastRefill).GetSeconds();
@@ -68,7 +74,7 @@ WrrQueueDisc::Refill()
 }
 
 Ptr<QueueDiscItem>
-WrrQueueDisc::DoDequeue()
+LinkQueueDisc::DoDequeue()
 {
     Ptr<QueueDisc> q[2] = {GetQueueDiscClass(0)->GetQueueDisc(), GetQueueDiscClass(1)->GetQueueDisc()};
     if (m_mode == CAP)
@@ -122,7 +128,7 @@ WrrQueueDisc::DoDequeue()
 }
 
 bool
-WrrQueueDisc::CheckConfig()
+LinkQueueDisc::CheckConfig()
 {
     if (GetNInternalQueues() > 0 || GetNPacketFilters() > 0)
     {
@@ -145,10 +151,17 @@ WrrQueueDisc::CheckConfig()
 }
 
 void
-WrrQueueDisc::InitializeParams()
+LinkQueueDisc::InitializeParams()
 {
     m_deficit[0] = m_deficit[1] = 0;
     m_cur = 0;
+    // A root queue disc is given its device's queue interface before it is initialized.
+    Ptr<NetDeviceQueueInterface> ndqi = GetNetDeviceQueueInterface();
+    Ptr<NetDevice> dev = ndqi ? ndqi->GetObject<NetDevice>() : nullptr;
+    NS_ABORT_MSG_IF(!dev, "LinkQueueDisc must be the root queue disc of a device");
+    DataRateValue rate;
+    dev->GetAttribute("DataRate", rate);
+    m_linkRate = rate.Get();
     m_rate[0] = DataRate(static_cast<uint64_t>(m_weightUdp * m_linkRate.GetBitRate()));
     m_rate[1] = DataRate(static_cast<uint64_t>((1.0 - m_weightUdp) * m_linkRate.GetBitRate()));
     m_tokens[0] = m_tokens[1] = m_quantum;
