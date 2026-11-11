@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Two hosts, one link</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- The harness's own viewer: a static page. It reads ../ledger.jsonl, ../runs/index.json, ../runs/operator.jsonl,
+     ../harness/manifest.json, ../runs/<id>/series.csv, objects.json and ../checks/control.jsonl every 5 s and writes nothing.
+     It is served by harness/control.py. Its sixth page, "Control" (CONTROL below), is the only part that can cause a
+     write, and only by asking control.py: POST /api/run, /api/session, /api/stop (who may write what: control.py's docstring).
+     Content and layout live in adrs_view.js (TH_DATA builds the content, TASK_VIEW.page draws it); the same
+     file draws this task inside the ADRS main viewer. The previous page is kept as index_old.html.
+     The fifth page, "Runs" (RUN_TOOLS below), exists only here: it compares two runs, plots any setting against any
+     measure, and exports each chart as PNG or CSV. It is drawn with Chart.js, loaded from the CDN; nothing else is. -->
+<style>
+.viz-root {
+  color-scheme: light;
+  --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #dddcd6;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+  --grid: #e6e5e0; --series-1: #2a78d6; --series-2: #eb6834; --critical: #d03b3b; --good: #0ca30c;
+}
+@media (prefers-color-scheme: dark) {
+  .viz-root {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --border: #383835;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --grid: #2b2b29; --series-1: #3987e5; --series-2: #d95926; --critical: #d03b3b; --good: #0ca30c;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+.viz-root { background: var(--surface-0); color: var(--text-primary); min-height: 100vh;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 20px 24px 40px; }
+.bar { max-width: 1280px; margin: 0 auto 14px; display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
+.bar .lbl { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13.5px; padding: 5px 14px; border: 0; background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.on { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
+.bar .end { margin-left: auto; } .bar a { color: var(--text-secondary); }
+.vd { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 12px; color: var(--text-primary); background: var(--surface-1); vertical-align: middle; }
+.vd::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--text-muted); box-sizing: border-box; }
+.vd.supported::before { background: var(--good); } .vd.refuted::before { background: var(--critical); }
+.vd.inconclusive::before, .vd.pending::before { background: none; border: 2px solid var(--text-muted); }
+.empty { max-width: 1280px; margin: 40px auto; color: var(--text-secondary); font-size: 15px; }
+/* the Runs page */
+.rt-bar { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; margin: 0 0 16px; font-size: 14px; color: var(--text-secondary); }
+.rt-bar label { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text-primary); }
+.rt-bar select { font: inherit; font-size: 14px; font-weight: 400; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); max-width: 330px; }
+.rt-chart { position: relative; height: 310px; }
+.rt-exp { display: flex; gap: 8px; align-items: center; margin: 6px 0 22px; font-size: 12.5px; color: var(--text-muted); }
+.rt-exp button, .rt-btn { font: inherit; font-size: 12.5px; padding: 3px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-1); color: var(--text-primary); cursor: pointer; }
+.rt-exp button:hover, .rt-btn:hover:not(:disabled) { border-color: var(--text-primary); } .rt-btn:disabled { color: var(--text-muted); cursor: default; }
+.th tr.rt-diff td { background: color-mix(in srgb, var(--text-primary) 9%, transparent); font-weight: 700; }
+.th td.rt-key small { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 8px; }
+.ct-status { max-width: 1280px; margin: 0 0 18px; padding: 12px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); font-size: 14.5px; display: flex; gap: 10px; align-items: baseline; }
+.ct-status i { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--text-muted); } .ct-status.live i { background: var(--good); }
+.ct-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 22px; margin-bottom: 18px; }
+.ct-form label { display: block; font-size: 14px; font-weight: 600; } .ct-form label small { display: block; font-size: 12px; font-weight: 400; color: var(--text-muted); margin: 1px 0 5px; }
+.ct-form input[type=number], .ct-form input[type=text], .ct-form select { font: inherit; font-size: 14px; width: 100%; padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); }
+.ct-form label.check { display: flex; gap: 9px; align-items: flex-start; font-weight: 600; } .ct-form label.check input { margin-top: 4px; } .ct-form label.check small { margin: 1px 0 0; }
+.ct-go { font: inherit; font-size: 14.5px; font-weight: 600; padding: 7px 20px; border: 1px solid var(--text-primary); border-radius: 8px; background: var(--text-primary); color: var(--surface-1); cursor: pointer; margin-right: 8px; }
+.ct-go.plain { background: var(--surface-1); color: var(--text-primary); } .ct-go:disabled { opacity: .45; cursor: default; }
+.ct-box { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 14px; } .th-wide > div.ct-box:last-child { min-height: 240px; }
+.ct-box pre { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; max-height: 170px; }
+.ct-err { margin: 8px 0 0; font-size: 13.5px; border-left: 3px solid var(--critical); padding: 4px 10px; background: color-mix(in srgb, var(--critical) 8%, transparent); }
+.rt-pick { margin-top: 18px; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px 14px; min-height: 190px; }
+</style></head><body>
+<div class="viz-root">
+  <div class="bar">
+    <span class="lbl">Showing</span>
+    <span class="seg" id="runs"></span>
+    <span class="end" id="note"></span>
+  </div>
+  <div id="page"><div class="empty">Loading the harness's files…</div></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(n).trim();  // used by adrs_view.js
+const RUNS = [['loop', 'The AI session'], ['operator_checks', 'Operator checks (no AI)']];
+let run = new URLSearchParams(location.search).get('run') || 'loop', shown = '', series = {};
+
+async function get(url) {  // text of a file next to the harness, or null; also how long ago it was last written
+  try {
+    const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return { text: null, age: null };
+    const d = Date.parse(r.headers.get('Date') || ''), m = Date.parse(r.headers.get('Last-Modified') || '');
+    return { text: await r.text(), age: isFinite(d) && isFinite(m) ? (d - m) / 1000 : null };
+  } catch (e) { return { text: null, age: null }; }
+}
+const lines = t => (t || '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean);
+
+async function load() {
+  const st = await get('../api/status');
+  CONTROL.st = (() => { try { const j = JSON.parse(st.text); return j && j.control ? j : null; } catch (e) { return null; } })();  // null: served by a plain file server, no Control page
+  const [led, idx, op, man, obj, ctl] = await Promise.all([get('../ledger.jsonl'), get('../runs/index.json'), get('../runs/operator.jsonl'), get('../harness/manifest.json'), get('objects.json'),
+    CONTROL.st && !CONTROL.st.operator_runs ? { text: '' } : get('../checks/control.jsonl')]);  // not asked for while control.py says there is none yet
+  const mine = lines(ctl.text).filter(r => r.id && r.metrics);  // operator runs started from the Control page (checks/op-*/): shown with the operator checks, never part of the AI session
+  if (man.text == null) { $('note').textContent = 'Cannot read the harness files (is the file server running in ~/project?)'; return; }
+  const raw = { ledger: lines(led.text), index: [...lines(idx.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
+                oper: [...lines(op.text), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))],
+                manifest: JSON.parse(man.text), series, objects: (() => { try { return JSON.parse(obj.text); } catch (e) { return null; } })(),
+                // control.py knows whether a loop is running; without it: the loop writes the ledger every turn, quiet for 3 minutes = not running
+                running: CONTROL.st ? !!((CONTROL.st.session && CONTROL.st.session.running) || CONTROL.st.other_loop) : led.age != null && led.age < 180 };
+  const dir = id => (mine.some(r => r.id === id) ? '../checks/' : '../runs/');
+  await Promise.all(raw.index.filter(r => !(r.id in series)).map(async r => { series[r.id] = TH_DATA.csv((await get(`${dir(r.id)}${r.id}/series.csv`)).text); }));
+  const have = { loop: raw.ledger.length > 0, operator_checks: raw.index.some(r => !raw.ledger.some(e => e.type === 'evidence' && (e.body || {}).run_id === r.id)) };
+  if (!have[run]) run = have.loop ? 'loop' : 'operator_checks';
+  $('runs').innerHTML = RUNS.filter(([k]) => have[k]).map(([k, t]) => `<button data-run="${k}" class="${k === run ? 'on' : ''}">${t}</button>`).join('');
+  $('runs').querySelectorAll('button').forEach(b => b.onclick = () => { run = b.dataset.run; history.replaceState(null, '', '?run=' + run + location.hash); shown = ''; load(); });
+  $('note').innerHTML = `Read from the harness's files at ${new Date().toLocaleTimeString()} · refreshed every 5 s · this page writes nothing${CONTROL.st ? ' itself (its Control page asks control.py to start runs)' : ''} · <a href="index.html">the streamlined page</a>`;
+  if (!have.loop && !have.operator_checks) { $('page').innerHTML = '<div class="empty">No ledger and no runs yet. Start the loop (harness/loop.py) and this page fills in.</div>'; return; }
+  // redraw only when something changed, so reading, hovering and open sections are not disturbed
+  const sig = [run, raw.ledger.length, raw.index.length, Object.keys(series).length, raw.running, (obj.text || '').length, !!CONTROL.st].join('|');
+  const pages = [{ key: 'runs', name: 'Runs', what: 'two runs compared, any setting against any measure, export', mount: RUN_TOOLS.mount }];
+  if (CONTROL.st) pages.push({ key: 'control', name: 'Control', what: 'set up one simulation or an AI session, and start it', mount: CONTROL.mount });
+  if (sig !== shown) { shown = sig; TASK_VIEW.page($('page'), { raw, run, traceBase: '../trace/', pages }); }
+  else CONTROL.paint();  // the status line follows control.py without redrawing the page
+}
+
+// ======================================================================================================
+// CONTROL: the "Control" page, present only when the page is served by harness/control.py. A form for one operator
+// simulation (the manifest's parameters and the scheduler mode) and a form for an AI session (loop.py's flags), two
+// buttons, a status line. The page writes nothing: it calls POST /api/run, /api/session and /api/stop, and control.py
+// does the rest. An operator run is saved under checks/, never in runs/ or the ledger, so the AI cannot see it.
+// ======================================================================================================
+const CONTROL = {
+  st: null, busy: '', err: { run: '', session: '' }, last: null, el: null, raw: null,
+  ui: { params: {}, mode: 'share', budget: 30, thinking: 'on', smode: 'share', baseline: true },
+
+  async post(path, body) {
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json().catch(() => ({ error: 'control.py gave no answer (' + r.status + ')' }));
+    if (!r.ok) throw new Error(j.error || 'refused (' + r.status + ')');
+    return j;
+  },
+  again() { const C = CONTROL; if (!C.el || !C.el.isConnected) return; const y = window.scrollY; C.mount(C.el, C.raw); if (window.scrollY !== y) window.scrollTo(0, y); },
+
+  mount(el, raw) {
+    const C = CONTROL, e = TASK_VIEW._e, ui = C.ui, P = raw.manifest.params || {}; C.el = el; C.raw = raw;
+    Object.entries(P).forEach(([k, s]) => { if (!(k in ui.params)) ui.params[k] = s.default; });
+    const field = (k, s) => { const v = ui.params[k], range = s.choices ? '' : ` · ${TASK_VIEW._rate(String(s.min))} to ${TASK_VIEW._rate(String(s.max))}`;
+      const input = s.choices ? `<select data-p="${e(k)}">${s.choices.map(c => `<option${c === v ? ' selected' : ''}>${e(c)}</option>`).join('')}</select>`
+        : typeof s.min === 'number' ? `<input type="number" data-p="${e(k)}" min="${s.min}" max="${s.max}" step="${Number.isInteger(s.min) && Number.isInteger(s.max) ? 1 : 'any'}" value="${e(v)}">`
+        : `<input type="text" data-p="${e(k)}" value="${e(v)}" spellcheck="false">`;
+      return `<label>${e(TH_DATA.KNOB[k] || k)}<small>${e(k)}${range} · default ${e(TASK_VIEW._rate(String(s.default)))}</small>${input}</label>`; };
+    const pick = (id, v, opts) => `<select id="${id}">${opts.map(([o, t]) => `<option value="${o}"${o === v ? ' selected' : ''}>${t}</option>`).join('')}</select>`;
+    const MODES = [['share', 'share: an idle flow’s part goes to the other'], ['cap', 'cap: each flow is held to its part']];
+    const sec = RUN_TOOLS.sec;
+    el.innerHTML = `<div class="ct-status" id="ct-status"></div>` +
+      sec(1, 'One simulation, now', 'Choose the settings and run the simulation once. This is an operator run: it is saved under checks/, it never enters the ledger, and the AI cannot see it. A value outside its range is brought back into it, and the result says so.',
+        `<div class="th-wide"><div>
+           <div class="ct-form">${Object.entries(P).map(([k, s]) => field(k, s)).join('')}
+             <label>Scheduler mode<small>how the scheduler splits the link · never shown to the AI</small>${pick('ct-mode', ui.mode, MODES)}</label></div>
+           <button class="ct-go" id="ct-run">Run once</button><button class="ct-go plain" id="ct-reset">Back to the defaults</button>
+           <span class="th-sm" id="ct-eta"></span>
+         </div><div class="ct-box" id="ct-result"></div></div>`) +
+      sec(2, 'An AI session', 'Start the loop: the AI states a hypothesis, chooses the settings of each experiment itself, and the harness runs it and records everything in the ledger. It is the same loop.py as from a terminal, with the choices below.',
+        `<div class="th-wide"><div>
+           <div class="ct-form">
+             <label>Experiments<small>budget · 1 to 150 · the AI may ask for more, up to 150 in all</small><input type="number" id="ct-budget" min="1" max="150" step="1" value="${e(ui.budget)}"></label>
+             <label>Thinking<small>thinking · whether the AI reasons before each answer</small>${pick('ct-thinking', ui.thinking, [['on', 'on'], ['off', 'off']])}</label>
+             <label>Scheduler mode<small>mode · never shown to the AI</small>${pick('ct-smode', ui.smode, MODES)}</label>
+             <label class="check"><input type="checkbox" id="ct-baseline"${ui.baseline ? ' checked' : ''}><span>Baseline run first (E0)<small id="ct-basenote"></small></span></label></div>
+           <button class="ct-go" id="ct-start">Start session</button><button class="ct-go plain" id="ct-stop">Stop session</button>
+         </div><div class="ct-box" id="ct-session"></div></div>`);
+    el.querySelectorAll('[data-p]').forEach(i => { i.oninput = i.onchange = () => { ui.params[i.dataset.p] = i.value; C.paint(); }; });
+    [['ct-mode', 'mode'], ['ct-thinking', 'thinking'], ['ct-smode', 'smode']].forEach(([id, k]) => { $(id).onchange = ev => { ui[k] = ev.target.value; }; });
+    $('ct-budget').oninput = ev => { ui.budget = ev.target.value; };
+    $('ct-baseline').onchange = ev => { ui.baseline = ev.target.checked; };
+    $('ct-reset').onclick = () => { ui.params = {}; ui.mode = 'share'; C.again(); };
+    $('ct-run').onclick = async () => {
+      const params = Object.fromEntries(Object.entries(ui.params).filter(([k, v]) => String(v).trim() !== '').map(([k, v]) => [k, typeof P[k].min === 'number' ? Number(v) : String(v).trim()]));
+      C.busy = 'run'; C.err.run = ''; C.paint();
+      try { C.last = await C.post('../api/run', { params, mode: ui.mode }); } catch (x) { C.err.run = x.message; }
+      C.busy = ''; shown = ''; await load(); C.paint();
+    };
+    $('ct-start').onclick = async () => {
+      C.busy = 'session'; C.err.session = ''; C.paint();
+      try { await C.post('../api/session', { budget: Number(ui.budget), thinking: ui.thinking, mode: ui.smode, baseline: !!ui.baseline && !(C.st && C.st.ledger_records) }); } catch (x) { C.err.session = x.message; }
+      C.busy = ''; await load(); C.paint();
+    };
+    $('ct-stop').onclick = async () => {
+      C.busy = 'session'; C.err.session = ''; C.paint();
+      try { await C.post('../api/stop', {}); } catch (x) { C.err.session = x.message; }
+      C.busy = ''; await load(); C.paint();
+    };
+    C.paint();
+  },
+
+  // everything that follows control.py's status, redrawn in place: the forms and what is typed in them are not touched
+  paint() {
+    const C = CONTROL, e = TASK_VIEW._e, st = C.st, raw = C.raw; if (!C.el || !C.el.isConnected || !st || !$('ct-status')) return;
+    const S = st.session, on = S && S.running, n = st.ledger_records, P = raw.manifest.params || {};
+    const flags = S ? `${S.flags.budget} experiments, thinking ${S.flags.thinking}, ${S.flags.mode} mode` : '';
+    const lastLine = S ? String(S.output || '').trim().split('\n').pop() : '';
+    $('ct-status').className = 'ct-status' + (on || st.other_loop || st.run_busy ? ' live' : '');
+    $('ct-status').innerHTML = '<i></i><span>' + (on ? `<b>An AI session is running</b> (${e(S.id)}, started ${e(S.started.slice(11, 16))}: ${e(flags)}).`
+      : st.other_loop ? '<b>A loop started from a terminal is running.</b> A session cannot be started or stopped from this page until it ends.'
+      : '<b>No AI session is running.</b>') + ` The ledger has ${n} record${n === 1 ? '' : 's'}.` + (st.run_busy ? ' <b>An operator simulation is running.</b>' : '') + '</span>';
+    // 1. the operator run
+    const secs = (raw.oper || []).map(o => { const r = (raw.index || []).find(x => x.id === o.id); return o.seconds && r && r.params && r.params.duration ? o.seconds / (r.params.duration + 1) : null; }).filter(Boolean);
+    const dur = Number(C.ui.params.duration);
+    $('ct-eta').textContent = secs.length && dur > 0 ? `About ${Math.round(secs.reduce((a, b) => a + b, 0) / secs.length * (dur + 1))} s for ${dur} s of measured traffic, going by earlier runs.` : '';
+    $('ct-run').disabled = !!C.busy || st.run_busy; $('ct-run').textContent = C.busy === 'run' ? 'Running…' : 'Run once';
+    const L = C.last, clamped = L ? Object.entries(L.clamped || {}) : [];
+    $('ct-result').innerHTML = '<h3>Result</h3>' + (C.busy === 'run' ? '<p class="th-muted">The simulation is running. The result appears here.</p>'
+      : C.err.run ? `<p class="ct-err">${e(C.err.run)}</p>`
+      : !L ? '<p class="th-muted">No simulation has been run from this page since it was opened.</p>'
+      : `<p style="font-size:18px;font-weight:700">${e(L.id)}</p><p class="th-sm">${e(L.mode)} mode · ${e(L.seconds)} s to run · saved in checks/${e(L.id)}/</p>
+         ${clamped.length ? `<p class="th-sm" style="margin-top:4px">Brought into range: ${clamped.map(([k, v]) => `${e(k)} ${e(v[0])} → <b>${e(v[1])}</b>`).join(', ')}</p>` : ''}
+         <table style="margin:8px 0 12px"><tbody>${Object.entries(L.metrics).map(([k, v]) => `<tr><td class="rt-key">${e(k)}${TH_DATA.PLAIN[k] ? `<small>${e(TH_DATA.PLAIN[k])}</small>` : ''}</td><td class="num">${e(RUN_TOOLS.show(k, v))}</td></tr>`).join('')}</tbody></table>
+         <button class="rt-btn" id="ct-open">Open it on the Runs page</button>`);
+    if ($('ct-open')) $('ct-open').onclick = () => { RUN_TOOLS.ui.a = L.id; RUN_TOOLS.ui.b = ''; location.hash = '#runs'; };
+    // 2. the session
+    $('ct-baseline').disabled = n > 0;
+    $('ct-basenote').textContent = n > 0 ? `not applicable: the ledger already has ${n} records, so a session continues it. The baseline is run only on an empty ledger.`
+      : 'the harness first runs the default experiment and records it as evidence E0, so the AI starts from an observed result';
+    $('ct-start').disabled = !!C.busy || on || st.other_loop; $('ct-stop').disabled = !!C.busy || !on;
+    $('ct-start').textContent = C.busy === 'session' && !on ? 'Starting…' : 'Start session';
+    $('ct-session').innerHTML = '<h3>Session</h3>' + (C.err.session ? `<p class="ct-err">${e(C.err.session)}</p>` : '') +
+      (on ? `<p><b>${e(S.id)}</b> is running: ${e(flags)}${S.flags.baseline === 'on' ? ', baseline first' : ''}.</p><p class="th-sm" style="margin-top:4px">Its experiments appear on the other pages as they finish (choose “The AI session” at the top).</p>`
+        : S ? `<p><b>${e(S.id)}</b> has ended${S.returncode === 0 ? '' : S.returncode < 0 ? ' (stopped)' : ` (exit ${e(S.returncode)})`}: ${e(flags)}.</p>${S.returncode < 0 ? '<p class="th-sm" style="margin-top:4px">An experiment that was running when it was stopped has no evidence record.</p>' : ''}`
+        : '<p class="th-muted">No session has been started from this page since control.py started.</p>') +
+      (S && lastLine ? `<details${on ? '' : ' open'}><summary>The loop’s own output</summary><pre>${e(S.output)}</pre></details>` : '');
+  },
+};
+
+// ======================================================================================================
+// RUN_TOOLS: the "Runs" page. Every run in ../runs/index.json (its params.json and metrics.json values) and
+// its series.csv, drawn with Chart.js. 1. one run over time, or two on the same axes (the second dashed),
+// with their settings side by side. 2. any setting or measure against any other, one dot per run.
+// Every time chart has one tooltip per sample (time, run id, value, drops and queue occupancy); every chart
+// has PNG and CSV buttons. All of it happens in the browser.
+// ======================================================================================================
+const RUN_TOOLS = {
+  CDN: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
+  state: 'loading',                                   // Chart.js: loading | ready | failed
+  ui: { a: null, b: '', x: 'm:weight_udp', y: 'r:udp_goodput_bps', pick: null },
+  charts: {}, el: null, raw: null,
+  FRACTION: ['weight_udp', 'weightUdp', 'udp_loss_frac', 'link_util'],   // values that are a share between 0 and 1
+
+  sec: (no, title, sub, body) => `<section class="th-sec"><div class="th-sh"><span class="th-no">${no}</span><div><h2>${title}</h2><p>${sub}</p></div></div>${body}</section>`,
+  mbps: v => (typeof v === 'number' ? (v / 1e6).toFixed(1) : '–'),
+  show(k, v) {  // a value as the tables show it
+    if (v == null) return '–';
+    if (typeof v !== 'number') return TASK_VIEW._rate(String(v));
+    if (/_bps$/.test(k)) return (v / 1e6).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' Mbps';
+    return Number.isInteger(v) ? v.toLocaleString('en-US') : String(v);
+  },
+  redraw(focus, anchor) {  // after a choice: the control that was used stays where it is on the screen, and keeps the focus
+    const R = RUN_TOOLS; if (!R.el || !R.el.isConnected) return;
+    const top = () => { const a = $(anchor || focus); return a ? a.getBoundingClientRect().top : null; }, y = window.scrollY, before = top();
+    R.el.style.minHeight = R.el.offsetHeight + 'px';  // the page never gets shorter under the reader
+    R.mount(R.el, R.raw);
+    const after = top();
+    if (before != null && after != null) window.scrollBy(0, after - before); else if (window.scrollY !== y) window.scrollTo(0, y);
+    if (focus && $(focus)) $(focus).focus({ preventScroll: true });
+  },
+
+  mount(el, raw) {
+    const R = RUN_TOOLS, e = TASK_VIEW._e, ui = R.ui; R.el = el; R.raw = raw;
+    Object.values(R.charts).forEach(c => c.destroy()); R.charts = {};
+    const runs = raw.index || [], oper = Object.fromEntries((raw.oper || []).map(r => [r.id, r]));
+    if (R.state !== 'ready' || !runs.length) {
+      el.innerHTML = R.sec(1, 'Runs', 'Two runs compared, any setting against any measure, export.', `<p class="th-muted">${
+        !runs.length ? 'No runs in runs/index.json yet.' : R.state === 'loading' ? 'Loading Chart.js from the CDN…'
+        : 'Chart.js could not be loaded from cdn.jsdelivr.net, so this page has no charts. The other pages do not need it.'}</p>`);
+      return;
+    }
+    const byId = Object.fromEntries(runs.map(r => [r.id, r]));
+    if (!byId[ui.a]) ui.a = runs[runs.length - 1].id;
+    if (!byId[ui.b] || ui.b === ui.a) ui.b = '';
+    if (!byId[ui.pick]) ui.pick = null;
+    const A = byId[ui.a], B = byId[ui.b] || null;
+    const name = r => `${r.id} · UDP share ${(r.params || {}).weightUdp ?? (r.metrics || {}).weight_udp ?? '–'} · UDP offered ${TASK_VIEW._rate((r.params || {}).udpRate ?? '–')}${oper[r.id] && oper[r.id].mode ? ' · ' + oper[r.id].mode + ' mode' : ''}`;
+    const opts = (sel, none) => (none ? `<option value="">${none}</option>` : '') + runs.slice().reverse().map(r => `<option value="${e(r.id)}"${r.id === sel ? ' selected' : ''}>${e(name(r))}</option>`).join('');
+
+    // ---- 1. settings and measures of the chosen run(s), side by side; a setting that differs is shaded and marked
+    const pv = (r, k) => (k === 'scheduler mode' ? (oper[r.id] || {}).mode : (r.params || {})[k]);
+    const pkeys = [...new Set([...Object.keys(A.params || {}), ...Object.keys((B || {}).params || {}), ...(oper[A.id] || (B && oper[B.id]) ? ['scheduler mode'] : [])])];
+    const differs = k => B && String(pv(A, k)) !== String(pv(B, k)), nd = pkeys.filter(differs).length;
+    const mkeys = [...new Set([...Object.keys(A.metrics || {}), ...Object.keys((B || {}).metrics || {})])];
+    const plain = k => TH_DATA.KNOB[k] || TH_DATA.PLAIN[k] || (k === 'scheduler mode' ? 'set by the operator, not shown to the AI' : '');
+    const table = (head, keys, val, mark) => `<table><thead><tr><th>${head}</th><th class="num">${e(A.id)}</th>${B ? `<th class="num">${e(B.id)}</th><th></th>` : ''}</tr></thead><tbody>${
+      keys.map(k => `<tr class="${mark && differs(k) ? 'rt-diff' : ''}"><td class="rt-key">${e(k)}${plain(k) ? `<small>${e(plain(k))}</small>` : ''}</td><td class="num">${e(val(A, k))}</td>${
+        B ? `<td class="num">${e(val(B, k))}</td><td>${mark && differs(k) ? '≠' : ''}</td>` : ''}</tr>`).join('')}</tbody></table>`;
+    const exp = c => `<div class="rt-exp" data-chart="${c}"><span>Export this chart:</span><button data-x="png">PNG</button><button data-x="csv">CSV</button></div>`;
+    const missing = [A, B].filter(r => r && !(raw.series || {})[r.id]).map(r => r.id);
+    let h = R.sec(1, B ? 'Two runs on the same axes' : 'One run over time',
+      'Choose a run to see it sample by sample. Choose a second run to draw both on the same axes: the first run is the solid line, the second the dashed line. Move the pointer over a chart to read one sample: its time, each value with its run, the packets dropped and the packets waiting in each queue.',
+      `<div class="rt-bar"><label>Run <select id="rt-a">${opts(ui.a)}</select></label><label>Compare with <select id="rt-b">${opts(ui.b, 'no second run')}</select></label>
+         ${B ? `<span>solid = ${e(A.id)} · dashed = ${e(B.id)}</span>` : ''}</div>
+       <div class="th-wide"><div>
+         ${missing.length ? `<p class="th-muted" style="margin-bottom:10px">No series.csv was read for ${e(missing.join(' and '))}.</p>` : ''}
+         <div class="rt-chart"><canvas id="rt-c1" role="img" aria-label="Throughput of UDP and TCP over time"></canvas></div>${exp('c1')}
+         <div class="rt-chart"><canvas id="rt-c2" role="img" aria-label="TCP congestion window over time"></canvas></div>${exp('c2')}
+       </div><div>
+         <h3>Settings (params.json)</h3>${table('Setting', pkeys, (r, k) => R.show(k, pv(r, k)), true)}
+         ${B ? `<p class="th-sm" style="margin-top:6px">${nd ? `${nd} of ${pkeys.length} settings differ (shaded, marked ≠).` : 'The two runs have the same settings.'}</p>` : ''}
+         <h3 style="margin-top:20px">Measured (metrics.json)</h3>${table('Measure', mkeys, (r, k) => R.show(k, (r.metrics || {})[k]), false)}
+       </div></div>`);
+
+    // ---- 2. any setting or measure against any other
+    const pk = [...new Set(runs.flatMap(r => Object.keys(r.params || {})))], mk = [...new Set(runs.flatMap(r => Object.keys(r.metrics || {})))];
+    const rk = mk.filter(k => /_bps$/.test(k) && k !== 'link_rate_bps' && mk.includes('link_rate_bps'));
+    const keys = [...pk.map(k => 'p:' + k), ...mk.map(k => 'm:' + k), ...rk.map(k => 'r:' + k)];
+    if (!keys.includes(ui.x)) ui.x = keys.includes('m:weight_udp') ? 'm:weight_udp' : keys[0];
+    if (!keys.includes(ui.y)) ui.y = keys.includes('r:udp_goodput_bps') ? 'r:udp_goodput_bps' : keys[keys.length - 1];
+    const label = key => key.slice(2) + (key[0] === 'r' ? ' / link_rate_bps' : '');
+    const axisOpts = sel => [['Settings (params.json)', pk.map(k => 'p:' + k)], ['Measures (metrics.json)', mk.map(k => 'm:' + k)], ['Measures as a share of the link', rk.map(k => 'r:' + k)]]
+      .filter(g => g[1].length).map(([g, ks]) => `<optgroup label="${g}">${ks.map(k => `<option value="${e(k)}"${k === sel ? ' selected' : ''}>${e(label(k))}</option>`).join('')}</optgroup>`).join('');
+    const st = R.studyData(runs, label);
+    h += R.sec(2, 'Any setting or measure against any other', `Every run in runs/index.json${(raw.oper || []).some(o => o.control) ? ' and every operator run started from the Control page' : ''} is one dot. Choose what the horizontal and the vertical axis show: any key of params.json or metrics.json.`,
+      `<div class="rt-bar"><label>Horizontal axis <select id="rt-x">${axisOpts(ui.x)}</select></label><label>Vertical axis <select id="rt-y">${axisOpts(ui.y)}</select></label></div>
+       <div class="th-wide"><div>
+         <div class="rt-chart" style="height:380px"><canvas id="rt-c3" role="img" aria-label="${e(label(ui.y))} against ${e(label(ui.x))}, one dot per run"></canvas></div>${exp('c3')}
+       </div><div>
+         <h3>How to read it</h3>
+         <p class="th-sm">${st.pts.length} of ${runs.length} runs are drawn${st.pts.length < runs.length ? ' (the others have no value for one of the two axes)' : ''}. The darker dots are the run${B ? 's' : ''} shown in section 1.
+           ${st.diagonal ? 'Both axes are fractions between 0 and 1, so the dashed diagonal marks where the two are equal.' : ''}
+           ${st.x.cats || st.y.cats ? 'An axis whose values are names, not numbers, lists the names in order of first use.' : ''}
+           Click a dot to choose that run; it is described here.</p>
+         <div class="rt-pick" id="rt-pick"></div>
+       </div></div>`);
+    el.innerHTML = h;
+
+    el.querySelector('#rt-a').onchange = ev => { ui.a = ev.target.value; R.redraw('rt-a'); };
+    el.querySelector('#rt-b').onchange = ev => { ui.b = ev.target.value; R.redraw('rt-b'); };
+    el.querySelector('#rt-x').onchange = ev => { ui.x = ev.target.value; R.redraw('rt-x'); };
+    el.querySelector('#rt-y').onchange = ev => { ui.y = ev.target.value; R.redraw('rt-y'); };
+    el.querySelectorAll('.rt-exp button').forEach(b => { b.onclick = () => R.export(b.parentNode.dataset.chart, b.dataset.x); });
+    R.timeCharts(A, B, raw.series || {});
+    R.studyChart(st, label);
+    R.picked(st, label);
+  },
+
+  // ---- Chart.js pieces shared by the three charts
+  bg: { id: 'rtBg', beforeDraw(c) { const g = c.ctx; g.save(); g.fillStyle = css('--surface-1'); g.fillRect(0, 0, c.width, c.height); g.restore(); } },  // so an exported PNG is not transparent
+  hair: { id: 'rtHair', afterDatasetsDraw(c) {  // the vertical line at the sample under the pointer
+    const a = c.getActiveElements(); if (!a.length || c.config.type !== 'line') return;
+    const g = c.ctx, x = a[0].element.x; g.save(); g.strokeStyle = css('--text-muted'); g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, c.chartArea.top); g.lineTo(x, c.chartArea.bottom); g.stroke(); g.restore(); } },
+  options(title, xTitle, yTitle, more) {
+    const ink = css('--text-primary'), sec = css('--text-secondary'), mut = css('--text-muted'), grid = css('--grid');
+    const font = { family: getComputedStyle(document.querySelector('.viz-root')).fontFamily, size: 12 };
+    const axis = t => ({ title: { display: true, text: t, color: sec, font }, ticks: { color: mut, font, maxTicksLimit: 9 }, grid: { color: grid }, border: { color: grid } });
+    const o = { animation: false, responsive: true, maintainAspectRatio: false,
+      plugins: { title: { display: true, text: title, align: 'start', color: ink, font: { ...font, size: 14, weight: '600' }, padding: { bottom: 4 } },
+                 legend: { position: 'top', align: 'start', labels: { color: sec, font, usePointStyle: true, boxHeight: 7, padding: 14,
+                           generateLabels: c => Chart.defaults.plugins.legend.labels.generateLabels(c).map(l => ({ ...l, lineDash: c.data.datasets[l.datasetIndex].borderDash || [] })) } },
+                 tooltip: { backgroundColor: css('--surface-1'), titleColor: ink, bodyColor: ink, footerColor: sec, borderColor: css('--border'), borderWidth: 1,
+                            titleFont: { ...font, size: 13, weight: '700' }, bodyFont: { ...font, size: 12.5 }, footerFont: { ...font, weight: '400' }, padding: 10, boxPadding: 5, usePointStyle: true } },
+      scales: { x: axis(xTitle), y: axis(yTitle) } };
+    return more(o) || o;
+  },
+
+  // ---- 1. throughput and TCP window over time; run B dashed; one tooltip per sample
+  timeCharts(A, B, series) {
+    const R = RUN_TOOLS, udp = css('--series-1'), tcp = css('--series-2'), mut = css('--text-muted');
+    const shown = [A, B].filter(r => r && series[r.id] && series[r.id].t);
+    const line = (r, what, unit, vals, color) => ({ label: `${r.id} · ${what}`, run: r.id, unit, data: series[r.id].t.map((t, i) => ({ x: t, y: vals[i] })),
+      borderColor: color, backgroundColor: color, borderWidth: 2, borderDash: r === B ? [7, 4] : [], pointRadius: 0, pointHoverRadius: 4, pointStyle: 'line' });
+    const d1 = shown.flatMap(r => [line(r, 'UDP', 'Mbps', series[r.id].udp.map(v => v / 1e6), udp), line(r, 'TCP', 'Mbps', series[r.id].tcp.map(v => v / 1e6), tcp)]);
+    const d2 = shown.map(r => line(r, 'TCP window', 'kB', series[r.id].cwnd.map(v => v / 1e3), tcp));
+    // what else was sampled at that time, for each run in the tooltip: throughput (on the window chart), drops, queue occupancy
+    const rest = withRates => items => { const out = [], seen = new Set();
+      items.forEach(it => { const id = it.dataset.run, S = series[id], i = it.dataIndex; if (!S || seen.has(id)) return; seen.add(id);
+        if (withRates) out.push(`${id} · throughput: UDP ${R.mbps(S.udp[i])}, TCP ${R.mbps(S.tcp[i])} Mbps`);
+        out.push(`${id} · dropped ${i ? 'since the previous sample' : 'before this first sample'}: UDP queue ${S.d0[i].toLocaleString('en-US')}, TCP queue ${S.d1[i].toLocaleString('en-US')}`);
+        out.push(S.q0 && S.q1 ? `${id} · waiting in the queues: UDP ${S.q0[i]}, TCP ${S.q1[i]} packets` : `${id} · packets waiting in the queues: not recorded in this run`); });
+      return out; };
+    const tip = withRates => ({
+      title: items => { const ts = [...new Set(items.map(it => it.parsed.x))];  // one time when the runs share their sample times
+        return ts.length === 1 ? `t = ${ts[0].toFixed(1)} s` : items.map(it => `t = ${it.parsed.x.toFixed(1)} s (${it.dataset.run})`).filter((v, i, a) => a.indexOf(v) === i).join(' · '); },
+      label: c => ` ${c.dataset.label}: ${c.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${c.dataset.unit}`,
+      footer: rest(withRates) });
+    const make = (id, title, yTitle, sets, withRates) => new Chart($(id), { type: 'line', data: { datasets: sets }, plugins: [R.bg, R.hair],
+      options: R.options(title, 'Time since the traffic began, s', yTitle, o => { o.interaction = { mode: 'index', intersect: false };
+        o.scales.x.type = 'linear'; o.scales.y.beginAtZero = true; o.plugins.tooltip.callbacks = tip(withRates); o.plugins.legend.labels.pointStyleWidth = 36; }) });
+    const who = shown.map(r => r.id).join(' and ') || 'no series';
+    R.charts.c1 = make('rt-c1', `Throughput per flow · ${who}`, 'Mbps', d1, false);
+    R.charts.c2 = make('rt-c2', `TCP congestion window · ${who}`, 'kB', d2, true);
+    R.charts.c1.rtFile = 'throughput-' + shown.map(r => r.id).join('-vs-'); R.charts.c2.rtFile = 'tcp-window-' + shown.map(r => r.id).join('-vs-');
+    R.charts.c1.rtX = R.charts.c2.rtX = 't_s';
+  },
+
+  // ---- 2. one dot per run
+  value(r, key) {  // a run's value for an axis key: p: a setting, m: a measure, r: a measure divided by the link rate
+    const k = key.slice(2), m = r.metrics || {};
+    if (key[0] === 'r') return typeof m[k] === 'number' && m.link_rate_bps ? m[k] / m.link_rate_bps : null;
+    const v = (key[0] === 'p' ? r.params || {} : m)[k]; return v == null ? null : v;
+  },
+  number(v) {  // 2Gbps -> bits per second, 50us -> seconds; [number, unit] or null when the value is a name
+    if (typeof v === 'number') return [v, ''];
+    let m = /^\s*([0-9.]+)\s*([kMG]?)bps\s*$/.exec(v); if (m) return [parseFloat(m[1]) * { '': 1, k: 1e3, M: 1e6, G: 1e9 }[m[2]], 'bps'];
+    m = /^\s*([0-9.]+)\s*(ns|us|ms|s)\s*$/.exec(v); if (m) return [parseFloat(m[1]) * { ns: 1e-9, us: 1e-6, ms: 1e-3, s: 1 }[m[2]], 's'];
+    return v !== '' && isFinite(v) ? [Number(v), ''] : null;
+  },
+  studyData(runs, label) {
+    const R = RUN_TOOLS, ui = R.ui;
+    const axis = key => { const raw = runs.map(r => R.value(r, key)), nums = raw.map(v => (v == null ? null : R.number(v)));
+      const numeric = raw.every((v, i) => v == null || nums[i]), unit = (nums.find(n => n && n[1]) || [0, ''])[1];
+      return { key, raw, at: i => (raw[i] == null ? null : numeric ? nums[i][0] : String(raw[i])), cats: numeric ? null : [...new Set(raw.filter(v => v != null).map(String))],
+               title: label(key) + (unit ? ` (${unit})` : ''), fraction: key[0] === 'r' || R.FRACTION.includes(key.slice(2)) }; };
+    const x = axis(ui.x), y = axis(ui.y);
+    const pts = runs.map((r, i) => ({ id: r.id, x: x.at(i), y: y.at(i), xr: x.raw[i], yr: y.raw[i] })).filter(p => p.x != null && p.y != null);
+    return { x, y, pts, diagonal: x.fraction && y.fraction };
+  },
+  studyChart(st, label) {
+    const R = RUN_TOOLS, ui = R.ui, ink = css('--text-primary'), mut = css('--text-muted'), s1 = css('--surface-1');
+    const dots = (name, pts, color, r) => ({ label: name, data: pts, backgroundColor: color, borderColor: s1, borderWidth: 2, pointRadius: r, pointHoverRadius: r + 2, pointHitRadius: 14, pointStyle: 'circle' });
+    const on = p => p.id === ui.a || p.id === ui.b;
+    const sets = [dots('Shown in section 1', st.pts.filter(on), ink, 7), dots('Other runs', st.pts.filter(p => !on(p)), mut, 6)].filter(d => d.data.length);
+    if (st.diagonal) sets.push({ label: 'Both values equal', type: 'line', guide: true, data: [{ x: 0, y: 0 }, { x: 1, y: 1 }], borderColor: mut, borderWidth: 1.5, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 0, pointStyle: 'line' });
+    const big = v => (typeof v === 'number' && Math.abs(v) >= 1e4 ? new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 }).format(v) : v);
+    const val = (key, v) => (typeof v === 'number' ? (key[0] === 'r' ? v.toFixed(4) : v.toLocaleString('en-US', { maximumFractionDigits: 6 })) : String(v));
+    R.charts.c3 = new Chart($('rt-c3'), { type: 'scatter', data: { datasets: sets }, plugins: [R.bg],
+      options: R.options(`${label(ui.y)} against ${label(ui.x)} · ${st.pts.length} runs`, st.x.title, st.y.title, o => {
+        o.interaction = { mode: 'nearest', intersect: false };
+        [['x', st.x], ['y', st.y]].forEach(([a, ax]) => {
+          if (ax.cats) { o.scales[a].type = 'category'; o.scales[a].labels = ax.cats; o.scales[a].offset = true; }
+          else { o.scales[a].ticks.callback = big; if (st.diagonal) { o.scales[a].min = 0; o.scales[a].max = 1; } } });
+        o.plugins.tooltip.filter = it => !it.dataset.guide;
+        o.plugins.tooltip.callbacks = { title: items => items.map(it => it.raw.id).join(', '),
+          label: c => [` ${label(ui.x)}: ${val(ui.x, ui.x[0] === 'r' ? c.raw.x : c.raw.xr)}`,
+                       ` ${label(ui.y)}: ${val(ui.y, ui.y[0] === 'r' ? c.raw.y : c.raw.yr)}`] };
+        o.onClick = (ev, els, chart) => { const hit = chart.getElementsAtEventForMode(ev.native, 'nearest', { intersect: false }, false).find(x => !chart.data.datasets[x.datasetIndex].guide);
+          if (hit) { ui.pick = chart.data.datasets[hit.datasetIndex].data[hit.index].id; R.picked(st, label); } };
+        o.onHover = (ev, els) => { ev.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
+      }) });
+    R.charts.c3.rtFile = `${label(ui.y)}-against-${label(ui.x)}`.replace(/[^A-Za-z0-9_-]+/g, '_'); R.charts.c3.rtX = null;
+  },
+  picked(st, label) {  // the run chosen in the study, described beside the chart; the page does not move
+    const R = RUN_TOOLS, ui = R.ui, e = TASK_VIEW._e, box = $('rt-pick'); if (!box) return;
+    const p = st.pts.find(q => q.id === ui.pick), run = p && (R.raw.index || []).find(r => r.id === p.id);
+    if (!p) { box.innerHTML = '<h3>Chosen run</h3><p class="th-muted">None yet. Click a dot.</p>'; return; }
+    const v = (key, raw, num) => (key[0] === 'r' ? num.toFixed(4) : R.show(key.slice(2), raw));
+    box.innerHTML = `<h3>Chosen run</h3><p style="font-size:20px;font-weight:700">${e(p.id)}</p>
+      <p style="margin-top:6px"><span class="th-chip">${e(label(ui.x))} <b>${e(v(ui.x, p.xr, p.x))}</b></span><span class="th-chip">${e(label(ui.y))} <b>${e(v(ui.y, p.yr, p.y))}</b></span></p>
+      <p class="th-sm" style="margin:4px 0 12px">${Object.entries(run.params || {}).map(([k, x]) => `${e(k)} ${e(TASK_VIEW._rate(String(x)))}`).join(' · ')}</p>
+      <button class="rt-btn" id="rt-seta"${p.id === ui.a ? ' disabled' : ''}>${p.id === ui.a ? 'Shown in section 1' : 'Show it in section 1'}</button>
+      <button class="rt-btn" id="rt-setb"${p.id === ui.a || p.id === ui.b ? ' disabled' : ''}>${p.id === ui.b ? 'Compared in section 1' : 'Compare it with ' + e(ui.a)}</button>`;
+    $('rt-seta').onclick = () => { if (ui.b === p.id) ui.b = ''; ui.a = p.id; R.redraw(null, 'rt-pick'); };
+    $('rt-setb').onclick = () => { ui.b = p.id; R.redraw(null, 'rt-pick'); };
+  },
+
+  // ---- export: the picture as drawn, or the datasets now on the chart (one column per series; hidden ones left out)
+  export(c, kind) {
+    const R = RUN_TOOLS, ch = R.charts[c]; if (!ch) return;
+    const save = (href, file) => { const a = document.createElement('a'); a.href = href; a.download = file; document.body.appendChild(a); a.click(); a.remove(); };
+    if (kind === 'png') { save(ch.toBase64Image('image/png', 1), `twohosts-${ch.rtFile}.png`); return; }
+    const q = v => (v == null ? '' : /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v));
+    const sets = ch.data.datasets.filter((d, i) => ch.isDatasetVisible(i) && !d.guide);
+    let rows;
+    if (ch.rtX) {  // a time chart: one row per sample time, one column per series
+      const xs = [...new Set(sets.flatMap(d => d.data.map(p => p.x)))].sort((a, b) => a - b), at = sets.map(d => new Map(d.data.map(p => [p.x, p.y])));
+      rows = [[ch.rtX, ...sets.map(d => `${d.label} (${d.unit})`)], ...xs.map(x => [x, ...at.map(m => m.get(x))])];
+    } else {       // the study: one row per run; each group of dots is a column of the vertical value
+      const pts = sets.flatMap((d, j) => d.data.map(p => ({ p, j })));
+      rows = [['run', ch.options.scales.x.title.text, ...sets.map(d => `${ch.options.scales.y.title.text} · ${d.label}`)],
+              ...pts.map(({ p, j }) => [p.id, p.x, ...sets.map((d, k) => (k === j ? p.y : ''))])];
+    }
+    const url = URL.createObjectURL(new Blob([rows.map(r => r.map(q).join(',')).join('\n') + '\n'], { type: 'text/csv' }));
+    save(url, `twohosts-${ch.rtFile}.csv`); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  load() {  // Chart.js from the CDN, after the page itself: a slow or missing CDN never holds the other pages back
+    const R = RUN_TOOLS, c = document.createElement('script'); c.src = R.CDN;
+    c.onload = () => { R.state = window.Chart ? 'ready' : 'failed'; R.redraw(); };
+    c.onerror = () => { R.state = 'failed'; R.redraw(); };
+    document.head.appendChild(c);
+  },
+};
+
+const s = document.createElement('script');  // the shared content + layout code, never from the browser's cache
+s.src = 'adrs_view_full.js?t=' + Date.now();
+s.onload = () => { load(); setInterval(load, 5000); RUN_TOOLS.load(); };
+s.onerror = () => { $('page').innerHTML = '<div class="empty">Cannot load adrs_view_full.js.</div>'; };
+document.head.appendChild(s);
+</script>
+</body></html>

@@ -1,0 +1,2 @@
+two-hosts --weightUdp=0.95 --udpRate=2Gbps --tcp=0 --out=/home/chunguck.kim/project/checks/build2/c01-udp-alone
+exit 0, 11.6 s

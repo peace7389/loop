@@ -1,0 +1,2 @@
+two-hosts --weightUdp=0.5 --queuePkts=8 --linkDelay=5ms --out=/home/chunguck.kim/project/checks/build2/diag5-q8-delay5ms
+exit 0, 20.4 s

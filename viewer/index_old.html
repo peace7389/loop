@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Two-hosts harness</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#fff;--fg:#1b1f24;--mut:#6a737d;--line:#d9dee4;--panel:#f6f8fa;--acc:#2a78d6;--ok:#2e8b57;--bad:#c0392b;--mid:#b07d00}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1115;--fg:#e6e8eb;--mut:#9aa3ad;--line:#2a2f37;--panel:#171a20;--acc:#5aa0f2;--ok:#4cc38a;--bad:#f0665a;--mid:#e0a800}}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
+header{padding:14px 20px 6px}h1{margin:0;font-size:20px}header p{margin:2px 0 0;color:var(--mut)}
+main{display:grid;grid-template-columns:minmax(300px,1fr) minmax(420px,1.4fr);gap:14px;padding:12px 20px 24px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+h2{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.wide{grid-column:1/-1}.muted{color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}td,th{padding:3px 8px;text-align:left;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:600;font-size:12px}
+tr.run{cursor:pointer}tr.run:hover{background:var(--bg)}tr.run.on{outline:2px solid var(--acc);outline-offset:-2px}
+.rec{margin:6px 0 6px var(--d,0px);padding:6px 10px;overflow-wrap:anywhere;border-left:3px solid var(--c,var(--line));background:var(--bg);border-radius:4px}
+.rec b{font-size:12px;margin-right:6px}.rec .id{color:var(--mut);font-size:12px}.rec.ev{cursor:pointer}
+.rec pre{white-space:pre-wrap;margin:4px 0 0;font-size:12px;max-height:240px;overflow:auto}
+details summary{cursor:pointer;color:var(--mut)}
+.charts{display:grid;grid-template-columns:1fr;gap:12px}.cw{position:relative;height:250px}.two{display:grid;grid-template-columns:minmax(360px,1fr) minmax(420px,1.3fr);gap:14px;align-items:start}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+</style></head><body>
+<header><h1>AI hypothesis loop over ns-3 · two hosts, one link</h1>
+<p id="sub">Reads ../ledger.jsonl, ../runs/index.json and ../runs/operator.jsonl every 5 s. Nothing here writes. The model never sees the operator's mode.</p></header>
+<main>
+<section><h2>Reasoning trail</h2><div id="trail" class="muted">no ledger yet</div></section>
+<section><h2>Run detail <span id="runid" class="muted"></span></h2>
+<div class="kv"><div><h2>Parameters</h2><table id="params"></table></div><div><h2>Metrics</h2><table id="metrics"></table></div></div>
+<div class="charts"><div class="cw"><canvas id="c1"></canvas></div><div class="cw"><canvas id="c2"></canvas></div></div></section>
+<section class="wide"><h2>Across runs</h2><div class="two"><div class="cw" style="height:320px"><canvas id="c3"></canvas></div><div style="overflow:auto"><table id="runs"></table></div></div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id), css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt=(v,k='')=>typeof v!=='number'?String(v):/bps$/.test(k)?(v/1e9).toFixed(3)+'e9':Number.isInteger(v)?v.toLocaleString():v.toFixed(4);
+let ledger=[],runs=[],sel=null,charts={},oper={};
+async function text(u){const r=await fetch(u+'?t='+Date.now());return r.ok?await r.text():null}
+async function load(){
+  const l=await text('../ledger.jsonl'); ledger=l?l.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
+  const o=await text('../runs/operator.jsonl'); oper={}; (o||'').split('\n').filter(Boolean).forEach(x=>{try{const j=JSON.parse(x);oper[j.id]=j}catch(e){}});
+  const r=await text('../runs/index.json'); runs=r?r.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
+  if(!sel&&runs.length)sel=runs[runs.length-1].id;
+  trail();runTable();scatter();if(sel)detail(sel);
+}
+const colr={hypothesis:'--acc',experiment:'--mid',evidence:'--mut',verdict:'--acc',malformed:'--bad',note:'--mut',scratch:'--line'};
+function trail(){
+  if(!ledger.length){$('trail').textContent='no ledger yet (stages 3-4 write it)';return}
+  const byId={};ledger.forEach(r=>byId[r.id]=r);
+  const depth=r=>{let d=0,p=r.parent;while(p&&byId[p]&&d<8){d++;p=byId[p].parent}return d};
+  $('trail').innerHTML=ledger.map(r=>{
+    const b=r.body||{};let c=colr[r.type]||'--line',txt='';
+    if(r.type==='verdict'){c=b.result==='supported'?'--ok':b.result==='refuted'?'--bad':'--mid';txt=`<b>${b.result}</b> for ${b.for}: ${esc(b.because||'')} <span class="muted">next:</span> ${esc(b.next||'')}`}
+    else if(r.type==='experiment')txt=`${esc(JSON.stringify(b.params||{}))} <span class="muted">pass if</span> ${esc(b.pass_if||'')}`;
+    else if(r.type==='evidence')txt=`run <b>${esc(b.run_id||'')}</b> ${esc(Object.entries(b).filter(([k])=>!['run_id','pass_if'].includes(k)).map(([k,v])=>k+'='+fmt(v,k)).join(' · '))}`;
+    else if(r.type==='hypothesis')txt=esc(b.text||b.hypothesis||JSON.stringify(b))+(b.prediction?` <span class="muted">predicts</span> ${esc(b.prediction)}`:'');
+    else if(r.type==='scratch')txt=`<details><summary>model reasoning, ${(b.reasoning||'').length} chars${b.finish_reason?' · '+esc(b.finish_reason):''}</summary><pre>${esc(b.reasoning||'')}</pre></details>`;
+    else txt=esc(typeof b==='string'?b:JSON.stringify(b));
+    return `<div class="rec${r.type==='evidence'?' ev':''}" style="--d:${depth(r)*14}px;--c:var(${c})" data-run="${r.type==='evidence'?esc(b.run_id||''):''}"><b>${r.type}</b><span class="id">${esc(r.id)} · turn ${r.turn}</span><div>${txt}</div></div>`}).join('');
+  $('trail').querySelectorAll('.ev').forEach(e=>e.onclick=()=>{sel=e.dataset.run;detail(sel);runTable()});
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function runTable(){
+  const keys=['udp_goodput_bps','tcp_goodput_bps','link_util','udp_loss_frac','drops_band0','drops_band1'];
+  $('runs').innerHTML=`<tr><th>run</th><th>weight</th><th>udpRate</th><th>mode</th>${keys.map(k=>`<th>${k.replace('_goodput_bps','').replace('_frac','')}</th>`).join('')}</tr>`+
+    runs.slice().reverse().map(r=>`<tr class="run${r.id===sel?' on':''}" data-id="${esc(r.id)}"><td>${esc(r.id)}</td><td>${fmt(r.params.weightUdp??r.metrics.weight_udp)}</td><td>${esc(r.params.udpRate??'')}</td><td>${esc((oper[r.id]||{}).mode??'')}</td>${keys.map(k=>`<td>${fmt(r.metrics[k],k)}</td>`).join('')}</tr>`).join('');
+  $('runs').querySelectorAll('tr.run').forEach(t=>t.onclick=()=>{sel=t.dataset.id;detail(sel);runTable()});
+}
+function chart(id,cfg){if(charts[id])charts[id].destroy();Chart.defaults.color=css('--fg');Chart.defaults.borderColor=css('--line');charts[id]=new Chart($(id),cfg)}
+async function detail(id){
+  const r=runs.find(x=>x.id===id);if(!r)return;$('runid').textContent='· '+id;
+  $('params').innerHTML=Object.entries(r.params).map(([k,v])=>`<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')+(oper[r.id]?`<tr><td class="muted">mode (operator)</td><td>${esc(oper[r.id].mode)}</td></tr>`:'');
+  $('metrics').innerHTML=Object.entries(r.metrics).map(([k,v])=>`<tr><td>${k}</td><td>${fmt(v,k)}</td></tr>`).join('');
+  const csv=await text(`../runs/${id}/series.csv`);if(!csv)return;
+  const rows=csv.trim().split('\n').slice(1).map(l=>l.split(',').map(Number));
+  const t=rows.map(x=>x[0]),line=r.metrics.weight_udp*r.metrics.link_rate_bps;
+  chart('c1',{type:'line',data:{labels:t,datasets:[
+    {label:'UDP bps',data:rows.map(x=>x[1]),borderColor:css('--acc'),pointRadius:0,borderWidth:1.5},
+    {label:'TCP bps',data:rows.map(x=>x[2]),borderColor:css('--mid'),pointRadius:0,borderWidth:1.5},
+    {label:'weight × link',data:rows.map(()=>line),borderColor:css('--mut'),borderDash:[6,4],pointRadius:0,borderWidth:1}]},
+    options:{animation:false,maintainAspectRatio:false,plugins:{title:{display:true,text:'Throughput per flow over time'}},scales:{y:{min:0,ticks:{callback:v=>(v/1e9).toFixed(1)+'G'}},x:{ticks:{maxTicksLimit:10}}}}});
+  const d0=rows.map((x,i)=>i?x[4]-rows[i-1][4]:x[4]),d1=rows.map((x,i)=>i?x[5]-rows[i-1][5]:x[5]);
+  chart('c2',{type:'line',data:{labels:t,datasets:[
+    {label:'cwnd (bytes)',data:rows.map(x=>x[3]),borderColor:css('--acc'),pointRadius:0,borderWidth:1.5,yAxisID:'y'},
+    {label:'drops band 0 / 100 ms',data:d0,type:'bar',backgroundColor:css('--bad')+'88',yAxisID:'y2'},
+    {label:'drops band 1 / 100 ms',data:d1,type:'bar',backgroundColor:css('--mid')+'88',yAxisID:'y2'}]},
+    options:{animation:false,maintainAspectRatio:false,plugins:{title:{display:true,text:'TCP cwnd with drops per band'}},scales:{y:{min:0,position:'left'},y2:{min:0,position:'right',grid:{drawOnChartArea:false}},x:{ticks:{maxTicksLimit:10}}}}});
+}
+function scatter(){
+  const pts=runs.map(r=>({x:r.metrics.weight_udp,y:r.metrics.udp_goodput_bps/r.metrics.link_rate_bps,id:r.id,loss:r.metrics.udp_loss_frac}));
+  chart('c3',{type:'scatter',data:{datasets:[
+    {label:'no UDP loss',data:pts.filter(p=>p.loss===0),backgroundColor:css('--ok'),pointRadius:5},
+    {label:'UDP loss > 0',data:pts.filter(p=>p.loss>0),backgroundColor:css('--bad'),pointRadius:5},
+    {label:'share = weight',type:'line',data:[{x:0,y:0},{x:1,y:1}],borderColor:css('--mut'),borderDash:[6,4],pointRadius:0,borderWidth:1}]},
+    options:{animation:false,maintainAspectRatio:false,plugins:{title:{display:true,text:'UDP share of the link vs configured weight'},tooltip:{callbacks:{label:c=>c.raw.id?`${c.raw.id}: ${c.raw.y.toFixed(3)} at weight ${c.raw.x}`:''}}},
+      scales:{x:{min:0,max:1,title:{display:true,text:'weight_udp'}},y:{min:0,max:1,title:{display:true,text:'udp_goodput / link_rate'}}},
+      onClick:(e,els)=>{if(els.length){const p=charts.c3.data.datasets[els[0].datasetIndex].data[els[0].index];if(p.id){sel=p.id;detail(sel);runTable()}}}}});
+}
+load();setInterval(load,5000);
+</script></body></html>

@@ -1,0 +1,2 @@
+two-hosts --udpRate=0bps --duration=0.3 --warmup=0.3 --pcap=1 --out=/home/chunguck.kim/project/checks/build2/c02-tcp-alone-pcap
+exit 0, 2.5 s

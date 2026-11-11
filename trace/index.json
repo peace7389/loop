@@ -1,0 +1,102 @@
+[
+ {
+  "name": "default",
+  "title": "Default settings",
+  "note": "UDP and TCP both saturating, share 0.5, queues of 100 packets",
+  "settings": {},
+  "params": {
+   "linkRate": "1Gbps",
+   "linkDelay": "50us",
+   "udpRate": "2Gbps",
+   "tcpVariant": "TcpCubic",
+   "mtu": 1500,
+   "queuePkts": 100,
+   "duration": 1,
+   "seed": 1,
+   "weightUdp": 0.5
+  },
+  "mode": "share",
+  "from_ns": 2500005352,
+  "ms": 6.0,
+  "events": 5819,
+  "made": "2026-11-10 17:20",
+  "seconds": 4.9
+ },
+ {
+  "name": "queue4",
+  "title": "Short queues (4 packets)",
+  "note": "Each queue holds only 4 packets: the TCP queue runs empty and UDP takes the free turns",
+  "settings": {
+   "queuePkts": "4"
+  },
+  "params": {
+   "linkRate": "1Gbps",
+   "linkDelay": "50us",
+   "udpRate": "2Gbps",
+   "tcpVariant": "TcpCubic",
+   "mtu": 1500,
+   "queuePkts": 4,
+   "duration": 1,
+   "seed": 1,
+   "weightUdp": 0.5
+  },
+  "mode": "share",
+  "from_ns": 2500005352,
+  "ms": 6.0,
+  "events": 5887,
+  "made": "2026-11-10 17:20",
+  "seconds": 4.7
+ },
+ {
+  "name": "share-udp200m",
+  "title": "UDP offers 200 Mbps, mode share",
+  "note": "UDP sends less than its share; in share mode TCP uses what UDP leaves",
+  "settings": {
+   "udpRate": "200Mbps",
+   "mode": "share"
+  },
+  "params": {
+   "linkRate": "1Gbps",
+   "linkDelay": "50us",
+   "udpRate": "200Mbps",
+   "tcpVariant": "TcpCubic",
+   "mtu": 1500,
+   "queuePkts": 100,
+   "duration": 1,
+   "seed": 1,
+   "weightUdp": 0.5
+  },
+  "mode": "share",
+  "from_ns": 2500005892,
+  "ms": 6.0,
+  "events": 4528,
+  "made": "2026-11-10 17:20",
+  "seconds": 4.7
+ },
+ {
+  "name": "cap-udp200m",
+  "title": "UDP offers 200 Mbps, mode cap",
+  "note": "UDP sends less than its share; in cap mode what UDP leaves stays unused",
+  "settings": {
+   "udpRate": "200Mbps",
+   "mode": "cap"
+  },
+  "params": {
+   "linkRate": "1Gbps",
+   "linkDelay": "50us",
+   "udpRate": "200Mbps",
+   "tcpVariant": "TcpCubic",
+   "mtu": 1500,
+   "queuePkts": 100,
+   "duration": 1,
+   "seed": 1,
+   "weightUdp": 0.5
+  },
+  "mode": "cap",
+  "from_ns": 2500006008,
+  "ms": 6.0,
+  "events": 3130,
+  "made": "2026-11-10 17:20",
+  "seconds": 3.1
+ }
+]

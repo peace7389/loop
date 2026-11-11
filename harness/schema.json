@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "properties": {
+    "observations": {"type": "string"},
+    "hypothesis": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+    "prediction": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+    "experiment": {"anyOf": [
+      {"type": "object",
+       "properties": {
+         "params": {"type": "object",
+                    "properties": {"weightUdp": {"type": "number"}, "udpRate": {"type": "string"}, "queuePkts": {"type": "integer"},
+                                   "tcpVariant": {"type": "string"}, "duration": {"type": "number"}, "seed": {"type": "integer"}},
+                    "additionalProperties": false},
+         "metrics": {"type": "array", "items": {"type": "string", "enum": ["udp_goodput_bps", "tcp_goodput_bps", "udp_loss_frac", "drops_band0", "drops_band1", "tcp_retrans", "link_util", "link_rate_bps", "weight_udp"]}},
+         "pass_if": {"type": "string"}},
+       "required": ["params", "metrics", "pass_if"], "additionalProperties": false},
+      {"type": "null"}]},
+    "verdict": {"anyOf": [
+      {"type": "object",
+       "properties": {"for": {"type": "string"}, "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]},
+                      "because": {"type": "string"}, "next": {"type": "string"}},
+       "required": ["for", "result", "because", "next"], "additionalProperties": false},
+      {"type": "null"}]},
+    "requests": {"type": "array", "items": {"type": "object",
+       "properties": {"tool": {"type": "string", "enum": ["describe_system", "metrics", "series", "grep_trace", "list_runs", "read_source"]},
+                      "args": {"type": "object"}},
+       "required": ["tool", "args"], "additionalProperties": false}},
+    "budget_request": {"anyOf": [
+      {"type": "object",
+       "properties": {"experiments": {"type": "integer", "description": "how many more experiments to add to the run budget"},
+                      "reason": {"type": "string", "description": "one sentence: why they are needed"}},
+       "required": ["experiments", "reason"], "additionalProperties": false},
+      {"type": "null"}]},
+    "done": {"type": "boolean"}
+  },
+  "required": ["observations", "hypothesis", "prediction", "experiment", "verdict", "requests", "budget_request", "done"],
+  "additionalProperties": false
+}

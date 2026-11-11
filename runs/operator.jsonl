@@ -1,0 +1,16 @@
+{"id": "sanity-2g", "mode": "share", "stage": 1}
+{"id": "sanity-400m", "mode": "share", "stage": 1}
+{"id": "share-w0.2", "mode": "share", "stage": 2}
+{"id": "share-w0.5", "mode": "share", "stage": 2}
+{"id": "share-w0.8", "mode": "share", "stage": 2}
+{"id": "share-200m", "mode": "share", "stage": 2}
+{"id": "cap-200m", "mode": "cap", "stage": 2}
+{"id": "cap-w0.5", "mode": "cap", "stage": 2}
+{"id": "cap-w0.2", "mode": "cap", "stage": 2}
+{"id": "cap-w0.8", "mode": "cap", "stage": 2}
+{"id": "r001", "mode": "share", "seconds": 4.1}
+{"id": "r002", "mode": "share", "seconds": 27.7}
+{"id": "r003", "mode": "share", "seconds": 13.4}
+{"id": "r004", "mode": "share", "seconds": 41.0}
+{"id": "r005", "mode": "share", "seconds": 28.3}
+{"id": "r006", "mode": "share", "seconds": 85.9}

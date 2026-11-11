@@ -1,0 +1,2 @@
+two-hosts --weightUdp=0.5 --queuePkts=8 --tcpVariant=TcpNewReno --out=/home/chunguck.kim/project/checks/build2/diag5-q8-newreno
+exit 0, 25.7 s
