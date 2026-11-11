@@ -80,7 +80,7 @@ const EV = {
     if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
     const body = S.view === 'home' ? EV.homeView() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
     document.getElementById('ev').innerHTML = bar + body + '<div id="ev-print"></div>';
-    if (S.view === 'session') { EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator();
+    if (S.view === 'session') { EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'home') EV.afterHome();
     if (window.scrollY !== y) window.scrollTo(0, y);
   },
 
@@ -115,7 +115,8 @@ const EV = {
     if (t.dataset.ch === 'review') return EV.saveReview(t.closest('[data-item]'));
     if (EV.chg && EV.chg[t.dataset.ch]) return EV.chg[t.dataset.ch](t);
   },
-  input(ev) { const t = ev.target; if (t.dataset.in === 'filter') { EV.s.home.filter = t.value; EV.homeRows(); } },  // typing in the filter redraws the rows only
+  input(ev) { const t = ev.target; if (t.dataset.in === 'filter') { EV.s.home.filter = t.value; EV.homeRows(); }  // typing in the filter redraws the rows only
+    else if (EV.inp && EV.inp[t.dataset.ch]) EV.inp[t.dataset.ch](t); },
 
   // ---- replay: at step k everything recorded later is greyed, in all three views
   replay(how) {

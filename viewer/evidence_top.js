@@ -22,7 +22,7 @@ Object.assign(EV, {
       <button data-act="replay" data-id="next">next ▶</button> <button data-act="replay" data-id="last">last »</button>
       <span class="sm">step ${k + 1} of ${n}${S.step == null ? '' : ': everything recorded later is greyed'} · arrow keys also work</span></span>
       <span class="end">reviewed ${ticked} of ${n} steps <span class="prog"><i style="width:${n ? 100 * ticked / n : 0}%"></i></span></span>`;
-    return `${intro}<div class="ev-top"><div class="ev-card"><h2>How a session is built<small>this session's counts; click a box to go to that part</small></h2>${EV.structureMap()}</div>
+    return `${EV.banner()}${intro}<div class="ev-top"><div class="ev-card"><h2>How a session is built<small>this session's counts; click a box to go to that part</small></h2>${EV.structureMap()}</div>
         <div class="ev-card"><h2>Who produced it</h2>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
       <div class="ev-card" id="p-claims"><h2>${EV.term('Final report', 'Final report')}: its claims<small>click one to mark its evidence in both charts and open its test</small></h2>${claims}</div>
       <div class="ev-card ev-bar" style="margin-bottom:12px">${replay}</div>

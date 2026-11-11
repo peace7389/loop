@@ -9,7 +9,7 @@ Object.assign(EV, {
     const allowed = M.brief && M.brief.limits ? M.brief.limits.simulations : f ? f.budget : null, unusable = M.steps.filter(s => s.kind === 'answer' && s.warn).length;
     const kinds = {}; M.exps.forEach(x => { const k = x.by === 'harness' ? 'baseline' : x.kind || 'not recorded'; kinds[k] = (kinds[k] || 0) + 1; });
     const st = {}; M.hyps.forEach(h => { st[h.state] = (st[h.state] || 0) + 1; });
-    const kv = [['model', m.model || EV.nr], ['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], [EV.term('Scheduling policy', 'scheduling policy') + ' (operator only)', EV.files.policy || EV.nr],
+    const kv = [['model', m.model || EV.nr], ['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], ...(EV.s.op ? [[EV.term('Scheduling policy', 'scheduling policy') + ' (operator column)', EV.policyText(EV.files.row)]] : []),
       ['started', m.started ? m.started.replace('T', ' ') : M.recs[0] && M.recs[0].ts ? M.recs[0].ts.replace('T', ' ') : EV.nr], ['duration', mins],
       [EV.term('Simulation', 'simulations') + ' used / allowed', `${m.simulations ?? EV.nr} / ${allowed ?? EV.nr}`], [EV.term('Turn', 'turns'), `${m.turns ?? c.turn}${unusable ? ` · ${unusable} unusable` : ''}`],
       ['model calls', m.calls ?? EV.nr], ['replies cut off', m.cut_off ?? EV.nr], ['how it ended', row.running ? 'running now' : m.how || EV.nr]];

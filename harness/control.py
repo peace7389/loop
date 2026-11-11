@@ -8,11 +8,13 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
   GET  /api/sessions   that list alone
   POST /api/run        {params, policy, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
                        The brief (default two-hosts-open) gives the fixed settings and the ranges.
-  POST /api/session    {brief, budget, draft, policy, baseline, session}: starts loop.py with those flags, returns the session id
-                       (budget = simulations).
+  POST /api/session    {brief, budget, draft, max_tokens, temperature, policy, baseline, session}: starts loop.py with those flags,
+                       returns the session id (budget = simulations). Up to six loops run side by side. policy "random": the
+                       server chooses share or cap and lists the session in checks/random.json; its policy is then left out
+                       of the session list until the session is scored.
                        Without "session" it is a new session (the next id sNNN) on the named brief (default two-hosts-open;
                        budget defaults to the brief's limit); with the id of an existing session it continues that one.
-  POST /api/stop       stops the session that was started here
+  POST /api/stop       {session}: stops that session if it was started here (no session named: the newest started here)
   POST /api/sweep      {brief, policy, grid: {knob: [values]}} (or {add_to: <sweep id>, grid, rerun}: more combinations
                        into an existing sweep's table): every combination of the grid, run by the built program
                        directly, at most 64 at a time -> checks/sweeps/<id>/table.csv (one row per simulation) and
@@ -43,7 +45,7 @@ process of the user who runs this server (an SSH tunnel of that user counts), an
 page (so no other web page open in the same browser can call it). Parameters go through tools.clamp, like the model's.
 Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the page's brief editor.
 Python standard library only."""
-import argparse, csv, http.server, itertools, json, os, re, shutil, signal, subprocess, sys, threading, time
+import argparse, csv, http.server, itertools, json, os, random, re, shutil, signal, subprocess, sys, threading, time
 from pathlib import Path
 import tools
 
@@ -52,7 +54,9 @@ BIN = tools.NS3 / "build/scratch/two-hosts/ns3.49-two-hosts-optimized"
 LOOP = [sys.executable, str(H / "loop.py")]
 HOST, PORT = "127.0.0.1", 8600
 LOCK, RUN_LOCK = threading.Lock(), threading.Lock()
-SESSION = {}  # the session started here, if any: id, proc, flags, started, log
+SESSION = {}  # the newest session started here, if any: id, proc, flags, started, log (the older control page shows this one)
+STARTED = {}  # every session started here, by id; MAX_LOOPS: most loops running at the same time, wherever they were started
+MAX_LOOPS = 6
 CACHE = {}    # session id -> (file times, its row in /api/sessions)
 SWEEP = {}    # the sweep running here, if any: id, thread, stop
 PARALLEL, SWEEP_MAX = 64, 5000  # simulations of a sweep running at the same time; most simulations one sweep may ask for
@@ -76,10 +80,10 @@ def peer_uid(peer_port, port):
 def other_loops():
     """The session ids of every loop.py of this user that is running and was not started here ("?" for one whose command
     does not name its session). Sessions started from terminals can run side by side."""
-    mine, out = (SESSION["proc"].pid if SESSION and SESSION["proc"].poll() is None else None), []
+    mine, out = {x["proc"].pid for x in STARTED.values() if x["proc"].poll() is None}, []
     for p in Path("/proc").iterdir():
         try:
-            if not p.name.isdigit() or int(p.name) == mine or p.stat().st_uid != os.getuid():
+            if not p.name.isdigit() or int(p.name) in mine or p.stat().st_uid != os.getuid():
                 continue
             args = (p / "cmdline").read_bytes().split(b"\0")
             if any(a.endswith(b"loop.py") and (Path(os.readlink(p / "cwd")) / a.decode()).resolve() == (H / "loop.py").resolve() for a in args[1:3]):
@@ -102,7 +106,7 @@ def sessions():
     for r in lines(CHECKS / "operator.jsonl"):
         if r.get("session"):
             policy[r["session"]] = r.get("policy", r.get("mode"))
-    here = SESSION["id"] if SESSION and SESSION["proc"].poll() is None else None
+    here = {i for i, x in STARTED.items() if x["proc"].poll() is None}
     others = set(other_loops())
     dirs = sorted(p for p in tools.SESSIONS.iterdir() if p.is_dir() and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", p.name)) if tools.SESSIONS.is_dir() else []
     if "?" in others and dirs:  # a loop started from a terminal without --session made the newest folder
@@ -135,7 +139,7 @@ def sessions():
                            "signed": {"name": marks["signoff"].get("note"), "at": marks["signoff"].get("at")} if "signoff" in marks else None}})
         row = CACHE[d.name][1]
         secret = d.name in hidden and not row["score"]  # a policy the harness chose is shown only once the session is scored
-        out.append({**row, "policy": None if secret else policy.get(d.name), "policy_hidden": secret, "running": d.name == here or d.name in others})
+        out.append({**row, "policy": None if secret else policy.get(d.name), "policy_hidden": secret, "running": d.name in here or d.name in others, "stoppable": d.name in here})
     return out
 
 
@@ -374,10 +378,15 @@ def save_review(body):
 
 
 def start_session(body):
-    """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal."""
+    """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal. Several can run
+    side by side. With the scheduling policy "random" the server chooses share or cap itself and notes the session in
+    checks/random.json: the session list then withholds its policy until the session has a score."""
     budget, draft, policy, base = body.get("budget"), body.get("draft", "on"), body.get("policy", body.get("mode", "share")), body.get("baseline", True)
-    if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or policy not in ("share", "cap") or type(base) is not bool:
-        raise Refused(400, "budget must be a whole number of at least 1 (or left out: the brief's limit), draft on or off, policy (the scheduling policy) share or cap, baseline true or false")
+    tokens, temp = body.get("max_tokens"), body.get("temperature")
+    if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or policy not in ("share", "cap", "random") or type(base) is not bool:
+        raise Refused(400, "budget must be a whole number of at least 1 (or left out: the brief's limit), draft on or off, policy (the scheduling policy) share, cap or random, baseline true or false")
+    if (tokens is not None and (type(tokens) is not int or not 256 <= tokens <= 100000)) or (temp is not None and (type(temp) not in (int, float) or not 0 <= temp <= 2)):
+        raise Refused(400, "max_tokens must be a whole number from 256 to 100000 and temperature a number from 0 to 2 (or left out: the loop's defaults)")
     sid, brief = body.get("session"), body.get("brief")
     if sid is not None and not (isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid) and (tools.SESSIONS / sid / "session.json").is_file()):
         raise Refused(400, "session must be the id of an existing session that has a session.json (leave it out to start a new one)")
@@ -387,37 +396,53 @@ def start_session(body):
         except ValueError as e:
             raise Refused(400, str(e))
     with LOCK:
-        if (SESSION and SESSION["proc"].poll() is None) or other_loop():
-            raise Refused(409, "a session is already running")
-        sid = sid or tools.next_session_id()
+        running = {i for i, x in STARTED.items() if x["proc"].poll() is None} | set(other_loops())
+        if len(running) >= MAX_LOOPS:
+            raise Refused(409, f"{len(running)} sessions are running, and at most {MAX_LOOPS} run at the same time: wait for one to end")
+        if sid in running:
+            raise Refused(409, f"session {sid} is running")
+        if sid is None:  # a new id, also not one given to a loop that has not made its folder yet
+            n = int(tools.next_session_id()[1:])
+            while f"s{n:03d}" in STARTED or (tools.SESSIONS / f"s{n:03d}").exists():
+                n += 1
+            sid = f"s{n:03d}"
+        chosen = random.choice(["share", "cap"]) if policy == "random" else policy
+        if policy == "random":
+            path = CHECKS / "random.json"
+            path.write_text(json.dumps(sorted(set(json.loads(path.read_text()) if path.is_file() else []) | {sid})) + "\n")
         (CHECKS / "sessions").mkdir(parents=True, exist_ok=True)
         log = CHECKS / "sessions" / f"{sid}.log"
-        flags = {"session": sid, "brief": brief, "budget": budget, "draft": draft, "policy": policy, "baseline": "on" if base else "off"}
+        flags = {"session": sid, "brief": brief, "budget": budget, "draft": draft, "max-tokens": tokens, "temperature": temp, "policy": chosen, "baseline": "on" if base else "off"}
         cmd = LOOP + [x for k, v in flags.items() if v is not None for x in (f"--{k}", str(v))]
         with log.open("a") as f:
             f.write(" ".join(cmd) + "\n")
             f.flush()
             proc = subprocess.Popen(cmd, cwd=H, stdout=f, stderr=subprocess.STDOUT, start_new_session=True)
+        shown = {**flags, "policy": "chosen by the harness" if policy == "random" else chosen}  # what the page is told
+        STARTED[sid] = {"id": sid, "proc": proc, "flags": shown, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "log": log}
         SESSION.clear()
-        SESSION.update(id=sid, proc=proc, flags=flags, started=time.strftime("%Y-%m-%dT%H:%M:%S"), log=log)
+        SESSION.update(STARTED[sid])
     time.sleep(1.5)  # a refused flag (a budget over the loop's ceiling, say) ends the loop at once: report it now
     if proc.poll() not in (None, 0):
         raise Refused(400, "the loop did not start: " + tail(log, 400).strip().splitlines()[-1])
-    return {"id": sid, "pid": proc.pid, "flags": flags}
+    return {"id": sid, "pid": proc.pid, "flags": shown}
 
 
-def stop_session():
+def stop_session(body=None):
+    """Stops a session that was started here: the one named, or (the older page names none) the newest."""
     with LOCK:
-        if not SESSION or SESSION["proc"].poll() is not None:
-            raise Refused(409, "no session started here is running")
-        proc = SESSION["proc"]
+        sid = (body or {}).get("session") or (SESSION.get("id") if SESSION else None)
+        x = STARTED.get(sid)
+        if not x or x["proc"].poll() is not None:
+            raise Refused(409, "no session started here is running" if not (body or {}).get("session") else f"session {sid} is not running, or was not started from this server (stop it where it was started)")
+        proc = x["proc"]
         os.killpg(proc.pid, signal.SIGTERM)  # the loop and the simulation it may be running
         try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             os.killpg(proc.pid, signal.SIGKILL)
             proc.wait(timeout=5)
-        return {"stopped": SESSION["id"]}
+        return {"stopped": sid}
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -462,7 +487,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": stop_session, "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body)}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": lambda: stop_session(body), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body)}.get(self.path)
             m = re.fullmatch(r"/api/sweep/([^/]+)/stop", self.path)
             if m:
                 do = lambda: stop_sweep(m.group(1))
