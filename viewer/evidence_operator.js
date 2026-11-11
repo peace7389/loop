@@ -1,9 +1,9 @@
 // The Operator tab (reads checks/ only: the scheduling policy, the sweep as a heat map over two chosen knobs with the
-// session's simulations as numbered points and the best cell marked, the score, the checklist) and the Compare tab
-// (every session of the selected brief: flags, simulations used, how it ended, gap to the best, checklist).
+// session's simulations as numbered points and the best cell marked, the score, the checklist). The operator's own
+// simulation and sweep are in evidence_oprun.js; the Compare tab in evidence_compare.js.
 // ======================================================================================================
 Object.assign(EV, {
-  sweeps: {}, cmp: {},
+  sweeps: {},
   gap: sc => (typeof sc.gap_on_target !== 'number' ? 'not recorded' : /_bps$/.test(sc.goal.target) ? (sc.gap_on_target / 1e6).toFixed(3) + ' Mbps' : String(+sc.gap_on_target.toPrecision(4))),
   csv(text) {  // a CSV table as objects (quoted fields allowed)
     const rows = [], re = /("([^"]|"")*"|[^,\n]*)(,|\n|$)/g; let row = [], m;
@@ -64,21 +64,5 @@ Object.assign(EV, {
           <div class="ev-top"><div><h3>the sweep's best row</h3>${kv(sc.best_row)}</div><div><h3>the recommendation, simulated</h3>${kv(sc.recommendation)}${kv(sc.at_the_recommendation)}</div></div>`}</div>
         <div class="ev-card"><h2>Checklist<small>judged by the operator</small></h2>${sc && sc.checklist ? `<table><tbody>${sc.checklist.map(c => `<tr><td>${c.n}</td><td>${e(c.item)}</td><td class="${c.judgement === 'yes' ? 'ok' : c.judgement === 'no' ? 'bad' : 'mut'}">${e(c.judgement)}</td></tr>`).join('')}</tbody></table>` : `<p class="sm">checklist: ${EV.nr}</p>`}</div></div>
       ${EV.runCard()}${EV.sweepCard()}`;
-  },
-
-  compareTab() {
-    const e = EV.e, S = EV.s, list = EV.st.sessions.filter(x => (x.brief || '') === (S.brief || ''));
-    const need = list.filter(x => !EV.cmp[x.id] || EV.cmp[x.id].sig !== `${x.records}|${x.running}`);
-    if (need.length && !EV.cmpBusy) { EV.cmpBusy = true;
-      Promise.all(need.map(async x => { const [m, sc] = await Promise.all([EV.json(`../sessions/${x.id}/session.json`), EV.json(`../checks/scores/${x.id}.json`)]); EV.cmp[x.id] = { sig: `${x.records}|${x.running}`, m, sc }; }))
-        .then(() => { EV.cmpBusy = false; if (EV.s.view === 'compare') EV.draw(); }); }
-    const rows = list.map(x => { const c = EV.cmp[x.id] || {}, m = c.m || {}, sc = c.sc, fl = m.flags, cl = sc && sc.checklist || [];
-      const n = j => cl.filter(q => q.judgement === j).length;
-      return `<tr class="pick" data-act="pick" data-id="${e(x.id)}"><td><b>${e(x.id)}</b></td><td>${e(x.policy || 'not recorded')}</td><td class="sm">${fl ? e(Object.entries(fl).map(([k, v]) => k + ' ' + v).join(' · ')) : EV.nr}</td>
-        <td class="num">${m.simulations ?? x.simulations ?? '–'} / ${(m.given && m.given.limits && m.given.limits.simulations) ?? (fl && fl.budget) ?? '–'}</td><td class="num">${m.turns ?? x.turns ?? '–'}</td><td>${x.running ? 'running now' : e(m.how || 'not recorded')}</td>
-        <td class="num">${sc ? e(EV.gap(sc)) : '<span class="mut">not scored</span>'}</td><td>${sc ? `${n('yes')} yes · ${n('no')} no · ${n('unjudged')} unjudged` : '–'}</td></tr>`; }).join('');
-    return `<div class="ev-card"><h2>Compare sessions<small>every session of the brief ${e(S.brief || 'before briefs')}; click a row to open that session</small></h2>
-      <table><thead><tr><th>session</th><th>${EV.term('Scheduling policy', 'scheduling policy')}</th><th>flags</th><th class="num">simulations used / allowed</th><th class="num">turns</th><th>how it ended</th><th class="num">gap to the best</th><th>checklist</th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="sm">The gap is the sweep's best row minus the recommendation simulated by the operator, on the brief's target; negative = better than every row of the sweep.</p></div>`;
   },
 });

@@ -59,7 +59,7 @@ Object.assign(EV, {
   sessionTab() {
     return `${EV.headStrip()}${EV.banner()}
       <div class="ev-main"><div>${EV.overview()}${EV.highCard()}${EV.bestCard()}${EV.workCard()}${EV.testsCard()}</div>
-        <div class="ev-side"><div class="ev-card" id="p-detail">${EV.detail()}</div></div></div>${EV.howTo()}`;
+        <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },
 });
 EV.act = Object.assign(EV.act || {}, { more() { EV.s.more = !EV.s.more; EV.draw(); } });

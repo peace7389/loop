@@ -15,8 +15,8 @@ Object.assign(EV, {
     return bits.join(' · ');
   },
   reviewCell(x) {  // the reviewer's progress on a session, and the sign-off
-    const r = x.review || { ticked: [] }, n = r.ticked.length;
-    return (r.signed ? `<span class="ok">reviewed by ${EV.e(r.signed.name || 'not recorded')} on ${EV.e(String(r.signed.at || '').slice(0, 10))}</span> · ` : '') + (n ? `${n} item${n === 1 ? '' : 's'} checked` : r.signed ? '' : '<span class="mut">not started</span>');
+    const r = x.review || { ticked: [] }, M = EV.modelOf(x), [a, n] = M ? EV.checked(M, r.ticked) : [r.ticked.length, null];  // the total comes from the session's own records, read in the background
+    return (r.signed ? `<span class="ok">reviewed by ${EV.e(r.signed.name || 'not recorded')} on ${EV.e(String(r.signed.at || '').slice(0, 10))}</span> · ` : '') + (a || r.signed ? `checked ${a}${n == null ? '' : ' of ' + n}` : `<span class="mut">not started${n ? ' · ' + n + ' to check' : ''}</span>`);
   },
   HOME: [['id', 'session'], ['brief', 'brief'], ['started', 'started'], ['how', 'how it ended'], ['simulations', 'simulations used', 'num'], ['held', 'tests held / failed'], ['review', 'review progress']],
   HOME_OP: [['policy', 'scheduling policy'], ['gap', 'gap to the best', 'num']],

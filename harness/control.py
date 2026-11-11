@@ -135,7 +135,7 @@ def sessions():
                 # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
                 "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"),
                                  "holds": all((sc.get("conditions_hold_at_the_recommendation") or {}).values())},
-                "review": {"ticked": sorted(k for k, m in marks.items() if m.get("tick") and k != "signoff"),
+                "review": {"n": len(marks), "ticked": sorted(k for k, m in marks.items() if m.get("tick") and k != "signoff"),
                            "signed": {"name": marks["signoff"].get("note"), "at": marks["signoff"].get("at")} if "signoff" in marks else None}})
         row = CACHE[d.name][1]
         secret = d.name in hidden and not row["score"]  # a policy the harness chose is shown only once the session is scored

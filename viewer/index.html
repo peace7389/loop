@@ -11,17 +11,20 @@
      evidence_views.js View 1 (session flow) and View 2 (hypothesis map); evidence_flow.js View 3 (one test) and
      the chart; evidence_cards.js the trail, the work-log card, the brief; evidence_test.js a test and a hypothesis;
      evidence_panels.js the experiment panel and a simulation's result panel; evidence_more.js the sections below (brief,
-     summary, hypotheses, tests grouped under their experiments, final report) and the evidence sheet; evidence_operator.js the Operator and Compare tabs. The page writes nothing
+     summary, hypotheses, tests grouped under their experiments, final report) and the evidence sheet; evidence_operator.js the Operator tab; evidence_compare.js and evidence_parallel.js the Compare tab;
+     evidence_review.js the review queue and the sign-off. The page writes nothing
      except the reviewer's ticks and notes, through POST /api/review. The earlier pages: index_runs.html (runs compared,
      any setting against any measure), index_full.html (system objects, packet events, run control and the brief editor). -->
 <style>
 .ev { color-scheme: light;
   --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #dddcd6; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974; --grid: #e6e5e0;
   --series-1: #2a78d6; --series-2: #eb6834; --critical: #d03b3b; --good: #0ca30c; --warning: #b86a00;
-  --by-model: #6250d6; --by-harness: #c2407a; --by-simulator: #1baf7a; --by-operator: #eda100; }
+  --by-model: #6250d6; --by-harness: #c2407a; --by-simulator: #1baf7a; --by-operator: #eda100;
+  --cat-1: #2a78d6; --cat-2: #eb6834; --cat-3: #1baf7a; --cat-4: #eda100; --cat-5: #e87ba4; --cat-6: #008300; --cat-7: #6250d6; --cat-8: #e34948; }
 @media (prefers-color-scheme: dark) { .ev { color-scheme: dark;
   --surface-0: #121211; --surface-1: #1a1a19; --border: #383835; --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86; --grid: #2b2b29;
-  --series-1: #3987e5; --series-2: #d95926; --warning: #e0a030; --by-model: #9085e9; --by-harness: #d55181; --by-simulator: #127a57; --by-operator: #c98500; } }
+  --series-1: #3987e5; --series-2: #d95926; --warning: #e0a030; --by-model: #9085e9; --by-harness: #d55181; --by-simulator: #127a57; --by-operator: #c98500;
+  --cat-1: #3987e5; --cat-2: #d95926; --cat-3: #199e70; --cat-4: #c98500; --cat-5: #d55181; --cat-6: #008300; --cat-7: #9085e9; --cat-8: #e66767; } }
 * { box-sizing: border-box; } body { margin: 0; }
 .ev { background: var(--surface-0); color: var(--text-primary); min-height: 100vh; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 14px 20px 40px; }
 .ev h1, .ev h2, .ev h3, .ev p { margin: 0; } .ev a { color: inherit; }
@@ -84,13 +87,16 @@
 .ev th a { cursor: pointer; } .ev .pill.live { color: var(--good); border-color: var(--good); } .ev tr.run td { background: color-mix(in srgb, var(--good) 7%, transparent); }
 .ev .nw { display: grid; grid-template-columns: 1.2fr 1fr 1.5fr .8fr; gap: 10px 26px; align-items: start; } @media (max-width: 1100px) { .ev .nw { grid-template-columns: 1fr; } }
 .ev .kv input, .ev .kv select { width: 100%; } .ev .kv input[type=checkbox] { width: auto; } .ev-run { border-color: var(--good); }
+.ev .qlist { max-height: 300px; overflow: auto; border: 1px solid var(--grid); border-radius: 8px; } .ev .qi.review { display: grid; grid-template-columns: 18px minmax(0, 1fr) 150px; gap: 6px; margin: 0; padding: 5px 7px; border-bottom: 1px solid var(--grid); align-items: start; }
+.ev .qi a { text-decoration: none; } .ev .qi a:hover { text-decoration: underline; } .ev .qi.on { background: color-mix(in srgb, var(--series-1) 12%, transparent); } .ev td.dif { font-weight: 700; background: color-mix(in srgb, var(--warning) 16%, transparent); }
+.ev i.sw[style] { vertical-align: -1px; }
 #ev-print { display: none; }
 @media print { .ev > *:not(#ev-print) { display: none !important; } #ev-print { display: block; } .ev { background: #fff; color: #000; padding: 0; } }
 </style></head><body>
 <div class="ev" id="ev"><div class="ev-card">Loading the session list…</div></div>
 <script>
 const css = n => getComputedStyle(document.getElementById('ev')).getPropertyValue(n).trim();  // also used by adrs_view.js
-['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_page.js', 'evidence_high.js', 'evidence_best.js', 'evidence_tree.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
+['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_page.js', 'evidence_high.js', 'evidence_best.js', 'evidence_tree.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js', 'evidence_compare.js', 'evidence_parallel.js', 'evidence_review.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
   const s = document.createElement('script'); s.src = name + '?t=' + Date.now(); s.onload = ok; s.onerror = () => no(name); document.head.appendChild(s); })), Promise.resolve())
   .then(() => EV.start()).catch(name => { document.getElementById('ev').innerHTML = '<div class="ev-card">Cannot load ' + name + '.</div>'; });
 </script>

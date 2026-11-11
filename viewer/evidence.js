@@ -61,7 +61,7 @@ const EV = {
     const base = `../sessions/${S.sid}/`, sig = JSON.stringify([S.sid, row.records, row.running, row.how, S.view, row.score, row.policy]);
     if (sig === EV.sig) return; EV.sig = sig;
     const [led, meta, rep, idx, score, marks] = await Promise.all([EV.get(base + 'ledger.jsonl'), EV.json(base + 'session.json'), EV.json(base + 'report.json'), EV.get(base + 'runs/index.json'),
-      row.score ? EV.json(`../checks/scores/${S.sid}.json`) : null, row.review && (row.review.ticked.length || row.review.signed) ? EV.json(`../checks/reviews/${S.sid}.json`) : EV.marksFor === S.sid ? EV.marks : null]);
+      row.score ? EV.json(`../checks/scores/${S.sid}.json`) : null, row.review && row.review.n ? EV.json(`../checks/reviews/${S.sid}.json`) : null]);
     // the scheduling policy comes from control.py only: it withholds a policy the harness chose until the session is scored
     EV.files = { row, score, index: EV_DATA.lines(idx), policy: row.policy || null, key: row.brief ? await EV.json(`../checks/keys/${row.brief}.json`) : null };
     EV.marks = marks || {}; EV.marksFor = S.sid;
