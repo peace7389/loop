@@ -25,13 +25,13 @@ LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger tha
 NEED = "the report cannot be accepted yet: a hypothesis that has a checked decision rule needs a verdict. Still without one: "
 UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
 PREFIX = {"hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
-          "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T"}
+          "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T", "turn": "U"}
 # who produced the content of a record, written into it as "by": the model (what it wrote), the simulator (what was
 # measured), the harness (what it computed, found or decided itself), the operator (the person; no record type is theirs yet)
 SOURCES = ("model", "harness", "simulator", "operator")
 BY = {"draft": "model", "hypothesis": "model", "drop": "model", "experiment": "model", "verdict": "model", "report": "model",
-      "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness", "request": "model", "result": "harness"}
-HIDDEN = ("draft", "scratch", "simulation", "request", "result")  # kept on disk, not replayed: what the model wrote before its answer, and the
+      "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness", "request": "model", "result": "harness", "turn": "harness"}
+HIDDEN = ("draft", "scratch", "simulation", "request", "result", "turn")  # kept on disk, not replayed: what the model wrote before its answer, and the
                                              # simulation records (the evidence record has one line for each of them)
 SHOWN = [k for k in tools.MANIFEST["outputs"] if k not in ("link_rate_bps", "weight_udp")]  # the measures of an evidence line
 
@@ -286,12 +286,18 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
         else:
             ok["drop"].append(d)
             st[d["id"]] = "dropped"
-    known = len([r for r in ledger if r["type"] == "hypothesis"])
+    known, kinds = len([r for r in ledger if r["type"] == "hypothesis"]), {r["id"]: r["type"] for r in ledger}
+    for i in range(len(ok["verdicts"])):  # a verdict given in this same answer can be cited: the id it is about to get
+        kinds[f"V{sum(r['type'] == 'verdict' for r in ledger) + i + 1}"] = "verdict"
     for h in t.get("hypotheses") or []:
         if mode == "report":
             no.append(("new hypothesis", only))
         elif not text(h.get("text")):
             no.append(("new hypothesis", "a hypothesis needs a text"))
+        elif not isinstance(h.get("follows_from"), list) or not h["follows_from"] or any(f != "brief" and kinds.get(f) not in ("verdict", "check", "evidence", "simulation") for f in h["follows_from"]):
+            bad = [f for f in h.get("follows_from") or [] if f != "brief" and f not in kinds] if isinstance(h.get("follows_from"), list) else []
+            no.append(("new hypothesis", (f"follows_from names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
+                                          "follows_from must list what the hypothesis follows from: ids of verdicts, checks, evidence tables or simulations in the ledger (for example V2, C3, E1), or the word brief")))
         else:
             ok["hypotheses"].append(h)
             st[f"H{known + len(ok['hypotheses'])}"] = "open"  # the id it is about to get
@@ -318,7 +324,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
         no.append(("report", "a report ends the session: give it together with done = true, or leave it null"))
     else:
         waiting = sorted((h for h in checked if st.get(h) == "open"), key=lambda h: int(h[1:]))  # tested, and not judged even by this answer
-        why = check_report(report, brief, {r["id"] for r in ledger})
+        why = check_report(report, brief, set(kinds))  # the ledger's ids, and those of the verdicts accepted from this same answer
         if not why and insist and waiting and mode != "report":  # said once per session: the verdicts are asked for together with the report
             why = NEED + ", ".join(waiting) + ". Give their verdicts in the same answer as the report."
         if why:
@@ -406,6 +412,9 @@ def main():
                 how = "ledger too large"
                 break
             turn += 1
+            since = max((i for i, r in enumerate(ledger) if r["type"] == "turn"), default=-1)  # what was added after the previous turn's record
+            append(ledger, turn, "turn", ledger[-1]["id"] if ledger else None, {"simulations_left": max(0, budget - sims), "open_hypotheses": sum(v == "open" for v in states(ledger)[0].values()),
+                                                                                    "added": [r["id"] for r in ledger[since + 1:]], "last_turn": mode})
             user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: " + ("used up. THIS IS THE LAST TURN: no experiment is accepted and budget_request is no longer possible. "
                     "Give your verdicts on hypotheses whose decision rules have been checked, and write the final report (report)." if mode == "budget" else
                     f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
@@ -415,7 +424,7 @@ def main():
             if pending:
                 user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)
                 pending = []
-            last, parsed, err, content = (ledger[-1]["id"] if ledger else None), None, None, ""
+            last, parsed, err, content, refused = (ledger[-1]["id"] if ledger else None), None, None, "", []
             for _attempt in range(2):
                 content, draft, finish_reason, usage = ask(model, system, user, schema, a.draft == "on", a.temperature, a.max_tokens)
                 count["calls"] += 1
@@ -425,7 +434,7 @@ def main():
                     with (tools.SESSION / "drafts.jsonl").open("a") as f:  # the text itself: its own file, one line per draft, by the ledger id
                         f.write(json.dumps({"id": last, "turn": turn, "text": draft}) + "\n")
                 if not content.strip() or finish_reason == "length":
-                    err = f"empty content or finish_reason={finish_reason}"
+                    err, refused = f"empty content or finish_reason={finish_reason}", []
                     continue
                 try:
                     parsed = json.loads(content)
@@ -441,11 +450,12 @@ def main():
                     break
                 err = ("nothing in the answer could be used. " + " | ".join(f"{part}: {why}" for part, why in no)) if no else \
                     "the answer does nothing: no hypothesis, drop, verdict, experiment, report or request"
+                refused = [{"part": part, "reason": why} for part, why in no]
                 parsed = None
                 if need_now:  # no second try with the same text: the model must first see which verdicts are missing
                     break
             if parsed is None:
-                append(ledger, turn, "malformed", last, {"error": err, "content": content[:2000]})
+                append(ledger, turn, "malformed", last, {"error": err, "refused": refused or [{"part": "whole answer", "reason": err}], "content": content[:2000]})
                 if mode == "report":  # the last turn that was given for the report alone
                     how = f"{UNUSABLE} turns in a row without a usable answer"
                 elif mode == "budget":
@@ -458,7 +468,7 @@ def main():
                 continue
             unusable = 0
             for part, why in no:  # each refused part: a note, shown to the model in the next turn; the rest of the answer was accepted
-                append(ledger, turn, "note", last, {"text": f"refused part of the answer: {part}. Reason: {why.rstrip('.')}. The other parts of that answer were accepted.", "part": part})
+                append(ledger, turn, "note", last, {"text": f"refused part of the answer: {part}. Reason: {why.rstrip('.')}. The other parts of that answer were accepted.", "part": part, "reason": why})
             br = ok["budget_request"]
             if br:  # granted up to the brief's limit, before this turn's experiment is counted
                 granted = max(0, min(br["simulations"], limit - budget))
@@ -484,7 +494,7 @@ def main():
             for d in ok["drop"]:
                 append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
             for h in ok["hypotheses"]:
-                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "prediction": h.get("prediction")} | obs())
+                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "prediction": h.get("prediction"), "follows_from": h["follows_from"]} | obs())
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
             if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over

@@ -17,11 +17,20 @@
      "prediction": {
       "type": "string",
       "description": "falsifiable: a number, a range or a direction"
+     },
+     "follows_from": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "string"
+      },
+      "description": "what this hypothesis follows from: ids of earlier verdicts, checks, evidence tables or simulations (for example V2, C3, E1), or the word brief"
      }
     },
     "required": [
      "text",
-     "prediction"
+     "prediction",
+     "follows_from"
     ],
     "additionalProperties": false
    }

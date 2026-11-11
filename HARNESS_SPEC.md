@@ -743,6 +743,18 @@ below, and 7.5 where they differ.
   sessions were converted with `harness/move_drafts.py` (every other ledger
   line byte-identical). The viewer does not show a draft's text; the
   operator decided on 2026-11-11 to leave it so.
+- **What the harness records for the evidence view (`~/EVIDENCE_VIEW.md`, Part
+  1, 2026-11-11).** (1) Every new hypothesis has `follows_from`: ids of earlier
+  verdicts, checks, evidence tables or simulations, or the word `brief`; an id
+  that is not in the ledger (or of another kind) makes that hypothesis a
+  refused part. A verdict given in the same answer can be cited, by the id it
+  is about to get; the same holds for the report's claims. (2) At the start of
+  every turn the harness appends a `turn` record (`U<n>`, by the harness, not
+  in the model's ledger text): `simulations_left`, `open_hypotheses`, `added`
+  (ids of the records added since the previous turn record), `last_turn`
+  (null, "budget" or "report"). (3) A wholly refused answer's `malformed`
+  record has `refused`: [{part, reason}]; the note of a refused part has
+  `part` and `reason`. (4) Every record has `ts`.
 - **Defaults (operator, 2026-11-11):** `--draft on` with `--max-tokens 32000`
   (the setting of s005; 8,000 and 16,000 cut answers off). With `--draft off`
   the default stays 3,000.
