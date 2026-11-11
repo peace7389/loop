@@ -652,6 +652,22 @@ below, and 7.5 where they differ.
 - The prompt shows one line per record; drafts and simulation records are not
   replayed (the evidence record has the line of each simulation); a hypothesis
   line carries its current state; a malformed line carries the reason only.
+- **Stage 4 (2026-11-11): the final report.** `report` is required when the
+  model sets `done`, and in one last turn that the harness gives after the
+  budget is used up (no experiment is accepted there, `budget_request` is
+  ignored). `report` = {goal, recommendation {knob: value}, expected {output:
+  number}, explanation, holds_when, breaks_when, claims [{text, evidence [ledger
+  ids]}], open_questions}. `loop.check_report` rejects (the turn is malformed) a
+  recommendation that names a fixed setting or something that is not a knob, a
+  value outside its range or choices, and a claim citing an id that is not in
+  the ledger; a report without `done` (outside the last turn) and `done`
+  without a report are rejected too. An accepted report is a `report` record
+  (`R1`, by the model) and `sessions/<id>/report.json` (the same content).
+  `session.json` then gets `ended`, `how` ("done by the model", "simulation
+  limit reached", "simulation limit reached, no usable report", "ledger too
+  large", "stopped from outside"), `report` (its ledger id or null) and
+  `left_open` (hypotheses still open). A session that has its report cannot be
+  continued.
 - Viewer, until stage 6: all three pages read such a ledger as one row per
   simulation (`TH_DATA.flat`, `_flat`, `FLAT`), with the first tested hypothesis
   of its experiment and, on the streamlined page, the harness's checks as the

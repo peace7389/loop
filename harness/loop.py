@@ -7,8 +7,10 @@ A turn's answer may state new hypotheses, drop hypotheses, give verdicts, and de
 simulations with one purpose, run at once. An experiment that tests hypotheses carries rules, comparisons written
 before the simulations run; the harness evaluates each rule itself from the measured values (rules.py) and records a
 check. A verdict is accepted only for a hypothesis that has a checked rule. The budget counts simulations.
+A session ends with the model's final report: when the model sets done, or in one last turn after the budget is used
+up. The accepted report goes to the ledger and to report.json; session.json records how the session ended.
 Who else may write what: control.py's docstring."""
-import argparse, json, re, time
+import argparse, json, re, signal, sys, time
 from pathlib import Path
 import requests
 import rules, tools
@@ -139,9 +141,39 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
     ch = r["choices"][0]
     return ch["message"].get("content") or "", ch["message"].get("reasoning") or "", ch.get("finish_reason"), r.get("usage", {})
 
-def validate(t, brief, ledger, left):
+def check_report(rep, brief, ids):
+    """None if the final report can be accepted; otherwise what is wrong with it."""
+    text = lambda v: isinstance(v, str) and bool(v.strip())
+    for k in ("goal", "explanation", "holds_when", "breaks_when"):
+        if not text(rep.get(k)):
+            return f"report.{k} must be a text"
+    rec, exp, claims, open_q = rep.get("recommendation"), rep.get("expected"), rep.get("claims"), rep.get("open_questions")
+    if not isinstance(rec, dict) or not rec:
+        return "report.recommendation must give at least one knob and its value"
+    if set(rec) & set(brief["system"]):
+        return f"report.recommendation contains a setting the brief fixes, which cannot be recommended: {', '.join(sorted(set(rec) & set(brief['system'])))}"
+    if set(rec) - set(brief["knobs"]):
+        return f"report.recommendation names something that is not a knob: {', '.join(sorted(set(rec) - set(brief['knobs'])))}"
+    try:
+        clamps = tools.clamp(rec)[1]
+    except (ValueError, TypeError) as e:
+        return f"report.recommendation has a value that cannot be read: {e}"
+    if clamps:
+        return "report.recommendation has a value outside its allowed range: " + ", ".join(f"{k}={asked}" for k, (asked, _) in clamps.items())
+    if not isinstance(exp, dict) or set(exp) - set(tools.MANIFEST["outputs"]) or not all(type(v) in (int, float) for v in exp.values()):
+        return "report.expected must give numbers for outputs (by their names)"
+    if not isinstance(claims, list) or not all(isinstance(c, dict) and text(c.get("text")) and isinstance(c.get("evidence"), list) for c in claims):
+        return "report.claims must be a list of {text, evidence: [ledger ids]}"
+    missing = sorted({i for c in claims for i in c["evidence"] if i not in ids})
+    if missing:
+        return f"report.claims cites ids that are not in the ledger: {', '.join(map(str, missing))}"
+    if not isinstance(open_q, list) or not all(isinstance(q, str) for q in open_q):
+        return "report.open_questions must be a list of texts (it may be empty)"
+    return None
+
+def validate(t, brief, ledger, left, final=False):
     """None if the answer can be used as it is; otherwise the first thing wrong with it (the turn is then malformed and
-    nothing in it is recorded or run)."""
+    nothing in it is recorded or run). final: the budget is used up and this is the last turn."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
     st, checked = states(ledger)
     new, drops, verdicts, ex = t.get("hypotheses") or [], t.get("drop") or [], t.get("verdicts") or [], t.get("experiment")
@@ -161,6 +193,8 @@ def validate(t, brief, ledger, left):
         return "a hypothesis needs a text"
     for i in range(len(new)):
         st[f"H{len([r for r in ledger if r['type'] == 'hypothesis']) + i + 1}"] = "open"  # the ids they are about to get
+    if final and ex is not None:
+        return "the simulation budget is used up: no experiment is accepted in the last turn"
     if ex is not None:
         runs, per = ex.get("runs") or [], brief["limits"]["simulations_per_experiment"]
         labels = [r.get("label") for r in runs]
@@ -193,7 +227,17 @@ def validate(t, brief, ledger, left):
     br = t.get("budget_request")
     if br is not None and not (isinstance(br, dict) and type(br.get("simulations")) is int and br["simulations"] >= 1 and text(br.get("why"))):
         return "budget_request needs simulations (a whole number of at least 1) and a one-sentence why"
-    if not (new or drops or verdicts or ex is not None or t.get("requests") or t.get("done")):
+    report = t.get("report")
+    if report is None:
+        if final or t.get("done"):
+            return "the last turn needs the final report" if final else "done needs the final report: fill report, or set done to false"
+    elif not (final or t.get("done")):
+        return "a report ends the session: give it together with done = true, or leave it null"
+    else:
+        err = check_report(report, brief, {r["id"] for r in ledger})
+        if err:
+            return err
+    if not (new or drops or verdicts or ex is not None or t.get("requests") or t.get("done") or report is not None):
         return "the answer does nothing: no hypothesis, drop, verdict, experiment or request, and done is false"
     return None
 
@@ -241,68 +285,93 @@ def main():
     if a.baseline == "on":
         baseline(ledger)
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
-    while sims < budget:
-        text = render(ledger)
-        size = count_tokens(model, text)
-        if size > LEDGER_TOKENS:
-            append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"loop stopped by the harness: the rendered ledger is {size} tokens, over the limit of {LEDGER_TOKENS}"})
-            break
-        turn += 1
-        user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: {budget - sims} simulations left ({budget} granted so far; budget_request can raise that to"
-                f" at most {CEILING}). One experiment holds at most {min(per, budget - sims)} simulations.\n\nLEDGER:\n{text}")
-        if pending:
-            user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)
-            pending = []
-        last, parsed, err, content = (ledger[-1]["id"] if ledger else None), None, None, ""
-        for _attempt in range(2):
-            content, draft, finish, usage = ask(model, system, user, schema, a.draft == "on", a.temperature, a.max_tokens)
-            if a.draft == "on":
-                last = append(ledger, turn, "draft", last, {"text": draft, "model": model, "finish_reason": finish, "tokens": usage.get("completion_tokens")})
-            if not content.strip() or finish == "length":
-                err = f"empty content or finish_reason={finish}"
-                continue
-            try:
-                parsed = json.loads(content)
-            except ValueError as e:
-                err, parsed = f"invalid JSON: {e}", None
-                continue
-            err = validate(parsed, brief, ledger, budget - sims)
-            if err is None:
+    how = None  # how the session ended; None while it runs
+
+    def finish():
+        """session.json: when and how the session ended, the report's ledger id, the hypotheses still open."""
+        m = json.loads(meta.read_text())
+        st = states(ledger)[0]
+        m.update(ended=time.strftime("%Y-%m-%dT%H:%M:%S"), how=how or "stopped from outside", report=next((r["id"] for r in reversed(ledger) if r["type"] == "report"), None),
+                 left_open=[h for h, v in st.items() if v == "open"])
+        meta.write_text(json.dumps(m, indent=1) + "\n")
+
+    if meta.exists() and json.loads(meta.read_text()).get("report"):
+        ap.error(f"session {SID} ended with its final report ({json.loads(meta.read_text())['report']}) and cannot be continued")
+    if meta.exists() and "how" in (m := json.loads(meta.read_text())):  # a session that is continued is running again
+        meta.write_text(json.dumps({k: v for k, v in m.items() if k not in ("ended", "how", "report", "left_open")}, indent=1) + "\n")
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # stopped from outside: still record that it ended
+    try:
+        while how is None:
+            final = sims >= budget  # the budget is used up: one last turn, in which no experiment is accepted and the report is required
+            text = render(ledger)
+            size = count_tokens(model, text)
+            if size > LEDGER_TOKENS:
+                append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"loop stopped by the harness: the rendered ledger is {size} tokens, over the limit of {LEDGER_TOKENS}"})
+                how = "ledger too large"
                 break
-            parsed = None
-        if parsed is None:
-            append(ledger, turn, "malformed", last, {"error": err, "content": content[:2000]})
-            continue
-        br = parsed.get("budget_request")
-        if br:  # granted up to the ceiling, before this turn's experiment is counted
-            granted = max(0, min(br["simulations"], CEILING - budget))
-            budget += granted
-            append(ledger, turn, "note", last, {"text": f"budget request: {br['simulations']} more simulations asked, {granted} granted; the budget is now {budget} (ceiling {CEILING})", "why": br["why"]})
-        rq = (parsed.get("requests") or [])[:3]
-        for q in rq:
-            pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{call(q)}")
-        ex = parsed.get("experiment")
-        if not (parsed.get("hypotheses") or parsed.get("drop") or parsed.get("verdicts") or ex is not None or parsed.get("done")):  # only requests
-            tool_only += 1
-            if tool_only > 3:
-                pending = [" (tool-only turn limit reached: results withheld, decide now)"]
-            append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq}, by="model")
-            continue
-        tool_only = 0
-        seen = [parsed.get("observations")]  # what the model said it read, kept once: in the first record this turn adds
-        obs = lambda: {"observations": seen.pop()} if seen else {}
-        for v in parsed.get("verdicts") or []:
-            append(ledger, turn, "verdict", v["for"], {k: v.get(k) for k in ("for", "result", "because", "next")} | obs())
-        for d in parsed.get("drop") or []:
-            append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
-        for h in parsed.get("hypotheses") or []:
-            last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "prediction": h.get("prediction")} | obs())
-        if ex is not None:
-            sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
-        if parsed.get("done"):
-            append(ledger, turn, "note", last, {"text": "model declared done"} | obs(), by="model")
-            break
-    print(f"stopped: session {SID}, {sims} simulations, {turn} turns, ledger {LEDGER}")
+            turn += 1
+            user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: " + ("used up. THIS IS THE LAST TURN: no experiment is accepted and budget_request is no longer possible. "
+                    "Give your verdicts on hypotheses whose rules have been checked, and write the final report (report)." if final else
+                    f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {CEILING}). One experiment holds at most {min(per, budget - sims)} simulations.")
+                    + f"\n\nLEDGER:\n{text}")
+            if pending:
+                user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)
+                pending = []
+            last, parsed, err, content = (ledger[-1]["id"] if ledger else None), None, None, ""
+            for _attempt in range(2):
+                content, draft, finish_reason, usage = ask(model, system, user, schema, a.draft == "on", a.temperature, a.max_tokens)
+                if a.draft == "on":
+                    last = append(ledger, turn, "draft", last, {"text": draft, "model": model, "finish_reason": finish_reason, "tokens": usage.get("completion_tokens")})
+                if not content.strip() or finish_reason == "length":
+                    err = f"empty content or finish_reason={finish_reason}"
+                    continue
+                try:
+                    parsed = json.loads(content)
+                except ValueError as e:
+                    err, parsed = f"invalid JSON: {e}", None
+                    continue
+                err = validate(parsed, brief, ledger, budget - sims, final)
+                if err is None:
+                    break
+                parsed = None
+            if parsed is None:
+                append(ledger, turn, "malformed", last, {"error": err, "content": content[:2000]})
+                if final:
+                    how = "simulation limit reached, no usable report"
+                continue
+            br = parsed.get("budget_request")
+            if br and not final:  # granted up to the ceiling, before this turn's experiment is counted
+                granted = max(0, min(br["simulations"], CEILING - budget))
+                budget += granted
+                append(ledger, turn, "note", last, {"text": f"budget request: {br['simulations']} more simulations asked, {granted} granted; the budget is now {budget} (ceiling {CEILING})", "why": br["why"]})
+            rq = (parsed.get("requests") or [])[:3]
+            for q in rq:
+                pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{call(q)}")
+            ex, report = parsed.get("experiment"), parsed.get("report")
+            if not (parsed.get("hypotheses") or parsed.get("drop") or parsed.get("verdicts") or ex is not None or report is not None):  # only requests
+                tool_only += 1
+                if tool_only > 3:
+                    pending = [" (tool-only turn limit reached: results withheld, decide now)"]
+                append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq}, by="model")
+                continue
+            tool_only = 0
+            seen = [parsed.get("observations")]  # what the model said it read, kept once: in the first record this turn adds
+            obs = lambda: {"observations": seen.pop()} if seen else {}
+            for v in parsed.get("verdicts") or []:
+                append(ledger, turn, "verdict", v["for"], {k: v.get(k) for k in ("for", "result", "because", "next")} | obs())
+            for d in parsed.get("drop") or []:
+                append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
+            for h in parsed.get("hypotheses") or []:
+                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "prediction": h.get("prediction")} | obs())
+            if ex is not None:
+                sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
+            if report is not None:  # accepted (validate): the ledger, report.json, and the session is over
+                append(ledger, turn, "report", last, report | obs())
+                (tools.SESSION / "report.json").write_text(json.dumps(report, indent=1) + "\n")
+                how = "done by the model" if parsed.get("done") else "simulation limit reached"
+    finally:
+        finish()
+    print(f"stopped: session {SID}, {how or 'stopped from outside'}, {sims} simulations, {turn} turns, ledger {LEDGER}")
 
 if __name__ == "__main__":
     main()

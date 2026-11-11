@@ -211,8 +211,131 @@
    }
   },
   "report": {
-   "type": "null",
-   "description": "always null for now"
+   "anyOf": [
+    {
+     "type": "object",
+     "properties": {
+      "goal": {
+       "type": "string",
+       "description": "the goal used; for an open brief: the goal you chose, and why"
+      },
+      "recommendation": {
+       "type": "object",
+       "properties": {
+        "weightUdp": {
+         "type": "number"
+        },
+        "udpRate": {
+         "type": "string"
+        },
+        "queuePkts": {
+         "type": "integer"
+        },
+        "tcpVariant": {
+         "type": "string"
+        },
+        "duration": {
+         "type": "number"
+        },
+        "seed": {
+         "type": "integer"
+        }
+       },
+       "additionalProperties": false,
+       "description": "the settings you recommend: knobs only, each within its range"
+      },
+      "expected": {
+       "type": "object",
+       "properties": {
+        "udp_goodput_bps": {
+         "type": "number"
+        },
+        "tcp_goodput_bps": {
+         "type": "number"
+        },
+        "udp_loss_frac": {
+         "type": "number"
+        },
+        "drops_band0": {
+         "type": "number"
+        },
+        "drops_band1": {
+         "type": "number"
+        },
+        "tcp_retrans": {
+         "type": "number"
+        },
+        "link_util": {
+         "type": "number"
+        },
+        "link_rate_bps": {
+         "type": "number"
+        },
+        "weight_udp": {
+         "type": "number"
+        }
+       },
+       "additionalProperties": false,
+       "description": "the output values you expect at the recommendation"
+      },
+      "explanation": {
+       "type": "string",
+       "description": "why this setting is best"
+      },
+      "holds_when": {
+       "type": "string",
+       "description": "conditions under which the answer stays valid"
+      },
+      "breaks_when": {
+       "type": "string",
+       "description": "conditions under which it would change"
+      },
+      "claims": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "text": {
+          "type": "string"
+         },
+         "evidence": {
+          "type": "array",
+          "items": {
+           "type": "string",
+           "description": "a ledger id, e.g. E3 or C5"
+          }
+         }
+        },
+        "required": [
+         "text",
+         "evidence"
+        ],
+        "additionalProperties": false
+       }
+      },
+      "open_questions": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     },
+     "required": [
+      "goal",
+      "recommendation",
+      "expected",
+      "explanation",
+      "holds_when",
+      "breaks_when",
+      "claims",
+      "open_questions"
+     ],
+     "additionalProperties": false
+    },
+    {
+     "type": "null"
+    }
+   ]
   },
   "requests": {
    "type": "array",

@@ -275,7 +275,7 @@ const TASK_VIEW = {
       <span>${P.by ? 'ledger records by source' + (P.by_derived ? ' (this session was recorded before the harness wrote the source into each record: it is taken from the record’s type)' : '') + ' · ' : ''}the same colour marks every block and table column · click one to dim the rest</span></div>`;
     let h = `<div class="th"${ui.only ? ` data-only="${ui.only}"` : ''}><header class="th-top"><div class="th-kicker">${e(P.kicker)}</div>
       <div class="th-titleline"><h1>${e(P.title)}<small>${loop ? 'session' : 'run'} “${e(data.run)}”${P.brief ? ' · brief ' + e(P.brief) : ''}</small></h1>
-        ${O ? `<span class="th-state${O.running ? ' live' : ''}"><i></i>${O.running ? 'Running now' : O.done ? 'Finished: the AI declared an answer' : 'Stopped before the AI declared an answer'}</span>` : ''}</div>
+        ${O ? `<span class="th-state${O.running ? ' live' : ''}"><i></i>${O.running ? 'Running now' : O.done ? 'Finished: the AI gave its answer' : 'Stopped before the AI gave an answer'}</span>` : ''}</div>
       <div class="th-by" data-by="operator"><p class="th-q">${loop ? who('operator') : ''}${e(P.question)}</p></div>
       ${P.many ? '<p class="th-sm" style="margin-top:10px">This session is in the multi-simulation format: an experiment can hold several simulations, and the harness checks the AI’s rules itself. Until this page is restructured for it, each simulation is shown as one row, with the first hypothesis its experiment tested; dropped hypotheses and the experiment designs are in the ledger but not on this page.</p>' : ''}
       <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"${k === 'Scheduler mode' ? ' data-by="operator"' : ''}><dt>${k === 'Scheduler mode' ? who('operator') : ''}${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl>${legend}</header>`;
@@ -781,7 +781,7 @@ const TH_DATA = {
       knobs: Object.entries(man.params || {}).map(([k, v]) => ({ name: D.KNOB[k] || k, range: v.choices ? v.choices.join(' / ') : `${v.min} to ${D.knob(k, v.max)}`, default: D.knob(k, v.default) })),
       outcome: { experiments: real.length, supported: res('supported'), refuted: res('refuted'), inconclusive: res('inconclusive'), unjudged: real.filter(h => !h.verdict).length,
         rules_met: hyps.filter(h => h.total && h.met === h.total).length, rules_total: hyps.filter(h => h.total).length,
-        turns: turns.filter(t => t.turn > 0).length, wasted: count('wasted'), info: count('info'), done: led.some(r => r.type === 'note' && (r.body || {}).text === 'model declared done'), running: !!raw.running,
+        turns: turns.filter(t => t.turn > 0).length, wasted: count('wasted'), info: count('info'), done: written.some(r => r.type === 'report' || (r.type === 'note' && (r.body || {}).text === 'model declared done')), running: !!raw.running,
         latest: latest ? { id: latest.id, text: latest.text } : null },
       turns, hyps };
     return { page, programs };

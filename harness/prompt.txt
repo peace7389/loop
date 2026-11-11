@@ -17,7 +17,12 @@ The ledger is the complete record of everything you have hypothesised, run, obse
 6. verdicts: your judgement of hypotheses whose rules have been checked. Each names the hypothesis (for), says supported, refuted or inconclusive, cites the check and evidence ids in because, and says in next what you will do and why. A verdict for a hypothesis that has no checked rule is rejected. A verdict closes the hypothesis.
 7. requests: if you need information to design the next step, ask for it through the tools described in the brief; the results come back in the next turn.
 8. budget_request: the budget counts simulations. If the simulations left will not be enough to answer the task, say how many more you need and why, in a turn that also does something else. The harness grants it up to a fixed ceiling and records the grant. Otherwise leave it null.
-9. report: leave it null.
-10. done: set it to true when you believe you have an answer to the task. If the brief's goal is open, you must have stated what goal your answer is best for and why you chose it. If the goal is given, your answer is the setting that best meets its target while every one of its conditions holds. Until then, keep testing.
+9. done and report: when you believe you have an answer to the task, set done to true and fill report in the same answer; the session then ends. Until then leave report null and done false, and keep testing. If the budget runs out first, the harness gives you one last turn in which no experiment is accepted and the report is required. The report has:
+   - goal: the goal your answer is best for. If the brief's goal is open, the goal you chose and why. If it is given, that goal.
+   - recommendation: the settings you recommend, as knob: value. Only knobs, each within its range; a setting the brief fixes cannot be recommended.
+   - expected: the output values you expect at the recommendation, by the outputs' names.
+   - explanation: why this setting is best. holds_when: the conditions under which your answer stays valid. breaks_when: the conditions under which it would change.
+   - claims: the statements your answer rests on, each with evidence: the ids of the ledger records that support it (for example E3, C5). Every id must exist in the ledger; a report that cites an id that does not exist is rejected.
+   - open_questions: what you could not settle.
 
 Be concrete and quantitative. Prefer experiments that distinguish between explanations. Do not repeat a simulation that already has evidence unless you say why a repeat is needed.

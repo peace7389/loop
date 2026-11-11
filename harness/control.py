@@ -92,7 +92,7 @@ def sessions():
     out = []
     for d in dirs:
         led, idx = d / "ledger.jsonl", d / "runs/index.json"
-        sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in (led, idx))
+        sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in (led, idx, d / "session.json"))
         if CACHE.get(d.name, (None,))[0] != sig:
             recs = lines(led)
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
@@ -101,8 +101,8 @@ def sessions():
                 "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs), "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" for r in recs),
                 "turns": max([r["turn"] for r in recs], default=0),
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
-                "model": (drafts[-1]["body"].get("model") if drafts else None),
-                "done": any(r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done" for r in recs)})
+                "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
+                "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs)})
         out.append({**CACHE[d.name][1], "mode": mode.get(d.name), "running": d.name in (here, other)})
     return out
 
