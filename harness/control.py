@@ -18,6 +18,8 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
                        status.json (progress). One sweep at a time. Returns the sweep's status, with its id.
   GET  /api/sweep/<id> that sweep's status.json
   POST /api/sweep/<id>/stop   stops it; the rows finished so far stay in the table
+  POST /api/review     {session, item, tick, note}: the reviewer's tick and note for one item of a session's page
+                       -> checks/reviews/<session>.json (read back by the page as a file)
   POST /api/brief      {brief}: saves a NEW brief as briefs/<id>.json after the same check loop.py makes (tools.check_brief).
                        An id that already exists is refused: a brief is never overwritten.
 
@@ -28,7 +30,7 @@ Who writes what (the write-ownership rule):
                divides the link, share or cap (records written before 2026-11-11 call it "mode"; both are read).
   control.py   checks/: checks/op-<timestamp>/ (one operator run), checks/control.jsonl (the list of those runs),
                checks/sessions/<id>.log (a session's terminal output), checks/sweeps/<id>/ (a sweep's table and
-               status); and briefs/<id>.json, new files only.
+               status), checks/reviews/<session>.json (the reviewer's ticks and notes); and briefs/<id>.json, new files only.
                It starts and stops loop.py and does nothing else.
   the viewer   nothing. Its Control page only calls the POST endpoints above.
 An operator run is made by the built program directly, never by tools.run, so it never reaches a session's folder: no
@@ -70,10 +72,10 @@ def peer_uid(peer_port, port):
     return None
 
 
-def other_loop():
-    """The session id of a loop.py of this user that is running and was not started here ("?" if its command does not
-    name one), or None. Only one loop at a time is run from this server."""
-    mine = SESSION["proc"].pid if SESSION and SESSION["proc"].poll() is None else None
+def other_loops():
+    """The session ids of every loop.py of this user that is running and was not started here ("?" for one whose command
+    does not name its session). Sessions started from terminals can run side by side."""
+    mine, out = (SESSION["proc"].pid if SESSION and SESSION["proc"].poll() is None else None), []
     for p in Path("/proc").iterdir():
         try:
             if not p.name.isdigit() or int(p.name) == mine or p.stat().st_uid != os.getuid():
@@ -81,10 +83,15 @@ def other_loop():
             args = (p / "cmdline").read_bytes().split(b"\0")
             if any(a.endswith(b"loop.py") and (Path(os.readlink(p / "cwd")) / a.decode()).resolve() == (H / "loop.py").resolve() for a in args[1:3]):
                 names = [a.decode(errors="replace") for a in args]
-                return names[names.index("--session") + 1] if "--session" in names[:-1] else "?"
+                out.append(names[names.index("--session") + 1] if "--session" in names[:-1] else "?")
         except OSError:
             continue
-    return None
+    return out
+
+
+def other_loop():
+    """One of other_loops(), or None. Only one loop at a time is started from this server."""
+    return (other_loops() or [None])[0]
 
 
 def sessions():
@@ -95,10 +102,10 @@ def sessions():
         if r.get("session"):
             policy[r["session"]] = r.get("policy", r.get("mode"))
     here = SESSION["id"] if SESSION and SESSION["proc"].poll() is None else None
-    other = None if here else other_loop()
+    others = set(other_loops())
     dirs = sorted(p for p in tools.SESSIONS.iterdir() if p.is_dir() and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", p.name)) if tools.SESSIONS.is_dir() else []
-    if other == "?" and dirs:  # a loop started from a terminal without --session made the newest folder
-        other = max(dirs, key=lambda p: p.stat().st_mtime).name
+    if "?" in others and dirs:  # a loop started from a terminal without --session made the newest folder
+        others.add(max(dirs, key=lambda p: p.stat().st_mtime).name)
     out = []
     for d in dirs:
         led, idx = d / "ledger.jsonl", d / "runs/index.json"
@@ -108,12 +115,12 @@ def sessions():
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
             meta = json.loads((d / "session.json").read_text()) if (d / "session.json").is_file() else {}
             CACHE[d.name] = (sig, {"id": d.name, "brief": meta.get("brief"), "records": len(recs), "runs": len(lines(idx)),
-                "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs), "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" for r in recs),
+                "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs), "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" and not (r.get("body") or {}).get("same_as") for r in recs),  # run, as the budget counts them
                 "turns": max([r["turn"] for r in recs], default=0),
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
                 "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs)})
-        out.append({**CACHE[d.name][1], "policy": policy.get(d.name), "running": d.name in (here, other)})
+        out.append({**CACHE[d.name][1], "policy": policy.get(d.name), "running": d.name == here or d.name in others})
     return out
 
 
@@ -330,6 +337,27 @@ def stop_sweep(sid):
     return {"stopping": sid}
 
 
+def save_review(body):
+    """The reviewer's tick and note for one item (a box of the page) of one session; nothing under sessions/ is written."""
+    sid, item, note = body.get("session"), body.get("item"), body.get("note", "")
+    if not (isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid) and (tools.SESSIONS / sid).is_dir()):
+        raise Refused(400, "session must be the id of an existing session")
+    if not (isinstance(item, str) and re.fullmatch(r"[A-Za-z0-9_:.-]{1,60}", item)) or type(body.get("tick")) is not bool or not isinstance(note, str) or len(note) > 2000:
+        raise Refused(400, "a review needs item (a short id), tick (true or false) and note (a text of at most 2000 characters)")
+    with LOCK:
+        path = CHECKS / "reviews" / f"{sid}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        marks = json.loads(path.read_text()) if path.is_file() else {}
+        if body["tick"] or note.strip():
+            marks[item] = {"tick": body["tick"], "note": note, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+        else:
+            marks.pop(item, None)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(marks, indent=1) + "\n")
+        tmp.replace(path)
+    return {"session": sid, "items": len(marks)}
+
+
 def start_session(body):
     """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal."""
     budget, draft, policy, base = body.get("budget"), body.get("draft", "on"), body.get("policy", body.get("mode", "share")), body.get("baseline", True)
@@ -419,7 +447,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": stop_session, "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body)}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": stop_session, "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body)}.get(self.path)
             m = re.fullmatch(r"/api/sweep/([^/]+)/stop", self.path)
             if m:
                 do = lambda: stop_sweep(m.group(1))

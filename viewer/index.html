@@ -1,114 +1,80 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Two hosts, one link</title>
+<html lang="en"><head><meta charset="utf-8"><title>Two hosts, one link: evidence view</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<!-- The harness's own viewer: a static page served by harness/control.py. It asks ../api/sessions for the list of
-     sessions, then reads the chosen session's own files (../sessions/<id>/ledger.jsonl, runs/index.json,
-     runs/<run>/series.csv, session.json = the brief it was given), ../checks/operator.jsonl (the scheduling policy of each run)
-     every 5 s, and writes nothing. "Operator checks" shows ../checks/build1/ and ../checks/control.jsonl instead.
-     Content and layout live in adrs_view.js (TH_DATA builds the content, TASK_VIEW.page draws it); the same file
-     draws this task inside the ADRS main viewer. One page: every run, then the chosen run (why it was made, its
-     numbers over time, what it showed). The charts are Chart.js, loaded from the CDN by adrs_view.js.
-     The earlier six-page viewer (system objects, packet events, run control) is kept as index_full.html with
-     adrs_view_full.js; the first page as index_old.html. -->
+<!-- The evidence view (~/EVIDENCE_VIEW.md, with stage 6 of ~/RESTRUCTURE_PLAN.md): for one session, what was done step by
+     step, who did each step, why the model said it took it, and what the simulations showed. Served by harness/control.py.
+     evidence_data.js reads a session's files (never its drafts); evidence.js loads, handles clicks, the replay and the
+     review marks; evidence_top.js the top of the page (introduction, structure map, turn loop, legend, claims);
+     evidence_views.js View 1 (session flow) and View 2 (hypothesis map); evidence_flow.js View 3 (one experiment) and
+     its chart; evidence_cards.js the trail, the work-log card, a hypothesis, the brief; evidence_panels.js the
+     experiment panel and a simulation's result panel; evidence_more.js the sections below (brief, summary, hypotheses,
+     experiments, final report) and the evidence sheet; evidence_operator.js the Operator and Compare tabs. The page writes nothing
+     except the reviewer's ticks and notes, through POST /api/review. The earlier pages: index_runs.html (runs compared,
+     any setting against any measure), index_full.html (system objects, packet events, run control and the brief editor). -->
 <style>
-.viz-root {
-  color-scheme: light;
-  --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #dddcd6;
-  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
-  --grid: #e6e5e0; --series-1: #2a78d6; --series-2: #eb6834; --critical: #d03b3b; --good: #0ca30c;
-}
-@media (prefers-color-scheme: dark) {
-  .viz-root {
-    color-scheme: dark;
-    --surface-0: #121211; --surface-1: #1a1a19; --border: #383835;
-    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
-    --grid: #2b2b29; --series-1: #3987e5; --series-2: #d95926; --critical: #d03b3b; --good: #0ca30c;
-  }
-}
-* { box-sizing: border-box; }
-body { margin: 0; }
-.viz-root { background: var(--surface-0); color: var(--text-primary); min-height: 100vh;
-  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 20px 24px 40px; }
-.bar { max-width: 1280px; margin: 0 auto 14px; display: flex; gap: 10px 18px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
-.bar .lbl { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
-.pick { font: inherit; font-size: 13.5px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); cursor: pointer; }
-.bar .end { margin-left: auto; } .bar a { color: var(--text-secondary); }
-.empty { max-width: 1280px; margin: 40px auto; color: var(--text-secondary); font-size: 15px; }
+.ev { color-scheme: light;
+  --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #dddcd6; --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974; --grid: #e6e5e0;
+  --series-1: #2a78d6; --series-2: #eb6834; --critical: #d03b3b; --good: #0ca30c; --warning: #b86a00;
+  --by-model: #6250d6; --by-harness: #c2407a; --by-simulator: #1baf7a; --by-operator: #eda100; }
+@media (prefers-color-scheme: dark) { .ev { color-scheme: dark;
+  --surface-0: #121211; --surface-1: #1a1a19; --border: #383835; --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86; --grid: #2b2b29;
+  --series-1: #3987e5; --series-2: #d95926; --warning: #e0a030; --by-model: #9085e9; --by-harness: #d55181; --by-simulator: #127a57; --by-operator: #c98500; } }
+* { box-sizing: border-box; } body { margin: 0; }
+.ev { background: var(--surface-0); color: var(--text-primary); min-height: 100vh; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; padding: 14px 20px 40px; }
+.ev h1, .ev h2, .ev h3, .ev p { margin: 0; } .ev a { color: inherit; }
+.ev select, .ev button, .ev input, .ev textarea { font: inherit; font-size: 13px; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; }
+.ev button { cursor: pointer; } .ev button:hover:not(:disabled) { border-color: var(--text-primary); } .ev button:disabled { opacity: .45; cursor: default; }
+.ev button.on { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
+.ev abbr { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+.ev-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; font-size: 13px; }
+.ev-bar label { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; } .ev-bar .end { margin-left: auto; color: var(--text-secondary); font-weight: 400; }
+.ev-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; }
+.ev-card h2 { font-size: 16px; margin-bottom: 6px; } .ev-card h2 small { font-size: 12.5px; font-weight: 400; color: var(--text-secondary); margin-left: 8px; }
+.ev h3 { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 12px 0 4px; } .ev h3:first-child { margin-top: 0; }
+.ev-intro { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; } .ev-intro p { flex: 1; max-width: 980px; }
+.ev-top { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; }
+.ev-main { display: grid; grid-template-columns: minmax(450px, 0.85fr) minmax(0, 1.15fr); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .ev-main, .ev-top { grid-template-columns: 1fr; } }
+.ev-scroll { overflow: auto; } .ev-lanes { max-height: 1100px; } .ev-map { max-height: 300px; }
+.ev-side { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; } .ev-side .ev-card { margin-bottom: 8px; }
+.ev .later .bt, .ev text.later, .ev .later text, .ev .later title, .ev div.later, .ev tr.later, .ev p.later, .ev li.later { visibility: hidden; }
+.ev svg { display: block; } .ev svg text { font: 11px system-ui, sans-serif; fill: var(--text-secondary); }
+.ev .bx { fill: var(--surface-1); stroke: var(--border); stroke-width: 1; } .ev g[data-act] { cursor: pointer; } .ev g[data-act]:hover .bx { stroke: var(--text-primary); }
+.ev .bx.warn { stroke: var(--warning); stroke-width: 2; stroke-dasharray: 5 3; } .ev .bx.sel { stroke: var(--text-primary); stroke-width: 2.5; }
+.ev .bx.hit { stroke: var(--series-1); stroke-width: 2.5; }
+.ev .edge { stroke: var(--text-muted); stroke-width: 1.2; fill: none; } .ev .edge.hot { stroke: var(--text-primary); stroke-width: 2.4; } .ev .ring { fill: none; stroke: var(--text-primary); stroke-width: 2; }
+.ev .band { fill: var(--surface-0); stroke: var(--grid); } .ev .later { opacity: .16; pointer-events: none; }
+.ev .bt { font-size: 11.5px; line-height: 1.32; padding: 4px 6px 4px 9px; color: var(--text-primary); overflow: hidden; height: 100%; overflow-wrap: anywhere; } .ev .bt small { color: var(--text-secondary); }
+.ev .bt b { font-weight: 650; }
+.ev .stripe { stroke: none; } .ev [data-by=model] { --c: var(--by-model); } .ev [data-by=harness] { --c: var(--by-harness); } .ev [data-by=simulator] { --c: var(--by-simulator); } .ev [data-by=operator] { --c: var(--by-operator); }
+.ev .stripe, .ev i.sw { fill: var(--c); background: var(--c); } .ev i.sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.ev .who { border-left: 4px solid var(--c); padding-left: 10px; margin-top: 10px; } .ev .who > h3:first-child { margin-top: 0; }
+.ev .st-open { fill: var(--surface-1); } .ev .st-supported { fill: color-mix(in srgb, var(--good) 22%, var(--surface-1)); } .ev .st-refuted { fill: color-mix(in srgb, var(--critical) 20%, var(--surface-1)); }
+.ev .st-inconclusive { fill: color-mix(in srgb, var(--text-muted) 26%, var(--surface-1)); } .ev .st-dropped { fill: var(--surface-0); stroke-dasharray: 3 3; }
+.ev .st-ended { fill: color-mix(in srgb, var(--warning) 24%, var(--surface-1)); }
+.ev .pill { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 1px 9px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.ev .ok { color: var(--good); font-weight: 700; } .ev .bad { color: var(--critical); font-weight: 700; } .ev .warnc { color: var(--warning); font-weight: 700; } .ev .mut { color: var(--text-muted); } .ev .sm { font-size: 12.5px; color: var(--text-secondary); }
+.ev .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; } .ev .chip { text-align: left; max-width: 330px; } .ev .chip b { margin-right: 6px; }
+.ev .chip.held { border-left: 5px solid var(--good); } .ev .chip.failed { border-left: 5px solid var(--critical); } .ev .chip.none { border-left: 5px solid var(--warning); } .ev .chip.unchecked { border-left: 5px solid var(--text-muted); }
+.ev table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; } .ev th { text-align: left; font-size: 11.5px; color: var(--text-muted); font-weight: 600; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--border); }
+.ev td { padding: 5px 10px 5px 0; border-bottom: 1px solid var(--grid); vertical-align: top; } .ev td.num, .ev th.num { text-align: right; } .ev tr.pick { cursor: pointer; } .ev tr.pick:hover td { background: var(--surface-0); }
+.ev tr.diff td { font-weight: 700; } .ev .trail { font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; } .ev .trail a { cursor: pointer; text-decoration: underline; }
+.ev .review { display: flex; gap: 8px; align-items: center; margin: 8px 0 0; font-size: 12.5px; } .ev .review input[type=text] { flex: 1; }
+.ev .prog { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; width: 160px; display: inline-block; vertical-align: middle; } .ev .prog i { display: block; height: 100%; background: var(--good); }
+.ev .cv { position: relative; height: 170px; } .ev .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; } .ev .exp { font-size: 11.5px; color: var(--text-muted); text-align: right; }
+.ev .exp button { font-size: 11px; padding: 0 7px; } .ev .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; }
+.ev .kv div span { display: block; font-size: 11.5px; color: var(--text-muted); } .ev .kv div b { font-size: 15px; }
+.ev .heat rect.cell { stroke: var(--surface-1); stroke-width: 1; } .ev details summary { cursor: pointer; color: var(--text-secondary); }
+.ev .hcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; } .ev .hc { border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+.ev .hc:hover { border-color: var(--text-primary); } .ev code { font-size: 12px; overflow-wrap: anywhere; } .ev a[data-act] { cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted); }
+#ev-print { display: none; }
+@media print { .ev > *:not(#ev-print) { display: none !important; } #ev-print { display: block; } .ev { background: #fff; color: #000; padding: 0; } }
 </style></head><body>
-<div class="viz-root">
-  <div class="bar">
-    <span class="lbl">Showing</span>
-    <select class="pick" id="runs" aria-label="Session to show"></select>
-    <span class="end" id="note"></span>
-  </div>
-  <div id="page"><div class="empty">Loading the harness's files…</div></div>
-</div>
+<div class="ev" id="ev"><div class="ev-card">Loading the session list…</div></div>
 <script>
-const $ = id => document.getElementById(id);
-const css = n => getComputedStyle(document.querySelector('.viz-root')).getPropertyValue(n).trim();  // used by adrs_view.js
-const CHECKS = 'operator_checks', Q = new URLSearchParams(location.search);
-let run = Q.get('session') || Q.get('run') || '', series = {}, listed = '';
-
-async function get(url) {  // text of a file next to the harness, or null
-  try {
-    const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
-    return { text: r.ok ? await r.text() : null };
-  } catch (e) { return { text: null }; }
-}
-const json = t => { try { return JSON.parse(t); } catch (e) { return null; } };
-const lines = t => (t || '').split('\n').filter(Boolean).map(json).filter(Boolean);
-const when = ts => String(ts || '').replace('T', ' ').slice(0, 16);
-
-// What a session was given, in the shape adrs_view.js reads (task, params = the knobs, fixed = the system settings).
-// A session made before briefs existed, and the operator checks, have no session.json: the open brief stands in.
-let standIn = null;
-async function given(meta) {
-  let g = meta && meta.given;
-  if (!g) {
-    if (!standIn) { const [b, m] = await Promise.all([get('../briefs/two-hosts-open.json'), get('../harness/manifest.json')]); standIn = json(b.text) && json(m.text) ? { ...json(b.text), ...json(m.text), id: null } : null; }
-    g = standIn;
-  }
-  return g && { ...g, params: g.knobs, fixed: g.system, brief: g.id, model: (meta && meta.model) || null };
-}
-
-async function load() {
-  const [st, sl] = await Promise.all([get('../api/status'), get('../api/sessions')]);
-  const ctl = json(st.text), ses = json(sl.text);
-  if (!Array.isArray(ses)) { $('note').textContent = 'Cannot read the harness (this page is served by harness/control.py, which also lists the sessions; is it running in ~/project?)'; return; }
-  // which one to show: the one asked for; otherwise the session running now, otherwise the newest
-  if (run !== CHECKS && !ses.some(s => s.id === run)) run = (ses.find(s => s.running) || ses[ses.length - 1] || { id: CHECKS }).id;
-  const sig = JSON.stringify([ses.map(s => [s.id, s.brief, s.started, s.experiments, s.running, s.policy]), run]);
-  if (sig !== listed) {  // the list is redrawn only when it changed, so an open list is not closed by the 5 s refresh
-    listed = sig;
-    $('runs').innerHTML = '<optgroup label="AI sessions (newest first)">' + [...ses].reverse().map(s =>
-        `<option value="${s.id}"${s.id === run ? ' selected' : ''}>${s.id} · ${s.brief || 'before briefs'} · ${s.started ? when(s.started) : 'no record yet'} · ${s.experiments} experiment${s.experiments === 1 ? '' : 's'}${s.policy ? ' · policy ' + s.policy : ''}${s.running ? ' · running now' : ''}</option>`).join('') +
-      `</optgroup><optgroup label="No AI"><option value="${CHECKS}"${run === CHECKS ? ' selected' : ''}>Operator checks of the simulator</option></optgroup>`;
-    $('runs').onchange = () => { run = $('runs').value; history.replaceState(null, '', run === CHECKS ? '?run=' + CHECKS : '?session=' + run); load(); };
-  }
-  const checks = run === CHECKS, base = checks ? '../checks/build1/' : `../sessions/${run}/runs/`, shown = run;
-  const [led, idx, op, meta, own] = await Promise.all([checks ? { text: '' } : get(`../sessions/${run}/ledger.jsonl`), get(base + 'index.json'), get('../checks/operator.jsonl'),
-    checks ? { text: null } : get(`../sessions/${run}/session.json`),
-    checks && (!ctl || ctl.operator_runs) ? get('../checks/control.jsonl') : { text: '' }]);  // operator runs started from the full viewer's Control page (checks/op-*/)
-  const mine = lines(own.text).filter(r => r.id && r.metrics);
-  const index = [...lines(idx.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))];
-  // the operator's line of each run: a session's lines carry its id, the build checks carry none
-  const oper = [...lines(op.text).filter(r => (checks ? !r.session : r.session === run)), ...mine.map(r => ({ id: r.id, policy: r.policy || r.mode, seconds: r.seconds, control: true }))];
-  const dir = id => (mine.some(r => r.id === id) ? '../checks/' : base), key = id => run + '/' + id;  // run ids repeat across sessions
-  await Promise.all(index.filter(r => !(key(r.id) in series)).map(async r => { series[key(r.id)] = TH_DATA.csv((await get(`${dir(r.id)}${r.id}/series.csv`)).text); }));
-  if (shown !== run) return;  // another session was chosen while these files were loading
-  const man = await given(json(meta.text));
-  if (!man) { $('note').textContent = 'Cannot read the brief (briefs/two-hosts-open.json or harness/manifest.json is missing).'; return; }
-  const raw = { ledger: lines(led.text), index, oper, manifest: man, series: Object.fromEntries(index.map(r => [r.id, series[key(r.id)]])),
-                running: ses.some(s => s.id === run && s.running) };
-  $('note').innerHTML = `Read from the harness's files at ${new Date().toLocaleTimeString()} · refreshed every 5 s · this page writes nothing · <a href="index_full.html${checks ? '' : '?session=' + run}">the earlier six-page viewer</a> (system objects, packet events, run control)`;
-  if (!checks && !raw.ledger.length) { $('page').innerHTML = `<div class="empty">Session ${run} has no record yet. This page fills in as the loop writes its ledger.</div>`; return; }
-  TASK_VIEW.page($('page'), { raw, run });  // it redraws only when something changed, so reading, hovering and open sections are not disturbed
-}
-
-const s = document.createElement('script');  // the shared content + layout code, never from the browser's cache
-s.src = 'adrs_view.js?t=' + Date.now();
-s.onload = () => { load(); setInterval(load, 5000); };
-s.onerror = () => { $('page').innerHTML = '<div class="empty">Cannot load adrs_view.js.</div>'; };
-document.head.appendChild(s);
+const css = n => getComputedStyle(document.getElementById('ev')).getPropertyValue(n).trim();  // also used by adrs_view.js
+['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
+  const s = document.createElement('script'); s.src = name + '?t=' + Date.now(); s.onload = ok; s.onerror = () => no(name); document.head.appendChild(s); })), Promise.resolve())
+  .then(() => EV.start()).catch(name => { document.getElementById('ev').innerHTML = '<div class="ev-card">Cannot load ' + name + '.</div>'; });
 </script>
 </body></html>
