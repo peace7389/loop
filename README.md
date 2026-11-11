@@ -11,15 +11,16 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 |---|---|
 | `HARNESS_SPEC.md` | The build specification: purpose, decisions, what was verified against ns-3 |
 | `scratch/two-hosts/` | The ns-3 scenario: `two-hosts.cc` and the scheduler `link-queue-disc.{h,cc}` (a copy; it is built inside an ns-3.49 tree) |
-| `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, runs what it asked. `--session <id>` chooses the session (default: a new id `sNNN`) |
+| `briefs/<id>.json` | A brief: the assignment a person writes before a session. Task, a plain-language description of the system, the fixed settings (`system`), the settings the model may change (`knobs`), the goal (open, or a target with conditions) and the limits |
+| `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, runs what it asked. `--brief <id>` chooses the brief of a new session, `--session <id>` the session (default: a new id `sNNN`) |
 | `harness/tools.py` | Everything the model can reach: read-only tools and `run()`. Every path is inside the current session's folder; a run id is accepted only if that session's own index lists it |
-| `harness/manifest.json`, `prompt.txt`, `schema.json` | The task as the model sees it, the prompt, the answer format |
+| `harness/manifest.json`, `prompt.txt`, `schema.json` | What is the same for every brief (the outputs and the tools, described), the prompt, the answer format |
 | `harness/control.py` | The operator's small server for the viewer (port 8600); `make_trace.py` records packet events |
 | `sessions/<id>/` | One session = one complete attempt by the model, in its own folder; sessions know nothing about each other. `s001` is the first session (2026-11-09) |
 | `sessions/<id>/ledger.jsonl` | The session's record: draft (what the model wrote before its answer), hypothesis, experiment, evidence, verdict, note, malformed |
 | `sessions/<id>/runs/index.json` | The session's own simulations, the only ones its tools can see: id, params, metrics |
 | `sessions/<id>/runs/<run>/` | One simulation: `params.json`, `metrics.json`, `series.csv` (a sample every 0.1 s) |
-| `sessions/<id>/two-hosts.cc` | The scenario source as that session could read it (sessions made since 2026-11-11) |
+| `sessions/<id>/session.json` | What the session was given (`given`: its brief with the description filled in, plus the output and tool descriptions), the model, the start time and the flags. `s001` was made before briefs and has none |
 | `checks/` | Operator-only: nothing here is reachable through `harness/tools.py` |
 | `checks/operator.jsonl` | The scheduler mode and run time of every simulation, by session and run (the mode reaches the simulation as the environment variable `TWOHOSTS_SCHED`, not as an option) |
 | `checks/build1/` | The operator's first checks of both scheduler modes (`sanity-*`, `share-*`, `cap-*`), with their `index.json` |

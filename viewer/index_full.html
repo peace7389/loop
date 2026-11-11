@@ -90,20 +90,29 @@ async function get(url) {  // text of a file next to the harness, or null; also 
 }
 const lines = t => (t || '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean);
 
+// What the session was given, in the shape the page reads (task, params = the knobs, fixed = the system settings): from
+// its session.json; a session made before briefs existed has none, and the open brief stands in.
+async function given(id) {
+  const J = t => { try { return JSON.parse(t); } catch (e) { return null; } };
+  let g = (J((await get(`../sessions/${id}/session.json`)).text) || {}).given;
+  if (!g) { const [b, m] = await Promise.all([get('../briefs/two-hosts-open.json'), get('../harness/manifest.json')]); g = J(b.text) && J(m.text) ? { ...J(b.text), ...J(m.text) } : null; }
+  return g && { ...g, params: g.knobs, fixed: g.system };
+}
+
 async function load() {
   const [st, sl] = await Promise.all([get('../api/status'), get('../api/sessions')]);
   CONTROL.st = (() => { try { const j = JSON.parse(st.text); return j && j.control ? j : null; } catch (e) { return null; } })();  // null: served by a plain file server, no Control page
   const all = (() => { try { const j = JSON.parse(sl.text); return Array.isArray(j) ? j : []; } catch (e) { return []; } })();  // empty when a plain file server serves the page
   const want = all.some(s => s.id === PINNED) ? PINNED : (all.find(s => s.running) || all[all.length - 1] || { id: PINNED || 's001' }).id;
   if (want !== ses) { ses = want; series = {}; shown = ''; }  // a new session started from the Control page is shown as soon as it exists
-  const [led, idx, chk, op, man, obj, ctl] = await Promise.all([get(`../sessions/${ses}/ledger.jsonl`), get(`../sessions/${ses}/runs/index.json`), get('../checks/build1/index.json'), get('../checks/operator.jsonl'), get('../harness/manifest.json'), get('objects.json'),
+  const [led, idx, chk, op, man, obj, ctl] = await Promise.all([get(`../sessions/${ses}/ledger.jsonl`), get(`../sessions/${ses}/runs/index.json`), get('../checks/build1/index.json'), get('../checks/operator.jsonl'), given(ses), get('objects.json'),
     CONTROL.st && !CONTROL.st.operator_runs ? { text: '' } : get('../checks/control.jsonl')]);  // not asked for while control.py says there is none yet
   const mine = lines(ctl.text).filter(r => r.id && r.metrics);  // operator runs started from the Control page (checks/op-*/): shown with the operator checks, never part of the AI session
-  if (man.text == null) { $('note').textContent = 'Cannot read the harness files (is the file server running in ~/project?)'; return; }
+  if (!man) { $('note').textContent = 'Cannot read the harness files (is the file server running in ~/project?)'; return; }
   const own = lines(idx.text);  // this session's runs; the operator's build checks (checks/build1/) are listed after them
   const raw = { ledger: lines(led.text), index: [...own, ...lines(chk.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
                 oper: [...lines(op.text).filter(r => !r.session || r.session === ses), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))],
-                manifest: JSON.parse(man.text), series, objects: (() => { try { return JSON.parse(obj.text); } catch (e) { return null; } })(),
+                manifest: man, series, objects: (() => { try { return JSON.parse(obj.text); } catch (e) { return null; } })(),
                 // control.py knows whether a loop is running; without it: the loop writes the ledger every turn, quiet for 3 minutes = not running
                 running: all.length ? all.some(s => s.id === ses && s.running) : led.age != null && led.age < 180 };
   const dir = id => (mine.some(r => r.id === id) ? '../checks/' : own.some(r => r.id === id) ? `../sessions/${ses}/runs/` : '../checks/build1/');
@@ -130,7 +139,7 @@ async function load() {
 // ======================================================================================================
 const CONTROL = {
   st: null, busy: '', err: { run: '', session: '' }, last: null, el: null, raw: null,
-  ui: { params: {}, mode: 'share', budget: 30, draft: 'on', smode: 'share', baseline: true },
+  ui: { params: {}, mode: 'share', brief: 'two-hosts-open', budget: '', draft: 'on', smode: 'share', baseline: true },
 
   async post(path, body) {
     const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -162,14 +171,15 @@ const CONTROL = {
       sec(2, 'An AI session', 'Start the loop: the AI states a hypothesis, chooses the settings of each experiment itself, and the harness runs it and records everything in the ledger. It is the same loop.py as from a terminal, with the choices below.',
         `<div class="th-wide"><div>
            <div class="ct-form">
-             <label>Experiments<small>budget · 1 to 150 · the AI may ask for more, up to 150 in all</small><input type="number" id="ct-budget" min="1" max="150" step="1" value="${e(ui.budget)}"></label>
+             <label>Brief<small>brief · the assignment: task, fixed settings, knobs, goal, limits</small>${pick('ct-brief', ui.brief, ((C.st || {}).briefs || [ui.brief]).map(b => [b, b]))}</label>
+             <label>Experiments<small>budget · empty = the brief's limit · at most 150 · the AI may ask for more, up to 150 in all</small><input type="number" id="ct-budget" min="1" max="150" step="1" value="${e(ui.budget)}"></label>
              <label>Draft<small>draft · whether the AI writes a draft before each answer</small>${pick('ct-draft', ui.draft, [['on', 'on'], ['off', 'off']])}</label>
              <label>Scheduler mode<small>mode · never shown to the AI</small>${pick('ct-smode', ui.smode, MODES)}</label>
              <label class="check"><input type="checkbox" id="ct-baseline"${ui.baseline ? ' checked' : ''}><span>Baseline run first (E0)<small id="ct-basenote"></small></span></label></div>
            <button class="ct-go" id="ct-start">Start session</button><button class="ct-go plain" id="ct-stop">Stop session</button>
          </div><div class="ct-box" id="ct-session"></div></div>`);
     el.querySelectorAll('[data-p]').forEach(i => { i.oninput = i.onchange = () => { ui.params[i.dataset.p] = i.value; C.paint(); }; });
-    [['ct-mode', 'mode'], ['ct-draft', 'draft'], ['ct-smode', 'smode']].forEach(([id, k]) => { $(id).onchange = ev => { ui[k] = ev.target.value; }; });
+    [['ct-mode', 'mode'], ['ct-draft', 'draft'], ['ct-smode', 'smode'], ['ct-brief', 'brief']].forEach(([id, k]) => { $(id).onchange = ev => { ui[k] = ev.target.value; }; });
     $('ct-budget').oninput = ev => { ui.budget = ev.target.value; };
     $('ct-baseline').onchange = ev => { ui.baseline = ev.target.checked; };
     $('ct-reset').onclick = () => { ui.params = {}; ui.mode = 'share'; C.again(); };
@@ -181,7 +191,7 @@ const CONTROL = {
     };
     $('ct-start').onclick = async () => {
       C.busy = 'session'; C.err.session = ''; C.paint();
-      try { await C.post('../api/session', { budget: Number(ui.budget), draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline }); } catch (x) { C.err.session = x.message; }
+      try { await C.post('../api/session', { brief: ui.brief, ...(String(ui.budget).trim() ? { budget: Number(ui.budget) } : {}), draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline }); } catch (x) { C.err.session = x.message; }
       C.busy = ''; await load(); C.paint();
     };
     $('ct-stop').onclick = async () => {
@@ -196,7 +206,7 @@ const CONTROL = {
   paint() {
     const C = CONTROL, e = TASK_VIEW._e, st = C.st, raw = C.raw; if (!C.el || !C.el.isConnected || !st || !$('ct-status')) return;
     const S = st.session, on = S && S.running, n = (st.sessions || []).length, P = raw.manifest.params || {};
-    const flags = S ? `${S.flags.budget} experiments, draft ${S.flags.draft}, ${S.flags.mode} mode` : '';
+    const flags = S ? `brief ${S.flags.brief || 'two-hosts-open'}, ${S.flags.budget ? S.flags.budget + ' experiments' : 'the brief’s limit of experiments'}, draft ${S.flags.draft}, ${S.flags.mode} mode` : '';
     const lastLine = S ? String(S.output || '').trim().split('\n').pop() : '';
     $('ct-status').className = 'ct-status' + (on || st.other_loop || st.run_busy ? ' live' : '');
     $('ct-status').innerHTML = '<i></i><span>' + (on ? `<b>An AI session is running</b> (${e(S.id)}, started ${e(S.started.slice(11, 16))}: ${e(flags)}).`

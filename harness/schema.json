@@ -22,7 +22,7 @@
        "required": ["for", "result", "because", "next"], "additionalProperties": false},
       {"type": "null"}]},
     "requests": {"type": "array", "items": {"type": "object",
-       "properties": {"tool": {"type": "string", "enum": ["describe_system", "metrics", "series", "grep_trace", "list_runs", "read_source"]},
+       "properties": {"tool": {"type": "string", "enum": ["describe_system", "metrics", "series", "grep_trace", "list_runs"]},
                       "args": {"type": "object"}},
        "required": ["tool", "args"], "additionalProperties": false}},
     "budget_request": {"anyOf": [

@@ -1,6 +1,6 @@
 """The loop: rebuild the prompt from the ledger, ask the model once, run what it asked, append records.
-One session = one folder, sessions/<id>/: its ledger.jsonl is written here, its runs/ by tools.run, and nothing in it
-is shared with another session. The operator's mode of each run goes to checks/operator.jsonl, outside that folder.
+One session = one folder, sessions/<id>/, and one brief (briefs/<id>.json, the assignment): session.json (what the
+session was given) and ledger.jsonl are written here, runs/ by tools.run, and nothing in it is shared with another session. The operator's mode of each run goes to checks/operator.jsonl, outside that folder.
 Who else may write what: control.py's docstring."""
 import argparse, json, time
 from pathlib import Path
@@ -10,8 +10,8 @@ import tools
 ROOT = Path.home() / "project"
 H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127.0.0.1:18000/v1"
 LEDGER = SID = None  # the current session's ledger and id, set in main()
-CAP = 6000  # characters of any tool result (except read_source, which is given whole) or ledger body shown to the model
-CEILING = 150  # most experiments one invocation can be granted: --budget plus every budget_request grant
+CAP = 6000  # characters of any tool result or ledger body shown to the model
+CEILING = 150  # most experiments one invocation can be granted: the starting budget plus every budget_request grant
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
 PREFIX = {"hypothesis": "H", "experiment": "X", "evidence": "E", "verdict": "V", "malformed": "M", "note": "N", "draft": "D"}
 DRAFT_TYPES = ("draft", "scratch")  # "scratch" is the name used in ledgers written before 2026-11-11
@@ -83,8 +83,8 @@ def validate(t, manifest, ledger):
     if not rq and (ex is None) == (vd is None):
         return "exactly one of experiment / verdict must be given (unless only requests are made)"
     if ex is not None:
-        if set(ex.get("params", {})) - set(manifest["params"]):
-            return "experiment.params has keys not in the manifest"
+        if set(ex.get("params", {})) - set(manifest["knobs"]) - set(manifest["system"]):
+            return "experiment.params has keys that are not settings of the brief"
         if not str(ex.get("pass_if", "")).strip():
             return "experiment without pass_if"
     if vd is not None and not any(r["id"] == vd.get("for") and r["type"] == "hypothesis" for r in ledger):
@@ -101,28 +101,35 @@ def call(q):
     except Exception as e:  # a bad argument is the model's problem, reported back to it
         out = f"error: {e}"
     s = out if isinstance(out, str) else json.dumps(out)
-    if q.get("tool") == "read_source":  # the whole file: a source cut off part-way hides whatever comes after the cut
-        return s
     return s[:CAP] + (" ...[truncated]" if len(s) > CAP else "")
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", help="session id: its folder is sessions/<id>/ (ledger.jsonl and runs/). Default: a new id sNNN. An existing id continues that session")
-    ap.add_argument("--budget", type=int, default=30, help=f"experiments granted at the start (at most {CEILING}; the model can ask for more, up to {CEILING} in total)")
+    ap.add_argument("--brief", help=f"brief id (briefs/<id>.json) of a new session; default {tools.DEFAULT_BRIEF}. An existing session keeps its own")
+    ap.add_argument("--budget", type=int, help=f"experiments granted at the start; default: the brief's limits.simulations (at most {CEILING}; the model can ask for more, up to {CEILING} in total)")
     ap.add_argument("--draft", choices=["on", "off"], default="on", help="on: the model may write a draft before its JSON answer (max_tokens 8000) and the draft is kept in the ledger; off: answer only (max_tokens 1500)")
     ap.add_argument("--mode", choices=["share", "cap"], default="share")
     ap.add_argument("--temperature", type=float, default=0.3)
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the default experiment and record it as evidence E0")
     a = ap.parse_args()
-    if a.budget > CEILING:
-        ap.error(f"--budget is at most {CEILING}")
     global LEDGER, SID
     tools.MODE = a.mode
-    manifest, schema, system = tools.describe_system(), json.loads((H / "schema.json").read_text()), (H / "prompt.txt").read_text()
+    schema, system = json.loads((H / "schema.json").read_text()), (H / "prompt.txt").read_text()
     model = requests.get(API + "/models", timeout=30).json()["data"][0]["id"]
-    SID = tools.open_session(a.session)  # after the model server answered, so a failed start leaves no empty session folder
-    LEDGER = tools.SESSION / "ledger.jsonl"
-    print(f"session {SID}: {tools.SESSION}", flush=True)
+    try:
+        SID = tools.open_session(a.session, a.brief)  # after the model server answered, so a failed start leaves no empty session folder
+    except ValueError as e:
+        ap.error(str(e))
+    manifest = tools.describe_system()  # the brief, with the descriptions of the outputs and the tools
+    a.budget = manifest["limits"]["simulations"] if a.budget is None else a.budget
+    if a.budget > CEILING:
+        ap.error(f"the starting budget is at most {CEILING}")
+    LEDGER, meta = tools.SESSION / "ledger.jsonl", tools.SESSION / "session.json"
+    if not meta.exists():  # the session's own record of what it was given; the operator's mode is not in it
+        meta.write_text(json.dumps({"id": SID, "brief": manifest["id"], "model": model, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                    "flags": {"budget": a.budget, "draft": a.draft, "temperature": a.temperature, "baseline": a.baseline}, "given": manifest}, indent=1) + "\n")
+    print(f"session {SID} (brief {manifest['id']}): {tools.SESSION}", flush=True)
     ledger = load_ledger()
     if a.baseline == "on":
         baseline(ledger)
@@ -134,7 +141,7 @@ def main():
             append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"loop stopped by the harness: the rendered ledger is {size} tokens, over the limit of {LEDGER_TOKENS}"})
             break
         turn += 1
-        user = (f"MANIFEST:\n{json.dumps(manifest, indent=1)}\n\nRUN BUDGET: {budget - runs_done} experiments left"
+        user = (f"BRIEF:\n{json.dumps(manifest, indent=1)}\n\nRUN BUDGET: {budget - runs_done} experiments left"
                 f" ({budget} granted so far; budget_request can raise that to at most {CEILING}).\n\nLEDGER:\n{text}")
         if pending:
             user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)

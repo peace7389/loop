@@ -20,6 +20,7 @@ ROOT = os.path.expanduser("~/project")
 SESSIONS = os.path.join(ROOT, "sessions")
 BUILD1 = os.path.join(ROOT, "checks", "build1")
 OPERATOR = os.path.join(ROOT, "checks", "operator.jsonl")
+STAND_IN = (os.path.join(ROOT, "briefs", "two-hosts-open.json"), os.path.join(ROOT, "harness", "manifest.json"))
 HERE = os.path.dirname(os.path.abspath(__file__))
 NAME = "twohosts"
 LOOP, CHECKS = "loop", "operator_checks"
@@ -61,14 +62,23 @@ def _load(sid=None):
     """Everything the harness wrote for one session (sid None: the operator's checks), re-read only when a file changed."""
     base = os.path.join(SESSIONS, sid, "runs") if sid else BUILD1
     ledger = os.path.join(SESSIONS, sid, "ledger.jsonl") if sid else None
-    man = os.path.join(ROOT, "harness", "manifest.json")
-    sig = (_mtime(ledger) if ledger else 0, _mtime(os.path.join(base, "index.json")), _mtime(OPERATOR), _mtime(man))
+    meta = os.path.join(SESSIONS, sid, "session.json") if sid else ""
+    sig = (_mtime(ledger) if ledger else 0, _mtime(os.path.join(base, "index.json")), _mtime(OPERATOR), _mtime(meta), _mtime(STAND_IN[0]), _mtime(STAND_IN[1]))
     D = _cache.setdefault(("load", sid), {})
     if D.get("sig") != sig:
+        # what the session was given: its session.json; a session made before briefs existed (and the operator's
+        # checks) has none, and the open brief with the tool and output descriptions stands in
         try:
-            manifest = json.load(open(man))
-        except (OSError, ValueError):
-            manifest = {}
+            given = json.load(open(meta))["given"]
+        except (OSError, ValueError, KeyError):
+            given = {}
+            for path in STAND_IN:
+                try:
+                    given.update(json.load(open(path)))
+                except (OSError, ValueError):
+                    pass
+            given["id"] = None
+        manifest = {**given, "params": given.get("knobs") or {}, "fixed": given.get("system") or {}, "brief": given.get("id")}
         D.update(sig=sig, sid=sid, base=base, ledger_path=ledger, ledger=_jsonl(ledger) if ledger else [], manifest=manifest,
                  index={r["id"]: r for r in _jsonl(os.path.join(base, "index.json"))},
                  oper={r["id"]: r for r in _jsonl(OPERATOR) if r.get("session") == sid})   # the build checks' lines carry no session

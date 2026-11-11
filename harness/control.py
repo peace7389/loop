@@ -2,16 +2,18 @@
 It replaces the plain file server. Start it with:  python3 harness/control.py   (the page is http://127.0.0.1:8600/viewer/)
 
   GET  any file        the project's files, read-only, exactly as before
-  GET  /api/status     what is running, the last lines of the session's output, and "sessions": every session folder
-                       (id, records, experiments, first and last time, mode, model, running)
+  GET  /api/status     what is running, the last lines of the session's output, "briefs" (the ids in briefs/) and
+                       "sessions": every session folder (id, brief, records, experiments, first and last time, mode, model, running)
   GET  /api/sessions   that list alone
-  POST /api/run        {params, mode}: one operator simulation -> checks/op-<timestamp>/, returns its metrics
-  POST /api/session    {budget, draft, mode, baseline, session}: starts loop.py with those flags, returns the session id.
-                       Without "session" it is a new session (the next id sNNN); with the id of an existing one it continues that.
+  POST /api/run        {params, mode, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
+                       The brief (default two-hosts-open) gives the fixed settings and the ranges.
+  POST /api/session    {brief, budget, draft, mode, baseline, session}: starts loop.py with those flags, returns the session id.
+                       Without "session" it is a new session (the next id sNNN) on the named brief (default two-hosts-open;
+                       budget defaults to the brief's limit); with the id of an existing session it continues that one.
   POST /api/stop       stops the session that was started here
 
 Who writes what (the write-ownership rule):
-  loop.py      its own session's folder, sessions/<id>/: ledger.jsonl, and runs/ through tools.run. Nothing else writes
+  loop.py      its own session's folder, sessions/<id>/: session.json, ledger.jsonl, and runs/ through tools.run. Nothing else writes
                there, and no tool can read outside it. It also appends one line per run to checks/operator.jsonl
                (session, run, mode, seconds), which no tool reads.
   control.py   checks/ only: checks/op-<timestamp>/ (one operator run), checks/control.jsonl (the list of those runs),
@@ -24,6 +26,7 @@ Who may call it. The server listens on 127.0.0.1 only (there is no option to cha
 that alone would let any local user start runs; a POST is therefore accepted only when the connection was opened by a
 process of the user who runs this server (an SSH tunnel of that user counts), and only as application/json from this
 page (so no other web page open in the same browser can call it). Parameters go through tools.clamp, like the model's.
+Briefs (briefs/<id>.json) are written by the operator by hand; nothing here writes them.
 Python standard library only."""
 import argparse, http.server, json, os, re, signal, subprocess, sys, threading, time
 from pathlib import Path
@@ -89,7 +92,8 @@ def sessions():
         if CACHE.get(d.name, (None,))[0] != sig:
             recs = lines(led)
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
-            CACHE[d.name] = (sig, {"id": d.name, "records": len(recs), "runs": len(lines(idx)),
+            meta = json.loads((d / "session.json").read_text()) if (d / "session.json").is_file() else {}
+            CACHE[d.name] = (sig, {"id": d.name, "brief": meta.get("brief"), "records": len(recs), "runs": len(lines(idx)),
                 "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs), "turns": max([r["turn"] for r in recs], default=0),
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None),
@@ -113,17 +117,21 @@ def status():
              "started": SESSION["started"], "output": tail(SESSION["log"])}
     count = lambda p: sum(1 for l in p.open() if l.strip()) if p.exists() else 0
     return {"control": True, "session": s, "other_loop": other_loop(), "run_busy": RUN_LOCK.locked(),
-            "sessions": sessions(),
+            "sessions": sessions(), "briefs": sorted(p.stem for p in tools.BRIEFS.glob("*.json")),
             "operator_runs": count(CHECKS / "control.jsonl")}
 
 
 def operator_run(body):
     """One simulation with the operator's settings, by the built program directly, into checks/op-<timestamp>/."""
     params, mode = body.get("params") or {}, body.get("mode", "share")
-    if mode not in ("share", "cap") or not isinstance(params, dict) or set(params) - set(tools.MANIFEST["params"]):
-        raise Refused(400, "params must be manifest parameters and mode must be share or cap")
     try:
-        clean, clamps = tools.clamp(params)
+        brief = tools.load_brief(body.get("brief", tools.DEFAULT_BRIEF))
+    except ValueError as e:
+        raise Refused(400, str(e))
+    if mode not in ("share", "cap") or not isinstance(params, dict) or set(params) - set(brief["knobs"]) - set(brief["system"]):
+        raise Refused(400, "params must be settings of the brief and mode must be share or cap")
+    try:
+        clean, clamps = tools.clamp(params, brief)
     except (ValueError, TypeError) as e:
         raise Refused(400, f"bad parameter value: {e}")
     if not RUN_LOCK.acquire(blocking=False):
@@ -132,7 +140,7 @@ def operator_run(body):
         rid = "op-" + time.strftime("%Y%m%d-%H%M%S")
         out = CHECKS / rid
         out.mkdir(parents=True)
-        args = [f"--{k}={v}" for k, v in clean.items()] + [f"--out={out}"]
+        args = [f"--{k}={v}" for k, v in tools.options(clean, brief).items()] + [f"--out={out}"]
         t0 = time.time()
         try:
             p = subprocess.run([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": mode}, capture_output=True, text=True, timeout=tools.RUN_TIMEOUT)
@@ -143,7 +151,7 @@ def operator_run(body):
         (out / "command.txt").write_text(f"TWOHOSTS_SCHED={mode} two-hosts {' '.join(args)}\nexit {code}, {seconds} s\n")
         if code != 0 or not (out / "metrics.json").exists():
             raise Refused(500, f"the simulation failed (exit {code}): {err}")
-        rec = {"id": rid, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "mode": mode, "seconds": seconds, "clamped": clamps,
+        rec = {"id": rid, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "brief": brief["id"], "mode": mode, "seconds": seconds, "clamped": clamps,
                "params": json.loads((out / "params.json").read_text()), "metrics": json.loads((out / "metrics.json").read_text())}
         with (CHECKS / "control.jsonl").open("a") as f:
             f.write(json.dumps(rec) + "\n")
@@ -154,20 +162,25 @@ def operator_run(body):
 
 def start_session(body):
     """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal."""
-    budget, draft, mode, base = body.get("budget", 30), body.get("draft", "on"), body.get("mode", "share"), body.get("baseline", True)
-    if type(budget) is not int or budget < 1 or draft not in ("on", "off") or mode not in ("share", "cap") or type(base) is not bool:
-        raise Refused(400, "budget must be a whole number of at least 1, draft on or off, mode share or cap, baseline true or false")
-    sid = body.get("session")
-    if sid is not None and not (isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid) and (tools.SESSIONS / sid).is_dir()):
-        raise Refused(400, "session must be the id of an existing session (leave it out to start a new one)")
+    budget, draft, mode, base = body.get("budget"), body.get("draft", "on"), body.get("mode", "share"), body.get("baseline", True)
+    if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or mode not in ("share", "cap") or type(base) is not bool:
+        raise Refused(400, "budget must be a whole number of at least 1 (or left out: the brief's limit), draft on or off, mode share or cap, baseline true or false")
+    sid, brief = body.get("session"), body.get("brief")
+    if sid is not None and not (isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid) and (tools.SESSIONS / sid / "session.json").is_file()):
+        raise Refused(400, "session must be the id of an existing session that has a session.json (leave it out to start a new one)")
+    if brief is not None:
+        try:
+            tools.load_brief(brief)
+        except ValueError as e:
+            raise Refused(400, str(e))
     with LOCK:
         if (SESSION and SESSION["proc"].poll() is None) or other_loop():
             raise Refused(409, "a session is already running")
         sid = sid or tools.next_session_id()
         (CHECKS / "sessions").mkdir(parents=True, exist_ok=True)
         log = CHECKS / "sessions" / f"{sid}.log"
-        flags = {"session": sid, "budget": budget, "draft": draft, "mode": mode, "baseline": "on" if base else "off"}
-        cmd = LOOP + [x for k, v in flags.items() for x in (f"--{k}", str(v))]
+        flags = {"session": sid, "brief": brief, "budget": budget, "draft": draft, "mode": mode, "baseline": "on" if base else "off"}
+        cmd = LOOP + [x for k, v in flags.items() if v is not None for x in (f"--{k}", str(v))]
         with log.open("a") as f:
             f.write(" ".join(cmd) + "\n")
             f.flush()

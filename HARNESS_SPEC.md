@@ -487,6 +487,48 @@ t,udp_bps,tcp_bps,cwnd,drops_band0,drops_band1,q_band0,q_band1,qmin_band0,qmin_b
 ## 7. Harness specification
 
 ### 7.1 `manifest.json`
+
+**REVISED 2026-11-11 (operator; stage 2 of `~/RESTRUCTURE_PLAN.md`): briefs.** This
+block replaces what 7.1, 7.3 and 7.5 say about the task, the parameters, the
+fixed settings and `read_source`.
+- A session is started with a brief, `briefs/<id>.json`: `id`, `task`,
+  `description`, `system` (fixed settings), `knobs` (min/max or choices, default,
+  meaning), `goal` (`{"kind": "open"}` or `{"kind": "given", "target": {measure,
+  direction}, "conditions": [...]}`) and `limits` (`simulations`,
+  `simulations_per_experiment`). `loop.py --brief <id>`, default `two-hosts-open`.
+  Two briefs exist: `two-hosts-open` (the earlier task, every knob) and
+  `two-hosts-udp-demand` (`udpRate` fixed at 300Mbps; maximise `tcp_goodput_bps`
+  while `udp_loss_frac <= 0.01`).
+- `description` is the operator's plain-language text of the system. `{name}`
+  in it is filled from the brief's own `system` settings; a name that is not a
+  system setting makes the brief invalid. It is the model's only account of the
+  system: **`read_source` is removed** and sessions keep no copy of
+  `two-hosts.cc` (operator, 2026-11-11).
+- `manifest.json` keeps what is the same for every brief: `outputs`, `tools`,
+  `how_to_run`, `budget`. `describe_system()` returns the brief (description
+  filled in) followed by those.
+- `tools.clamp`: a setting under `system` is not the model's to change; an
+  experiment that sets it gets the brief's value, recorded in the experiment's
+  `clamped` like any other clamp. `tools.options` starts the program with every
+  option explicit: the system settings, the knobs' defaults, then the chosen
+  values. `udpPacketBytes` is descriptive (the scenario fixes it at 1400).
+- The starting budget is the brief's `limits.simulations` (`--budget` overrides
+  it); `simulations_per_experiment` is not used until experiments hold several
+  simulations (stage 3).
+- `sessions/<id>/session.json`, written by `loop.py` when the session is
+  created: `id`, `brief`, `model`, `started`, `flags` (budget, draft,
+  temperature, baseline) and `given` (exactly what `describe_system()` returns).
+  A continued session uses `given`, not the brief file, and refuses another
+  brief. The scheduler mode is not in it (it stays in `checks/operator.jsonl`).
+  `s001` has no `session.json` and cannot be continued.
+- `prompt.txt` says "brief" where it said "manifest", names the brief's parts,
+  and tells the model what `done` means for an open and for a given goal.
+- `control.py`: `/api/status` lists `briefs`; `/api/session` and `/api/run` take
+  `brief`.
+- Verified: both briefs give the expected `describe_system()`; in
+  `two-hosts-udp-demand` an experiment asking `udpRate=1Gbps` ran at 300Mbps with
+  `clamped: {"udpRate": ["1Gbps", "300Mbps"]}`; the default run of
+  `two-hosts-open` is byte-identical in its metrics to operator check 3.
 What the LLM is told. Contains: the nominal task sentence; the list of
 parameters with min, max, default and one-line meaning (`weightUdp 0.05-0.95`,
 `udpRate 100Mbps-3Gbps`, `linkRate` fixed at 1Gbps unless you decide to

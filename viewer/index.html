@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- The harness's own viewer: a static page served by harness/control.py. It asks ../api/sessions for the list of
      sessions, then reads the chosen session's own files (../sessions/<id>/ledger.jsonl, runs/index.json,
-     runs/<run>/series.csv), ../checks/operator.jsonl (the operator's mode of each run) and ../harness/manifest.json
+     runs/<run>/series.csv, session.json = the brief it was given), ../checks/operator.jsonl (the operator's mode of each run)
      every 5 s, and writes nothing. "Operator checks" shows ../checks/build1/ and ../checks/control.jsonl instead.
      Content and layout live in adrs_view.js (TH_DATA builds the content, TASK_VIEW.page draws it); the same file
      draws this task inside the ADRS main viewer. One page: every run, then the chosen run (why it was made, its
@@ -59,22 +59,35 @@ const json = t => { try { return JSON.parse(t); } catch (e) { return null; } };
 const lines = t => (t || '').split('\n').filter(Boolean).map(json).filter(Boolean);
 const when = ts => String(ts || '').replace('T', ' ').slice(0, 16);
 
+// What a session was given, in the shape adrs_view.js reads (task, params = the knobs, fixed = the system settings).
+// A session made before briefs existed, and the operator checks, have no session.json: the open brief stands in.
+let standIn = null;
+async function given(meta) {
+  let g = meta && meta.given;
+  if (!g) {
+    if (!standIn) { const [b, m] = await Promise.all([get('../briefs/two-hosts-open.json'), get('../harness/manifest.json')]); standIn = json(b.text) && json(m.text) ? { ...json(b.text), ...json(m.text), id: null } : null; }
+    g = standIn;
+  }
+  return g && { ...g, params: g.knobs, fixed: g.system, brief: g.id };
+}
+
 async function load() {
-  const [st, sl, man] = await Promise.all([get('../api/status'), get('../api/sessions'), get('../harness/manifest.json')]);
+  const [st, sl] = await Promise.all([get('../api/status'), get('../api/sessions')]);
   const ctl = json(st.text), ses = json(sl.text);
-  if (man.text == null || !Array.isArray(ses)) { $('note').textContent = 'Cannot read the harness (this page is served by harness/control.py, which also lists the sessions; is it running in ~/project?)'; return; }
+  if (!Array.isArray(ses)) { $('note').textContent = 'Cannot read the harness (this page is served by harness/control.py, which also lists the sessions; is it running in ~/project?)'; return; }
   // which one to show: the one asked for; otherwise the session running now, otherwise the newest
   if (run !== CHECKS && !ses.some(s => s.id === run)) run = (ses.find(s => s.running) || ses[ses.length - 1] || { id: CHECKS }).id;
-  const sig = JSON.stringify([ses.map(s => [s.id, s.experiments, s.running, s.mode]), run]);
+  const sig = JSON.stringify([ses.map(s => [s.id, s.brief, s.started, s.experiments, s.running, s.mode]), run]);
   if (sig !== listed) {  // the list is redrawn only when it changed, so an open list is not closed by the 5 s refresh
     listed = sig;
     $('runs').innerHTML = '<optgroup label="AI sessions (newest first)">' + [...ses].reverse().map(s =>
-        `<option value="${s.id}"${s.id === run ? ' selected' : ''}>${s.id} · ${s.started ? when(s.started) : 'no record yet'} · ${s.experiments} experiment${s.experiments === 1 ? '' : 's'}${s.mode ? ' · mode ' + s.mode : ''}${s.running ? ' · running now' : ''}</option>`).join('') +
+        `<option value="${s.id}"${s.id === run ? ' selected' : ''}>${s.id} · ${s.brief || 'before briefs'} · ${s.started ? when(s.started) : 'no record yet'} · ${s.experiments} experiment${s.experiments === 1 ? '' : 's'}${s.mode ? ' · mode ' + s.mode : ''}${s.running ? ' · running now' : ''}</option>`).join('') +
       `</optgroup><optgroup label="No AI"><option value="${CHECKS}"${run === CHECKS ? ' selected' : ''}>Operator checks of the simulator</option></optgroup>`;
     $('runs').onchange = () => { run = $('runs').value; history.replaceState(null, '', run === CHECKS ? '?run=' + CHECKS : '?session=' + run); load(); };
   }
   const checks = run === CHECKS, base = checks ? '../checks/build1/' : `../sessions/${run}/runs/`, shown = run;
-  const [led, idx, op, own] = await Promise.all([checks ? { text: '' } : get(`../sessions/${run}/ledger.jsonl`), get(base + 'index.json'), get('../checks/operator.jsonl'),
+  const [led, idx, op, meta, own] = await Promise.all([checks ? { text: '' } : get(`../sessions/${run}/ledger.jsonl`), get(base + 'index.json'), get('../checks/operator.jsonl'),
+    checks ? { text: null } : get(`../sessions/${run}/session.json`),
     checks && (!ctl || ctl.operator_runs) ? get('../checks/control.jsonl') : { text: '' }]);  // operator runs started from the full viewer's Control page (checks/op-*/)
   const mine = lines(own.text).filter(r => r.id && r.metrics);
   const index = [...lines(idx.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))];
@@ -83,7 +96,9 @@ async function load() {
   const dir = id => (mine.some(r => r.id === id) ? '../checks/' : base), key = id => run + '/' + id;  // run ids repeat across sessions
   await Promise.all(index.filter(r => !(key(r.id) in series)).map(async r => { series[key(r.id)] = TH_DATA.csv((await get(`${dir(r.id)}${r.id}/series.csv`)).text); }));
   if (shown !== run) return;  // another session was chosen while these files were loading
-  const raw = { ledger: lines(led.text), index, oper, manifest: JSON.parse(man.text), series: Object.fromEntries(index.map(r => [r.id, series[key(r.id)]])),
+  const man = await given(json(meta.text));
+  if (!man) { $('note').textContent = 'Cannot read the brief (briefs/two-hosts-open.json or harness/manifest.json is missing).'; return; }
+  const raw = { ledger: lines(led.text), index, oper, manifest: man, series: Object.fromEntries(index.map(r => [r.id, series[key(r.id)]])),
                 running: ses.some(s => s.id === run && s.running) };
   $('note').innerHTML = `Read from the harness's files at ${new Date().toLocaleTimeString()} · refreshed every 5 s · this page writes nothing · <a href="index_full.html${checks ? '' : '?session=' + run}">the earlier six-page viewer</a> (system objects, packet events, run control)`;
   if (!checks && !raw.ledger.length) { $('page').innerHTML = `<div class="empty">Session ${run} has no record yet. This page fills in as the loop writes its ledger.</div>`; return; }

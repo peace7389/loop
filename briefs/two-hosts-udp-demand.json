@@ -1,0 +1,33 @@
+{
+  "id": "two-hosts-udp-demand",
+  "task": "Two computers are connected by a single wire. One sends, one receives. The sender uses UDP and TCP at the same time: the UDP application's sending rate is fixed, and TCP sends as fast as it can. A scheduler on the sender splits the link between them by a configurable ratio. Find the settings that best meet the goal given in this brief, and explain why they are best.",
+  "description": "Two computers, a sender and a receiver, are joined by one point-to-point link of {linkRate} with a one-way delay of {linkDelay}. The largest packet the link carries is {mtu} bytes. The sender runs two applications at the same time, both sending to the receiver: a UDP application that sends {udpPacketBytes}-byte packets at a constant rate ({udpRate}, fixed in this brief), and a TCP application that always has data to send (its congestion control is the setting tcpVariant; a full TCP segment fills exactly one {mtu}-byte packet; its send and receive buffers are 1 MB). On the sender, packets wait in two queues in front of the link, one for UDP and one for TCP. Each queue holds at most queuePkts packets, and a packet that arrives at a full queue is dropped. A scheduler takes packets from the two queues and hands them to the link: weightUdp is the part of the link configured for UDP, and TCP is configured with the rest. Behind the scheduler the link's device has its own transmit buffer of 10 packets. Nothing else uses the link; the receiver counts what arrives and returns TCP acknowledgements. In each simulation the two applications start within the first 10 ms (seed sets the exact start times), traffic runs for one second that is not measured, and then for duration seconds, over which the outputs are measured.",
+  "system": {
+    "linkRate": "1Gbps",
+    "linkDelay": "50us",
+    "mtu": 1500,
+    "udpPacketBytes": 1400,
+    "udpRate": "300Mbps"
+  },
+  "knobs": {
+    "weightUdp": {"min": 0.05, "max": 0.95, "default": 0.5, "meaning": "the ratio knob: share of the link configured for UDP (TCP gets the rest)"},
+    "queuePkts": {"min": 4, "max": 1000, "default": 100, "meaning": "length of each queue in the scheduler, in packets"},
+    "tcpVariant": {"choices": ["TcpCubic", "TcpNewReno", "TcpLinuxReno", "TcpBbr", "TcpVegas", "TcpBic"], "default": "TcpCubic", "meaning": "TCP congestion control used by the TCP sender"},
+    "duration": {"min": 2, "max": 30, "default": 10, "meaning": "seconds of measured traffic per experiment (one extra second of traffic runs first and is not counted in the outputs)"},
+    "seed": {"min": 1, "max": 1000, "default": 1, "meaning": "random seed of the simulation"}
+  },
+  "goal": {
+    "kind": "given",
+    "target": {
+      "measure": "tcp_goodput_bps",
+      "direction": "max"
+    },
+    "conditions": [
+      "udp_loss_frac <= 0.01"
+    ]
+  },
+  "limits": {
+    "simulations": 40,
+    "simulations_per_experiment": 12
+  }
+}

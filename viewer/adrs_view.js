@@ -254,7 +254,7 @@ const TASK_VIEW = {
       ['Predictions, checked from the numbers', O.rules_total ? `${O.rules_met} of ${O.rules_total} held` : '–', 'each rule was written by the AI before its run'],
       P.facts[5]];
     let h = `<div class="th"><header class="th-top"><div class="th-kicker">${e(P.kicker)}</div>
-      <div class="th-titleline"><h1>${e(P.title)}<small>${loop ? 'session' : 'run'} “${e(data.run)}”</small></h1>
+      <div class="th-titleline"><h1>${e(P.title)}<small>${loop ? 'session' : 'run'} “${e(data.run)}”${P.brief ? ' · brief ' + e(P.brief) : ''}</small></h1>
         ${O ? `<span class="th-state${O.running ? ' live' : ''}"><i></i>${O.running ? 'Running now' : O.done ? 'Finished: the AI declared an answer' : 'Stopped before the AI declared an answer'}</span>` : ''}</div>
       <p class="th-q">${e(P.question)}</p>
       <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"><dt>${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl></header>`;
@@ -671,7 +671,7 @@ const TH_DATA = {
     const res = r => judged.filter(h => h.verdict.result === r).length, scratch = led.filter(r => r.type === 'draft' || r.type === 'scratch');
     const mins = led.length ? Math.round((new Date(led[led.length - 1].ts) - new Date(led[0].ts)) / 60000) : null;
     const latest = real[real.length - 1];
-    const page = { kind: 'loop', title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',
+    const page = { kind: 'loop', brief: man.brief || null, title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',
       facts: [
         ['AI model', String((scratch.length && (scratch[scratch.length - 1].body || {}).model) || '?').split('/').pop(), 'local model on vLLM'],
         ['Thinking', scratch.length ? 'on' : 'off', scratch.length ? 'its reasoning is kept in the record' : 'no reasoning recorded'],
