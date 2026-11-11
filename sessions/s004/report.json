@@ -1,0 +1,59 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.3034,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic"
+ },
+ "expected": {
+  "tcp_goodput_bps": 671509421,
+  "udp_loss_frac": 0.009736,
+  "link_util": 1.0
+ },
+ "explanation": "The scheduler is work-conserving, meaning TCP can utilize bandwidth not used by UDP. The UDP application sends at a fixed rate of 300 Mbps. To maximize TCP goodput, we want to minimize the UDP goodput delivered (by allowing slight UDP loss) while keeping UDP loss below the 1% constraint. This effectively frees up bandwidth for TCP. The scheduler's weightUdp parameter controls the guaranteed share for UDP. Lowering weightUdp below the UDP demand (0.3) causes UDP drops. Experiments showed that weightUdp=0.3034 is the lowest value that keeps UDP loss <= 1% (measured ~0.97%). At this setting, TCP captures the remaining link capacity plus the bandwidth corresponding to the dropped UDP packets, achieving ~671.5 Mbps. Queue size (queuePkts) and TCP variant (TcpCubic vs TcpNewReno) had negligible impact on the maximum achievable goodput at this operating point, so defaults were retained for stability. Larger queues (1000) degraded performance due to bufferbloat or scheduling inefficiencies.",
+ "holds_when": "The link is saturated (link_util ~ 1.0), UDP traffic is constant at 300 Mbps, and TCP has infinite backlog. The scheduler is work-conserving.",
+ "breaks_when": "If UDP traffic rate changes, the optimal weightUdp must be re-tuned to maintain the 1% loss constraint. If TCP traffic is bursty or not backlogged, TCP may not fill the pipe, and a different weight might be optimal. If the scheduler is not work-conserving (strict partitioning), this strategy would fail.",
+ "claims": [
+  {
+   "text": "The scheduler is work-conserving, allowing TCP to utilize bandwidth freed by UDP drops.",
+   "evidence": [
+    "E1",
+    "E2"
+   ]
+  },
+  {
+   "text": "weightUdp=0.3034 is the minimum weight that satisfies udp_loss_frac <= 0.01.",
+   "evidence": [
+    "E9",
+    "C7"
+   ]
+  },
+  {
+   "text": "TCP goodput is maximized at weightUdp=0.3034, yielding ~671.5 Mbps.",
+   "evidence": [
+    "E9",
+    "E10"
+   ]
+  },
+  {
+   "text": "The solution is stable across random seeds (1-7).",
+   "evidence": [
+    "E7",
+    "E11",
+    "C11"
+   ]
+  },
+  {
+   "text": "Default queuePkts (100) and TcpCubic are optimal/practical choices; larger queues degrade performance.",
+   "evidence": [
+    "E9",
+    "C8",
+    "E10",
+    "C10"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact mechanism by which queuePkts=1000 degraded performance (bufferbloat vs scheduler interaction) was not fully isolated, but the effect was clear."
+ ]
+}

@@ -693,6 +693,19 @@ below, and 7.5 where they differ.
   large", "stopped from outside"), `report` (its ledger id or null) and
   `left_open` (hypotheses still open). A session that has its report cannot be
   continued.
+  A `budget_request` is granted only up to the brief's `limits.simulations`
+  (there is no separate ceiling of 150 any more; `--budget` above the limit is
+  refused). If the model server fails or answers with an error, the session
+  ends cleanly: a `note` record carries the error and `how` is "model server
+  error". `session.json` also gets `turns`, `simulations`, `calls` (requests
+  the model server answered) and `cut_off` (how many of them ended with
+  `finish_reason` "length").
+  Every tool request is a `request` record (`Q<n>`, by the model: tool, args) and
+  what came back a `result` record (`T<n>`, by the harness, parent = the request).
+  Like drafts and simulation records they are not part of the ledger text shown
+  in later turns; the model still gets the results once, in the next turn, as
+  before. `session.json` holds the text of `prompt.txt` as `prompt`, saved when
+  the session is created.
   The loop also stops by itself after 3 turns in a row without a usable answer
   (`how`: "3 turns in a row without a usable answer"): in `s003` every answer
   after the first was cut off at the 16,000-token limit, and without this the

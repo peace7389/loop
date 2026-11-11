@@ -21,17 +21,16 @@ ROOT = Path.home() / "project"
 H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127.0.0.1:18000/v1"
 LEDGER = SID = None  # the current session's ledger and id, set in main()
 CAP = 6000  # characters of any tool result or ledger body shown to the model
-CEILING = 150  # most simulations one invocation can be granted: the starting budget plus every budget_request grant
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
 UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
 PREFIX = {"hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
-          "malformed": "M", "note": "N", "draft": "D"}
+          "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T"}
 # who produced the content of a record, written into it as "by": the model (what it wrote), the simulator (what was
 # measured), the harness (what it computed, found or decided itself), the operator (the person; no record type is theirs yet)
 SOURCES = ("model", "harness", "simulator", "operator")
 BY = {"draft": "model", "hypothesis": "model", "drop": "model", "experiment": "model", "verdict": "model", "report": "model",
-      "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness"}
-HIDDEN = ("draft", "scratch", "simulation")  # kept on disk, not replayed: what the model wrote before its answer, and the
+      "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness", "request": "model", "result": "harness"}
+HIDDEN = ("draft", "scratch", "simulation", "request", "result")  # kept on disk, not replayed: what the model wrote before its answer, and the
                                              # simulation records (the evidence record has one line for each of them)
 SHOWN = [k for k in tools.MANIFEST["outputs"] if k not in ("link_rate_bps", "weight_udp")]  # the measures of an evidence line
 
@@ -154,9 +153,22 @@ def render(ledger):
     st = states(ledger)[0]
     return "\n".join(f"[{r['id']}] turn {r['turn']} {r['type']} " + shown(r, st)[:CAP] for r in ledger if r["type"] not in HIDDEN) or "(empty)"
 
+class ModelServerError(RuntimeError):
+    pass
+
+def post(url, body, timeout):
+    """One request to the model server; ModelServerError when it fails or answers with an error."""
+    try:
+        r = requests.post(url, json=body, timeout=timeout).json()
+    except Exception as e:
+        raise ModelServerError(f"{type(e).__name__}: {e}")
+    if not isinstance(r, dict) or "error" in r or r.get("object") == "error":
+        raise ModelServerError(json.dumps(r)[:600])
+    return r
+
 def count_tokens(model, text):
     """Tokens of a text, counted by the model server's own tokenizer."""
-    return requests.post(API.removesuffix("/v1") + "/tokenize", json={"model": model, "prompt": text}, timeout=300).json()["count"]
+    return post(API.removesuffix("/v1") + "/tokenize", {"model": model, "prompt": text}, 300)["count"]
 
 def ask(model, system, user, schema, draft, temperature, max_tokens):
     body = {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -164,7 +176,7 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
             "response_format": {"type": "json_schema", "json_schema": {"name": "turn", "schema": schema}}}
     if not draft:
         body["chat_template_kwargs"] = {"enable_thinking": False}
-    r = requests.post(API + "/chat/completions", json=body, timeout=1800).json()
+    r = post(API + "/chat/completions", body, 1800)
     ch = r["choices"][0]
     return ch["message"].get("content") or "", ch["message"].get("reasoning") or "", ch.get("finish_reason"), r.get("usage", {})
 
@@ -289,7 +301,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", help="session id: its folder is sessions/<id>/ (ledger.jsonl and runs/). Default: a new id sNNN. An existing id continues that session")
     ap.add_argument("--brief", help=f"brief id (briefs/<id>.json) of a new session; default {tools.DEFAULT_BRIEF}. An existing session keeps its own")
-    ap.add_argument("--budget", type=int, help=f"simulations granted at the start; default: the brief's limits.simulations (at most {CEILING}; the model can ask for more, up to {CEILING} in total)")
+    ap.add_argument("--budget", type=int, help=f"simulations granted at the start; default: the brief's limits.simulations (never more than that limit; when it is lower, a budget_request can raise it up to the limit)")
     ap.add_argument("--draft", choices=["on", "off"], default="on", help="on: the model may write a draft before its JSON answer and the draft is kept in the ledger; off: answer only")
     ap.add_argument("--max-tokens", type=int, help="most tokens of one answer, draft included; default 8000 with the draft, 3000 without")
     ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap"], default="share", help="the scheduling policy: how the scheduler divides the link. The operator's choice, never shown to the model (--mode is its earlier name)")
@@ -309,25 +321,30 @@ def main():
     schema["properties"]["experiment"]["anyOf"][0]["properties"]["runs"]["maxItems"] = per
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget
     a.max_tokens = a.max_tokens or (8000 if a.draft == "on" else 3000)
-    if a.budget > CEILING:
-        ap.error(f"the starting budget is at most {CEILING}")
+    limit = brief["limits"]["simulations"]  # the most simulations the session can ever be granted
     LEDGER, meta = tools.SESSION / "ledger.jsonl", tools.SESSION / "session.json"
+    if a.budget > limit:
+        if not meta.exists():  # a new session that cannot start leaves no empty folder behind
+            (tools.SESSION / "runs").rmdir()
+            tools.SESSION.rmdir()
+        ap.error(f"the starting budget is at most the brief's limit of {limit} simulations")
     if not meta.exists():  # the session's own record of what it was given; the scheduling policy is not in it
         meta.write_text(json.dumps({"id": SID, "brief": brief["id"], "model": model, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline}, "given": brief}, indent=1) + "\n")
+                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline}, "given": brief, "prompt": system}, indent=1) + "\n")
     print(f"session {SID} (brief {brief['id']}): {tools.SESSION}", flush=True)
     ledger = load_ledger()
     if a.baseline == "on":
         baseline(ledger)
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
     how, unusable = None, 0  # how the session ended (None while it runs); turns in a row without a usable answer
+    count = {"calls": 0, "length": 0}  # requests answered by the model server, and how many of them ended with finish_reason "length"
 
     def finish():
         """session.json: when and how the session ended, the report's ledger id, the hypotheses still open."""
         m = json.loads(meta.read_text())
         st = states(ledger)[0]
         m.update(ended=time.strftime("%Y-%m-%dT%H:%M:%S"), how=how or "stopped from outside", report=next((r["id"] for r in reversed(ledger) if r["type"] == "report"), None),
-                 left_open=[h for h, v in st.items() if v == "open"])
+                 left_open=[h for h, v in st.items() if v == "open"], turns=turn, simulations=sims, calls=count["calls"], cut_off=count["length"])
         meta.write_text(json.dumps(m, indent=1) + "\n")
 
     if meta.exists() and json.loads(meta.read_text()).get("report"):
@@ -348,7 +365,7 @@ def main():
             turn += 1
             user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: " + ("used up. THIS IS THE LAST TURN: no experiment is accepted and budget_request is no longer possible. "
                     "Give your verdicts on hypotheses whose decision rules have been checked, and write the final report (report)." if final else
-                    f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {CEILING}). One experiment holds at most {min(per, budget - sims)} simulations.")
+                    f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). One experiment holds at most {min(per, budget - sims)} simulations.")
                     + f"\n\nLEDGER:\n{text}")
             if pending:
                 user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)
@@ -356,6 +373,8 @@ def main():
             last, parsed, err, content = (ledger[-1]["id"] if ledger else None), None, None, ""
             for _attempt in range(2):
                 content, draft, finish_reason, usage = ask(model, system, user, schema, a.draft == "on", a.temperature, a.max_tokens)
+                count["calls"] += 1
+                count["length"] += finish_reason == "length"
                 if a.draft == "on":
                     last = append(ledger, turn, "draft", last, {"text": draft, "model": model, "finish_reason": finish_reason, "tokens": usage.get("completion_tokens")})
                 if not content.strip() or finish_reason == "length":
@@ -382,12 +401,15 @@ def main():
             unusable = 0
             br = parsed.get("budget_request")
             if br and not final:  # granted up to the ceiling, before this turn's experiment is counted
-                granted = max(0, min(br["simulations"], CEILING - budget))
+                granted = max(0, min(br["simulations"], limit - budget))
                 budget += granted
-                append(ledger, turn, "note", last, {"text": f"budget request: {br['simulations']} more simulations asked, {granted} granted; the budget is now {budget} (ceiling {CEILING})", "why": br["why"]})
+                append(ledger, turn, "note", last, {"text": f"budget request: {br['simulations']} more simulations asked, {granted} granted; the budget is now {budget} (the brief's limit is {limit})", "why": br["why"]})
             rq = (parsed.get("requests") or [])[:3]
-            for q in rq:
-                pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{call(q)}")
+            for q in rq:  # each tool request and what came back are kept in the ledger (request: by the model; result: by the harness);
+                out = call(q)  # like the simulation records they are not part of the ledger text of later turns
+                qid = append(ledger, turn, "request", last, {"tool": q.get("tool"), "args": q.get("args") or {}})
+                append(ledger, turn, "result", qid, {"tool": q.get("tool"), "result": out})
+                pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{out}")
             ex, report = parsed.get("experiment"), parsed.get("report")
             if not (parsed.get("hypotheses") or parsed.get("drop") or parsed.get("verdicts") or ex is not None or report is not None):  # only requests
                 tool_only += 1
@@ -410,6 +432,9 @@ def main():
                 append(ledger, turn, "report", last, report | obs())
                 (tools.SESSION / "report.json").write_text(json.dumps(report, indent=1) + "\n")
                 how = "done by the model" if parsed.get("done") else "simulation limit reached"
+    except ModelServerError as e:  # the session ends cleanly: the error is in the ledger, and session.json says how it ended
+        append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"model server error: {e}"})
+        how = "model server error"
     finally:
         finish()
     print(f"stopped: session {SID}, {how or 'stopped from outside'}, {sims} simulations, {turn} turns, ledger {LEDGER}")
