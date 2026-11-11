@@ -10,7 +10,7 @@ Object.assign(EV, {
     const st = {}; M.hyps.forEach(h => { st[h.state] = (st[h.state] || 0) + 1; });
     const kv = [['model', m.model || EV.nr], ['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], ...(EV.s.op ? [[EV.term('Scheduling policy', 'scheduling policy') + ' (operator column)', EV.policyText(EV.files.row)]] : []),
       ['started', m.started ? m.started.replace('T', ' ') : M.recs[0] && M.recs[0].ts ? M.recs[0].ts.replace('T', ' ') : EV.nr], ['duration', mins],
-      [EV.term('Simulation', 'simulations') + ' used / allowed', `${m.simulations ?? EV.nr} / ${allowed ?? EV.nr}`], [EV.term('Turn', 'turns'), `${m.turns ?? c.turn}${unusable ? ` · ${unusable} unusable` : ''}`],
+      [EV.term('Simulation', 'simulations') + ' used / allowed', `${m.simulations ?? row.simulations ?? EV.nr} / ${allowed ?? EV.nr}`], [EV.term('Turn', 'turns'), `${m.turns ?? c.turn}${unusable ? ` · ${unusable} unusable` : ''}`],
       ['model calls', m.calls ?? EV.nr], ['replies cut off', m.cut_off ?? EV.nr], ['how it ended', row.running ? 'running now' : m.how || EV.nr]];
     return `<div class="kv">${kv.map(([k, v]) => `<div><span>${k}</span><b style="font-size:13.5px">${String(v).startsWith('<') ? v : e(v)}</b></div>`).join('')}</div>
       <p class="sm" style="margin-top:6px">${EV.term('Hypothesis', 'hypotheses')} by state: ${EV.STATES.filter(s => st[s]).map(s => `${st[s]} ${s}`).join(' · ') || 'none'} · ${EV.term('Experiment', 'experiments')} by kind: ${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(' · ') || 'none'}</p>`;
