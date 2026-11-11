@@ -14,14 +14,19 @@ CAP = 6000  # characters of any tool result or ledger body shown to the model
 CEILING = 150  # most experiments one invocation can be granted: the starting budget plus every budget_request grant
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
 PREFIX = {"hypothesis": "H", "experiment": "X", "evidence": "E", "verdict": "V", "malformed": "M", "note": "N", "draft": "D"}
+# who produced the content of a record, written into it as "by": the model (what it wrote), the simulator (what was
+# measured), the harness (what it found or decided itself), the operator (the person; no record type is theirs yet)
+SOURCES = ("model", "harness", "simulator", "operator")
+BY = {"draft": "model", "hypothesis": "model", "experiment": "model", "verdict": "model", "evidence": "simulator", "malformed": "harness", "note": "harness"}
 DRAFT_TYPES = ("draft", "scratch")  # "scratch" is the name used in ledgers written before 2026-11-11
 
 def load_ledger():
     return [json.loads(l) for l in LEDGER.read_text().splitlines() if l.strip()] if LEDGER.exists() else []
 
-def append(ledger, turn, type_, parent, body, rid=None):
+def append(ledger, turn, type_, parent, body, rid=None, by=None):
     rec = {"id": rid or f"{PREFIX[type_]}{sum(r['type'] == type_ and r['id'] != 'E0' for r in ledger) + 1}", "turn": turn, "type": type_,
-           "parent": parent, "body": body, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+           "by": by or BY[type_], "parent": parent, "body": body, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+    assert rec["by"] in SOURCES, rec["by"]
     with LEDGER.open("a") as f:
         f.write(json.dumps(rec) + "\n")
     ledger.append(rec)
@@ -178,7 +183,7 @@ def main():
             tool_only += 1
             if tool_only > 3:
                 pending = [" (tool-only turn limit reached: results withheld, decide now)"]
-            append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq})
+            append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq}, by="model")
             continue
         tool_only = 0
         hid = None
@@ -195,7 +200,7 @@ def main():
             vd = parsed["verdict"]
             append(ledger, turn, "verdict", vd["for"], {k: vd.get(k) for k in ("for", "result", "because", "next")} | {"observations": parsed.get("observations")})
         if parsed.get("done"):
-            append(ledger, turn, "note", last, {"text": "model declared done", "observations": parsed.get("observations")})
+            append(ledger, turn, "note", last, {"text": "model declared done", "observations": parsed.get("observations")}, by="model")
             break
     print(f"stopped: session {SID}, {runs_done} experiments, {turn} turns, ledger {LEDGER}")
 

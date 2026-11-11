@@ -122,7 +122,7 @@ const TASK_VIEW = {
   // CSV export, and the time charts mark the same sample in all of them. Data: TH_DATA.build below.
   // The earlier six-page viewer (system objects, packet events, run control) is kept as index_full.html.
   // ====================================================================================================
-  _ui: { run: null, a: null, b: '', x: 'm:weight_udp', y: 'g:goodput' },
+  _ui: { run: null, a: null, b: '', x: 'm:weight_udp', y: 'g:goodput', only: null },
   _charts: {}, _cj: 'idle', _rows: [],
   CDN: 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
   FRACTION: ['udp_loss_frac', 'link_util'],   // measures recorded as a fraction, shown as a percentage
@@ -194,6 +194,21 @@ const TASK_VIEW = {
 .th-stat span { display: block; font-size: 12.5px; color: var(--text-secondary); } .th-stat b { font-size: 22px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; } .th-stat b small { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-left: 3px; }
 .th-held { font-weight: 700; margin-bottom: 4px; }
 .th-empty { padding: 18px 0; color: var(--text-secondary); }
+.th { --by-model: #6250d6; --by-harness: #c2407a; --by-simulator: #1baf7a; --by-operator: #eda100; }
+@media (prefers-color-scheme: dark) { .th { --by-model: #9085e9; --by-harness: #d55181; --by-simulator: #127a57; --by-operator: #c98500; } }
+.th [data-by=model] { --c: var(--by-model); } .th [data-by=harness] { --c: var(--by-harness); } .th [data-by=simulator] { --c: var(--by-simulator); } .th [data-by=operator] { --c: var(--by-operator); }
+.th-src { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-secondary); }
+.th-src > b { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-right: 4px; }
+.th-src button { font: inherit; font-size: 13px; display: inline-flex; align-items: center; gap: 7px; padding: 3px 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }
+.th-src button i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); } .th-src button b { color: var(--text-primary); }
+.th-src button.on { border-color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--text-primary); }
+.th-by { border-left: 4px solid var(--c); padding-left: 12px; } .th-by + .th-by, .th * + .th-by { margin-top: 16px; } .th-by > h3:first-child { margin-top: 0; }
+.th-who { font-style: normal; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-secondary); margin-right: 8px; }
+.th-who::before { content: ""; width: 9px; height: 9px; border-radius: 3px; background: var(--c); }
+.th th[data-by] { box-shadow: inset 0 -3px 0 var(--c); }
+.th[data-only] [data-by]:not(button) { transition: opacity .12s; }
+.th[data-only=model] [data-by]:not([data-by=model]):not(button), .th[data-only=harness] [data-by]:not([data-by=harness]):not(button),
+.th[data-only=simulator] [data-by]:not([data-by=simulator]):not(button), .th[data-only=operator] [data-by]:not([data-by=operator]):not(button) { opacity: .2; }
 `,
   _e: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   _first(t) {  // the first sentence of a hypothesis, without its own "H1:" prefix
@@ -253,16 +268,22 @@ const TASK_VIEW = {
       ['Hypotheses, by the AI’s verdict', `${O.supported} supported`, `${O.refuted} refuted · ${O.inconclusive} inconclusive · ${O.unjudged} not judged`],
       ['Predictions, checked from the numbers', O.rules_total ? `${O.rules_met} of ${O.rules_total} held` : '–', 'each rule was written by the AI before its run'],
       P.facts[5]];
-    let h = `<div class="th"><header class="th-top"><div class="th-kicker">${e(P.kicker)}</div>
+    const SRC = { model: 'written by the AI', harness: 'found or decided by the harness', simulator: 'measured by the simulation', operator: 'set by the person: the brief, the scheduler mode' };
+    const who = b => `<em class="th-who" data-by="${b}">${b}</em>`;
+    T._by = (b, html) => (html ? `<div class="th-by" data-by="${b}">${html.replace('<h3>', '<h3>' + who(b))}</div>` : '');  // one block of one source: its colour on the left edge, its name before the title
+    const legend = `<div class="th-src" id="th-src"><b>Who produced it</b>${TH_DATA.SOURCES.map(b => `<button data-by="${b}" class="${ui.only === b ? 'on' : ''}" aria-pressed="${ui.only === b}" title="${e(SRC[b])}. Click to dim everything else; click again to show all."><i></i><b>${b}</b>${P.by ? ` ${P.by[b]} record${P.by[b] === 1 ? '' : 's'}` : ''}</button>`).join('')}
+      <span>${P.by ? 'ledger records by source' + (P.by_derived ? ' (this session was recorded before the harness wrote the source into each record: it is taken from the record’s type)' : '') + ' · ' : ''}the same colour marks every block and table column · click one to dim the rest</span></div>`;
+    let h = `<div class="th"${ui.only ? ` data-only="${ui.only}"` : ''}><header class="th-top"><div class="th-kicker">${e(P.kicker)}</div>
       <div class="th-titleline"><h1>${e(P.title)}<small>${loop ? 'session' : 'run'} “${e(data.run)}”${P.brief ? ' · brief ' + e(P.brief) : ''}</small></h1>
         ${O ? `<span class="th-state${O.running ? ' live' : ''}"><i></i>${O.running ? 'Running now' : O.done ? 'Finished: the AI declared an answer' : 'Stopped before the AI declared an answer'}</span>` : ''}</div>
-      <p class="th-q">${e(P.question)}</p>
-      <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"><dt>${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl></header>`;
+      <div class="th-by" data-by="operator"><p class="th-q">${loop ? who('operator') : ''}${e(P.question)}</p></div>
+      <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"${k === 'Scheduler mode' ? ' data-by="operator"' : ''}><dt>${k === 'Scheduler mode' ? who('operator') : ''}${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl>${legend}</header>`;
     if (!rows.length) { root.innerHTML = h + '<section class="th-sec"><p class="th-empty">No simulation has been run yet. This page fills in as runs finish.</p></section></div>'; return; }
 
     // ---- 1. every run: the table and the chart are two views of the same runs, and both choose the run shown in section 2
-    const head = loop ? [['', ''], ['#', ''], ['What the AI changed', ''], ['UDP share', 'num'], ['UDP, Mbps', 'num'], ['TCP, Mbps', 'num'], ['Prediction', ''], ['AI’s verdict', '']]
-      : [['', ''], ['#', ''], ['Run', ''], ['Mode', ''], ['UDP share', 'num'], ['UDP offered', 'num'], ['UDP, Mbps', 'num'], ['TCP, Mbps', 'num']];
+    // [title, class, source]: the prediction column is this page's own check of the AI's rule against the measurement, so it has no single source
+    const head = loop ? [['', ''], ['#', ''], ['What the AI changed', '', 'model'], ['UDP share', 'num', 'model'], ['UDP, Mbps', 'num', 'simulator'], ['TCP, Mbps', 'num', 'simulator'], ['Prediction', ''], ['AI’s verdict', '', 'model']]
+      : [['', ''], ['#', ''], ['Run', '', 'operator'], ['Mode', '', 'operator'], ['UDP share', 'num', 'operator'], ['UDP offered', 'num', 'operator'], ['UDP, Mbps', 'num', 'simulator'], ['TCP, Mbps', 'num', 'simulator']];
     const pill = (res, text) => `<span class="th-vd ${e(res || 'pending')}">${e(text || res || 'not judged')}</span>`;
     T._pill = pill;
     const held = x => !x || !x.total ? '<span class="th-muted">–</span>' : `<span class="th-nw"><span class="${x.met === x.total ? 'th-ok' : 'th-bad'}">${x.met === x.total ? '✓' : '✕'}</span> ${x.met} of ${x.total} held</span>`;
@@ -272,10 +293,11 @@ const TASK_VIEW = {
       const cells = loop ? [`<b>${r.n}</b><small>${e(r.id)}</small>`, changed(r), [e(m.weight_udp ?? '–')], [T._mb(m.udp_goodput_bps)], [T._mb(m.tcp_goodput_bps)], held(x),
                             !x ? '' : x.baseline ? pill('pending', 'baseline') : x.verdict ? pill(x.verdict.result) : pill('pending', 'not judged')]
         : [`<b>${r.n}</b>`, e(r.id), e(r.mode || '–'), [e(m.weight_udp ?? '–')], [e(T._rate(r.params.udpRate ?? '–'))], [T._mb(m.udp_goodput_bps)], [T._mb(m.tcp_goodput_bps)]];
-      return `<tr class="pick" data-id="${e(r.id)}" tabindex="0"><td class="th-mark"></td>${cells.map(c => (Array.isArray(c) ? `<td class="num">${c[0]}</td>` : `<td>${c}</td>`)).join('')}</tr>`; };
+      const src = i => (head[i + 1][2] ? ` data-by="${x && x.baseline && head[i + 1][2] === 'model' ? 'harness' : head[i + 1][2]}"` : '');  // the baseline's settings were the harness's choice
+      return `<tr class="pick" data-id="${e(r.id)}" tabindex="0"><td class="th-mark"></td>${cells.map((c, i) => (Array.isArray(c) ? `<td class="num"${src(i)}>${c[0]}</td>` : `<td${src(i)}>${c}</td>`)).join('')}</tr>`; };
     h += `<section class="th-sec"><div class="th-sh"><span class="th-no">1</span><div><h2>${loop ? 'Every experiment' : 'Every run'}</h2>
         <p>One row and one dot for each simulation${loop ? ' the AI asked for' : ''}. Click a row or a dot to open that run in section 2.</p></div></div>
-      <div class="th-all"><div class="th-list" id="th-list"><table><thead><tr>${head.map(([t, c]) => `<th${c ? ` class="${c}"` : ''}>${t}</th>`).join('')}</tr></thead>
+      <div class="th-all"><div class="th-list" id="th-list"><table><thead><tr>${head.map(([t, c, b]) => `<th${c ? ` class="${c}"` : ''}${b ? ` data-by="${b}" title="${b}: ${e(SRC[b])}"` : t === 'Prediction' ? ' title="the AI’s rule checked by this page against the measurement"' : ''}>${t}</th>`).join('')}</tr></thead>
         <tbody>${rows.map(tr).join('')}</tbody></table></div>
       <div><div class="th-bar"><label>Across <select id="th-x" aria-label="Horizontal axis"></select></label><label>Up <select id="th-y" aria-label="Vertical axis"></select></label></div>
         <div id="th-study"></div></div></div></section>
@@ -285,6 +307,9 @@ const TASK_VIEW = {
     root.innerHTML = h;
     const pick = row => () => T._choose(row.dataset.id);
     root.querySelectorAll('#th-list tr.pick').forEach(row => { row.onclick = pick(row); row.onkeydown = ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); pick(row)(); } }; });
+    root.querySelectorAll('#th-src button').forEach(b => { b.onclick = () => { ui.only = ui.only === b.dataset.by ? null : b.dataset.by;  // the filter: dims, removes nothing, moves nothing
+      const th = root.querySelector('.th'); if (ui.only) th.dataset.only = ui.only; else delete th.dataset.only;
+      root.querySelectorAll('#th-src button').forEach(o => { const on = o.dataset.by === ui.only; o.classList.toggle('on', on); o.setAttribute('aria-pressed', on); }); }; });
     root.querySelector('#th-x').onchange = ev => { ui.x = ev.target.value; T._study(); };
     root.querySelector('#th-y').onchange = ev => { ui.y = ev.target.value; T._study(); };
     T._mark(); T._study(); T._run();
@@ -411,22 +436,23 @@ const TASK_VIEW = {
     if (box.offsetHeight) box.style.minHeight = box.offsetHeight + 'px';  // the page never gets shorter under the reader
     const tag = (r, dashed) => (B ? `<div class="th-tag">${T._sw(dashed)}<b>${e(T._Name(r))}</b> run ${e(r.id)} · the ${dashed ? 'dashed' : 'solid'} line</div>` : '');
     const more = (title, body) => `<details><summary>${title}</summary>${body}</details>`;
+    const by = T._by;
 
     // a. why: the AI's claim, and the settings it chose to test it
     const why = r => { const x = r.h;
-      if (!x) return r.facts.filter(([k]) => k !== 'Settings').map(([k, v]) => `<h3>${e(k)}</h3><p>${e(v)}</p>`).join('') || '<p class="th-muted">Nothing was recorded about why this run was made.</p>';
+      if (!x) return by('operator', r.facts.filter(([k]) => k !== 'Settings').map(([k, v]) => `<h3>${e(k)}</h3><p>${e(v)}</p>`).join('')) || '<p class="th-muted">Nothing was recorded about why this run was made.</p>';
       const full = String(x.text || '').replace(/^\s*H\d+\s*:\s*/, ''), first = T._first(x.text);
-      return `<h3>${x.baseline ? 'Baseline' : 'Hypothesis ' + e(x.id)}<span>${x.baseline ? 'run by the harness before the AI’s first turn' : 'the AI’s claim, written in turn ' + e(x.turn)}</span></h3>
+      return by(x.baseline ? 'harness' : x.by || 'model', `<h3>${x.baseline ? 'Baseline' : 'Hypothesis ' + e(x.id)}<span>${x.baseline ? 'run by the harness before the AI’s first turn' : 'the AI’s claim, written in turn ' + e(x.turn)}</span></h3>
         <p class="th-claim"><b>${e(first)}</b>${e(full.slice(first.length))}</p>
         ${x.observations ? more('What the AI had seen before it made this claim', `<p>${e(x.observations)}</p>`) : ''}
-        ${r.reasoning ? more(`The AI’s own reasoning before this run (${r.reasoning.length.toLocaleString('en-US')} characters)`, `<pre>${e(r.reasoning)}</pre>`) : ''}`; };
+        ${r.reasoning ? more(`The AI’s own reasoning before this run (${r.reasoning.length.toLocaleString('en-US')} characters)`, `<pre>${e(r.reasoning)}</pre>`) : ''}`); };
     const chip = (k, v, old) => `<span class="th-chip${old === false ? ' kept' : ''}">${e(k)} ${old ? `<s>${e(T._rate(old))} →</s> ` : ''}<b>${e(T._rate(v))}</b></span>`;
     const settings = r => { const x = r.h;
       if (!x) { const ks = Object.keys(r.params).filter(k => D.KNOB[k]);
-        return `<h3>Settings<span>chosen by the operator</span></h3><p>${ks.length ? ks.map(k => chip(D.KNOB[k], D.knob(k, r.params[k]))).join('') : '<span class="th-muted">The settings of this run were not recorded.</span>'}</p>`; }
+        return by('operator', `<h3>Settings<span>chosen by the operator</span></h3><p>${ks.length ? ks.map(k => chip(D.KNOB[k], D.knob(k, r.params[k]))).join('') : '<span class="th-muted">The settings of this run were not recorded.</span>'}</p>`); }
       const was = new Set(x.changed.map(c => c[0])), kept = x.settings.filter(([k]) => !was.has(k)), prev = r.n > 1 ? T._name(rows.find(q => q.n === r.n - 1) || { n: r.n - 1 }) : 'the defaults';
-      return `<h3>What it changed<span>from ${e(prev)}</span></h3><p>${x.changed.length ? x.changed.map(([k, a, b]) => chip(k, b, a)).join('') : `<span class="th-muted">Nothing: the same settings as ${e(prev)}.</span>`}</p>
-        ${kept.length ? `<h3>Kept as before</h3><p>${kept.map(([k, v]) => chip(k, v, false)).join('')}</p>` : ''}`; };
+      return by(x.baseline ? 'harness' : 'model', `<h3>What it changed<span>from ${e(prev)}</span></h3><p>${x.changed.length ? x.changed.map(([k, a, b]) => chip(k, b, a)).join('') : `<span class="th-muted">Nothing: the same settings as ${e(prev)}.</span>`}</p>
+        ${kept.length ? `<h3>Kept as before</h3><p>${kept.map(([k, v]) => chip(k, v, false)).join('')}</p>` : ''}`); };
     const pv = (r, k) => (k === 'mode' ? r.mode : r.params[k]), keys = B ? [...new Set([...Object.keys(A.params), ...Object.keys(B.params)])].filter(k => D.KNOB[k]).concat(A.mode || B.mode ? ['mode'] : []) : [];
     const diff = keys.filter(k => String(pv(A, k)) !== String(pv(B, k)));
     const differ = !B ? '' : `<p class="th-diff">${diff.length ? '<b>The two runs differ in:</b> ' + diff.map(k => `${e(D.KNOB[k] || 'Scheduler mode')} <b>${e(T._rate(D.knob(k, pv(A, k))))}</b> against <b>${e(T._rate(D.knob(k, pv(B, k))))}</b>`).join(' &nbsp;·&nbsp; ')
@@ -434,22 +460,30 @@ const TASK_VIEW = {
 
     // c. what it showed: the averages, the AI's prediction against them, the AI's verdict and plan
     const stats = r => { const m = r.metrics;
-      if (r.failed) return `<p>The simulation did not return measurements.${r.h && r.h.error ? ' ' + e(r.h.error) : ''}</p>`;
+      if (r.failed) return by('simulator', `<p>The simulation did not return measurements.${r.h && r.h.error ? ' ' + e(r.h.error) : ''}</p>`);
       const rest = Object.keys(m).filter(k => !['udp_goodput_bps', 'tcp_goodput_bps', 'udp_loss_frac', 'link_util'].includes(k));
-      return `<h3>Measured<span>averages over the measured time, by the simulation</span></h3>
+      return by('simulator', `<h3>Measured<span>averages over the measured time, by the simulation</span></h3>
         <div class="th-stats">${[['UDP goodput', T._mb(m.udp_goodput_bps), 'Mbps'], ['TCP goodput', T._mb(m.tcp_goodput_bps), 'Mbps'], ['UDP loss', T._pc(m.udp_loss_frac).replace('%', ''), '%'], ['Link use', T._pc(m.link_util).replace('%', ''), '%']]
           .map(([k, v, u]) => `<div class="th-stat"><span>${k}</span><b>${v}<small>${v === '–' ? '' : u}</small></b></div>`).join('')}</div>
-        ${rest.length ? more('Every other value it recorded', `<table><tbody>${rest.map(k => `<tr><td>${e(D.PLAIN[k] || k)}</td><td class="num">${e(T._show(k, m[k]))}</td></tr>`).join('')}</tbody></table>`) : ''}`; };
+        ${rest.length ? more('Every other value it recorded', `<table><tbody>${rest.map(k => `<tr><td>${e(D.PLAIN[k] || k)}</td><td class="num">${e(T._show(k, m[k]))}</td></tr>`).join('')}</tbody></table>`) : ''}`); };
     const check = r => { const x = r.h; if (!x || !x.criteria.length) return '';
       const all = x.total && x.met === x.total;
       return `<h3>Prediction against the measurement<span>the rule was written by the AI before the run; checked here from the recorded numbers</span></h3>
         ${x.total ? `<p class="th-held"><span class="${all ? 'th-ok' : 'th-bad'}">${all ? '✓' : '✕'}</span> ${all ? (x.total === 1 ? 'The prediction held' : `All ${x.total} predictions held`) : `${x.met} of ${x.total} predictions held`}</p>` : ''}
-        <table><thead><tr><th>Measure</th><th>Predicted</th><th class="num">Measured</th><th></th></tr></thead><tbody>${x.criteria.map(c => `<tr><td>${e(c.what)}</td><td>${e(c.need)}</td><td class="num"><b>${e(c.measured)}</b></td>
+        <table><thead><tr><th data-by="model">Measure</th><th data-by="model">Predicted</th><th class="num" data-by="simulator">Measured</th><th title="checked by this page">Held?</th></tr></thead><tbody>${x.criteria.map(c => `<tr><td data-by="model">${e(c.what)}</td><td data-by="model">${e(c.need)}</td><td class="num" data-by="simulator"><b>${e(c.measured)}</b></td>
           <td>${c.ok == null ? '<span class="th-muted">not checked</span>' : c.ok ? '<span class="th-ok">✓</span> held' : '<span class="th-bad">✕</span> missed'}</td></tr>`).join('')}</tbody></table>`; };
     const verdict = r => { const x = r.h; if (!x || x.baseline) return ''; const v = x.verdict;
-      return `<h3>Verdict<span>${v ? 'the AI’s own judgement, turn ' + e(v.turn) : 'the AI’s own judgement'}</span></h3>
+      // every number in the AI's verdict that names, or equals, a value measured in this run: shown beside the measurement
+      const N = (v && v.numbers) || [], off = N.filter(q => q.status === 'differs').length, word = { agrees: '<span class="th-ok">✓</span> agrees', differs: '<span class="th-bad">✕</span> differs' };
+      const nums = !N.length ? '' : `<h3>The AI’s numbers against the measurement<span>each number in its verdict that names, or equals, a value measured in run ${e(r.id)}</span></h3>
+        <p class="th-held"><span class="${off ? 'th-bad' : 'th-ok'}">${off ? '✕' : '✓'}</span> ${off ? `${off} of ${N.length} number${N.length === 1 ? '' : 's'} differ${off === 1 ? 's' : ''} from the measurement` : N.length === 1 ? 'The one number agrees with the measurement' : `All ${N.length} numbers agree with the measurement`}</p>
+        <details${off ? ' open' : ''}><summary>The ${N.length === 1 ? 'number' : N.length + ' numbers'}, side by side</summary><table><thead><tr><th data-by="model">The AI wrote</th><th>Measure</th><th class="num" data-by="simulator">Measured</th><th title="compared by this page, to the precision the AI wrote">Same?</th></tr></thead>
+          <tbody>${N.map(q => `<tr><td data-by="model">${e(q.written)}</td><td>${e(q.what)}${q.named ? '' : '<small>not named in the text; found by its value</small>'}</td><td class="num th-nw" data-by="simulator"><b>${e(q.measured)}</b></td>
+            <td class="th-nw">${word[q.status] || `<span class="th-muted">= ${e(q.other)}, another experiment</span>`}</td></tr>`).join('')}</tbody></table>
+          <p class="th-sm">“Agrees” means equal to the measurement when it is rounded the way the AI wrote the number (within 2% after “about”).</p></details>`;
+      return by((v && v.by) || 'model', `<h3>Verdict<span>${v ? 'the AI’s own judgement, turn ' + e(v.turn) : 'the AI’s own judgement'}</span></h3>
         ${v ? `<p>${T._pill(v.result)}</p>${v.because ? `<p class="th-sm" style="margin-top:6px">${e(v.because)}</p>` : ''}` : `<p>${T._pill('pending', 'not judged')}</p><p class="th-sm" style="margin-top:6px">${P.outcome && P.outcome.running ? 'The AI has not judged this hypothesis yet.' : 'The session ended before the AI judged this hypothesis.'}</p>`}
-        ${v && v.next ? `<h3>Next step<span>the AI’s plan</span></h3><p class="th-sm">${e(v.next)}</p>` : ''}`; };
+        ${v && v.next ? `<h3>Next step<span>the AI’s plan</span></h3><p class="th-sm">${e(v.next)}</p>` : ''}`) + nums; };
 
     // b. over time: one chart per recorded column, all on the same time axis
     const shown = [A, B].filter(r => r && r.series && r.series.t && r.series.t.length > 1), lost = [A, B].filter(r => r && !shown.includes(r));
@@ -461,12 +495,12 @@ const TASK_VIEW = {
       { id: 'd1', title: 'Packets dropped from the TCP queue', unit: 'packets per sample', lines: S => [['TCP queue drops', 2, S.d1]] },
       { id: 'q', title: 'Packets waiting in each queue', unit: 'packets', need: S => S.q0 && S.q1, lines: S => [['UDP queue', 1, S.q0], ['TCP queue', 2, S.q1]] },
     ].filter(d => !d.need || shown.some(r => d.need(r.series)));
-    const charts = T._cj === 'ready' ? `<div class="th-charts">${defs.map(d => `<figure><div class="th-cv" style="height:${B ? 250 : 230}px"><canvas id="th-c-${d.id}" role="img" aria-label="${e(d.title)} over time"></canvas></div>${T._expBar(d.id)}</figure>`).join('')}</div>`
+    const charts = T._cj === 'ready' ? `<div class="th-charts" data-by="simulator">${defs.map(d => `<figure><div class="th-cv" style="height:${B ? 250 : 230}px"><canvas id="th-c-${d.id}" role="img" aria-label="${e(d.title)} over time"></canvas></div>${T._expBar(d.id)}</figure>`).join('')}</div>`
       : T._cj === 'failed' && shown.length ? `<p class="th-sm" style="margin-bottom:8px">The chart library (Chart.js) could not be loaded; this is the page’s built-in drawing of ${e(T._name(shown[0]))}, without comparison or export.</p>
           <div style="max-width:720px">${T.draw({ series: shown[0].series, metrics: shown[0].metrics, run_id: shown[0].id }, { valid: true, size: '100%', labels: true, aria: 'The run over time', simple: false })}</div>`
       : shown.length ? '<p class="th-empty">Loading the charts…</p>' : '';
 
-    const part = (i, t, who) => `<div class="th-part"><b><i>${i}</i>${t}</b><span>${who}</span></div>`;
+    const part = (i, t, note, src) => `<div class="th-part"><b><i>${i}</i>${t}</b><span${src ? ` data-by="${src}"` : ''}>${src ? `<em class="th-who">${src}</em>` : ''}${note}</span></div>`;
     const opt = r => `<option value="${e(r.id)}"${r.id === ui.b ? ' selected' : ''}>${e(`${T._Name(r)} · ${r.id} · UDP share ${r.metrics.weight_udp ?? '–'}`.replace(/^Run (\S+) · \1/, 'Run $1'))}</option>`;
     box.innerHTML = `<div class="th-sh"><span class="th-no">2</span><div>
         <h2>${e(T._Name(A))}${B ? ' compared with ' + e(T._name(B)) : ''}<small>${B ? '' : loop ? `run ${e(A.id)}` + (A.h && !A.h.baseline ? ` · hypothesis ${e(A.h.id)}` : '') : 'an operator check'}</small></h2>
@@ -475,7 +509,7 @@ const TASK_VIEW = {
       ${part('a', loop ? 'Why the AI chose this run' : 'Why this run was made', loop ? 'written by the AI before the run' : 'an operator check, not an AI experiment')}
       ${B ? `<div class="th-two"><div>${tag(A, false)}${why(A)}${settings(A)}</div><div>${tag(B, true)}${why(B)}${settings(B)}</div></div>${differ}`
           : `<div class="th-wide"><div>${why(A)}</div><div>${settings(A)}</div></div>`}
-      ${part('b', 'What the numbers did over time', shown.length ? `recorded by the simulation every ${dt.toFixed(1)} s of simulated time · point at any chart: the same moment is marked in all of them` : 'recorded by the simulation')}
+      ${part('b', 'What the numbers did over time', shown.length ? `recorded by the simulation every ${dt.toFixed(1)} s of simulated time · point at any chart: the same moment is marked in all of them` : 'recorded by the simulation', 'simulator')}
       ${lost.length ? `<p class="th-sm" style="margin-bottom:10px">No samples over time were recorded for ${lost.map(r => e(T._name(r))).join(' and ')}.</p>` : ''}
       ${B && shown.length ? `<p class="th-sm" style="margin-bottom:10px">${T._sw(false)} ${e(T._name(A))} (${e(A.id)}) &nbsp;·&nbsp; ${T._sw(true)} ${e(T._name(B))} (${e(B.id)}) &nbsp;·&nbsp; the colour is the flow: UDP blue, TCP orange</p>` : ''}
       ${charts}
@@ -557,6 +591,47 @@ const TH_DATA = {
   KNOB: { weightUdp: 'UDP share of the link', udpRate: 'UDP offered rate', queuePkts: 'Queue length', tcpVariant: 'TCP congestion control', duration: 'Measured time', seed: 'Random seed' },
   UNIT: { queuePkts: ' packets', duration: ' s' },
   knob(k, v) { return v == null ? '–' : String(v) + (TH_DATA.UNIT[k] || ''); },
+
+  // ---- who produced a ledger record: its own "by" (the harness writes it since 2026-11-11), else what its type implies
+  SOURCES: ['model', 'harness', 'simulator', 'operator'],
+  by(r) { const b = r.body || {};
+    return r.by || { evidence: 'simulator', malformed: 'harness', note: b.requests || b.text === 'model declared done' ? 'model' : 'harness' }[r.type] || 'model'; },
+
+  // ---- numbers in a text the model wrote, against what was measured in the same experiment.
+  // A number counts when the text names a measure just before it ("tcp_goodput=475.87 Mbps"), or, unnamed, when it has
+  // three or more digits and equals a measured value. "Equal" = the measurement rounded the way the number is written
+  // (within 2% after "about"). A named number that differs is looked up in the other experiments before it is marked.
+  NAMES: [['udp_goodput_bps', 'udp[_ ]goodput(?:_bps)?'], ['tcp_goodput_bps', 'tcp[_ ]goodput(?:_bps)?'], ['total', 'total[_ ]goodput(?:_bps)?'], ['udp_loss_frac', 'udp[_ ]loss(?:_frac)?'],
+          ['link_util', 'link[_ ]util(?:i[sz]ation)?'], ['drops_band0', 'drops_band0'], ['drops_band1', 'drops_band1'], ['tcp_retrans', 'tcp_retrans']],
+  numbers(text, m, others) {
+    const D = TH_DATA, out = [], used = [], seen = new Set(), T = String(text || '');
+    const NUM = '(~|≈|about\\s+|around\\s+|roughly\\s+|approximately\\s+)?(-?\\d(?:[\\d,]*\\d)?(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)\\s*(%|[kMG]?bps\\b)?';
+    const val = (mm, k) => (k === 'total' ? (typeof mm.udp_goodput_bps === 'number' && typeof mm.tcp_goodput_bps === 'number' ? mm.udp_goodput_bps + mm.tcp_goodput_bps : null) : typeof mm[k] === 'number' ? mm[k] : null);
+    const rate = k => k === 'total' || /_bps$/.test(k), frac = k => k === 'udp_loss_frac' || k === 'link_util';
+    // the written number in the measure's own unit, and half a unit of its last written digit
+    const read = (approx, raw, unit, k, measured) => { const t = raw.replace(/,/g, ''), n = parseFloat(t), mant = t.split(/[eE]/)[0], ex = /[eE]/.test(t) ? parseInt(t.split(/[eE]/)[1], 10) : 0;
+      if (!isFinite(n) || (unit && unit !== '%' && !rate(k)) || (unit === '%' && !frac(k))) return null;
+      let mult = unit ? { '%': 0.01, bps: 1, kbps: 1e3, Mbps: 1e6, Gbps: 1e9 }[unit] : 1;
+      if (!unit && rate(k) && Math.abs(n) < 1e5 && measured) mult = [1e6, 1e9].sort((a, b) => Math.abs(Math.log(Math.abs(n * a / measured))) - Math.abs(Math.log(Math.abs(n * b / measured))))[0];  // "489.3" for a rate: Mbps or Gbps, whichever is nearer
+      const tol = 0.5 * Math.pow(10, ex - (mant.split('.')[1] || '').length) * mult;
+      return { v: n * mult, tol: approx ? Math.max(tol, 0.02 * Math.abs(measured)) : tol, digits: mant.replace(/[-.]/g, '').replace(/^0+/, '').length }; };
+    const same = (w, measured) => Math.abs(w.v - measured) <= w.tol * (1 + 1e-9) + 1e-12 * Math.abs(measured);
+    const exact = (k, v) => (rate(k) ? (v / 1e6).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' Mbps' : frac(k) ? String(v) : v.toLocaleString('en-US'));
+    const what = k => (k === 'total' ? 'UDP + TCP goodput' : D.PLAIN[k] || k);
+    const add = (k, written, w, status, named, other) => { const id = k + '|' + w.v + '|' + status; if (seen.has(id)) return; seen.add(id);
+      out.push({ key: k, what: what(k), written: written.replace(/\s+/g, ' ').trim(), measured: exact(k, val(m, k)), status, named, other: other || null }); };
+    D.NAMES.forEach(([k, name]) => { const measured = val(m, k); if (measured == null) return;
+      for (const x of T.matchAll(new RegExp('(?<![A-Za-z_])' + name + '\\s*(?:=|:|≈|~|\\bis\\b|\\bof\\b|\\bwas\\b)?\\s*' + NUM, 'gi'))) {
+        const w = read(x[1], x[2], x[3], k, measured); if (!w) continue; used.push([x.index, x.index + x[0].length]);
+        if (same(w, measured)) { add(k, x[0], w, 'agrees', true); continue; }
+        const o = Object.entries(others || {}).find(([, mm]) => { const ov = val(mm, k); return ov != null && same(read(x[1], x[2], x[3], k, ov), ov); });
+        add(k, x[0], w, o ? 'other' : 'differs', true, o && o[0]); } });
+    for (const x of T.matchAll(new RegExp('(?<![A-Za-z_0-9.,])' + NUM + '(?![0-9])', 'g'))) {
+      if (used.some(([a, b]) => x.index < b && x.index + x[0].length > a)) continue;
+      for (const [k] of D.NAMES) { const measured = val(m, k); if (measured == null) continue; const w = read('', x[2], x[3], k, measured);  // unnamed: exactly as written, no allowance for "about"
+        if (w && w.digits >= 3 && same(w, measured)) { add(k, x[0], w, 'agrees', false); break; } } }
+    return out;
+  },
 
   // series.csv text -> columns; drops become per-sample counts
   csv(text) {
@@ -649,10 +724,12 @@ const TH_DATA = {
       prev = params;
       const metrics = (index[rid] || {}).metrics || num(eb);
       const crit = eb.note ? [] : D.criteria(xb.pass_if || eb.pass_if, num(eb)), checked = crit.filter(c => c.ok != null);
-      hyps.push({ n, id: h.id || ev.id, turn: ev.turn, baseline: !!eb.note, text: hb.text || eb.note || '(no hypothesis was stated for this experiment)', prediction: hb.prediction, observations: hb.observations || null,
+      const others = Object.fromEntries(led.filter(r => r.type === 'evidence' && r.id !== ev.id).map(r => [r.id, num(r.body)]));
+      hyps.push({ n, id: h.id || ev.id, turn: ev.turn, baseline: !!eb.note, by: h.id ? D.by(h) : null, text: hb.text || eb.note || '(no hypothesis was stated for this experiment)', prediction: hb.prediction, observations: hb.observations || null,
         run_id: rid, changed, settings: Object.entries(params).map(([key, val]) => [D.KNOB[key] || key, D.knob(key, val)]),
         criteria: crit, met: checked.filter(c => c.ok).length, total: checked.length,
-        verdict: v ? { id: v.id, turn: v.turn, result: vb.result, because: vb.because, next: vb.next } : null, error: eb.error });
+        verdict: v ? { id: v.id, turn: v.turn, by: D.by(v), result: vb.result, because: vb.because, next: vb.next,
+                       numbers: D.numbers([vb.because, vb.next, vb.observations].filter(Boolean).join(' \n '), num(eb), others) } : null, error: eb.error });
       const think = led.filter(s => (s.type === 'draft' || s.type === 'scratch') && s.turn === ev.turn).pop();
       programs.push(program(n, rid, eb.error ? null : metrics, { reasoning: think ? (think.body || {}).text || (think.body || {}).reasoning || null : null }));
     });
@@ -671,7 +748,8 @@ const TH_DATA = {
     const res = r => judged.filter(h => h.verdict.result === r).length, scratch = led.filter(r => r.type === 'draft' || r.type === 'scratch');
     const mins = led.length ? Math.round((new Date(led[led.length - 1].ts) - new Date(led[0].ts)) / 60000) : null;
     const latest = real[real.length - 1];
-    const page = { kind: 'loop', brief: man.brief || null, title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',
+    const bySource = Object.fromEntries(D.SOURCES.map(b => [b, led.filter(r => D.by(r) === b).length]));
+    const page = { kind: 'loop', brief: man.brief || null, by: bySource, by_derived: led.some(r => !r.by), title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',
       facts: [
         ['AI model', String((scratch.length && (scratch[scratch.length - 1].body || {}).model) || '?').split('/').pop(), 'local model on vLLM'],
         ['Thinking', scratch.length ? 'on' : 'off', scratch.length ? 'its reasoning is kept in the record' : 'no reasoning recorded'],

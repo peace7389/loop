@@ -17,7 +17,7 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `harness/manifest.json`, `prompt.txt`, `schema.json` | What is the same for every brief (the outputs and the tools, described), the prompt, the answer format |
 | `harness/control.py` | The operator's small server for the viewer (port 8600): lists sessions and briefs, starts sessions and operator runs, saves new briefs; `make_trace.py` records packet events |
 | `sessions/<id>/` | One session = one complete attempt by the model, in its own folder; sessions know nothing about each other. `s001` is the first session (2026-11-09) |
-| `sessions/<id>/ledger.jsonl` | The session's record: draft (what the model wrote before its answer), hypothesis, experiment, evidence, verdict, note, malformed |
+| `sessions/<id>/ledger.jsonl` | The session's record: draft (what the model wrote before its answer), hypothesis, experiment, evidence, verdict, note, malformed. Each record has `by`: who produced it (`model`, `harness`, `simulator` or `operator`), written by the harness |
 | `sessions/<id>/runs/index.json` | The session's own simulations, the only ones its tools can see: id, params, metrics |
 | `sessions/<id>/runs/<run>/` | One simulation: `params.json`, `metrics.json`, `series.csv` (a sample every 0.1 s) |
 | `sessions/<id>/session.json` | What the session was given (`given`: its brief with the description filled in, plus the output and tool descriptions), the model, the start time and the flags. `s001` was made before briefs and has none |

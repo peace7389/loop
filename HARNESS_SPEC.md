@@ -610,6 +610,31 @@ in the ledger; `pass_if` non-empty.
 - No tool takes a path argument; only ids and names from a fixed set.
 
 ### 7.4 `loop.py`
+
+**REVISED 2026-11-11 (operator): every ledger record has `by`**, written by the
+harness, never taken from the model's answer:
+`{id, turn, type, by, parent, body, ts}` with `by` one of `model` (what the model
+wrote: draft, hypothesis, experiment, verdict, a tool-request note, the "model
+declared done" note), `simulator` (what was measured: evidence), `harness` (what
+the harness found or decided: malformed, the budget-grant note, the "loop
+stopped" note) and `operator` (the person; no record type is theirs yet: the
+brief and the scheduler mode are the operator's, and they are not ledger
+records). The text of the ledger shown to the model is unchanged. Sessions
+recorded before this (`s001`) have no `by`; the viewer takes it from the record
+type by the same rule and says so.
+Viewer (`adrs_view.js`): one fixed colour per source (model violet, harness
+magenta, simulator green, operator yellow; UDP blue and TCP orange stay the
+flows' colours), shown as the left edge and a name tag of every block and as
+the underline of every table column that has one source; one legend in the
+session header, which also gives the number of ledger records per source and is
+the filter (click a source: everything else is dimmed, nothing moves). Under
+each verdict, "The AI's numbers against the measurement": every number in the
+verdict's text (because, next, observations) that names a measure just before
+it, or that has three or more digits and equals a measured value of the same
+experiment, is shown beside the measurement and marked agrees / differs; a
+named number that differs but equals the same measure in another experiment is
+marked as that. "Agrees" = the measurement rounded the way the number is
+written (within 2% after "about").
 ```
 load manifest, schema, prompt.txt; model_id = GET /v1/models
 if the ledger is empty: tools.run({}) -> append evidence record E0 (turn 0, no parent)
