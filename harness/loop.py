@@ -1,19 +1,21 @@
 """The loop: rebuild the prompt from the ledger, ask the model once, do what its answer asks, append records.
 One session = one folder, sessions/<id>/, and one brief (briefs/<id>.json, the assignment): session.json (what the
 session was given) and ledger.jsonl are written here, runs/ by tools.run_many, and nothing in it is shared with another
-session. The operator's mode of each simulation goes to checks/operator.jsonl, outside that folder.
+session. The scheduling policy of each simulation (the operator's choice) goes to checks/operator.jsonl, outside that folder.
 
 A turn's answer may state new hypotheses, drop hypotheses, give verdicts, and design ONE experiment: a set of
-simulations with one purpose, run at once. An experiment that tests hypotheses carries rules, comparisons written
-before the simulations run; the harness evaluates each rule itself from the measured values (rules.py) and records a
-check. A verdict is accepted only for a hypothesis that has a checked rule. The budget counts simulations.
+simulations with one purpose, run at once. An experiment that tests hypotheses carries decision rules, comparisons
+stated before the simulations run, each with a rival explanation under which it would fail; the harness evaluates each
+decision rule itself from the measured values (decision_rules.py) and records a check. A verdict is accepted only for a
+hypothesis that has a checked decision rule. The budget counts simulations; a simulation with the same settings and seed
+as an earlier one of the session is not run again.
 A session ends with the model's final report: when the model sets done, or in one last turn after the budget is used
 up. The accepted report goes to the ledger and to report.json; session.json records how the session ended.
 Who else may write what: control.py's docstring."""
 import argparse, json, re, signal, sys, time
 from pathlib import Path
 import requests
-import rules, tools
+import decision_rules, tools
 
 ROOT = Path.home() / "project"
 H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127.0.0.1:18000/v1"
@@ -46,7 +48,7 @@ def append(ledger, turn, type_, parent, body, rid=None, by=None):
     return rec["id"]
 
 def states(ledger):
-    """Every hypothesis's state (open, or its verdict's result, or dropped), and the hypotheses that have a checked rule."""
+    """Every hypothesis's state (open, or its verdict's result, or dropped), and the hypotheses that have a checked decision rule."""
     st = {r["id"]: "open" for r in ledger if r["type"] == "hypothesis"}
     for r in ledger:
         if r["type"] == "verdict":
@@ -55,43 +57,65 @@ def states(ledger):
             st[r["body"]["for"]] = "dropped"
     return st, {r["body"]["for"] for r in ledger if r["type"] == "check" and r["body"]["result"] in ("held", "failed")}
 
-def experiment(ledger, turn, parent, ex, zero=False):
-    """What the harness does with an experiment: record the design and the rules as written; run all its simulations at
-    once (one simulation record each); one evidence record, a line per simulation; then one check record per rule."""
-    brief = tools.describe_system()
-    runs = []
-    for r in ex["runs"]:
+def plan(ledger, runs):
+    """Each simulation an experiment asks for: its clamped params, and whether it has to be run. A simulation with the same
+    settings and seed as an earlier one of the session ("prior": that simulation record), or as an earlier one of the same
+    experiment ("twin": that one's label), is not run again."""
+    out = []
+    for r in runs:
         clean, clamps = tools.clamp(r.get("params") or {})
-        runs.append({"label": r["label"], "params": clean, "clamped": clamps})
+        key = tools.same(tools.options(clean))
+        prior = next((q for q in ledger if q["type"] == "simulation" and "metrics" in q["body"] and not q["body"].get("same_as") and tools.same(q["body"]["params"]) == key), None)
+        out.append({"label": r["label"], "params": clean, "clamped": clamps, "key": key, "prior": prior, "twin": None if prior else next((q["label"] for q in out if q["key"] == key), None)})
+    return out
+
+def experiment(ledger, turn, parent, ex, zero=False):
+    """What the harness does with an experiment: record the design and the decision rules as stated; run at once all its
+    simulations that have not been run before in this session (one simulation record each, a note for each one reused);
+    one evidence record, a line per simulation; then one check record per decision rule. Returns how many were run."""
+    brief = tools.describe_system()
+    runs, stated = plan(ledger, ex["runs"]), ex.get("decision_rules") or []
     xid = append(ledger, turn, "experiment", parent, {"kind": ex["kind"], "tests": ex.get("tests") or [], "question": ex.get("question") or "", "varied": ex.get("varied") or [],
-                                                      "control": ex.get("control") or None, "runs": runs, "rules": ex.get("rules") or [],
+                                                      "control": ex.get("control") or None, "runs": [{k: r[k] for k in ("label", "params", "clamped")} for r in runs], "decision_rules": stated,
                                                       **({"observations": ex["observations"]} if ex.get("observations") else {})},
                  rid="X0" if zero else None, by="harness" if zero else None)
-    results = tools.run_many([r["params"] for r in runs])
+    fresh = [r for r in runs if not r["prior"] and not r["twin"]]
+    results = dict(zip((r["label"] for r in fresh), tools.run_many([r["params"] for r in fresh])))
     OPERATOR.parent.mkdir(parents=True, exist_ok=True)
-    with OPERATOR.open("a") as f:  # the operator's line of each simulation: session, run, mode, seconds. No tool reads that file
-        for res in results:
-            f.write(json.dumps({"session": SID, "id": res["id"], "mode": tools.MODE, "seconds": res["seconds"]}) + "\n")
-    values, lines = {}, []
-    for r, res in zip(runs, results):
-        append(ledger, turn, "simulation", xid, {"label": r["label"], "run_id": res["id"], "params": res.get("used") or r["params"],
-                                                 **({"metrics": res["metrics"]} if "metrics" in res else {"error": res["error"]})}, rid="S0" if zero else None)
+    with OPERATOR.open("a") as f:  # the operator's line of each simulation run: session, run, scheduling policy, seconds. No tool reads that file
+        for res in results.values():
+            f.write(json.dumps({"session": SID, "id": res["id"], "policy": tools.POLICY, "seconds": res["seconds"]}) + "\n")
+    values, lines, made = {}, [], {}  # made: label -> the simulation record that holds its result
+    for r in runs:
         changed = ", ".join(f"{k}={v}" for k, v in r["params"].items() if v != brief["knobs"][k]["default"]) or "defaults"
-        if "metrics" in res:
-            values[r["label"]] = res["metrics"]
-            lines.append(f"{r['label']} {res['id']} {changed} | " + " ".join(f"{k}={res['metrics'][k]}" for k in SHOWN if k in res["metrics"]))
+        first = r["prior"] or made.get(r["twin"])  # the earlier simulation with the same settings and seed, if any
+        if first and "metrics" in first["body"]:
+            body = {"label": r["label"], "run_id": first["body"]["run_id"], "params": first["body"]["params"], "metrics": first["body"]["metrics"], "same_as": first["id"]}
         else:
-            lines.append(f"{r['label']} {res['id']} {changed} | FAILED: {' '.join(res['error'].split())[:300]}")
+            res = results.get(r["label"]) or results[r["twin"]]  # (a twin of a simulation that failed shares its failure)
+            body = {"label": r["label"], "run_id": res["id"], "params": res.get("used") or r["params"], **({"metrics": res["metrics"]} if "metrics" in res else {"error": res["error"]})}
+        sid = append(ledger, turn, "simulation", xid, body, rid="S0" if zero else None)
+        made[r["label"]] = ledger[-1]
+        if "same_as" in body:
+            append(ledger, turn, "note", sid, {"text": f"simulation {r['label']} of {xid} has the same settings and seed as {first['id']} (run {body['run_id']}): the earlier result is returned, "
+                                                       "nothing was run again, and it is not counted against the budget", "simulation": sid, "same_as": first["id"]})
+        if "metrics" in body:
+            values[r["label"]] = body["metrics"]
+            lines.append(f"{r['label']} {body['run_id']} {changed} | " + " ".join(f"{k}={body['metrics'][k]}" for k in SHOWN if k in body["metrics"])
+                         + (f" (the result of {first['id']}: same settings and seed, not run again)" if "same_as" in body else ""))
+        else:
+            lines.append(f"{r['label']} {body['run_id']} {changed} | FAILED: {' '.join(body['error'].split())[:300]}")
     append(ledger, turn, "evidence", xid, {"experiment": xid, "lines": lines}, rid="E0" if zero else None)
     labels = [r["label"] for r in runs]
-    for rule in ex.get("rules") or []:
+    for d in stated:
         try:
-            held, numbers = rules.check(rule["rule"], tools.MANIFEST["outputs"], labels, values)
+            held, numbers = decision_rules.check(d["decision_rule"], tools.MANIFEST["outputs"], labels, values)
             result = "held" if held else "failed"
-        except rules.RuleError as e:  # it was readable (validate), so: a simulation it names gave no value
+        except decision_rules.DecisionRuleError as e:  # it was readable (validate), so: a simulation it names gave no value
             result, numbers = "not checked", str(e)
-        append(ledger, turn, "check", xid, {"for": rule["for"], "experiment": xid, "rule": rule["rule"], "with_numbers": numbers, "result": result})
-    return len(runs)
+        append(ledger, turn, "check", xid, {"for": d["for"], "experiment": xid, "decision_rule": d["decision_rule"], "rival": d.get("rival"), "rival_predicts": d.get("rival_predicts"),
+                                            "with_numbers": numbers, "result": result})
+    return len(fresh)
 
 def baseline(ledger):
     """Before turn 1 of a new ledger: the harness's own experiment X0, one simulation with every setting at its default
@@ -111,11 +135,13 @@ def shown(r, st):
         sims = "; ".join(f"{x['label']} {{{', '.join(f'{k}={v}' for k, v in x['params'].items()) or 'defaults'}}}"
                          + ("".join(f" [{k}: asked {a}, used {u}]" for k, (a, u) in x["clamped"].items())) for x in b["runs"])
         return ((f"test of {', '.join(b['tests'])}" if b["kind"] == "test" else f"explore: {flat(b['question'])}") + (f" | varied: {', '.join(b['varied'])}" if b["varied"] else "")
-                + (f" | control: {b['control']}" if b["control"] else "") + f" | simulations: {sims}" + "".join(f" | rule for {x['for']}: {flat(x['rule'])}" for x in b["rules"]))
+                + (f" | control: {b['control']}" if b["control"] else "") + f" | simulations: {sims}"
+                + "".join(f" | decision rule for {x['for']}: {flat(x.get('decision_rule', x.get('rule')))}" + (f" (rival: {flat(x['rival'])})" if x.get("rival") else "")
+                          for x in b.get("decision_rules", b.get("rules", []))))
     if t == "evidence":
         return f"of {b['experiment']}, one line per simulation (label, run id, settings changed from the defaults | measured):\n" + "\n".join("    " + l for l in b["lines"])
     if t == "check":
-        return f"for {b['for']} in {b['experiment']}: {flat(b['rule'])}  ->  {b['with_numbers']}  :  {b['result'].upper()}"
+        return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}"
     if t == "verdict":
         return f"on {b['for']}: {b['result']}. {flat(b['because'])} Next: {flat(b['next'])}"
     if t == "malformed":
@@ -181,7 +207,7 @@ def validate(t, brief, ledger, left, final=False):
         if st.get(v.get("for")) != "open":
             return f"verdict: {v.get('for')} is not an open hypothesis"
         if v["for"] not in checked:
-            return f"verdict for {v['for']}: no rule of that hypothesis has been checked yet, so there is nothing to judge it by"
+            return f"verdict for {v['for']}: no decision rule of that hypothesis has been checked yet, so there is nothing to judge it by"
         if v.get("result") not in ("supported", "refuted", "inconclusive") or not text(v.get("because")):
             return f"verdict for {v['for']}: needs a result (supported, refuted or inconclusive) and a because"
         st[v["for"]] = v["result"]
@@ -202,26 +228,34 @@ def validate(t, brief, ledger, left, final=False):
             return f"an experiment has 1 to {per} simulations"
         if len(set(labels)) != len(labels) or not all(re.fullmatch(r"[A-Za-z0-9_]{1,20}", str(l)) for l in labels):
             return "every simulation needs its own label: letters, digits and _ only, at most 20 characters"
-        if len(runs) > left:
-            return f"the experiment has {len(runs)} simulations but only {left} are left in the budget"
         if any(set(r.get("params") or {}) - set(brief["knobs"]) - set(brief["system"]) for r in runs):
             return "a simulation's params has keys that are not settings of the brief"
+        try:
+            fresh = sum(1 for r in plan(ledger, runs) if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
+        except (ValueError, TypeError) as e:
+            return f"a simulation has a setting that cannot be read: {e}"
+        if fresh > left:
+            return f"the experiment needs {fresh} new simulations but only {left} are left in the budget"
         if ex.get("control") not in (None, "", *labels) or set(ex.get("varied") or []) - set(brief["knobs"]):
             return "control must be the label of one of the simulations (or null), and varied must name knobs"
-        tests, rs = ex.get("tests") or [], ex.get("rules") or []
+        tests, rs = ex.get("tests") or [], ex.get("decision_rules") or []
         if ex.get("kind") == "test":
             if not tests or any(st.get(h) != "open" for h in tests):
                 return "a test experiment needs tests: the ids of open hypotheses"
             if any(r.get("for") not in tests for r in rs) or set(tests) - {r.get("for") for r in rs}:
-                return "a test experiment needs at least one rule for each tested hypothesis, and no rule for any other"
+                return "a test experiment needs at least one decision rule for each tested hypothesis, and none for any other"
             for r in rs:
                 try:
-                    rules.parse(r.get("rule"), tools.MANIFEST["outputs"], labels)
-                except rules.RuleError as e:
-                    return f"the rule for {r['for']} cannot be read: {e}. Rule: {r.get('rule')}"
+                    decision_rules.parse(r.get("decision_rule"), tools.MANIFEST["outputs"], labels)
+                except decision_rules.DecisionRuleError as e:
+                    return f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
+                if not text(r.get("rival")) or r.get("rival_predicts") not in ("held", "failed"):
+                    return f"the decision rule for {r['for']} needs a rival (a competing explanation of how the system behaves) and rival_predicts (held or failed)"
+                if r["rival_predicts"] == "held":
+                    return "this decision rule would hold under the rival too; choose simulations where the two explanations give different results"
         elif ex.get("kind") == "explore":
             if not text(ex.get("question")) or tests or rs:
-                return "an explore experiment needs a question, and has no tests and no rules"
+                return "an explore experiment needs a question, and has no tests and no decision rules"
         else:
             return "experiment.kind must be test or explore"
     br = t.get("budget_request")
@@ -257,12 +291,12 @@ def main():
     ap.add_argument("--budget", type=int, help=f"simulations granted at the start; default: the brief's limits.simulations (at most {CEILING}; the model can ask for more, up to {CEILING} in total)")
     ap.add_argument("--draft", choices=["on", "off"], default="on", help="on: the model may write a draft before its JSON answer and the draft is kept in the ledger; off: answer only")
     ap.add_argument("--max-tokens", type=int, help="most tokens of one answer, draft included; default 8000 with the draft, 3000 without")
-    ap.add_argument("--mode", choices=["share", "cap"], default="share")
+    ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap"], default="share", help="the scheduling policy: how the scheduler divides the link. The operator's choice, never shown to the model (--mode is its earlier name)")
     ap.add_argument("--temperature", type=float, default=0.3)
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the harness's own default experiment X0")
     a = ap.parse_args()
     global LEDGER, SID
-    tools.MODE = a.mode
+    tools.POLICY = a.policy
     schema, system = json.loads((H / "schema.json").read_text()), (H / "prompt.txt").read_text()
     model = requests.get(API + "/models", timeout=30).json()["data"][0]["id"]
     try:
@@ -277,7 +311,7 @@ def main():
     if a.budget > CEILING:
         ap.error(f"the starting budget is at most {CEILING}")
     LEDGER, meta = tools.SESSION / "ledger.jsonl", tools.SESSION / "session.json"
-    if not meta.exists():  # the session's own record of what it was given; the operator's mode is not in it
+    if not meta.exists():  # the session's own record of what it was given; the scheduling policy is not in it
         meta.write_text(json.dumps({"id": SID, "brief": brief["id"], "model": model, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
                                     "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline}, "given": brief}, indent=1) + "\n")
     print(f"session {SID} (brief {brief['id']}): {tools.SESSION}", flush=True)
@@ -311,7 +345,7 @@ def main():
                 break
             turn += 1
             user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: " + ("used up. THIS IS THE LAST TURN: no experiment is accepted and budget_request is no longer possible. "
-                    "Give your verdicts on hypotheses whose rules have been checked, and write the final report (report)." if final else
+                    "Give your verdicts on hypotheses whose decision rules have been checked, and write the final report (report)." if final else
                     f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {CEILING}). One experiment holds at most {min(per, budget - sims)} simulations.")
                     + f"\n\nLEDGER:\n{text}")
             if pending:

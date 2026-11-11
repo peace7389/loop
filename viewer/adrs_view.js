@@ -255,7 +255,7 @@ const TASK_VIEW = {
     const index = Object.fromEntries((raw.index || []).map(r => [r.id, r])), oper = Object.fromEntries((raw.oper || []).map(r => [r.id, r]));
     T._rows = T._content.programs.map(p => { const id = p.row.Run;
       return { n: p.iteration, id, h: hyp[p.iteration] || null, params: (index[id] || {}).params || {}, metrics: p.metrics || {}, failed: !p.solution,
-               series: (raw.series || {})[id] || null, mode: (oper[id] || {}).mode || null, reasoning: p.reasoning, facts: p.facts || [] }; });
+               series: (raw.series || {})[id] || null, policy: TH_DATA.policy(oper[id]), reasoning: p.reasoning, facts: p.facts || [] }; });
     const rows = T._rows;
     if (ui.run !== data.run) { ui.run = data.run; ui.a = null; ui.b = ''; }
     if (!rows.some(r => r.id === ui.a)) ui.a = rows.length ? rows[rows.length - 1].id : null;
@@ -266,9 +266,9 @@ const TASK_VIEW = {
     const facts = !loop ? P.facts : [P.facts[0], P.facts[2],
       ['Experiments', String(O.experiments), `in ${O.turns} turns` + (O.wasted ? `, ${O.wasted} without a usable answer` : '')],
       ['Hypotheses, by the AI’s verdict', `${O.supported} supported`, `${O.refuted} refuted · ${O.inconclusive} inconclusive · ${O.unjudged} not judged`],
-      ['Predictions, checked from the numbers', O.rules_total ? `${O.rules_met} of ${O.rules_total} held` : '–', 'each rule was written by the AI before its run'],
+      ['Decision rules, checked from the numbers', O.rules_total ? `${O.rules_met} of ${O.rules_total} held` : '–', 'each decision rule was stated by the AI before its simulations'],
       P.facts[5]];
-    const SRC = { model: 'written by the AI', harness: 'found or decided by the harness', simulator: 'measured by the simulation', operator: 'set by the person: the brief, the scheduler mode' };
+    const SRC = { model: 'written by the AI', harness: 'found or decided by the harness', simulator: 'measured by the simulation', operator: 'set by the person: the brief, the scheduling policy' };
     const who = b => `<em class="th-who" data-by="${b}">${b}</em>`;
     T._by = (b, html) => (html ? `<div class="th-by" data-by="${b}">${html.replace('<h3>', '<h3>' + who(b))}</div>` : '');  // one block of one source: its colour on the left edge, its name before the title
     const legend = `<div class="th-src" id="th-src"><b>Who produced it</b>${TH_DATA.SOURCES.map(b => `<button data-by="${b}" class="${ui.only === b ? 'on' : ''}" aria-pressed="${ui.only === b}" title="${e(SRC[b])}. Click to dim everything else; click again to show all."><i></i><b>${b}</b>${P.by ? ` ${P.by[b]} record${P.by[b] === 1 ? '' : 's'}` : ''}</button>`).join('')}
@@ -277,14 +277,14 @@ const TASK_VIEW = {
       <div class="th-titleline"><h1>${e(P.title)}<small>${loop ? 'session' : 'run'} “${e(data.run)}”${P.brief ? ' · brief ' + e(P.brief) : ''}</small></h1>
         ${O ? `<span class="th-state${O.running ? ' live' : ''}"><i></i>${O.running ? 'Running now' : O.done ? 'Finished: the AI gave its answer' : 'Stopped before the AI gave an answer'}</span>` : ''}</div>
       <div class="th-by" data-by="operator"><p class="th-q">${loop ? who('operator') : ''}${e(P.question)}</p></div>
-      ${P.many ? '<p class="th-sm" style="margin-top:10px">This session is in the multi-simulation format: an experiment can hold several simulations, and the harness checks the AI’s rules itself. Until this page is restructured for it, each simulation is shown as one row, with the first hypothesis its experiment tested; dropped hypotheses and the experiment designs are in the ledger but not on this page.</p>' : ''}
-      <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"${k === 'Scheduler mode' ? ' data-by="operator"' : ''}><dt>${k === 'Scheduler mode' ? who('operator') : ''}${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl>${legend}</header>`;
+      ${P.many ? '<p class="th-sm" style="margin-top:10px">This session is in the multi-simulation format: an experiment can hold several simulations, and the harness checks the AI’s decision rules itself. Until this page is restructured for it, each simulation is shown as one row, with the first hypothesis its experiment tested; dropped hypotheses and the experiment designs are in the ledger but not on this page.</p>' : ''}
+      <dl class="th-facts">${facts.map(([k, v, s]) => `<div class="th-fact"${k === 'Scheduling policy' ? ' data-by="operator"' : ''}><dt>${k === 'Scheduling policy' ? who('operator') : ''}${e(k)}</dt><dd>${e(v)}${s ? `<small>${e(s)}</small>` : ''}</dd></div>`).join('')}</dl>${legend}</header>`;
     if (!rows.length) { root.innerHTML = h + '<section class="th-sec"><p class="th-empty">No simulation has been run yet. This page fills in as runs finish.</p></section></div>'; return; }
 
     // ---- 1. every run: the table and the chart are two views of the same runs, and both choose the run shown in section 2
-    // [title, class, source]: the prediction column is this page's own check of the AI's rule against the measurement, so it has no single source
-    const head = loop ? [['', ''], ['#', ''], ['What the AI changed', '', 'model'], ['UDP share', 'num', 'model'], ['UDP, Mbps', 'num', 'simulator'], ['TCP, Mbps', 'num', 'simulator'], ['Prediction', ''], ['AI’s verdict', '', 'model']]
-      : [['', ''], ['#', ''], ['Run', '', 'operator'], ['Mode', '', 'operator'], ['UDP share', 'num', 'operator'], ['UDP offered', 'num', 'operator'], ['UDP, Mbps', 'num', 'simulator'], ['TCP, Mbps', 'num', 'simulator']];
+    // [title, class, source]: the decision-rule column is the check of the AI's decision rule against the measurement, so it has no single source
+    const head = loop ? [['', ''], ['#', ''], ['What the AI changed', '', 'model'], ['UDP share', 'num', 'model'], ['UDP, Mbps', 'num', 'simulator'], ['TCP, Mbps', 'num', 'simulator'], ['Decision rule', ''], ['AI’s verdict', '', 'model']]
+      : [['', ''], ['#', ''], ['Run', '', 'operator'], ['Scheduling policy', '', 'operator'], ['UDP share', 'num', 'operator'], ['UDP offered', 'num', 'operator'], ['UDP, Mbps', 'num', 'simulator'], ['TCP, Mbps', 'num', 'simulator']];
     const pill = (res, text) => `<span class="th-vd ${e(res || 'pending')}">${e(text || res || 'not judged')}</span>`;
     T._pill = pill;
     const held = x => !x || !x.total ? '<span class="th-muted">–</span>' : `<span class="th-nw"><span class="${x.met === x.total ? 'th-ok' : 'th-bad'}">${x.met === x.total ? '✓' : '✕'}</span> ${x.met} of ${x.total} held</span>`;
@@ -293,12 +293,12 @@ const TASK_VIEW = {
     const tr = r => { const m = r.metrics, x = r.h;
       const cells = loop ? [`<b>${r.n}</b><small>${e(r.id)}</small>`, changed(r), [e(m.weight_udp ?? '–')], [T._mb(m.udp_goodput_bps)], [T._mb(m.tcp_goodput_bps)], held(x),
                             !x ? '' : x.baseline ? pill('pending', 'baseline') : x.verdict ? pill(x.verdict.result) : pill('pending', 'not judged')]
-        : [`<b>${r.n}</b>`, e(r.id), e(r.mode || '–'), [e(m.weight_udp ?? '–')], [e(T._rate(r.params.udpRate ?? '–'))], [T._mb(m.udp_goodput_bps)], [T._mb(m.tcp_goodput_bps)]];
+        : [`<b>${r.n}</b>`, e(r.id), e(r.policy || '–'), [e(m.weight_udp ?? '–')], [e(T._rate(r.params.udpRate ?? '–'))], [T._mb(m.udp_goodput_bps)], [T._mb(m.tcp_goodput_bps)]];
       const src = i => (head[i + 1][2] ? ` data-by="${x && x.baseline && head[i + 1][2] === 'model' ? 'harness' : head[i + 1][2]}"` : '');  // the baseline's settings were the harness's choice
       return `<tr class="pick" data-id="${e(r.id)}" tabindex="0"><td class="th-mark"></td>${cells.map((c, i) => (Array.isArray(c) ? `<td class="num"${src(i)}>${c[0]}</td>` : `<td${src(i)}>${c}</td>`)).join('')}</tr>`; };
     h += `<section class="th-sec"><div class="th-sh"><span class="th-no">1</span><div><h2>${loop ? 'Every experiment' : 'Every run'}</h2>
         <p>One row and one dot for each simulation${loop ? ' the AI asked for' : ''}. Click a row or a dot to open that run in section 2.</p></div></div>
-      <div class="th-all"><div class="th-list" id="th-list"><table><thead><tr>${head.map(([t, c, b]) => `<th${c ? ` class="${c}"` : ''}${b ? ` data-by="${b}" title="${b}: ${e(SRC[b])}"` : t === 'Prediction' ? ' title="the AI’s rule checked by this page against the measurement"' : ''}>${t}</th>`).join('')}</tr></thead>
+      <div class="th-all"><div class="th-list" id="th-list"><table><thead><tr>${head.map(([t, c, b]) => `<th${c ? ` class="${c}"` : ''}${b ? ` data-by="${b}" title="${b}: ${e(SRC[b])}"` : t === 'Decision rule' ? ' title="the AI’s decision rule (stated before the simulations), checked against the measurement"' : ''}>${t}</th>`).join('')}</tr></thead>
         <tbody>${rows.map(tr).join('')}</tbody></table></div>
       <div><div class="th-bar"><label>Across <select id="th-x" aria-label="Horizontal axis"></select></label><label>Up <select id="th-y" aria-label="Vertical axis"></select></label></div>
         <div id="th-study"></div></div></div></section>
@@ -358,7 +358,7 @@ const TASK_VIEW = {
     const S = 'Settings', M = 'Measured';
     if (mk.includes('weight_udp')) out.push({ key: 'm:weight_udp', label: 'UDP share of the link', unit: '', group: S });
     pk.forEach(k => out.push({ key: 'p:' + k, label: D.KNOB[k], unit: { udpRate: 'Mbps', duration: 's', queuePkts: 'packets' }[k] || '', group: S }));
-    if (T._P.kind !== 'loop' && rows.some(r => r.mode)) out.push({ key: 'o:mode', label: 'Scheduler mode', unit: '', group: S });
+    if (T._P.kind !== 'loop' && rows.some(r => r.policy)) out.push({ key: 'o:policy', label: 'Scheduling policy', unit: '', group: S });
     if (mk.includes('udp_goodput_bps') && mk.includes('tcp_goodput_bps')) out.push({ key: 'g:goodput', label: 'UDP and TCP goodput', unit: 'Mbps', group: M, yOnly: true });
     mk.filter(k => k !== 'weight_udp').forEach(k => out.push({ key: 'm:' + k, label: D.PLAIN[k] || k, unit: /_bps$/.test(k) ? 'Mbps' : T.FRACTION.includes(k) ? '%' : /^drops_|retrans/.test(k) ? 'packets' : '', group: M }));
     ['udp_goodput_bps', 'tcp_goodput_bps'].filter(k => mk.includes(k)).forEach(k => out.push({ key: 'r:' + k, label: D.PLAIN[k] + ' ÷ link rate', unit: '', group: M }));
@@ -366,7 +366,7 @@ const TASK_VIEW = {
   },
   _val(r, key) {  // a run's value on an axis: a number in the axis's unit, a name (a category), or null
     const T = TASK_VIEW, k = key.slice(2), m = r.metrics, t = key[0];
-    if (t === 'o') return r.mode || null;
+    if (t === 'o') return r.policy || null;
     if (t === 'r') return typeof m[k] === 'number' && m.link_rate_bps ? m[k] / m.link_rate_bps : null;
     if (t === 'm') { const v = m[k]; return typeof v !== 'number' ? null : /_bps$/.test(k) ? v / 1e6 : T.FRACTION.includes(k) ? 100 * v : v; }
     const v = r.params[k]; if (v == null) return null; if (typeof v === 'number') return v;
@@ -454,12 +454,12 @@ const TASK_VIEW = {
       const was = new Set(x.changed.map(c => c[0])), kept = x.settings.filter(([k]) => !was.has(k)), prev = r.n > 1 ? T._name(rows.find(q => q.n === r.n - 1) || { n: r.n - 1 }) : 'the defaults';
       return by(x.baseline ? 'harness' : 'model', `<h3>What it changed<span>from ${e(prev)}</span></h3><p>${x.changed.length ? x.changed.map(([k, a, b]) => chip(k, b, a)).join('') : `<span class="th-muted">Nothing: the same settings as ${e(prev)}.</span>`}</p>
         ${kept.length ? `<h3>Kept as before</h3><p>${kept.map(([k, v]) => chip(k, v, false)).join('')}</p>` : ''}`); };
-    const pv = (r, k) => (k === 'mode' ? r.mode : r.params[k]), keys = B ? [...new Set([...Object.keys(A.params), ...Object.keys(B.params)])].filter(k => D.KNOB[k]).concat(A.mode || B.mode ? ['mode'] : []) : [];
+    const pv = (r, k) => (k === 'policy' ? r.policy : r.params[k]), keys = B ? [...new Set([...Object.keys(A.params), ...Object.keys(B.params)])].filter(k => D.KNOB[k]).concat(A.policy || B.policy ? ['policy'] : []) : [];
     const diff = keys.filter(k => String(pv(A, k)) !== String(pv(B, k)));
-    const differ = !B ? '' : `<p class="th-diff">${diff.length ? '<b>The two runs differ in:</b> ' + diff.map(k => `${e(D.KNOB[k] || 'Scheduler mode')} <b>${e(T._rate(D.knob(k, pv(A, k))))}</b> against <b>${e(T._rate(D.knob(k, pv(B, k))))}</b>`).join(' &nbsp;·&nbsp; ')
+    const differ = !B ? '' : `<p class="th-diff">${diff.length ? '<b>The two runs differ in:</b> ' + diff.map(k => `${e(D.KNOB[k] || 'Scheduling policy')} <b>${e(T._rate(D.knob(k, pv(A, k))))}</b> against <b>${e(T._rate(D.knob(k, pv(B, k))))}</b>`).join(' &nbsp;·&nbsp; ')
       : keys.length ? 'The two runs were made with the same settings.' : 'The settings of these runs were not recorded.'}</p>`;
 
-    // c. what it showed: the averages, the AI's prediction against them, the AI's verdict and plan
+    // c. what it showed: the averages, the AI's decision rule against them, the AI's verdict and plan
     const stats = r => { const m = r.metrics;
       if (r.failed) return by('simulator', `<p>The simulation did not return measurements.${r.h && r.h.error ? ' ' + e(r.h.error) : ''}</p>`);
       const rest = Object.keys(m).filter(k => !['udp_goodput_bps', 'tcp_goodput_bps', 'udp_loss_frac', 'link_util'].includes(k));
@@ -469,10 +469,18 @@ const TASK_VIEW = {
         ${rest.length ? more('Every other value it recorded', `<table><tbody>${rest.map(k => `<tr><td>${e(D.PLAIN[k] || k)}</td><td class="num">${e(T._show(k, m[k]))}</td></tr>`).join('')}</tbody></table>`) : ''}`); };
     const check = r => { const x = r.h; if (!x || !x.criteria.length) return '';
       const all = x.total && x.met === x.total;
-      return `<h3>Prediction against the measurement<span>the rule was written by the AI before the run; ${P.many ? 'checked by the harness' : 'checked here from the recorded numbers'}</span></h3>
-        ${x.total ? `<p class="th-held"><span class="${all ? 'th-ok' : 'th-bad'}">${all ? '✓' : '✕'}</span> ${all ? (x.total === 1 ? 'The prediction held' : `All ${x.total} predictions held`) : `${x.met} of ${x.total} predictions held`}</p>` : ''}
-        <table><thead><tr><th data-by="model">Measure</th><th data-by="model">Predicted</th><th class="num" data-by="simulator">Measured</th><th title="checked by this page">Held?</th></tr></thead><tbody>${x.criteria.map(c => `<tr><td data-by="model">${e(c.what)}</td><td data-by="model">${e(c.need)}</td><td class="num" data-by="simulator"><b>${e(c.measured)}</b></td>
-          <td>${c.ok == null ? '<span class="th-muted">not checked</span>' : c.ok ? '<span class="th-ok">✓</span> held' : '<span class="th-bad">✕</span> missed'}</td></tr>`).join('')}</tbody></table>`; };
+      // rows: in the multi-simulation format one row per decision rule (checked by the harness); before it, one row per comparison of the one decision rule
+      const unit = P.many ? ['decision rule', 'decision rules'] : ['comparison of the decision rule', 'comparisons of the decision rule'];
+      const mark = c => (c.ok == null ? '<span class="th-muted">not checked</span>' : c.ok ? '<span class="th-ok">✓</span> held' : '<span class="th-bad">✕</span> failed');
+      const table = P.many
+        ? `<table><thead><tr><th data-by="model">Decision rule (stated before the simulations)</th><th data-by="simulator">With the measured numbers</th><th title="checked by the harness">Held?</th></tr></thead><tbody>${x.criteria.map(c => `<tr>
+            <td data-by="model">${e(c.what)}${c.rival ? `<small>rival explanation: ${e(c.rival)}${c.rival_predicts ? ` · under the rival this decision rule would have ${e(c.rival_predicts)}` : ''}</small>` : ''}</td>
+            <td data-by="simulator">${e(c.measured)}</td><td class="th-nw">${mark(c)}</td></tr>`).join('')}</tbody></table>`
+        : `<table><thead><tr><th data-by="model">Measure</th><th data-by="model">Decision rule</th><th class="num" data-by="simulator">Measured</th><th title="checked by this page">Held?</th></tr></thead><tbody>${x.criteria.map(c => `<tr><td data-by="model">${e(c.what)}</td><td data-by="model">${e(c.need)}</td><td class="num" data-by="simulator"><b>${e(c.measured)}</b></td>
+          <td>${mark(c)}</td></tr>`).join('')}</tbody></table>`;
+      return `<h3>Decision rule (stated before the simulations)<span>against the measurement; ${P.many ? 'checked by the harness' : 'checked here from the recorded numbers'}</span></h3>
+        ${x.total ? `<p class="th-held"><span class="${all ? 'th-ok' : 'th-bad'}">${all ? '✓' : '✕'}</span> ${all ? (x.total === 1 ? `The ${unit[0]} held` : `All ${x.total} ${unit[1]} held`) : `${x.met} of ${x.total} ${unit[1]} held`}</p>` : ''}
+        ${table}`; };
     const verdict = r => { const x = r.h; if (!x || x.baseline) return ''; const v = x.verdict;
       // every number in the AI's verdict that names, or equals, a value measured in this run: shown beside the measurement
       const N = (v && v.numbers) || [], off = N.filter(q => q.status === 'differs').length, word = { agrees: '<span class="th-ok">✓</span> agrees', differs: '<span class="th-bad">✕</span> differs' };
@@ -592,10 +600,12 @@ const TH_DATA = {
   KNOB: { weightUdp: 'UDP share of the link', udpRate: 'UDP offered rate', queuePkts: 'Queue length', tcpVariant: 'TCP congestion control', duration: 'Measured time', seed: 'Random seed' },
   UNIT: { queuePkts: ' packets', duration: ' s' },
   knob(k, v) { return v == null ? '–' : String(v) + (TH_DATA.UNIT[k] || ''); },
+  // the scheduling policy of a run (how the scheduler divides the link), from the operator's line of it; lines written before 2026-11-11 call it "mode"
+  policy(o) { return (o && (o.policy || o.mode)) || null; },
 
   // ---- A ledger in the multi-simulation format (hypotheses, experiments of several simulations, checks by the harness)
   // as this page reads a ledger: one experiment and one evidence record per simulation. The experiment's first tested
-  // hypothesis is the simulation's hypothesis, and the harness's checks for it become its prediction rows. Dropped
+  // hypothesis is the simulation's hypothesis, and the harness's checks of its decision rules become the rows of its decision-rule table. Dropped
   // hypotheses and the experiment designs themselves are not shown until the page is restructured for this format.
   flat(led) {
     if (!led.some(r => r.type === 'simulation')) return led;
@@ -603,8 +613,9 @@ const TH_DATA = {
     led.forEach(r => {
       if (['experiment', 'evidence', 'check', 'drop'].includes(r.type)) return;
       if (r.type !== 'simulation') { out.push(r); return; }
+      if ((r.body || {}).same_as) return;  // the result of an earlier simulation, returned again: that simulation already has its row
       const x = byId[r.parent] || { id: '?', body: {} }, b = r.body || {}, run = (x.body.runs || []).find(q => q.label === b.label) || {}, hyp = (x.body.tests || [])[0] || null, xid = x.id + ':' + b.label;
-      const checks = led.filter(c => c.type === 'check' && c.parent === x.id && (c.body || {}).for === hyp).map(c => ({ what: c.body.rule, need: 'as the AI wrote it', measured: c.body.with_numbers, ok: c.body.result === 'held' ? true : c.body.result === 'failed' ? false : null }));
+      const checks = led.filter(c => c.type === 'check' && c.parent === x.id && (c.body || {}).for === hyp).map(c => ({ what: c.body.decision_rule || c.body.rule, rival: c.body.rival || null, rival_predicts: c.body.rival_predicts || null, need: 'as the AI stated it', measured: c.body.with_numbers, ok: c.body.result === 'held' ? true : c.body.result === 'failed' ? false : null }));
       out.push({ id: xid, turn: r.turn, type: 'experiment', by: x.by, parent: hyp, ts: x.ts, body: { params: run.params || {}, clamped: run.clamped || {}, pass_if: null } });
       out.push({ id: r.id, turn: r.turn, type: 'evidence', by: r.by, parent: xid, ts: r.ts,
                  body: { run_id: b.run_id, pass_if: null, ...(b.metrics || {}), ...(b.error ? { error: b.error } : {}), ...(x.id === 'X0' ? { note: x.body.question } : {}), ...(hyp ? { checks } : {}) } });
@@ -663,7 +674,7 @@ const TH_DATA = {
              q0: get('q_band0'), q1: get('q_band1') };  // packets waiting in each queue; null for runs made before they were recorded
   },
 
-  // ---- a pass rule's arithmetic and nothing else: numbers, metric names, + - * /, parentheses, abs/min/max
+  // ---- the arithmetic of a decision rule of the first session (its pass_if) and nothing else: numbers, metric names, + - * /, parentheses, abs/min/max
   calc(text, m) {
     const tok = String(text).match(/\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+|[A-Za-z_][A-Za-z0-9_]*|[-+*/(),]/g) || [];
     if (tok.join('') !== String(text).replace(/\s+/g, '')) throw new Error('unknown symbol');
@@ -682,7 +693,7 @@ const TH_DATA = {
     const v = expr(); if (i !== tok.length || !isFinite(v)) throw new Error('syntax');
     return { v, names };
   },
-  // The pass rule as rows a person can read: what, the allowed range, the measured value, met or not.
+  // That decision rule as rows a person can read: what, the allowed range, the measured value, met or not.
   // Checked here from the recorded numbers (not by the model). A clause that is not plain arithmetic stays as written.
   criteria(passIf, m) {
     const rows = [], by = {};
@@ -711,23 +722,23 @@ const TH_DATA = {
     const used = new Set(led.filter(r => r.type === 'evidence').map(r => (r.body || {}).run_id));
     const lastRun = [...led].reverse().find(r => r.type === 'evidence');
     const system = { link_rate: fixed.linkRate || '1Gbps', link_delay: fixed.linkDelay || '50us', mtu: fixed.mtu || 1500, defaults, objects: raw.objects || null,
-      mode: run === 'operator_checks' ? 'share or cap, per run' : (lastRun && (oper[(lastRun.body || {}).run_id] || {}).mode) || 'share' };
+      policy: run === 'operator_checks' ? 'share or cap, per run' : (lastRun && D.policy(oper[(lastRun.body || {}).run_id])) || 'share' };
     const measured = Object.entries(man.outputs || {}).filter(([k]) => !['link_rate_bps', 'weight_udp'].includes(k)).map(([k, v]) => [D.PLAIN[k] || k, v]);
     const num = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => typeof v === 'number'));
     const program = (n, rid, metrics, extra) => ({ iteration: n, metrics: metrics || {}, reasoning: null, facts: [],
       solution: metrics && metrics.udp_goodput_bps != null ? { run_id: rid, params: (index[rid] || {}).params || {}, metrics, series: (raw.series || {})[rid] || null } : null,
-      row: { Run: rid, Mode: (oper[rid] || {}).mode || '–', 'UDP offered': ((index[rid] || {}).params || {}).udpRate || '–' }, ...extra });
+      row: { Run: rid, Policy: D.policy(oper[rid]) || '–', 'UDP offered': ((index[rid] || {}).params || {}).udpRate || '–' }, ...extra });
 
     if (run === 'operator_checks') {
       const ids = (raw.index || []).map(r => r.id).filter(id => !used.has(id));
-      const modes = [...new Set(ids.map(id => (oper[id] || {}).mode || '?'))].sort();
+      const policies = [...new Set(ids.map(id => D.policy(oper[id]) || '?'))].sort();
       const programs = ids.map((rid, i) => { const op = oper[rid] || {}, pr = index[rid].params || {};
         return program(i + 1, rid, index[rid].metrics, { facts: [
-          ['What this is', `An operator ${op.control ? 'run started from the Control page' : 'check (' + (op.stage != null ? 'build stage ' + op.stage : 'harness test') + ')'}, not an AI experiment.`], ['Scheduler mode', op.mode || '–'],
+          ['What this is', `An operator ${op.control ? 'run started from the Control page' : 'check (' + (op.stage != null ? 'build stage ' + op.stage : 'harness test') + ')'}, not an AI experiment.`], ['Scheduling policy', D.policy(op) || '–'],
           ['Settings', Object.entries(pr).filter(([k]) => D.KNOB[k]).map(([k, v]) => `${D.KNOB[k]} ${D.knob(k, v)}`).join(', ') || 'all defaults']] }); });
       return { programs, page: { kind: 'checks', title: 'Two hosts, one link', kicker: 'Operator checks of the network simulation (ns-3), no AI',
         question: 'Simulations the operator ran while building the harness, to confirm the simulator behaves as designed before any AI used it.',
-        facts: [['AI model', 'none', 'the operator chose every setting'], ['Runs', String(ids.length), 'each one ns-3 simulation'], ['Scheduler modes tried', modes.join(', '), 'the two ways the scheduler can split the link']],
+        facts: [['AI model', 'none', 'the operator chose every setting'], ['Runs', String(ids.length), 'each one ns-3 simulation'], ['Scheduling policies tried', policies.join(', '), 'the two ways the scheduler can split the link']],
         system: { ...system, no_ai: true }, knobs: [], measured, outcome: null, turns: [], hyps: [] } };
     }
 
@@ -776,7 +787,7 @@ const TH_DATA = {
         ['Session', led.length ? String(led[0].ts || '').replace('T', ' ').slice(0, 16) : '–', mins != null ? mins + ' minutes' : ''],
         ['Experiments', String(real.length), 'chosen by the AI' + (hyps.length > real.length ? ', plus 1 baseline run by the harness' : '')],
         ['Turns', String(turns.filter(t => t.turn > 0).length), count('wasted') + ' without a usable answer'],
-        ['Scheduler mode', hyps.length ? (oper[hyps[hyps.length - 1].run_id] || {}).mode || '?' : '?', 'set by the operator, hidden from the AI']],
+        ['Scheduling policy', hyps.length ? D.policy(oper[hyps[hyps.length - 1].run_id]) || '?' : '?', 'set by the operator, hidden from the AI']],
       system, measured,
       knobs: Object.entries(man.params || {}).map(([k, v]) => ({ name: D.KNOB[k] || k, range: v.choices ? v.choices.join(' / ') : `${v.min} to ${D.knob(k, v.max)}`, default: D.knob(k, v.default) })),
       outcome: { experiments: real.length, supported: res('supported'), refuted: res('refuted'), inconclusive: res('inconclusive'), unjudged: real.filter(h => !h.verdict).length,

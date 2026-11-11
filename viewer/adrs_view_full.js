@@ -483,7 +483,7 @@ const TASK_VIEW = {
               : `<td>${e(r.Run || '')}</td><td>${e(r.Mode || '')}</td><td>${e(rate(r['UDP offered'] || '–'))}</td>`) +
         `<td class="num">${m(p).weight_udp ?? '–'}</td><td class="num">${mb(m(p).udp_goodput_bps)}</td><td class="num">${mb(m(p).tcp_goodput_bps)}</td><td class="num">${pc(m(p).udp_loss_frac)}</td><td class="num">${pc(m(p).link_util)}</td>` +
         (loop ? `<td>${rule(hh)}</td><td>${verdict(hh)}</td>` : '') + '</tr>'; }).join('');
-    const table = `<table><thead><tr><th>#</th>${loop ? '<th>Hypothesis</th><th>What the AI changed</th>' : '<th>Run</th><th>Scheduler mode</th><th>UDP offered</th>'}<th class="num">UDP share</th><th class="num">UDP, Mbps</th><th class="num">TCP, Mbps</th><th class="num">UDP loss</th><th class="num">Link use</th>${loop ? '<th>Pass rule (checked here)</th><th>AI’s verdict</th>' : ''}</tr></thead><tbody>${rows}</tbody></table>`;
+    const table = `<table><thead><tr><th>#</th>${loop ? '<th>Hypothesis</th><th>What the AI changed</th>' : '<th>Run</th><th>Scheduling policy</th><th>UDP offered</th>'}<th class="num">UDP share</th><th class="num">UDP, Mbps</th><th class="num">TCP, Mbps</th><th class="num">UDP loss</th><th class="num">Link use</th>${loop ? '<th>Decision rule (checked here)</th><th>AI’s verdict</th>' : ''}</tr></thead><tbody>${rows}</tbody></table>`;
 
     if (tab === 'overview') {
       // 1. what this is: the question and the session's key facts
@@ -496,7 +496,7 @@ const TASK_VIEW = {
       if (O) h += sec(++no, 'Where it stands', 'The session in four numbers, then the AI’s most recent claim.', `<div class="th-tiles">
           <div class="th-tile"><h3>Experiments</h3><div class="big">${O.experiments}</div><p>simulations the AI chose and the harness ran</p></div>
           <div class="th-tile"><h3>Hypotheses, by the AI’s own verdict</h3><div class="big">${O.supported}<small> supported</small></div><p>${O.refuted} refuted · ${O.inconclusive} inconclusive · <b>${O.unjudged} not judged</b>${O.unjudged ? ' (the session ended first)' : ''}</p></div>
-          <div class="th-tile"><h3>Pass rules, checked by this page</h3><div class="big">${O.rules_met}<small> of ${O.rules_total} met</small></div><p>each rule was written by the AI before its run; the check uses the recorded numbers, not the AI’s word</p></div>
+          <div class="th-tile"><h3>Decision rules, checked by this page</h3><div class="big">${O.rules_met}<small> of ${O.rules_total} met</small></div><p>each decision rule was stated by the AI before its simulations; the check uses the recorded numbers, not the AI’s word</p></div>
           <div class="th-tile"><h3>Turns</h3><div class="big">${O.turns}</div><p>${O.experiments} experiments · ${O.supported + O.refuted + O.inconclusive} verdicts · ${O.info} information request${O.info === 1 ? '' : 's'} · <b>${O.wasted} without a usable answer</b></p></div></div>
         ${O.latest ? `<div class="th-note"><b class="lbl">The AI’s latest hypothesis (${e(O.latest.id)})</b>${e(String(O.latest.text).replace(/^\s*H\d+\s*:\s*/, ''))}</div>` : ''}`);
       // 3. what was measured
@@ -511,7 +511,7 @@ const TASK_VIEW = {
             ${sel ? `<h3 style="margin-top:18px">Chosen: experiment ${sel.iteration}${H ? ' · ' + e(H.id) : ''}</h3>
               ${H ? `<p class="th-sm th-clamp3" style="color:var(--text-primary)" title="${e(TASK_VIEW._first(H.text))}">${e(TASK_VIEW._first(H.text))}</p>` : ''}
               <p style="margin-top:8px"><span class="th-chip">UDP share <b>${m(sel).weight_udp ?? '–'}</b></span><span class="th-chip">UDP <b>${mb(m(sel).udp_goodput_bps)} Mbps</b></span><span class="th-chip">TCP <b>${mb(m(sel).tcp_goodput_bps)} Mbps</b></span></p>
-              ${H && !H.baseline ? `<p class="th-sm" style="margin-top:4px">Pass rule: ${rule(H)} &nbsp; AI’s verdict: ${verdict(H)}</p>` : ''}
+              ${H && !H.baseline ? `<p class="th-sm" style="margin-top:4px">Decision rule: ${rule(H)} &nbsp; AI’s verdict: ${verdict(H)}</p>` : ''}
               <a class="th-go" href="#experiments" style="margin-top:10px">Open experiment ${sel.iteration} → Experiments</a>` : ''}</div></div>
          <div style="margin-top:18px">${table}</div>`);
     }
@@ -546,7 +546,7 @@ const TASK_VIEW = {
             <small>${t.turn === 0 ? 'Before turn 1' : 'Turn ' + t.turn}</small><b>${e({ experiment: 'Experiment ' + t.exp, verdict: 'Verdict on ' + ((hyp[t.exp] || {}).id || ''), wasted: 'No usable answer', info: 'Asked for information', baseline: 'Baseline run', done: 'Declared done' }[t.kind] || t.label)}</b></button>`).join('')}</div>`);
       // 2. the list on the left, the chosen experiment beside it
       const list = loop ? P.hyps.map(x => `<button class="th-item${x.n === ui.sel ? ' on' : ''}" data-exp="${x.n}"><span class="top"><b>${e(x.id)} · experiment ${x.n}</b>${verdict(x)}</span>
-            <span class="txt">${e(TASK_VIEW._first(x.text))}</span><span class="chg">${x.changed.length ? x.changed.map(c => `${e(c[0])} ${e(rate(c[1]))} → ${e(rate(c[2]))}`).join(' · ') : 'all settings at their defaults'}</span>${x.total ? `<span class="chg">Pass rule: ${x.met === x.total ? '✓' : '✕'} ${x.met} of ${x.total} met</span>` : ''}</button>`).join('')
+            <span class="txt">${e(TASK_VIEW._first(x.text))}</span><span class="chg">${x.changed.length ? x.changed.map(c => `${e(c[0])} ${e(rate(c[1]))} → ${e(rate(c[2]))}`).join(' · ') : 'all settings at their defaults'}</span>${x.total ? `<span class="chg">Decision rule: ${x.met === x.total ? '✓' : '✕'} ${x.met} of ${x.total} met</span>` : ''}</button>`).join('')
         : ps.map(p => `<button class="th-item${p.iteration === ui.sel ? ' on' : ''}" data-exp="${p.iteration}"><span class="top"><b>#${p.iteration} · ${e((p.row || {}).Run || '')}</b><span class="th-sm">${e((p.row || {}).Mode || '')}</span></span>
             <span class="chg">UDP share ${m(p).weight_udp ?? '–'} · offered ${e(rate((p.row || {})['UDP offered'] || '–'))}</span><span class="chg">UDP ${mb(m(p).udp_goodput_bps)} · TCP ${mb(m(p).tcp_goodput_bps)} Mbps</span></button>`).join('');
       let det = '<p class="th-muted">No experiment yet.</p>';
@@ -563,7 +563,7 @@ const TASK_VIEW = {
           phase('Before the run', 'written by the AI');
           step('Hypothesis', `the AI’s claim · turn ${H.turn}`, 'What does the AI believe about the system?', `<p class="lead">${e(lead)}</p>${rest ? `<p class="rest">${e(rest)}</p>` : ''}`);
           step('Prediction', 'the AI · fixed before the run', 'If the claim is right, what must the experiment show?',
-            (crit.length ? `<table><thead><tr><th>Measure</th><th>Must be</th></tr></thead><tbody>${crit.map(c => `<tr><td>${e(c.what)}</td><td><b>${e(c.need)}</b></td></tr>`).join('')}</tbody></table>` : '<p class="th-muted">No pass rule was recorded.</p>') +
+            (crit.length ? `<table><thead><tr><th>Measure</th><th>Must be</th></tr></thead><tbody>${crit.map(c => `<tr><td>${e(c.what)}</td><td><b>${e(c.need)}</b></td></tr>`).join('')}</tbody></table>` : '<p class="th-muted">No decision rule was recorded.</p>') +
             (H.prediction ? `<details><summary>The prediction in the AI’s own words</summary><p class="th-sm" style="margin-top:6px">${e(H.prediction)}</p></details>` : ''));
         }
         phase('The run', 'done by the harness');
@@ -583,7 +583,7 @@ const TASK_VIEW = {
             crit.length ? `<div class="th-sum"><span class="mark ${allMet ? 'ok' : 'bad'}">${allMet ? '✓' : '✕'}</span>${allMet ? `All ${checked.length} predictions held` : `${checked.filter(c => c.ok).length} of ${checked.length} predictions held`}${crit.length > checked.length ? ` <span class="th-sm">(${crit.length - checked.length} could not be checked)</span>` : ''}</div>
               <table><thead><tr><th>Measure</th><th>Must be</th><th class="num">Measured</th><th>Range and measured value</th><th></th></tr></thead><tbody>${
               crit.map(c => `<tr><td>${e(c.what)}</td><td>${e(c.need)}</td><td class="num"><b>${e(c.measured)}</b></td><td>${TASK_VIEW._range(c)}</td><td style="white-space:nowrap">${c.ok == null ? '<span class="th-muted">not checked</span>' : c.ok ? '<span class="th-ok">✓ held</span>' : '<span class="th-bad">✕ failed</span>'}</td></tr>`).join('')}</tbody></table>`
-              : '<p class="th-muted">No pass rule to check.</p>');
+              : '<p class="th-muted">No decision rule to check.</p>');
           const vr = H.verdict && H.verdict.result, clash = vr && checked.length && ((vr === 'supported' && !allMet) || (vr === 'refuted' && allMet));
           step('Verdict', H.verdict ? `the AI’s own judgement · turn ${H.verdict.turn}` : 'the AI’s own judgement', 'What did the AI conclude about its hypothesis?',
             H.verdict ? `<p>${verdict(H)}</p><p style="margin-top:8px;font-size:14px">${e(H.verdict.because || '')}</p>${clash ? `<p class="th-warn">This verdict does not match the check above (${allMet ? 'all predictions held' : 'not all predictions held'}).</p>` : ''}`
@@ -658,7 +658,7 @@ const TH_DATA = {
              q0: get('q_band0'), q1: get('q_band1') };  // packets waiting in each queue; null for runs made before they were recorded
   },
 
-  // ---- a pass rule's arithmetic and nothing else: numbers, metric names, + - * /, parentheses, abs/min/max
+  // ---- a decision rule's arithmetic and nothing else: numbers, metric names, + - * /, parentheses, abs/min/max
   calc(text, m) {
     const tok = String(text).match(/\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+|[A-Za-z_][A-Za-z0-9_]*|[-+*/(),]/g) || [];
     if (tok.join('') !== String(text).replace(/\s+/g, '')) throw new Error('unknown symbol');
@@ -677,7 +677,7 @@ const TH_DATA = {
     const v = expr(); if (i !== tok.length || !isFinite(v)) throw new Error('syntax');
     return { v, names };
   },
-  // The pass rule as rows a person can read: what, the allowed range, the measured value, met or not.
+  // The decision rule as rows a person can read: what, the allowed range, the measured value, met or not.
   // Checked here from the recorded numbers (not by the model). A clause that is not plain arithmetic stays as written.
   criteria(passIf, m) {
     const rows = [], by = {};
@@ -718,11 +718,11 @@ const TH_DATA = {
       const modes = [...new Set(ids.map(id => (oper[id] || {}).mode || '?'))].sort();
       const programs = ids.map((rid, i) => { const op = oper[rid] || {}, pr = index[rid].params || {};
         return program(i + 1, rid, index[rid].metrics, { facts: [
-          ['What this is', `An operator ${op.control ? 'run started from the Control page' : 'check (' + (op.stage != null ? 'build stage ' + op.stage : 'harness test') + ')'}, not an AI experiment.`], ['Scheduler mode', op.mode || '–'],
+          ['What this is', `An operator ${op.control ? 'run started from the Control page' : 'check (' + (op.stage != null ? 'build stage ' + op.stage : 'harness test') + ')'}, not an AI experiment.`], ['Scheduling policy', op.mode || '–'],
           ['Settings', Object.entries(pr).filter(([k]) => D.KNOB[k]).map(([k, v]) => `${D.KNOB[k]} ${D.knob(k, v)}`).join(', ') || 'all defaults']] }); });
       return { programs, page: { kind: 'checks', title: 'Two hosts, one link', kicker: 'Operator checks of the network simulation (ns-3), no AI',
         question: 'Simulations the operator ran while building the harness, to confirm the simulator behaves as designed before any AI used it.',
-        facts: [['AI model', 'none', 'the operator chose every setting'], ['Runs', String(ids.length), 'each one ns-3 simulation'], ['Scheduler modes tried', modes.join(', '), 'the two ways the scheduler can split the link']],
+        facts: [['AI model', 'none', 'the operator chose every setting'], ['Runs', String(ids.length), 'each one ns-3 simulation'], ['Scheduling policies tried', modes.join(', '), 'the two ways the scheduler can split the link']],
         system: { ...system, no_ai: true }, knobs: [], measured, outcome: null, turns: [], hyps: [] } };
     }
 
@@ -768,7 +768,7 @@ const TH_DATA = {
         ['Session', led.length ? String(led[0].ts || '').replace('T', ' ').slice(0, 16) : '–', mins != null ? mins + ' minutes' : ''],
         ['Experiments', String(real.length), 'chosen by the AI' + (hyps.length > real.length ? ', plus 1 baseline run by the harness' : '')],
         ['Turns', String(turns.filter(t => t.turn > 0).length), count('wasted') + ' without a usable answer'],
-        ['Scheduler mode', hyps.length ? (oper[hyps[hyps.length - 1].run_id] || {}).mode || '?' : '?', 'set by the operator, hidden from the AI']],
+        ['Scheduling policy', hyps.length ? (oper[hyps[hyps.length - 1].run_id] || {}).mode || '?' : '?', 'set by the operator, hidden from the AI']],
       system, measured,
       knobs: Object.entries(man.params || {}).map(([k, v]) => ({ name: D.KNOB[k] || k, range: v.choices ? v.choices.join(' / ') : `${v.min} to ${D.knob(k, v.max)}`, default: D.knob(k, v.default) })),
       outcome: { experiments: real.length, supported: res('supported'), refuted: res('refuted'), inconclusive: res('inconclusive'), unjudged: real.filter(h => !h.verdict).length,

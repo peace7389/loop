@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- The harness's own viewer: a static page served by harness/control.py. It asks ../api/sessions for the list of
      sessions, then reads the chosen session's own files (../sessions/<id>/ledger.jsonl, runs/index.json,
-     runs/<run>/series.csv, session.json = the brief it was given), ../checks/operator.jsonl (the operator's mode of each run)
+     runs/<run>/series.csv, session.json = the brief it was given), ../checks/operator.jsonl (the scheduling policy of each run)
      every 5 s, and writes nothing. "Operator checks" shows ../checks/build1/ and ../checks/control.jsonl instead.
      Content and layout live in adrs_view.js (TH_DATA builds the content, TASK_VIEW.page draws it); the same file
      draws this task inside the ADRS main viewer. One page: every run, then the chosen run (why it was made, its
@@ -77,11 +77,11 @@ async function load() {
   if (!Array.isArray(ses)) { $('note').textContent = 'Cannot read the harness (this page is served by harness/control.py, which also lists the sessions; is it running in ~/project?)'; return; }
   // which one to show: the one asked for; otherwise the session running now, otherwise the newest
   if (run !== CHECKS && !ses.some(s => s.id === run)) run = (ses.find(s => s.running) || ses[ses.length - 1] || { id: CHECKS }).id;
-  const sig = JSON.stringify([ses.map(s => [s.id, s.brief, s.started, s.experiments, s.running, s.mode]), run]);
+  const sig = JSON.stringify([ses.map(s => [s.id, s.brief, s.started, s.experiments, s.running, s.policy]), run]);
   if (sig !== listed) {  // the list is redrawn only when it changed, so an open list is not closed by the 5 s refresh
     listed = sig;
     $('runs').innerHTML = '<optgroup label="AI sessions (newest first)">' + [...ses].reverse().map(s =>
-        `<option value="${s.id}"${s.id === run ? ' selected' : ''}>${s.id} · ${s.brief || 'before briefs'} · ${s.started ? when(s.started) : 'no record yet'} · ${s.experiments} experiment${s.experiments === 1 ? '' : 's'}${s.mode ? ' · mode ' + s.mode : ''}${s.running ? ' · running now' : ''}</option>`).join('') +
+        `<option value="${s.id}"${s.id === run ? ' selected' : ''}>${s.id} · ${s.brief || 'before briefs'} · ${s.started ? when(s.started) : 'no record yet'} · ${s.experiments} experiment${s.experiments === 1 ? '' : 's'}${s.policy ? ' · policy ' + s.policy : ''}${s.running ? ' · running now' : ''}</option>`).join('') +
       `</optgroup><optgroup label="No AI"><option value="${CHECKS}"${run === CHECKS ? ' selected' : ''}>Operator checks of the simulator</option></optgroup>`;
     $('runs').onchange = () => { run = $('runs').value; history.replaceState(null, '', run === CHECKS ? '?run=' + CHECKS : '?session=' + run); load(); };
   }
@@ -92,7 +92,7 @@ async function load() {
   const mine = lines(own.text).filter(r => r.id && r.metrics);
   const index = [...lines(idx.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))];
   // the operator's line of each run: a session's lines carry its id, the build checks carry none
-  const oper = [...lines(op.text).filter(r => (checks ? !r.session : r.session === run)), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))];
+  const oper = [...lines(op.text).filter(r => (checks ? !r.session : r.session === run)), ...mine.map(r => ({ id: r.id, policy: r.policy || r.mode, seconds: r.seconds, control: true }))];
   const dir = id => (mine.some(r => r.id === id) ? '../checks/' : base), key = id => run + '/' + id;  // run ids repeat across sessions
   await Promise.all(index.filter(r => !(key(r.id) in series)).map(async r => { series[key(r.id)] = TH_DATA.csv((await get(`${dir(r.id)}${r.id}/series.csv`)).text); }));
   if (shown !== run) return;  // another session was chosen while these files were loading

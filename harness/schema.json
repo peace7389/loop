@@ -138,26 +138,40 @@
         "additionalProperties": false
        }
       },
-      "rules": {
+      "decision_rules": {
        "type": "array",
-       "description": "test: at least one per tested hypothesis; explore: empty",
+       "description": "test: at least one decision rule per tested hypothesis, stated before the simulations; explore: empty",
        "items": {
         "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "for",
+         "decision_rule",
+         "rival",
+         "rival_predicts"
+        ],
         "properties": {
          "for": {
           "type": "string",
           "description": "hypothesis id"
          },
-         "rule": {
+         "decision_rule": {
           "type": "string",
           "description": "a comparison the harness will check, e.g. measure@label > 1.1 * measure@otherlabel"
+         },
+         "rival": {
+          "type": "string",
+          "description": "a competing explanation of how the system behaves"
+         },
+         "rival_predicts": {
+          "type": "string",
+          "enum": [
+           "held",
+           "failed"
+          ],
+          "description": "what this decision rule would give if the rival were true"
          }
-        },
-        "required": [
-         "for",
-         "rule"
-        ],
-        "additionalProperties": false
+        }
        }
       }
      },
@@ -168,7 +182,7 @@
       "varied",
       "control",
       "runs",
-      "rules"
+      "decision_rules"
      ],
      "additionalProperties": false
     },
@@ -179,7 +193,7 @@
   },
   "verdicts": {
    "type": "array",
-   "description": "only for hypotheses that have a checked rule; may be empty",
+   "description": "only for hypotheses that have a checked decision rule; may be empty",
    "items": {
     "type": "object",
     "properties": {

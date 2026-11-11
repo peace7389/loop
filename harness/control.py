@@ -3,11 +3,11 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
 
   GET  any file        the project's files, read-only, exactly as before
   GET  /api/status     what is running, the last lines of the session's output, "briefs" (the ids in briefs/) and
-                       "sessions": every session folder (id, brief, records, experiments, first and last time, mode, model, running)
+                       "sessions": every session folder (id, brief, records, experiments, first and last time, policy, model, running)
   GET  /api/sessions   that list alone
-  POST /api/run        {params, mode, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
+  POST /api/run        {params, policy, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
                        The brief (default two-hosts-open) gives the fixed settings and the ranges.
-  POST /api/session    {brief, budget, draft, mode, baseline, session}: starts loop.py with those flags, returns the session id
+  POST /api/session    {brief, budget, draft, policy, baseline, session}: starts loop.py with those flags, returns the session id
                        (budget = simulations).
                        Without "session" it is a new session (the next id sNNN) on the named brief (default two-hosts-open;
                        budget defaults to the brief's limit); with the id of an existing session it continues that one.
@@ -18,13 +18,14 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
 Who writes what (the write-ownership rule):
   loop.py      its own session's folder, sessions/<id>/: session.json, ledger.jsonl, and runs/ through tools.run. Nothing else writes
                there, and no tool can read outside it. It also appends one line per run to checks/operator.jsonl
-               (session, run, mode, seconds), which no tool reads.
+               (session, run, policy, seconds), which no tool reads. "policy" is the scheduling policy: how the scheduler
+               divides the link, share or cap (records written before 2026-11-11 call it "mode"; both are read).
   control.py   checks/: checks/op-<timestamp>/ (one operator run), checks/control.jsonl (the list of those runs),
                checks/sessions/<id>.log (a session's terminal output); and briefs/<id>.json, new files only.
                It starts and stops loop.py and does nothing else.
   the viewer   nothing. Its Control page only calls the POST endpoints above.
 An operator run is made by the built program directly, never by tools.run, so it never reaches a session's folder: no
-tool the model has can see it. The scheduler mode reaches the simulation as the environment variable TWOHOSTS_SCHED only; the model never sees it.
+tool the model has can see it. The scheduling policy reaches the simulation as the environment variable TWOHOSTS_SCHED only; the model never sees it.
 
 Who may call it. The server listens on 127.0.0.1 only (there is no option to change that). This machine is shared, so
 that alone would let any local user start runs; a POST is therefore accepted only when the connection was opened by a
@@ -80,10 +81,10 @@ def other_loop():
 def sessions():
     """One row per folder in sessions/, oldest first, read from the session's own files and checks/operator.jsonl."""
     lines = lambda p: [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
-    mode = {}
+    policy = {}
     for r in lines(CHECKS / "operator.jsonl"):
         if r.get("session"):
-            mode[r["session"]] = r.get("mode")
+            policy[r["session"]] = r.get("policy", r.get("mode"))
     here = SESSION["id"] if SESSION and SESSION["proc"].poll() is None else None
     other = None if here else other_loop()
     dirs = sorted(p for p in tools.SESSIONS.iterdir() if p.is_dir() and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", p.name)) if tools.SESSIONS.is_dir() else []
@@ -103,7 +104,7 @@ def sessions():
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
                 "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs)})
-        out.append({**CACHE[d.name][1], "mode": mode.get(d.name), "running": d.name in (here, other)})
+        out.append({**CACHE[d.name][1], "policy": policy.get(d.name), "running": d.name in (here, other)})
     return out
 
 
@@ -128,13 +129,13 @@ def status():
 
 def operator_run(body):
     """One simulation with the operator's settings, by the built program directly, into checks/op-<timestamp>/."""
-    params, mode = body.get("params") or {}, body.get("mode", "share")
+    params, policy = body.get("params") or {}, body.get("policy", body.get("mode", "share"))
     try:
         brief = tools.load_brief(body.get("brief", tools.DEFAULT_BRIEF))
     except ValueError as e:
         raise Refused(400, str(e))
-    if mode not in ("share", "cap") or not isinstance(params, dict) or set(params) - set(brief["knobs"]) - set(brief["system"]):
-        raise Refused(400, "params must be settings of the brief and mode must be share or cap")
+    if policy not in ("share", "cap") or not isinstance(params, dict) or set(params) - set(brief["knobs"]) - set(brief["system"]):
+        raise Refused(400, "params must be settings of the brief and the scheduling policy must be share or cap")
     try:
         clean, clamps = tools.clamp(params, brief)
     except (ValueError, TypeError) as e:
@@ -148,15 +149,15 @@ def operator_run(body):
         args = [f"--{k}={v}" for k, v in tools.options(clean, brief).items()] + [f"--out={out}"]
         t0 = time.time()
         try:
-            p = subprocess.run([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": mode}, capture_output=True, text=True, timeout=tools.RUN_TIMEOUT)
+            p = subprocess.run([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy}, capture_output=True, text=True, timeout=tools.RUN_TIMEOUT)
             code, err = p.returncode, (p.stderr or p.stdout)[-800:]
         except subprocess.TimeoutExpired:
             code, err = "timeout", f"no result after {tools.RUN_TIMEOUT} s"
         seconds = round(time.time() - t0, 1)
-        (out / "command.txt").write_text(f"TWOHOSTS_SCHED={mode} two-hosts {' '.join(args)}\nexit {code}, {seconds} s\n")
+        (out / "command.txt").write_text(f"TWOHOSTS_SCHED={policy} two-hosts {' '.join(args)}\nexit {code}, {seconds} s\n")
         if code != 0 or not (out / "metrics.json").exists():
             raise Refused(500, f"the simulation failed (exit {code}): {err}")
-        rec = {"id": rid, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "brief": brief["id"], "mode": mode, "seconds": seconds, "clamped": clamps,
+        rec = {"id": rid, "ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "brief": brief["id"], "policy": policy, "seconds": seconds, "clamped": clamps,
                "params": json.loads((out / "params.json").read_text()), "metrics": json.loads((out / "metrics.json").read_text())}
         with (CHECKS / "control.jsonl").open("a") as f:
             f.write(json.dumps(rec) + "\n")
@@ -196,9 +197,9 @@ def save_brief(body):
 
 def start_session(body):
     """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal."""
-    budget, draft, mode, base = body.get("budget"), body.get("draft", "on"), body.get("mode", "share"), body.get("baseline", True)
-    if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or mode not in ("share", "cap") or type(base) is not bool:
-        raise Refused(400, "budget must be a whole number of at least 1 (or left out: the brief's limit), draft on or off, mode share or cap, baseline true or false")
+    budget, draft, policy, base = body.get("budget"), body.get("draft", "on"), body.get("policy", body.get("mode", "share")), body.get("baseline", True)
+    if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or policy not in ("share", "cap") or type(base) is not bool:
+        raise Refused(400, "budget must be a whole number of at least 1 (or left out: the brief's limit), draft on or off, policy (the scheduling policy) share or cap, baseline true or false")
     sid, brief = body.get("session"), body.get("brief")
     if sid is not None and not (isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid) and (tools.SESSIONS / sid / "session.json").is_file()):
         raise Refused(400, "session must be the id of an existing session that has a session.json (leave it out to start a new one)")
@@ -213,7 +214,7 @@ def start_session(body):
         sid = sid or tools.next_session_id()
         (CHECKS / "sessions").mkdir(parents=True, exist_ok=True)
         log = CHECKS / "sessions" / f"{sid}.log"
-        flags = {"session": sid, "brief": brief, "budget": budget, "draft": draft, "mode": mode, "baseline": "on" if base else "off"}
+        flags = {"session": sid, "brief": brief, "budget": budget, "draft": draft, "policy": policy, "baseline": "on" if base else "off"}
         cmd = LOOP + [x for k, v in flags.items() if v is not None for x in (f"--{k}", str(v))]
         with log.open("a") as f:
             f.write(" ".join(cmd) + "\n")

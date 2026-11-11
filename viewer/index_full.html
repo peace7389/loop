@@ -126,7 +126,7 @@ async function load() {
   if (!man) { $('note').textContent = 'Cannot read the harness files (is the file server running in ~/project?)'; return; }
   const own = lines(idx.text);  // this session's runs; the operator's build checks (checks/build1/) are listed after them
   const raw = { ledger: FLAT(lines(led.text)), index: [...own, ...lines(chk.text), ...mine.map(r => ({ id: r.id, params: r.params, metrics: r.metrics }))],
-                oper: [...lines(op.text).filter(r => !r.session || r.session === ses), ...mine.map(r => ({ id: r.id, mode: r.mode, seconds: r.seconds, control: true }))],
+                oper: [...lines(op.text).filter(r => !r.session || r.session === ses), ...mine.map(r => ({ id: r.id, mode: r.mode, policy: r.policy, seconds: r.seconds, control: true }))].map(o => ({ ...o, mode: o.policy || o.mode })),  // the scheduling policy; lines before 2026-11-11 call it "mode"
                 manifest: man, series, objects: (() => { try { return JSON.parse(obj.text); } catch (e) { return null; } })(),
                 // control.py knows whether a loop is running; without it: the loop writes the ledger every turn, quiet for 3 minutes = not running
                 running: all.length ? all.some(s => s.id === ses && s.running) : led.age != null && led.age < 180 };
@@ -148,7 +148,7 @@ async function load() {
 
 // ======================================================================================================
 // CONTROL: the "Control" page, present only when the page is served by harness/control.py. A form for one operator
-// simulation (the brief's knobs and the scheduler mode), a form for an AI session (loop.py's flags) and the brief
+// simulation (the brief's knobs and the scheduling policy), a form for an AI session (loop.py's flags) and the brief
 // editor (brief_editor.js), with their buttons and a status line. The page writes nothing: it calls POST /api/run, /api/session, /api/stop and /api/brief, and control.py
 // does the rest. An operator run is saved under checks/, never in runs/ or the ledger, so the AI cannot see it.
 // ======================================================================================================
@@ -179,7 +179,7 @@ const CONTROL = {
       sec(1, 'One simulation, now', 'Choose the settings and run the simulation once. This is an operator run: it is saved under checks/, it never enters the ledger, and the AI cannot see it. A value outside its range is brought back into it, and the result says so.',
         `<div class="th-wide"><div>
            <div class="ct-form">${Object.entries(P).map(([k, s]) => field(k, s)).join('')}
-             <label>Scheduler mode<small>how the scheduler splits the link · never shown to the AI</small>${pick('ct-mode', ui.mode, MODES)}</label></div>
+             <label>Scheduling policy<small>how the scheduler divides the link · never shown to the AI</small>${pick('ct-mode', ui.mode, MODES)}</label></div>
            <button class="ct-go" id="ct-run">Run once</button><button class="ct-go plain" id="ct-reset">Back to the defaults</button>
            <span class="th-sm" id="ct-eta"></span>
          </div><div class="ct-box" id="ct-result"></div></div>`) +
@@ -187,9 +187,9 @@ const CONTROL = {
         `<div class="th-wide"><div>
            <div class="ct-form">
              <label>Brief<small>brief · the assignment: task, fixed settings, knobs, goal, limits</small>${pick('ct-brief', ui.brief, ((C.st || {}).briefs || [ui.brief]).map(b => [b, b]))}</label>
-             <label>Experiments<small>budget · empty = the brief's limit · at most 150 · the AI may ask for more, up to 150 in all</small><input type="number" id="ct-budget" min="1" max="150" step="1" value="${e(ui.budget)}"></label>
+             <label>Simulations<small>budget · empty = the brief's limit · at most 150 · the AI may ask for more, up to 150 in all</small><input type="number" id="ct-budget" min="1" max="150" step="1" value="${e(ui.budget)}"></label>
              <label>Draft<small>draft · whether the AI writes a draft before each answer</small>${pick('ct-draft', ui.draft, [['on', 'on'], ['off', 'off']])}</label>
-             <label>Scheduler mode<small>mode · never shown to the AI</small>${pick('ct-smode', ui.smode, MODES)}</label>
+             <label>Scheduling policy<small>policy · never shown to the AI</small>${pick('ct-smode', ui.smode, MODES)}</label>
              <label class="check"><input type="checkbox" id="ct-baseline"${ui.baseline ? ' checked' : ''}><span>Baseline run first (E0)<small id="ct-basenote"></small></span></label></div>
            <button class="ct-go" id="ct-start">Start session</button><button class="ct-go plain" id="ct-stop">Stop session</button>
          </div><div class="ct-box" id="ct-session"></div></div>`) + '<div id="ct-editor"></div>';
@@ -201,12 +201,12 @@ const CONTROL = {
     $('ct-run').onclick = async () => {
       const params = Object.fromEntries(Object.entries(ui.params).filter(([k, v]) => String(v).trim() !== '').map(([k, v]) => [k, typeof P[k].min === 'number' ? Number(v) : String(v).trim()]));
       C.busy = 'run'; C.err.run = ''; C.paint();
-      try { C.last = await C.post('../api/run', { params, mode: ui.mode }); } catch (x) { C.err.run = x.message; }
+      try { C.last = await C.post('../api/run', { params, policy: ui.mode }); } catch (x) { C.err.run = x.message; }
       C.busy = ''; shown = ''; await load(); C.paint();
     };
     $('ct-start').onclick = async () => {
       C.busy = 'session'; C.err.session = ''; C.paint();
-      try { await C.post('../api/session', { brief: ui.brief, ...(String(ui.budget).trim() ? { budget: Number(ui.budget) } : {}), draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline }); } catch (x) { C.err.session = x.message; }
+      try { await C.post('../api/session', { brief: ui.brief, ...(String(ui.budget).trim() ? { budget: Number(ui.budget) } : {}), draft: ui.draft, policy: ui.smode, baseline: !!ui.baseline }); } catch (x) { C.err.session = x.message; }
       C.busy = ''; await load(); C.paint();
     };
     $('ct-stop').onclick = async () => {
@@ -216,7 +216,7 @@ const CONTROL = {
     };
     // 3. the brief editor (brief_editor.js): its own node, kept across redraws of this page
     if (typeof BRIEF_EDITOR !== 'undefined') BRIEF_EDITOR.mount($('ct-editor'), { get st() { return CONTROL.st; }, post: C.post, e, sec,
-      session: () => ({ draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline }), after: async () => { await load(); C.paint(); } });
+      session: () => ({ draft: ui.draft, policy: ui.smode, baseline: !!ui.baseline }), after: async () => { await load(); C.paint(); } });
     C.paint();
   },
 
@@ -224,7 +224,7 @@ const CONTROL = {
   paint() {
     const C = CONTROL, e = TASK_VIEW._e, st = C.st, raw = C.raw; if (!C.el || !C.el.isConnected || !st || !$('ct-status')) return;
     const S = st.session, on = S && S.running, n = (st.sessions || []).length, P = raw.manifest.params || {};
-    const flags = S ? `brief ${S.flags.brief || 'two-hosts-open'}, ${S.flags.budget ? S.flags.budget + ' experiments' : 'the brief’s limit of experiments'}, draft ${S.flags.draft}, ${S.flags.mode} mode` : '';
+    const flags = S ? `brief ${S.flags.brief || 'two-hosts-open'}, ${S.flags.budget ? S.flags.budget + ' simulations' : 'the brief’s limit of simulations'}, draft ${S.flags.draft}, scheduling policy ${S.flags.policy || S.flags.mode}` : '';
     const lastLine = S ? String(S.output || '').trim().split('\n').pop() : '';
     $('ct-status').className = 'ct-status' + (on || st.other_loop || st.run_busy ? ' live' : '');
     $('ct-status').innerHTML = '<i></i><span>' + (on ? `<b>An AI session is running</b> (${e(S.id)}, started ${e(S.started.slice(11, 16))}: ${e(flags)}).`
@@ -239,7 +239,7 @@ const CONTROL = {
     $('ct-result').innerHTML = '<h3>Result</h3>' + (C.busy === 'run' ? '<p class="th-muted">The simulation is running. The result appears here.</p>'
       : C.err.run ? `<p class="ct-err">${e(C.err.run)}</p>`
       : !L ? '<p class="th-muted">No simulation has been run from this page since it was opened.</p>'
-      : `<p style="font-size:18px;font-weight:700">${e(L.id)}</p><p class="th-sm">${e(L.mode)} mode · ${e(L.seconds)} s to run · saved in checks/${e(L.id)}/</p>
+      : `<p style="font-size:18px;font-weight:700">${e(L.id)}</p><p class="th-sm">scheduling policy ${e(L.policy || L.mode)} · ${e(L.seconds)} s to run · saved in checks/${e(L.id)}/</p>
          ${clamped.length ? `<p class="th-sm" style="margin-top:4px">Brought into range: ${clamped.map(([k, v]) => `${e(k)} ${e(v[0])} → <b>${e(v[1])}</b>`).join(', ')}</p>` : ''}
          <table style="margin:8px 0 12px"><tbody>${Object.entries(L.metrics).map(([k, v]) => `<tr><td class="rt-key">${e(k)}${TH_DATA.PLAIN[k] ? `<small>${e(TH_DATA.PLAIN[k])}</small>` : ''}</td><td class="num">${e(RUN_TOOLS.show(k, v))}</td></tr>`).join('')}</tbody></table>
          <button class="rt-btn" id="ct-open">Open it on the Runs page</button>`);
@@ -308,11 +308,11 @@ const RUN_TOOLS = {
     const opts = (sel, none) => (none ? `<option value="">${none}</option>` : '') + runs.slice().reverse().map(r => `<option value="${e(r.id)}"${r.id === sel ? ' selected' : ''}>${e(name(r))}</option>`).join('');
 
     // ---- 1. settings and measures of the chosen run(s), side by side; a setting that differs is shaded and marked
-    const pv = (r, k) => (k === 'scheduler mode' ? (oper[r.id] || {}).mode : (r.params || {})[k]);
-    const pkeys = [...new Set([...Object.keys(A.params || {}), ...Object.keys((B || {}).params || {}), ...(oper[A.id] || (B && oper[B.id]) ? ['scheduler mode'] : [])])];
+    const pv = (r, k) => (k === 'scheduling policy' ? (oper[r.id] || {}).mode : (r.params || {})[k]);
+    const pkeys = [...new Set([...Object.keys(A.params || {}), ...Object.keys((B || {}).params || {}), ...(oper[A.id] || (B && oper[B.id]) ? ['scheduling policy'] : [])])];
     const differs = k => B && String(pv(A, k)) !== String(pv(B, k)), nd = pkeys.filter(differs).length;
     const mkeys = [...new Set([...Object.keys(A.metrics || {}), ...Object.keys((B || {}).metrics || {})])];
-    const plain = k => TH_DATA.KNOB[k] || TH_DATA.PLAIN[k] || (k === 'scheduler mode' ? 'set by the operator, not shown to the AI' : '');
+    const plain = k => TH_DATA.KNOB[k] || TH_DATA.PLAIN[k] || (k === 'scheduling policy' ? 'set by the operator, not shown to the AI' : '');
     const table = (head, keys, val, mark) => `<table><thead><tr><th>${head}</th><th class="num">${e(A.id)}</th>${B ? `<th class="num">${e(B.id)}</th><th></th>` : ''}</tr></thead><tbody>${
       keys.map(k => `<tr class="${mark && differs(k) ? 'rt-diff' : ''}"><td class="rt-key">${e(k)}${plain(k) ? `<small>${e(plain(k))}</small>` : ''}</td><td class="num">${e(val(A, k))}</td>${
         B ? `<td class="num">${e(val(B, k))}</td><td>${mark && differs(k) ? '≠' : ''}</td>` : ''}</tr>`).join('')}</tbody></table>`;

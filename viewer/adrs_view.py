@@ -5,8 +5,9 @@ What maps to what (only where the harness recorded matching data):
   run "<session id>"     = one session (sessions/<id>/ledger.jsonl and runs/): one "iteration" per experiment the
                            model asked for. Run "loop" (old links) = the newest session
   run "operator_checks"  = the operator's sanity / share / cap simulations (checks/build1/): no AI
-  the scheduler mode of every run comes from checks/operator.jsonl (a session's lines carry its id)
-  research story         = hypothesis -> prediction -> pass rule -> experiment -> the model's own verdict
+  the scheduling policy of every run (how the scheduler divides the link) comes from checks/operator.jsonl (a session's
+  lines carry its id; lines written before 2026-11-11 call it "mode", both are read)
+  research story         = hypothesis -> prediction -> decision rule -> experiment -> the model's own verdict
   drawing (adrs_view.js) = the run's series.csv (throughput per flow, TCP window, drops per queue)
 There is NO score: the task asks the model to choose what "performance" means, and the harness records none.
 The task entry says no_score, and the page hides its score sections (best so far, score chart, compare).
@@ -62,10 +63,13 @@ def _flat(led):
         if r["type"] != "simulation":
             out.append(r)
             continue
+        if (r.get("body") or {}).get("same_as"):   # the result of an earlier simulation, returned again: that one has its row
+            continue
         x, b = by_id.get(r.get("parent")) or {"id": "?", "body": {}}, r.get("body") or {}
         run = next((q for q in x["body"].get("runs") or [] if q.get("label") == b.get("label")), {})
         hyp, xid = (x["body"].get("tests") or [None])[0], f"{x['id']}:{b.get('label')}"
-        rules = "; ".join(q["rule"] for q in x["body"].get("rules") or [] if q.get("for") == hyp) or None
+        stated = x["body"].get("decision_rules") or x["body"].get("rules") or []   # records before 2026-11-11 say "rules" / "rule"
+        rules = "; ".join(q.get("decision_rule") or q.get("rule") or "" for q in stated if q.get("for") == hyp) or None
         out.append({"id": xid, "turn": r["turn"], "type": "experiment", "parent": hyp, "ts": x.get("ts"), "body": {"params": run.get("params") or {}, "clamped": run.get("clamped") or {}, "pass_if": rules}})
         out.append({"id": r["id"], "turn": r["turn"], "type": "evidence", "parent": xid, "ts": r.get("ts"),
                     "body": {"run_id": b.get("run_id"), "pass_if": rules, **(b.get("metrics") or {}), **({"error": b["error"]} if b.get("error") else {}),
@@ -185,34 +189,39 @@ def _params_text(p):
     return ", ".join(f"{k} {v}" for k, v in (p or {}).items()) or "defaults"
 
 
-COLUMNS = ["Run", "UDP weight", "UDP offered", "Mode", "UDP Mbps", "TCP Mbps", "Link use", "UDP loss", "Drops UDP q", "Drops TCP q"]
+COLUMNS = ["Run", "UDP weight", "UDP offered", "Scheduling policy", "UDP Mbps", "TCP Mbps", "Link use", "UDP loss", "Drops UDP q", "Drops TCP q"]
 
 
-def _row(rid, params, m, mode):
+def _policy(op):
+    """The scheduling policy in an operator's line (written as "mode" before 2026-11-11)."""
+    return (op or {}).get("policy") or (op or {}).get("mode")
+
+
+def _row(rid, params, m, policy):
     m = m or {}
     w = (params or {}).get("weightUdp", m.get("weight_udp"))
     num = lambda v: f"{v / 1e6:,.1f}" if isinstance(v, (int, float)) else "–"
     cnt = lambda v: f"{int(v):,}" if isinstance(v, (int, float)) else "–"
     return {"Run": rid, "UDP weight": "–" if w is None else f"{w:g}", "UDP offered": (params or {}).get("udpRate") or "–",
-            "Mode": mode or "–", "UDP Mbps": num(m.get("udp_goodput_bps")), "TCP Mbps": num(m.get("tcp_goodput_bps")),
+            "Scheduling policy": policy or "–", "UDP Mbps": num(m.get("udp_goodput_bps")), "TCP Mbps": num(m.get("tcp_goodput_bps")),
             "Link use": _pct(m.get("link_util")), "UDP loss": _pct(m.get("udp_loss_frac")),
             "Drops UDP q": cnt(m.get("drops_band0")), "Drops TCP q": cnt(m.get("drops_band1"))}
 
 
-def _program(i, rid, ts, params, m, error, mode, base, **extra):
+def _program(i, rid, ts, params, m, error, policy, base, **extra):
     good = bool(m) and not error
     metrics = {"validity": 1 if good else 0, **(m or {})}
     if error:
         metrics["error"] = error
     sol = None
     if good:
-        sol = {"run_id": rid, "params": params or {}, "metrics": m, "series": _series(base, rid), "mode": mode}
+        sol = {"run_id": rid, "params": params or {}, "metrics": m, "series": _series(base, rid), "policy": policy}
     p = {"id": f"x{i:03d}", "iteration": i, "timestamp": ts, "parent_id": None, "generation": 0, "metrics": metrics,
          "changes": f"run {rid}: {_params_text(params)}", "node_id": None, "island": None, "migrant": False,
          "reasoning": None, "notebook_entry": None, "lesson": None, "fail_kind": None if good else "simulation failed",
          "lookups": [], "cull_copy_of": None, "island_epoch": None, "copy_of": None, "solution": sol, "code": "",
          "no_program": True, "eval_review": None, "failure": None, "error_text": error, "answer_cut_off": False,
-         "headline": "measured" if good else "failed", "headline_cls": "", "facts": [], "row": _row(rid, params, m, mode)}
+         "headline": "measured" if good else "failed", "headline_cls": "", "facts": [], "row": _row(rid, params, m, policy)}
     p.update(extra)
     return p
 
@@ -265,7 +274,7 @@ def _loop_main(sid):
         if eb.get("note"):   # E0: the harness's own baseline run before turn 1
             facts.append(["What this is", eb["note"]])
         else:
-            facts.append(["Pass rule (written before the run)", xb.get("pass_if") or eb.get("pass_if") or "–"])
+            facts.append(["Decision rule (stated before the simulations)", xb.get("pass_if") or eb.get("pass_if") or "–"])
         if xb.get("clamped"):
             facts.append(["Clamped to the allowed range", ", ".join(f"{k}: asked {a} → used {b}" for k, (a, b) in xb["clamped"].items())])
         facts.append([f"Measured (run {rid})", eb.get("error") or _measured(m)])
@@ -276,7 +285,7 @@ def _loop_main(sid):
         else:
             facts.append(["Verdict", "none: a baseline has no hypothesis to judge" if eb.get("note") else "none: the loop stopped before the model judged this hypothesis"])
         tb = (q["think"] or {}).get("body") or {}
-        p = _program(i, rid, _epoch(e.get("ts")), params, m if "udp_goodput_bps" in m else None, eb.get("error"), op.get("mode"), D["base"],
+        p = _program(i, rid, _epoch(e.get("ts")), params, m if "udp_goodput_bps" in m else None, eb.get("error"), _policy(op), D["base"],
                      reasoning=tb.get("text") or tb.get("reasoning") or None,
                      headline=result or ("baseline" if eb.get("note") else "not judged"), headline_cls=result or "pending", facts=facts,
                      changes=f"{h.get('id', 'no hypothesis')} · turn {e['turn']} · run {rid}: {_params_text(xb.get('params') or params)}")
@@ -298,7 +307,7 @@ def _loop_main(sid):
     setup = {"model": model, "thinking": bool(scratch), "thinking_budget": None,
              "thinking_note": ("<b>on</b> · each answer may use up to 8,000 tokens, thinking included" if scratch
                                else "<b>off</b> (no reasoning recorded)"),
-             "feedback": False, "feedback_note": "none: the model judges its own hypotheses against the pass rule it wrote before the run",
+             "feedback": False, "feedback_note": "none: the model judges its own hypotheses against the decision rule it stated before the simulations",
              "search": False, "evaluator": "ns-3.49 simulation of the two-hosts scenario; the harness writes the evidence, never the model",
              "islands": None, "migration_interval": None, "migration_rate": None, "island_fix": None, "island_isolation": None,
              "cull_hours": None, "notebook": False, "history": False, "backend": "vllm", "old_server": False, "max_code": None,
@@ -319,7 +328,7 @@ def _research(led, exps):
         n += 1
         e, x, h, v = q["e"], q["x"], q["h"], q["v"]
         eb, xb, hb, vb = e.get("body") or {}, x.get("body") or {}, h.get("body") or {}, (v or {}).get("body") or {}
-        rows = ([] if eb.get("note") else [["Pass rule", xb.get("pass_if") or "–"]]) + [["Measured", eb.get("error") or _measured(eb)]]
+        rows = ([] if eb.get("note") else [["Decision rule (stated before the simulations)", xb.get("pass_if") or "–"]]) + [["Measured", eb.get("error") or _measured(eb)]]
         if v:
             rows.append([f"Why ({v['id']}, turn {v['turn']})", vb.get("because") or "–"])
             if vb.get("next"):
@@ -328,7 +337,7 @@ def _research(led, exps):
         ideas.append({"id": h.get("id") or x.get("id") or e.get("id"), "kind": f"turn {e['turn']}", "title": "",
                       "hypothesis": hb.get("text") or eb.get("note") or "(experiment without a new hypothesis)", "prediction": hb.get("prediction"),
                       "verdict": vb.get("result"),
-                      "verdict_title": "the model's own verdict, read against its pass rule; not computed by code",
+                      "verdict_title": "the model's own verdict, read against its decision rule; not computed by code",
                       "pending_text": "BASELINE" if eb.get("note") else "NO VERDICT (LOOP STOPPED)", "rows": rows,
                       "experiments": [{"id": n, "valid": "error" not in eb,
                                        "label": f"#{n} · run {eb.get('run_id')} · UDP weight {w if w is not None else eb.get('weight_udp', '?')}",
@@ -347,7 +356,7 @@ def _research(led, exps):
     first, last_ = (led[0].get("ts") or "").replace("T", " ")[:16], (led[-1].get("ts") or "").replace("T", " ")[:16]
     judged = sum(1 for i in ideas if i["verdict"])
     return {"sub": "Each turn the model reads the whole ledger and either states a hypothesis with a prediction and an experiment "
-                   "(with a pass rule written before the run), or gives a verdict on an earlier hypothesis. The harness runs the "
+                   "(with a decision rule stated before the simulations), or gives a verdict on an earlier hypothesis. The harness runs the "
                    "experiment and writes the evidence. The verdicts are the model's own reading. Click an experiment to open it.",
             "exp_label": "Experiment", "notes_title": "Turns without a hypothesis",
             "notes_sub": "Every other turn in the ledger: tool requests, and answers the harness could not use.",
@@ -390,9 +399,9 @@ def _checks_main():
         ts = _mtime(os.path.join(BUILD1, rid, "metrics.json")) or None
         m = idx.get("metrics") or {}
         stage = f"build stage {op['stage']}" if op.get("stage") is not None else "harness test"
-        p = _program(i, rid, ts, idx.get("params"), m, None, op.get("mode"), BUILD1,
+        p = _program(i, rid, ts, idx.get("params"), m, None, _policy(op), BUILD1,
                      facts=[["What this is", f"An operator check ({stage}), not an AI experiment."],
-                            ["Scheduler mode", op.get("mode") or "–"],
+                            ["Scheduling policy", _policy(op) or "–"],
                             ["Settings", ", ".join(f"{KNOB.get(k, k)} {_knob_value(k, v)}" for k, v in (idx.get("params") or {}).items() if k in KNOB) or "all defaults"],
                             [f"Measured (run {rid})", _measured(m)]])
         if isinstance(op.get("seconds"), (int, float)):
@@ -410,7 +419,7 @@ def _checks_main():
              "migration_interval": None, "migration_rate": None, "island_fix": None, "island_isolation": None,
              "cull_hours": None, "notebook": False, "history": False, "backend": "cpu", "old_server": False, "max_code": None,
              "changes": [], "hardware_note": "CPU only: each run is one ns-3 simulation",
-             "references": "Simulations the operator ran while building the harness (both scheduler modes). No score."}
+             "references": "Simulations the operator ran while building the harness (both scheduling policies). No score."}
     return {"status": status, "programs": programs, "times": times, "limits": {"llm": 0, "eval": 600}, "failures": [],
             "failure_breakdown": [], "feedback": {}, "thinking": {}, "review": False, "reviewer": None, "summaries": False,
             "setup": setup, "gpus": [], "exchanges": [], "memory": {}, "page": _raw()}
@@ -447,7 +456,7 @@ def task_entry():
         "zoom_min": 0.0, "artifact": "run", "solution_label": "simulation run",
         "task_html": _intro_svg() + f'<div><p class="lead">{_esc(task)}</p>'
                      "<ul><li>The AI cannot see inside the system. It works through a ledger: hypothesis → prediction → "
-                     "experiment with a pass rule written first → evidence from the simulator → verdict.</li>"
+                     "experiment with a decision rule stated first → evidence from the simulator → verdict.</li>"
                      "<li><b>No score:</b> the AI must say what 'performance' means, so this page shows measurements and "
                      "verdicts, not a best-so-far.</li></ul></div>",
         "invalid_note": "The simulation did not return measurements.",

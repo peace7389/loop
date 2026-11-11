@@ -652,6 +652,31 @@ below, and 7.5 where they differ.
 - The prompt shows one line per record; drafts and simulation records are not
   replayed (the evidence record has the line of each simulation); a hypothesis
   line carries its current state; a malformed line carries the reason only.
+- **Naming and three additions (operator, 2026-11-11).** (1) A rule is called a
+  **decision rule** everywhere; the answer format has `decision_rules` with
+  `decision_rule` (`harness/decision_rules.py`), the viewers label it "decision
+  rule (stated before the simulations)", and records written before the change
+  (`rules`, `rule`, in `s002` and `s003`) are still read. How the scheduler
+  divides the link (share or cap) is called the **scheduling policy**:
+  `loop.py --policy` (`--mode` still accepted), `tools.POLICY`, `"policy"` in
+  `checks/operator.jsonl`, `control.jsonl`, `/api/sessions` and the POST bodies
+  (older lines and callers saying `mode` are read). The text above and below
+  that says "mode" means the scheduling policy; the scheduler's own source in
+  the ns-3 scenario was not touched. (2) Every entry of `decision_rules` also
+  has `rival` (a competing explanation of how the system behaves) and
+  `rival_predicts` (`held` or `failed`: what the decision rule would give if the
+  rival were true). `loop.validate` refuses `rival_predicts: "held"` with "this
+  decision rule would hold under the rival too; choose simulations where the
+  two explanations give different results". Both fields are copied into the
+  check record. (3) A requested simulation with the same settings and seed as
+  an earlier one of the session (compared on every program option, rates by
+  value) is not run again: its simulation record carries the earlier result and
+  `same_as` (the earlier simulation's id), a `note` record names the earlier
+  simulation, the evidence line says so, and it is not counted against the
+  budget; the same holds for two identical simulations inside one experiment.
+  (4) Both briefs: "part of the link" in the meaning of `weightUdp`, and the
+  description says that the scheduler's behaviour when a queue has less to send
+  than its part allows is not described and is part of the work.
 - **Stage 4 (2026-11-11): the final report.** `report` is required when the
   model sets `done`, and in one last turn that the harness gives after the
   budget is used up (no experiment is accepted there, `budget_request` is

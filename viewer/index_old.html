@@ -21,7 +21,7 @@ details summary{cursor:pointer;color:var(--mut)}
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
 </style></head><body>
 <header><h1>AI hypothesis loop over ns-3 · two hosts, one link</h1>
-<p id="sub">Reads one session (?session=ID, default s001): ../sessions/ID/ledger.jsonl and runs/index.json, and ../checks/operator.jsonl, every 5 s. Nothing here writes. The model never sees the operator's mode.</p></header>
+<p id="sub">Reads one session (?session=ID, default s001): ../sessions/ID/ledger.jsonl and runs/index.json, and ../checks/operator.jsonl, every 5 s. Nothing here writes. The model never sees the scheduling policy.</p></header>
 <main>
 <section><h2>Reasoning trail</h2><div id="trail" class="muted">no ledger yet</div></section>
 <section><h2>Run detail <span id="runid" class="muted"></span></h2>
@@ -37,7 +37,7 @@ const SES=new URLSearchParams(location.search).get('session')||'s001', BASE=`../
 async function text(u){const r=await fetch(u+'?t='+Date.now());return r.ok?await r.text():null}
 async function load(){
   const l=await text(BASE+'ledger.jsonl'); ledger=l?l.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
-  const o=await text('../checks/operator.jsonl'); oper={}; (o||'').split('\n').filter(Boolean).forEach(x=>{try{const j=JSON.parse(x);if(j.session===SES)oper[j.id]=j}catch(e){}});
+  const o=await text('../checks/operator.jsonl'); oper={}; (o||'').split('\n').filter(Boolean).forEach(x=>{try{const j=JSON.parse(x);if(j.session===SES)oper[j.id]={...j,mode:j.policy||j.mode}}catch(e){}});
   const r=await text(BASE+'runs/index.json'); runs=r?r.split('\n').filter(Boolean).map(x=>{try{return JSON.parse(x)}catch(e){return null}}).filter(Boolean):[];
   if(!sel&&runs.length)sel=runs[runs.length-1].id;
   trail();runTable();scatter();if(sel)detail(sel);
@@ -50,7 +50,7 @@ function trail(){
   $('trail').innerHTML=ledger.map(r=>{
     const b=r.body||{};let c=colr[r.type]||'--line',txt='';
     if(r.type==='verdict'){c=b.result==='supported'?'--ok':b.result==='refuted'?'--bad':'--mid';txt=`<b>${b.result}</b> for ${b.for}: ${esc(b.because||'')} <span class="muted">next:</span> ${esc(b.next||'')}`}
-    else if(r.type==='experiment')txt=`${esc(JSON.stringify(b.params||{}))} <span class="muted">pass if</span> ${esc(b.pass_if||'')}`;
+    else if(r.type==='experiment')txt=`${esc(JSON.stringify(b.params||{}))} <span class="muted">decision rule:</span> ${esc(b.pass_if||'')}`;
     else if(r.type==='evidence')txt=`run <b>${esc(b.run_id||'')}</b> ${esc(Object.entries(b).filter(([k])=>!['run_id','pass_if'].includes(k)).map(([k,v])=>k+'='+fmt(v,k)).join(' · '))}`;
     else if(r.type==='hypothesis')txt=esc(b.text||b.hypothesis||JSON.stringify(b))+(b.prediction?` <span class="muted">predicts</span> ${esc(b.prediction)}`:'');
     else if(r.type==='draft'||r.type==='scratch')txt=`<details><summary>model draft, ${(b.text||b.reasoning||'').length} chars${b.finish_reason?' · '+esc(b.finish_reason):''}</summary><pre>${esc(b.text||b.reasoning||'')}</pre></details>`;
@@ -61,14 +61,14 @@ function trail(){
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function runTable(){
   const keys=['udp_goodput_bps','tcp_goodput_bps','link_util','udp_loss_frac','drops_band0','drops_band1'];
-  $('runs').innerHTML=`<tr><th>run</th><th>weight</th><th>udpRate</th><th>mode</th>${keys.map(k=>`<th>${k.replace('_goodput_bps','').replace('_frac','')}</th>`).join('')}</tr>`+
+  $('runs').innerHTML=`<tr><th>run</th><th>weight</th><th>udpRate</th><th>scheduling policy</th>${keys.map(k=>`<th>${k.replace('_goodput_bps','').replace('_frac','')}</th>`).join('')}</tr>`+
     runs.slice().reverse().map(r=>`<tr class="run${r.id===sel?' on':''}" data-id="${esc(r.id)}"><td>${esc(r.id)}</td><td>${fmt(r.params.weightUdp??r.metrics.weight_udp)}</td><td>${esc(r.params.udpRate??'')}</td><td>${esc((oper[r.id]||{}).mode??'')}</td>${keys.map(k=>`<td>${fmt(r.metrics[k],k)}</td>`).join('')}</tr>`).join('');
   $('runs').querySelectorAll('tr.run').forEach(t=>t.onclick=()=>{sel=t.dataset.id;detail(sel);runTable()});
 }
 function chart(id,cfg){if(charts[id])charts[id].destroy();Chart.defaults.color=css('--fg');Chart.defaults.borderColor=css('--line');charts[id]=new Chart($(id),cfg)}
 async function detail(id){
   const r=runs.find(x=>x.id===id);if(!r)return;$('runid').textContent='· '+id;
-  $('params').innerHTML=Object.entries(r.params).map(([k,v])=>`<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')+(oper[r.id]?`<tr><td class="muted">mode (operator)</td><td>${esc(oper[r.id].mode)}</td></tr>`:'');
+  $('params').innerHTML=Object.entries(r.params).map(([k,v])=>`<tr><td>${k}</td><td>${esc(v)}</td></tr>`).join('')+(oper[r.id]?`<tr><td class="muted">scheduling policy (operator)</td><td>${esc(oper[r.id].mode)}</td></tr>`:'');
   $('metrics').innerHTML=Object.entries(r.metrics).map(([k,v])=>`<tr><td>${k}</td><td>${fmt(v,k)}</td></tr>`).join('');
   const csv=await text(`${BASE}runs/${id}/series.csv`);if(!csv)return;
   const rows=csv.trim().split('\n').slice(1).map(l=>l.split(',').map(Number));

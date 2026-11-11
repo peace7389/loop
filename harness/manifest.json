@@ -17,6 +17,6 @@
     "grep_trace": "grep_trace(run_id, pattern, limit): lines of the run's flow-monitor XML matching a regular expression (at most 50)",
     "list_runs": "list_runs(): id, params and metrics of every simulation of this session so far"
   },
-  "how_to_run": "An experiment is a set of simulations with one purpose, run at once. Fill the 'experiment' field of your answer: its kind (test or explore), the simulations (runs: a label and the params that differ from the defaults), and for a test the rules, comparisons written before the simulations run. The harness runs the simulations, appends the evidence (one line per simulation) and checks every rule itself.",
+  "how_to_run": "An experiment is a set of simulations with one purpose, run at once. Fill the 'experiment' field of your answer: its kind (test or explore), the simulations (runs: a label and the params that differ from the defaults), and for a test the decision rules, comparisons stated before the simulations run. The harness runs the simulations, appends the evidence (one line per simulation) and checks every decision rule itself.",
   "budget": "the budget counts simulations; the number left is stated in each turn"
 }

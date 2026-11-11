@@ -13,7 +13,8 @@ MANIFEST = json.loads((HARNESS / "manifest.json").read_text())  # the same for e
 OPTIONS = ("linkRate", "linkDelay", "mtu", "udpRate", "tcpVariant", "queuePkts", "duration", "seed", "weightUdp")  # program options a brief sets
 KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed")  # those the answer format (schema.json) lets the model set; the others can only be fixed
 DEFAULT_BRIEF = "two-hosts-open"
-MODE = "share"          # operator's choice, set by loop.py; goes to the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
+POLICY = "share"        # the scheduling policy (how the scheduler divides the link: share or cap): the operator's choice, set by loop.py. It goes to
+                        # the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
 RUN_TIMEOUT = 600
 BIN = NS3 / "build/scratch/two-hosts/ns3.49-two-hosts-optimized"  # the built program, started directly (several at once)
 
@@ -149,6 +150,10 @@ def options(clean, brief=None):
     b = brief or BRIEF
     return {**{k: v for k, v in b["system"].items() if k in OPTIONS}, **{k: s["default"] for k, s in b["knobs"].items()}, **clean}
 
+def same(opts):
+    """The settings and the seed of a simulation in a form that is equal exactly when the simulation would be the same."""
+    return tuple((k, _rate_bps(opts[k]) if k in ("linkRate", "udpRate") else float(opts[k]) if type(opts[k]) in (int, float) else str(opts[k])) for k in OPTIONS)
+
 def run_many(param_sets):
     """Several simulations at once, each in its own runs/<id>/ of the session: clamp, start the built program for all
     of them, wait, parse the metrics, append to the session's runs/index.json in order. One result per set, in order."""
@@ -161,7 +166,7 @@ def run_many(param_sets):
         out = RUNS / rid
         out.mkdir()
         args = [f"--{k}={v}" for k, v in options(clean).items()] + [f"--out={out}"]
-        proc = subprocess.Popen([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": MODE}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        proc = subprocess.Popen([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         jobs.append((rid, clean, clamps, out, time.time(), proc))
     for rid, clean, clamps, out, t0, proc in jobs:
         try:

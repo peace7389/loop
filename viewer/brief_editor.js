@@ -149,7 +149,7 @@ const BRIEF_EDITOR = {
     $('be-state').textContent = taken ? `A brief named ${id} already exists; choose another id.`
       : !same ? `The form differs from ${s.baseId || 'every saved brief'}: save it under a new id, then a session can start with it.`
       : running ? `The form is the saved brief ${s.baseId}. A session is running, so another cannot start.`
-      : `The form is the saved brief ${s.baseId}. A session started here uses the draft, scheduler mode and baseline chosen in section 2, and this brief's limit of simulations.`;
+      : `The form is the saved brief ${s.baseId}. A session started here uses the draft, scheduling policy and baseline chosen in section 2, and this brief's limit of simulations.`;
     $('be-msg').innerHTML = s.msg ? `<div class="be-msg ${s.msg.bad ? 'bad' : 'ok'}">${s.msg.lines.length > 1 ? `${e(s.msg.lines[0])}<ul>${s.msg.lines.slice(1).map(l => `<li>${e(l)}</li>`).join('')}</ul>` : e(s.msg.lines[0])}</div>` : '';
     const fixed = Object.fromEntries(B.SETTINGS.filter(({ k }) => s.set[k].fixed).map(({ k }) => [k, s.set[k].value.trim()])); fixed.udpPacketBytes = '1400';
     $('be-read').innerHTML = e(s.description).replace(/\{(\w+)\}/g, (m, k) => (k in fixed ? `<mark>${e(fixed[k])}</mark>` : `<mark class="bad" title="not a fixed setting of this brief">${m}</mark>`)) || '<span class="th-muted">empty</span>';
