@@ -1,0 +1,81 @@
+{
+ "goal": "Maximize aggregate delivered payload goodput, defined as udp_goodput_bps + tcp_goodput_bps over the measured window, while keeping the link saturated (link_util near 1). This metric values total useful payload delivered by both applications; it does not require fairness, low UDP loss, low latency, or a minimum TCP share.",
+ "recommendation": {
+  "weightUdp": 0.95,
+  "udpRate": "2Gbps",
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 2
+ },
+ "expected": {
+  "udp_goodput_bps": 930072640,
+  "tcp_goodput_bps": 48199866,
+  "udp_loss_frac": 0.534964,
+  "drops_band0": 955292,
+  "drops_band1": 8,
+  "tcp_retrans": 8,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.95
+ },
+ "explanation": "The scheduler is work-conserving: when UDP does not use its configured share, TCP uses the unused capacity (C1, E1, C24, E10). When UDP demand exceeds its configured share, as at the default udpRate=2Gbps or at 3Gbps, the link remains fully utilized and aggregate payload goodput increases monotonically with weightUdp up to the allowed maximum 0.95 (E1, C2, E2, C3, E7, C16, E10, C23). The reason is that shifting configured service from TCP to UDP slightly increases delivered payload per transmitted bit: UDP has no acknowledgement overhead, while TCP consumes capacity for acknowledgements and occasional retransmissions. In the default sweep, each 0.05 increase in UDP share increased aggregate payload goodput by roughly 0.75 Mbps, and weightUdp=0.95 gave the largest total tested, about 978.27 Mbps. The ranking is robust to seed (E7, C16), queue size (E2, C4), and TcpBbr versus TcpCubic (E2, C5). At low UDP demand, weightUdp=0.95 still gives high aggregate goodput because TCP fills the unused UDP share (E10, C24). I recommend the default queuePkts=100 and TcpCubic because they give the measured maximum aggregate goodput with very small TCP drops; queuePkts=1000 can eliminate TCP drops with less than 0.05% aggregate-goodput cost, but it is not needed for the chosen metric.",
+ "holds_when": "The UDP application offers at least about its configured UDP share, TCP is always backlogged, the link is the bottleneck, and performance is measured as total delivered payload bits per second. The tested robustness covers seeds 2 through 5, queuePkts from 4 to 1000, TcpCubic and TcpBbr, and udpRate values 100Mbps, 2Gbps, and 3Gbps.",
+ "breaks_when": "If performance instead means fairness, minimum TCP throughput, low UDP loss, low latency, or low jitter, a lower weightUdp can be better; for example weightUdp=0.5 gives roughly 490Mbps to each application, while weightUdp=0.95 gives TCP only about 48Mbps. If UDP demand is far below the configured UDP share, the ratio has little effect on aggregate goodput because the scheduler is work-conserving, but it changes which application receives the configured share. If TCP payload efficiency changes substantially with a different congestion-control variant, header overhead, or traffic mix, the small monotone aggregate-goodput advantage of UDP share could shrink or reverse.",
+ "claims": [
+  {
+   "text": "The scheduler is work-conserving: unused UDP share is used by TCP.",
+   "evidence": [
+    "C1",
+    "E1",
+    "C24",
+    "E10"
+   ]
+  },
+  {
+   "text": "At default udpRate=2Gbps, aggregate payload goodput is monotone increasing in weightUdp and highest at the allowed maximum weightUdp=0.95.",
+   "evidence": [
+    "E1",
+    "C2",
+    "E2",
+    "C3"
+   ]
+  },
+  {
+   "text": "The aggregate-goodput advantage of weightUdp=0.95 over weightUdp=0.90 is robust to random seed when weightUdp is explicitly varied.",
+   "evidence": [
+    "E7",
+    "C16"
+   ]
+  },
+  {
+   "text": "The ratio ranking for aggregate payload goodput is robust to queue size and to TcpBbr versus TcpCubic.",
+   "evidence": [
+    "E2",
+    "C4",
+    "C5"
+   ]
+  },
+  {
+   "text": "At udpRate=3Gbps, explicit variation of weightUdp still shows weightUdp=0.95 above weightUdp=0.90 for aggregate payload goodput.",
+   "evidence": [
+    "E10",
+    "C23"
+   ]
+  },
+  {
+   "text": "At udpRate=100Mbps, explicit weightUdp=0.95 does not cap TCP; aggregate goodput remains high because TCP uses the unused UDP share.",
+   "evidence": [
+    "E10",
+    "C24"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Latency, RTT, jitter, and queueing delay were not measured; a high UDP weight and large queues could be poor if those are part of performance.",
+  "Fairness or application-specific utility was not measured; weightUdp=0.95 starves TCP to about 48Mbps under the default saturated UDP load.",
+  "The optimum outside the allowed range was not tested; if weightUdp could exceed 0.95, aggregate goodput might continue to rise or might eventually fall when TCP becomes too small.",
+  "Only TcpCubic and TcpBbr were tested for robustness; other TCP variants could change the small aggregate-goodput slope.",
+  "Behavior for UDP offered loads between 100Mbps and 2Gbps, especially near the configured UDP share, was not fully mapped."
+ ]
+}

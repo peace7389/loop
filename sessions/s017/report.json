@@ -1,0 +1,75 @@
+{
+ "goal": "Chosen performance metric: maximize the smaller delivered payload flow, min(udp_goodput_bps, tcp_goodput_bps), i.e. balanced max-min throughput, with aggregate goodput/link utilization as a secondary tie-breaker. This is evaluated for the default oversubscribed UDP demand (udpRate=2Gbps, and more generally any UDP demand above about 486 Mbps) with TCP backlogged.",
+ "recommendation": {
+  "weightUdp": 0.497
+ },
+ "expected": {
+  "udp_goodput_bps": 485916480,
+  "tcp_goodput_bps": 485563053,
+  "udp_loss_frac": 0.757041,
+  "drops_band0": 1351859,
+  "drops_band1": 72,
+  "tcp_retrans": 72,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.497
+ },
+ "explanation": "The scheduler behaves as a strict, non-work-conserving fixed-share shaper. When TCP is backlogged, TCP payload is about (1-weightUdp)*965.333 Mbps, and UDP payload is about min(udpRate, weightUdp*980.392 Mbps - 1.34 Mbps). Unused UDP share is not absorbed by TCP; it is wasted. Therefore aggregate payload goodput has a kink at the UDP demand rate: below the kink, aggregate rises slowly with weightUdp (about 15 Mbps per unit weight); above the kink, aggregate falls steeply because extra UDP share is wasted. If UDP demand is very high (default 2Gbps or 3Gbps), aggregate goodput is maximized at weightUdp=0.95, but the gain over weightUdp=0.50 is only about 6.75 Mbps and TCP collapses to about 48 Mbps. That makes aggregate goodput a poor performance definition because it hides severe starvation of one flow. The balanced max-min optimum instead equalizes the two delivered payload flows. Measurements show the balance point is weightUdp=0.497: at seed=1 it gave UDP 485.916 Mbps and TCP 485.563 Mbps, and at seed=7 it gave UDP 485.918 Mbps and TCP 485.562 Mbps. This is better than the default weightUdp=0.50, where the smaller flow is TCP at 482.667 Mbps. The link remains saturated. queuePkts is not a primary lever for goodput or UDP loss; larger queues mainly reduce TCP queue drops and retransmissions, so queuePkts=1000 is a reasonable reliability-oriented secondary setting, but the ratio recommendation is weightUdp=0.497.",
+ "holds_when": "UDP offered rate is high enough that UDP is the limiting flow at the balance point, roughly udpRate >= 486 Mbps (certainly true for the default 2Gbps and for 3Gbps); TCP is continuously backlogged; TCP congestion control achieves its configured share, as Cubic and NewReno did; queue size is not so small that TCP drops dominate; and performance is defined as balanced delivered payload rather than aggregate goodput or UDP loss alone.",
+ "breaks_when": "If performance is defined as aggregate payload goodput or UDP loss minimization under oversubscribed UDP, weightUdp=0.95 is better. If udpRate is below the balance point, the max-min optimum is not unique and the aggregate/link-utilization optimum moves to the kink weightUdp approximately (udpRate + 1.34 Mbps)/980.392 Mbps, clamped to [0.05,0.95]. If TCP underfills its share, for example with TcpBbr in the tested configuration, the balance shifts and weightUdp=0.497 may no longer be optimal. If latency or queueing delay is part of performance, large queuePkts or high UDP share may be undesirable.",
+ "claims": [
+  {
+   "text": "The scheduler is non-work-conserving: with TCP backlogged, TCP payload is fixed at about (1-weightUdp)*965.333 Mbps, UDP payload is about min(udpRate, weightUdp*980.392 Mbps - 1.34 Mbps), and unused UDP share is not transmitted.",
+   "evidence": [
+    "C40",
+    "C41",
+    "C42",
+    "E12",
+    "C45",
+    "C46",
+    "E13"
+   ]
+  },
+  {
+   "text": "Aggregate payload goodput has a kink-shaped optimum at the UDP demand rate; when UDP demand exceeds the maximum UDP payload share, aggregate goodput increases with weightUdp and is maximized at 0.95, but the gain over 0.50 is small and TCP is starved.",
+   "evidence": [
+    "C41",
+    "C43",
+    "C45",
+    "C46",
+    "C47",
+    "E12",
+    "E13"
+   ]
+  },
+  {
+   "text": "For balanced delivered payload under oversubscribed UDP demand, weightUdp=0.497 is the measured max-min optimum and is seed-independent; it gives min(UDP,TCP) about 485.56 Mbps, versus 482.67 Mbps at weightUdp=0.50.",
+   "evidence": [
+    "C48",
+    "C49",
+    "E14",
+    "E15"
+   ]
+  },
+  {
+   "text": "queuePkts mainly affects TCP queue drops and retransmissions, not steady goodput or UDP loss; at the default weight, queuePkts=1000 removed TCP drops/retransmissions relative to queuePkts=4.",
+   "evidence": [
+    "E2"
+   ]
+  },
+  {
+   "text": "TCP congestion control can matter: Cubic and NewReno achieved the fixed TCP share, while BBR underfilled it at weightUdp=0.50.",
+   "evidence": [
+    "C6",
+    "E2"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact continuous max-min optimum between weightUdp=0.496 and 0.498 was not isolated; 0.497 is the best tested value and matches the inferred deficit model.",
+  "The mechanism of the about 1.34 Mbps UDP payload deficit below weightUdp*980.392 Mbps was not directly identified.",
+  "The max-min optimum for udpRate below about 486 Mbps was not directly tested; it is expected to be a range or to move to the kink if aggregate goodput is used as a tie-breaker.",
+  "The recommended weight was not tested with TcpBbr or other TCP variants that may underfill their configured share.",
+  "queuePkts=1000 at weightUdp=0.497 was not directly measured, and latency/queueing-delay effects were not measured."
+ ]
+}

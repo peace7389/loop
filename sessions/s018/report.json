@@ -1,0 +1,78 @@
+{
+ "goal": "Maximize balanced delivered payload throughput, defined as max-min performance: maximize min(udp_goodput_bps, tcp_goodput_bps) over the measured window, under the default overloaded UDP load (udpRate=2Gbps), default queuePkts=100, TcpCubic, and default duration=10.",
+ "recommendation": {
+  "weightUdp": 0.497
+ },
+ "expected": {
+  "udp_goodput_bps": 485916480,
+  "tcp_goodput_bps": 485563053,
+  "udp_loss_frac": 0.757041,
+  "drops_band0": 1351859,
+  "drops_band1": 72,
+  "tcp_retrans": 72,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.497
+ },
+ "explanation": "The scheduler is strict weighted and non-work-conserving: TCP receives approximately (1-weightUdp) of the link payload capacity even when UDP cannot use its configured share (E1, C1, V1). When both queues are backlogged, UDP and TCP payload goodput are approximately linear in weightUdp and 1-weightUdp (E2, C2, V2). UDP payload per configured share is slightly larger than TCP payload per configured share, so the two goodput curves cross slightly below 0.50. At weightUdp=0.497, UDP goodput is 485.916Mbps and TCP goodput is 485.563Mbps, giving min=485.563Mbps. This is better than weightUdp=0.50, where min=482.667Mbps, and better than nearby 0.496 and 0.498 in the default 10-second runs (E4, E5, C8, C10, V8, V10). It is also robust across seeds 1, 2, and 3 (E5, C11, V11). Aggregate payload goodput is nearly flat across the whole weight range and is maximized at weightUdp=0.95, but that gives UDP 930Mbps and TCP only 48Mbps, so aggregate goodput alone is a weak and unbalanced performance criterion (E2, C3, C5, V3, V5). The chosen max-min criterion gives both flows nearly equal delivered payload while keeping link_util at 1.0.",
+ "holds_when": "UDP is offered at or above the UDP share, so UDP is backlogged (for example the default udpRate=2Gbps or higher); TCP always has data and can fill its configured share (default TcpCubic with the given buffers); packet sizes and MTU remain as specified; queuePkts is large enough that scheduler drops do not dominate TCP throughput; and performance is judged by balanced delivered payload goodput rather than by aggregate goodput or UDP loss alone.",
+ "breaks_when": "If performance is defined as aggregate payload goodput, the best tested ratio is weightUdp=0.95 (E2, C3, V3). If UDP offered load is below its configured share, the strict scheduler wastes unused UDP capacity and the best ratio depends on the chosen metric and offered load (E1, C1, V1). If a TCP variant cannot fill its configured share, or if queuePkts is very small and TCP loss/retransmission becomes significant, the max-min optimum may shift. If UDP loss fraction or TCP retransmissions are weighted heavily instead of balanced goodput, a different ratio may be preferred.",
+ "claims": [
+  {
+   "text": "The scheduler is non-work-conserving: TCP is capped by 1-weightUdp even when UDP offers much less than its configured share.",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "When both flows are backlogged, UDP and TCP payload goodput scale approximately proportionally to weightUdp and 1-weightUdp.",
+   "evidence": [
+    "E1",
+    "E2",
+    "C2",
+    "V2"
+   ]
+  },
+  {
+   "text": "Aggregate payload goodput is nearly flat across weightUdp and is maximized at weightUdp=0.95, but that heavily starves TCP.",
+   "evidence": [
+    "E2",
+    "C3",
+    "C5",
+    "V3",
+    "V5"
+   ]
+  },
+  {
+   "text": "For balanced max-min delivered payload goodput, the optimum is at weightUdp=0.497 for the default overloaded UDP condition, duration=10, and seeds 1, 2, and 3.",
+   "evidence": [
+    "E4",
+    "E5",
+    "C4",
+    "C8",
+    "C9",
+    "C10",
+    "C11",
+    "V4",
+    "V8",
+    "V9",
+    "V10",
+    "V11"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.497, the expected default-window outputs are UDP goodput 485916480bps, TCP goodput 485563053bps, UDP loss fraction 0.757041, drops_band0 1351859, drops_band1 72, tcp_retrans 72, and link_util 1.0.",
+   "evidence": [
+    "E5"
+   ]
+  }
+ ],
+ "open_questions": [
+  "How the optimal weightUdp changes for TCP variants that may not fill their configured share, such as TcpVegas or TcpBbr, was not tested.",
+  "How very small queuePkts values affect the optimum through TCP loss and retransmission was not tested.",
+  "For udpRate below the UDP configured share, the best ratio depends on the performance metric because the strict scheduler wastes unused UDP capacity; this was not optimized.",
+  "If performance includes latency, jitter, or UDP loss fraction directly, the best ratio may differ from the max-min goodput optimum."
+ ]
+}
