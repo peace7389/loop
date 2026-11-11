@@ -1,38 +1,7 @@
-// The top of a session's page: the introduction, the structure map with this session's counts, the turn loop, the
-// legend of who produced what, the report's claims as chips, the replay controls and the review progress; then the
-// layout that holds the three flow charts and what opens beside them.
+// The drawings of "How to read this page": the structure map with this session's counts, the turn loop, the legend of
+// who produced what; and the box and arrow pieces every SVG diagram of the page is built from.
 // ======================================================================================================
 Object.assign(EV, {
-  sessionTab() {
-    const M = EV.M, S = EV.s, e = EV.e, c = M.counts, rep = M.report;
-    const held = M.checks.filter(q => q.result === 'held').length, rules = M.checks.length;
-    const rec = rep ? Object.entries(rep.recommendation || {}).map(([k, v]) => `${k} ${v}`).join(', ') : null;
-    const intro = !S.intro ? '' : `<div class="ev-card ev-intro"><p>A person wrote an assignment (the ${EV.term('Brief')}${M.brief ? ' “' + e(M.brief.id) + '”' : ''}). The AI made one attempt, in ${c.turn} ${EV.term('Turn', c.turn === 1 ? 'turn' : 'turns')}.
-      Each turn it stated what it expected, ran ${EV.term('Simulation', 'simulations')}, and the harness checked whether it was right: ${rules ? `${held} of ${rules} ${EV.term('Decision rule', 'decision rules')} held` : 'the checks were ' + EV.nr}.
-      ${rep ? `It ended with this recommendation: ${e(rec)}.` : M.ended ? 'It ended without a final report.' : 'It is still running.'}</p><button data-act="intro">dismiss</button></div>`;
-    const claims = !M.claims.length ? `<p class="sm">${rep ? 'The report states no claims.' : 'No final report, so no claims: ' + EV.nr + '.'}</p>` : `<div class="chips">${M.claims.map(q => {
-        const n = (q.evidence || []).filter(id => (EV.marks['rec:' + id] || {}).tick).length;
-        return `<button class="chip ${q.state}${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" title="${e(q.text)}"><b>claim ${q.n}</b>${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'} · ${
-          { held: 'checks held', failed: 'a check failed', none: 'no evidence cited', unchecked: 'evidence without a check' }[q.state]} · ${n} of ${q.evidence.length} reviewed</button>`; }).join('')}</div>
-      <p class="sm">${M.claims.length} claims · ${M.claims.filter(q => q.state === 'held').length} backed by held checks · ${M.claims.filter(q => q.state === 'failed').length} backed by a failed check ·
-        <span class="${M.claims.some(q => q.state === 'none') ? 'warnc' : ''}">${M.claims.filter(q => q.state === 'none').length} with no evidence</span>${M.claims.some(q => q.state === 'unchecked') ? ` · ${M.claims.filter(q => q.state === 'unchecked').length} citing evidence that has no check` : ''}
-        ${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
-    const n = M.steps.length, k = S.step == null ? n - 1 : S.step, ticked = M.steps.filter(q => (EV.marks['step:' + q.k] || {}).tick).length;
-    const replay = `<span><b>Replay</b> <button data-act="replay" data-id="first">« first</button> <button data-act="replay" data-id="prev">◀ previous</button>
-      <button data-act="replay" data-id="next">next ▶</button> <button data-act="replay" data-id="last">last »</button>
-      <span class="sm">step ${k + 1} of ${n}${S.step == null ? '' : ': everything recorded later is greyed'} · arrow keys also work</span></span>
-      <span class="end">reviewed ${ticked} of ${n} steps <span class="prog"><i style="width:${n ? 100 * ticked / n : 0}%"></i></span></span>`;
-    return `${EV.banner()}${intro}<div class="ev-top"><div class="ev-card"><h2>How a session is built<small>this session's counts; click a box to go to that part</small></h2>${EV.structureMap()}</div>
-        <div class="ev-card"><h2>Who produced it</h2>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
-      <div class="ev-card" id="p-claims"><h2>${EV.term('Final report', 'Final report')}: its claims<small>click one to mark its evidence in both charts and open its test</small></h2>${claims}</div>
-      <div class="ev-card ev-bar" style="margin-bottom:12px">${replay}</div>
-      <div class="ev-main"><div><div class="ev-card"><h2>Session flow<small>time runs down; click a box to open it on the right</small></h2><div class="ev-scroll ev-lanes">${EV.viewLanes()}</div></div>
-          ${EV.sections()}</div>
-        <div class="ev-side"><div class="ev-card"><h2>Hypothesis map<small>left to right by the turn each was stated</small> <button data-act="path" class="${S.path ? 'on' : ''}">show the path to the answer</button></h2>
-            ${EV.viewMap()}</div>
-          <div class="ev-card" id="p-detail">${EV.detail()}</div></div></div>`;
-  },
-
   // A box of an SVG diagram: a rectangle with the producer's stripe on its left edge and HTML text inside
   box(x, y, w, h, by, html, attrs, cls) {
     return `<g ${attrs || ''} data-by="${by}"><rect class="bx ${cls || ''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/><rect class="stripe" x="${x}" y="${y}" width="4" height="${h}" rx="2"/>
@@ -54,16 +23,16 @@ Object.assign(EV, {
       .map(([i, y, j, z]) => a(...r(i, y), ...l(j, z))).join('') + `<path class="edge" d="M${col(2) + W / 2},${Y.top} C${col(2) + W / 2},-30 ${col(6) + W / 2},-30 ${col(6) + W / 2},${Y.mid - 2}" marker-end="url(#ev-ah)" stroke-dasharray="3 3"/>
         <path class="edge" d="M${col(2) + W},${Y.top + H / 2} C${col(3) - 20},${Y.top + H / 2} ${col(3) + W / 2},${Y.top + 20} ${col(3) + W / 2},${Y.mid - 2}" marker-end="url(#ev-ah)" stroke-dasharray="3 3"/>`;
     return `<svg viewBox="0 -34 ${col(6) + W + 8} ${Y.bot + H + 40}" width="100%" role="img" aria-label="How a session is built, with this session's counts">${EV.arrowDefs()}${edges}
-      ${node(col(0), Y.mid, 'Brief', 'brief', M.brief ? 1 : 0, 'operator', EV_ICON.brief, 's-brief', M.brief ? '' : EV.nr)}
-      ${node(col(1), Y.mid, 'Session', 'session', 1, 'harness', '▢', 's-summary', `${c.turn} ${c.turn === 1 ? 'turn' : 'turns'}`)}
-      ${node(col(2), Y.top, 'Hypothesis', 'hypotheses', c.hypothesis, 'model', EV_ICON.hypothesis, 's-hyps', c.drop ? `${c.drop} dropped` : '')}
-      ${node(col(2), Y.mid, 'Experiment', 'experiments', c.experiment, 'model', EV_ICON.experiment, 's-tests', base ? `incl. ${base} baseline` : '')}
-      ${node(col(2), Y.bot, 'Final report', 'final report', c.report, 'model', EV_ICON.report, 's-report', '')}
+      ${node(col(0), Y.mid, 'Brief', 'brief', M.brief ? 1 : 0, 'operator', EV_ICON.brief, 's-work||brief', M.brief ? '' : EV.nr)}
+      ${node(col(1), Y.mid, 'Session', 'session', 1, 'harness', '▢', 's-overview', `${c.turn} ${c.turn === 1 ? 'turn' : 'turns'}`)}
+      ${node(col(2), Y.top, 'Hypothesis', 'hypotheses', c.hypothesis, 'model', EV_ICON.hypothesis, 's-work|map', c.drop ? `${c.drop} dropped` : '')}
+      ${node(col(2), Y.mid, 'Experiment', 'experiments', c.experiment, 'model', EV_ICON.experiment, 's-work|tree', base ? `incl. ${base} baseline` : '')}
+      ${node(col(2), Y.bot, 'Final report', 'final report', c.report, 'model', EV_ICON.report, 's-overview', '')}
       ${node(col(3), Y.mid, 'Test', 'tests', c.test, 'model', EV_ICON.test, 's-tests', 'one hypothesis, one rule')}
       ${node(col(4), Y.top, 'Decision rule', 'decision rules', c.rule, 'model', '⊢', 's-tests', '')}
-      ${node(col(4), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-tests', reused ? `${reused} returned from earlier` : '')}
+      ${node(col(4), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-best', reused ? `${reused} returned from earlier` : '')}
       ${node(col(5), Y.mid, 'Check', 'checks', c.check, 'harness', EV_ICON.check, 's-tests', M.old ? EV.nr : `${M.checks.filter(q => q.result === 'held').length} held`)}
-      ${node(col(6), Y.mid, 'Verdict', 'verdicts', c.verdict, 'model', EV_ICON.verdict, 's-hyps', '')}
+      ${node(col(6), Y.mid, 'Verdict', 'verdicts', c.verdict, 'model', EV_ICON.verdict, 's-work|map', '')}
       <text x="${(col(2) + col(6) + W) / 2}" y="-24" text-anchor="middle">a verdict judges a hypothesis</text></svg>`;
   },
 

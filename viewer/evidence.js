@@ -6,7 +6,7 @@
 // ======================================================================================================
 const EV = {
   s: { view: 'home', sid: null, brief: null, sel: null, step: null, claim: null, path: false, collapsed: {}, intro: true, heat: ['weightUdp', 'queuePkts'], wide: {}, xchart: null,
-       op: false, home: { sort: 'started', dir: -1, filter: '' } },   // op: the "operator columns" switch
+       left: 'tree', tree: {}, how: false, more: false, zoom: false, op: false, home: { sort: 'started', dir: -1, filter: '' } },   // op: the "operator columns" switch
   M: null, st: null, files: {}, marks: {}, charts: {}, sig: '',
   e: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   term: (name, text) => `<abbr title="${EV.e(EV_DEF[name] || '')}">${EV.e(text || name.toLowerCase())}</abbr>`,
@@ -31,14 +31,15 @@ const EV = {
   address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : ''}`; },
   go(o) {  // to another view or session; the browser's Back returns
     const S = EV.s, other = 'sid' in o && o.sid !== S.sid; Object.assign(S, o);
-    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; }
+    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; }
     history.pushState(null, '', EV.address()); EV.sig = ''; return EV.load();
   },
 
   async start() {
-    EV.s.op = EV.store('ev-op') === '1'; EV.route();
+    EV.s.op = EV.store('ev-op') === '1'; EV.s.how = EV.store('ev-read') !== '1'; EV.store('ev-read', '1'); EV.route();  // "How to read this page": open on the first visit only
     const root = document.getElementById('ev');
     root.addEventListener('click', EV.click); root.addEventListener('change', EV.change); root.addEventListener('input', EV.input);
+    root.addEventListener('toggle', ev => { if (ev.target.id === 's-how') EV.s.how = ev.target.open; }, true);
     window.addEventListener('popstate', () => { EV.route(); EV.sig = ''; EV.load(); });
     document.addEventListener('keydown', ev => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || EV.s.view !== 'session' || !EV.M) return;
       if (ev.key === 'ArrowRight') { EV.replay('next'); ev.preventDefault(); } else if (ev.key === 'ArrowLeft') { EV.replay('prev'); ev.preventDefault(); } });
@@ -80,6 +81,7 @@ const EV = {
     if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
     const body = S.view === 'home' ? EV.homeView() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
     document.getElementById('ev').innerHTML = bar + body + '<div id="ev-print"></div>';
+    const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
     if (S.view === 'session') { EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'home') EV.afterHome();
     if (window.scrollY !== y) window.scrollTo(0, y);
   },
@@ -92,7 +94,7 @@ const EV = {
     if (a === 'sort') { const h = S.home; h.dir = h.sort === id ? -h.dir : 1; h.sort = id; return EV.draw(); }
     if (a === 'open') { S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id, test: t.dataset.test || undefined };  // test: the test a simulation was opened from
       return S.view !== 'session' ? EV.go({ view: 'session' }) : EV.draw(); }  // from the heat map: to the session's page
-    if (a === 'step') { const k = Number(id), o = EV.M.steps[k].open; S.sel = { ...o, id: o.t === 'log' ? o.turn : o.id, k }; return EV.draw(); }
+    if (a === 'step') { const o = EV.M.steps[Number(id)].open; S.sel = { t: o.t, id: o.t === 'log' ? o.turn : o.t === 'brief' ? 'brief' : o.t === 'report' ? 'report' : o.id }; return EV.draw(); }
     if (a === 'replay') return EV.replay(id);
     if (a === 'claim') { S.claim = S.claim === Number(id) ? null : Number(id); const c = EV.M.claims[Number(id) - 1]; if (S.claim && c && (c.tests[0] || c.exps[0])) S.sel = c.tests[0] ? { t: 'test', id: c.tests[0] } : { t: 'exp', id: c.exps[0] }; return EV.draw(); }
     if (a === 'wide') { S.wide[id] = !S.wide[id]; return EV.draw(); }      // a test's chart over all the simulations of its experiment
@@ -101,7 +103,8 @@ const EV = {
     if (a === 'fold') { S.collapsed[id] = !S.collapsed[id]; return EV.draw(); }
     if (a === 'intro') { S.intro = false; return EV.draw(); }
     if (a === 'print') return EV.printSheet(Number(id));
-    if (a === 'goto') { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: 'start' }); return; }
+    if (a === 'goto') { const [to, left, open] = id.split('|'); if (left) S.left = left; if (open) S.sel = { t: open, id: open }; if (left || open) EV.draw();  // a box of the structure map: to that part of the page
+      const el = document.getElementById(to); if (el) el.scrollIntoView({ block: 'start' }); return; }
     if (a === 'export') return EV.exportChart(id, t.dataset.x);
     if (EV.act && EV.act[a]) return EV.act[a](id, t);  // the actions the other files add
   },

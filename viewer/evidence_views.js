@@ -7,6 +7,7 @@ Object.assign(EV, {
   // ---- View 1: one box per step in the lane of whoever did it, joined in time order; a band marks each turn
   viewLanes() {
     const M = EV.M, S = EV.s, e = EV.e, L = EV.LANES, W = 564, out = [], arrows = [];
+    const info = EV.selInfo(), selSteps = new Set([...info.recs].map(id => M.recStep[id]).filter(k => k != null));  // the boxes that hold a part of the selected item
     const hit = new Set(); if (S.claim) { const c = M.claims[S.claim - 1]; (c ? c.evidence : []).forEach(id => { if (id in M.recStep) hit.add(M.recStep[id]); }); }
     const icon = { start: EV_ICON.brief, answer: '✎', refused: EV_ICON.malformed, accepted: EV_ICON.experiment, sims: EV_ICON.simulation, checks: EV_ICON.check, report: EV_ICON.report };
     let y = 30, prev = null;
@@ -23,9 +24,9 @@ Object.assign(EV, {
         const [x, w] = L[s.lane], cpl = Math.floor((w - 16) / 6.6), text = (icon[s.kind] || '') + ' ' + s.label, short = text.length > 190 ? text.slice(0, 186) + '…' : text;
         const tl = Math.max(1, Math.ceil(short.length / cpl) + (short.match(/;/g) || []).length * 0.4), per = Math.floor((w - 14) / 10), sims = s.sims || [];
         const th = Math.round(10 + 15 * tl), h = th + (sims.length ? Math.ceil(sims.length / per) * 10 + 6 : 0);
-        const cls = [s.warn ? 'warn' : '', S.sel && S.sel.k === s.k ? 'sel' : '', hit.has(s.k) ? 'hit' : ''].join(' ');
+        const cls = [s.warn ? 'warn' : '', selSteps.has(s.k) || (info.turn === s.turn && s.kind === 'answer') ? 'sel' : '', hit.has(s.k) ? 'hit' : ''].join(' ');
         const dots = sims.map((q, i) => { const cx = x + 10 + (i % per) * 10, cy = y + th + 4 + Math.floor(i / per) * 10;
-          return `<g data-act="open" data-t="sim" data-id="${e(q.id)}"><circle cx="${cx}" cy="${cy}" r="6" fill="transparent"/><circle cx="${cx}" cy="${cy}" r="3.6" class="${q.same_as ? '' : 'stripe'}" style="${q.same_as ? 'fill:none;stroke:var(--by-simulator);stroke-width:1.4' : ''}${q.error ? ';stroke:var(--critical);stroke-width:2' : ''}"/>
+          return `<g data-act="open" data-t="sim" data-id="${e(q.id)}"><circle cx="${cx}" cy="${cy}" r="6" fill="transparent"/>${info.sims.has(q.id) ? `<circle cx="${cx}" cy="${cy}" r="5.6" fill="none" stroke="var(--text-primary)" stroke-width="1.6"/>` : ''}<circle cx="${cx}" cy="${cy}" r="3.6" class="${q.same_as ? '' : 'stripe'}" style="${q.same_as ? 'fill:none;stroke:var(--by-simulator);stroke-width:1.4' : ''}${q.error ? ';stroke:var(--critical);stroke-width:2' : ''}"/>
             <title>${e(`${q.id} · ${q.label || ''} · run ${q.run || 'not recorded'}${q.same_as ? ` · returned from ${q.same_as}, not run again` : ''}${q.error ? ' · no measurements: ' + q.error : ''}`)}</title></g>`; }).join('');
         out.push(`<g data-step="${s.k}">${EV.box(x, y, w, h, s.lane, e(short), `data-act="step" data-id="${s.k}"`, cls).replace('</g>', `<title>${e(text)}</title></g>`)}${dots}</g>`);
         if (prev) arrows.push(`<path class="edge" data-step="${s.k}" d="M${prev.cx},${prev.y2} C${prev.cx},${(prev.y2 + y) / 2} ${x + w / 2},${(prev.y2 + y) / 2} ${x + w / 2},${y - 2}" marker-end="url(#ev-ah)"/>`);
@@ -49,7 +50,7 @@ Object.assign(EV, {
     return Object.values(out);
   },
   viewMap() {
-    const M = EV.M, S = EV.s, e = EV.e;
+    const M = EV.M, S = EV.s, e = EV.e, info = EV.selInfo();
     if (!M.hyps.length) return `<p class="sm">No hypothesis ${M.ended ? 'was stated in this session.' : 'has been stated yet.'}</p>`;
     const NW = 132, NH = 50, GX = 124, GY = 16, cols = [...new Set(M.hyps.map(h => h.turn))].sort((a, b) => a - b), pos = { brief: { x: 6, y: 8 } };
     cols.forEach((t, i) => M.hyps.filter(h => h.turn === t).forEach((h, j) => { pos[h.id] = { x: 6 + (i + 1) * (NW + GX), y: 8 + j * (NH + GY) }; }));
@@ -68,9 +69,9 @@ Object.assign(EV, {
         <text x="${lx}" y="${ly - 3}" text-anchor="middle" style="font-size:10px;paint-order:stroke;stroke:var(--surface-1);stroke-width:3px">${e(short)}</text><title>${e(x.to + ' follows from ' + x.ids.join(', ') + ' (' + lab + ')')}</title></g>`; }).join('');
     const brief = EV.box(6, 8, NW, NH, 'operator', `${EV_ICON.brief} <b>${EV.term('Brief', 'brief')}</b><br><small>and the baseline the harness ran</small>`, 'data-act="open" data-t="brief" data-id="brief"', onPath.has('brief') ? 'hit' : '');
     const nodes = M.hyps.map(h => { const p = pos[h.id], s = st ? st[h.id] || 'open' : h.state, short = h.text.length > 54 ? h.text.slice(0, 52) + '…' : h.text;
-      const cls = `${EV.stCls(s)}${S.sel && S.sel.t === 'hyp' && S.sel.id === h.id ? ' sel' : ''}${claimH.has(h.id) || onPath.has(h.id) ? ' hit' : ''}`;
+      const cls = `${EV.stCls(s)}${info.hyps.has(h.id) ? ' sel' : ''}${claimH.has(h.id) || onPath.has(h.id) ? ' hit' : ''}`, T = h.tests.filter(q => EV.seen(M.testById[q].exp)).pop();  // a node opens the test of its hypothesis
       return `<g data-step="${M.recStep[h.id] ?? 0}">${ringed.has(h.id) ? `<rect class="ring" x="${p.x - 4}" y="${p.y - 4}" width="${NW + 8}" height="${NH + 8}" rx="9"/>` : ''}
-        ${EV.box(p.x, p.y, NW, NH, 'model', `${EV_ICON.hypothesis} <b>${h.id}</b> · ${e(s)}<br><small>${e(short)}</small>`, `data-act="open" data-t="hyp" data-id="${h.id}"`, cls).replace('</g>', `<title>${e(h.id + ': ' + h.text)}</title></g>`)}</g>`; }).join('');
+        ${EV.box(p.x, p.y, NW, NH, 'model', `${EV_ICON.hypothesis} <b>${h.id}</b> · ${e(s)}<br><small>${e(short)}</small>`, T ? `data-act="open" data-t="test" data-id="${e(T)}"` : `data-act="open" data-t="hyp" data-id="${h.id}"`, cls).replace('</g>', `<title>${e(h.id + ': ' + h.text)}</title></g>`)}</g>`; }).join('');
     const heads = cols.map((t, i) => `<text x="${6 + (i + 1) * (NW + GX)}" y="${H + 4}">${EV_ICON.turn} turn ${t}</text>`).join('');
     return `<div class="ev-scroll ev-map"><svg width="${W}" height="${H + 10}" role="img" aria-label="Hypothesis map">${EV.arrowDefs()}${svgE}${brief}${nodes}${heads}</svg></div>
       <p class="sm">${EV.STATES.map(s => `<span style="white-space:nowrap;margin-right:10px"><svg width="12" height="12" style="display:inline;vertical-align:-1px"><rect class="bx ${EV.stCls(s)}" x="1" y="1" width="10" height="10" rx="3"/></svg> ${s}</span>`).join('')}

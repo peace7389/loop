@@ -5,7 +5,9 @@
      step, who did each step, why the model said it took it, and what the simulations showed. Served by harness/control.py.
      evidence_data.js reads a session's files (never its drafts); evidence.js decides the view from the address, loads,
      handles clicks, the replay and the review marks; evidence_home.js is Home (no session selected); evidence_run.js the New session
-     panel and the banner of a running session; evidence_oprun.js the operator's own simulation and sweep; evidence_top.js the top of the page (introduction, structure map, turn loop, legend, claims);
+     panel and the banner of a running session; evidence_oprun.js the operator's own simulation and sweep; evidence_page.js a session's page (header strip, overview, the work, how to read); evidence_high.js
+     the highlights; evidence_best.js the best-so-far chart; evidence_tree.js the tree; evidence_top.js the drawings of
+     "how to read" (structure map, turn loop, legend);
      evidence_views.js View 1 (session flow) and View 2 (hypothesis map); evidence_flow.js View 3 (one test) and
      the chart; evidence_cards.js the trail, the work-log card, the brief; evidence_test.js a test and a hypothesis;
      evidence_panels.js the experiment panel and a simulation's result panel; evidence_more.js the sections below (brief,
@@ -34,10 +36,18 @@
 .ev h3 { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 12px 0 4px; } .ev h3:first-child { margin-top: 0; }
 .ev-intro { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; } .ev-intro p { flex: 1; max-width: 980px; }
 .ev-top { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; }
-.ev-main { display: grid; grid-template-columns: minmax(450px, 0.85fr) minmax(0, 1.15fr); gap: 12px; align-items: start; }
+.ev-main { display: grid; grid-template-columns: minmax(450px, 0.9fr) minmax(0, 1.1fr); gap: 12px; align-items: start; }
 @media (max-width: 1100px) { .ev-main, .ev-top { grid-template-columns: 1fr; } }
 .ev-scroll { overflow: auto; } .ev-lanes { max-height: 1100px; } .ev-map { max-height: 300px; }
-.ev-side { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; } .ev-side .ev-card { margin-bottom: 8px; }
+.ev-side { position: sticky; top: calc(var(--head-h, 44px) + 8px); max-height: calc(100vh - var(--head-h, 44px) - 16px); overflow: auto; } .ev-side .ev-card { margin-bottom: 8px; }
+.ev-head { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 7px 14px; margin-bottom: 10px; font-size: 13px; box-shadow: 0 2px 8px rgb(0 0 0 / .07); }
+.ev .ov { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; } .ev .ov > div > span:first-child { display: block; font-size: 11.5px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; } .ev .ov > h3, .ev .ov > .chips, .ev .ov > p { grid-column: 1 / -1; margin: 0; }
+.ev .clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; } .ev .ev-intro { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--grid); }
+.ev ol.hl { margin: 0; padding-left: 22px; } .ev ol.hl li { margin: 6px 0; } .ev ol.hl a { text-decoration: none; } .ev ol.hl a:hover { text-decoration: underline; } .ev ol.hl li.warn::marker { color: var(--warning); font-weight: 700; } .ev ol.hl li.on { background: color-mix(in srgb, var(--series-1) 12%, transparent); }
+.ev .tree { font-size: 13px; max-height: 780px; overflow: auto; } .ev .tr { display: flex; gap: 4px; align-items: baseline; padding: 3px 6px; border-radius: 6px; } .ev .tr:hover { background: var(--surface-0); }
+.ev .tr.sel { background: color-mix(in srgb, var(--series-1) 13%, transparent); box-shadow: inset 0 0 0 1.5px var(--series-1); } .ev .tr.warn .tl { color: var(--warning); }
+.ev .tw { width: 14px; flex: none; color: var(--text-muted); text-decoration: none !important; } .ev .tl { flex: 1; min-width: 0; text-decoration: none !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ev .ts { flex: none; font-size: 12px; white-space: nowrap; }
+.ev div.tr.later { visibility: visible; background: var(--grid); } .ev .tr.later > * { visibility: hidden; } .ev details.ev-card > summary { font-size: 15px; }
 .ev .later .bt, .ev text.later, .ev .later text, .ev .later title, .ev div.later, .ev tr.later, .ev p.later, .ev li.later, .ev span.later { visibility: hidden; }
 .ev tr.grp td { background: var(--surface-0); color: var(--text-secondary); font-size: 12.5px; font-weight: 600; padding: 4px 8px; }
 .ev svg { display: block; } .ev svg text { font: 11px system-ui, sans-serif; fill: var(--text-secondary); }
@@ -80,7 +90,7 @@
 <div class="ev" id="ev"><div class="ev-card">Loading the session list…</div></div>
 <script>
 const css = n => getComputedStyle(document.getElementById('ev')).getPropertyValue(n).trim();  // also used by adrs_view.js
-['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
+['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_page.js', 'evidence_high.js', 'evidence_best.js', 'evidence_tree.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
   const s = document.createElement('script'); s.src = name + '?t=' + Date.now(); s.onload = ok; s.onerror = () => no(name); document.head.appendChild(s); })), Promise.resolve())
   .then(() => EV.start()).catch(name => { document.getElementById('ev').innerHTML = '<div class="ev-card">Cannot load ' + name + '.</div>'; });
 </script>

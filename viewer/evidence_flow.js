@@ -8,8 +8,8 @@ Object.assign(EV, {
   contradicts(v, cs) { if (!v || !cs.length) return false; const all = cs.every(c => c.result === 'held'); return (v.result === 'supported' && !all) || (v.result === 'refuted' && all); },
   // the hypotheses that followed a test: those that name its check, its verdict or its simulations in what they follow
   // from; if none does, those that name the table of the experiment it was run in
-  followers(T) {
-    const M = EV.M, x = M.expById[T.exp], own = new Set([...(T.check ? [T.check.id] : []), ...(T.verdict ? [T.verdict.id] : []), ...T.sims.map(s => s.id)]);
+  followers(T, M = EV.M) {
+    const x = M.expById[T.exp], own = new Set([...(T.check ? [T.check.id] : []), ...(T.verdict ? [T.verdict.id] : []), ...T.sims.map(s => s.id)]);
     const cites = set => M.hyps.filter(q => q.id !== T.hyp && (q.follows || []).some(f => set.has(f))).map(q => q.id), direct = cites(own);
     return direct.length ? { ids: direct, via: '' } : { ids: cites(new Set([x.id, ...(x.evidence ? [x.evidence.id] : [])])), via: x.evidence ? x.evidence.id : x.id };
   },

@@ -39,23 +39,25 @@ Object.assign(EV, {
 
   detail() {
     const S = EV.s, M = EV.M, sel = S.sel, e = EV.e;
-    if (!sel || sel.t === 'session') return `${sel ? EV.trail(sel) : ''}<h2>${EV.term('Session', 'Session')} ${e(M.id)}<small>click any box of the session flow or the hypothesis map to open it here</small></h2>${EV.summaryKV()}`;
+    if (!sel || sel.t === 'session') return `${sel ? EV.trail(sel) : ''}<h2>${EV.term('Session', 'Session')} ${e(M.id)}<small>click any item on the left to open it here</small></h2>${EV.summaryKV()}`;
     const k = EV.stepOf(sel);
     if (S.step != null && k != null && k > S.step) return `<p class="sm">The item opened here was recorded after step ${S.step + 1}; while the replay is at that step it is not shown.</p>`;
     const body = sel.t === 'log' ? EV.logCard(sel.id) : sel.t === 'hyp' ? EV.hypCard(sel.id) : sel.t === 'test' ? EV.testPanel(sel.id) : sel.t === 'exp' ? EV.expPanel(sel.id) : sel.t === 'sim' ? EV.simPanel(sel.id)
       : sel.t === 'brief' ? EV.briefCard() : sel.t === 'report' ? EV.reportBody() : '<p class="sm">Nothing to open.</p>';
-    return EV.trail(sel) + body + EV.reviewBox(sel.k != null ? 'step:' + sel.k : `${sel.t}:${sel.id}`);
+    return EV.trail(sel) + body + EV.reviewBox(`${sel.t}:${sel.id}`);
   },
 
   // ---- the model's numbers against the measurements of the same experiment (TH_DATA.numbers, shared with the run page)
-  numCheck(text, sims) {
-    const M = EV.M, mine = sims.filter(s => s.metrics), ids = new Set(mine.map(s => s.id)); if (!text || !mine.length) return '';
+  numRows(M, text, sims) {  // each number of a text that names or equals a measurement: agrees, differs, or belongs to another experiment
+    const mine = sims.filter(s => s.metrics), ids = new Set(mine.map(s => s.id)); if (!text || !mine.length) return [];
     const others = Object.fromEntries(mine.concat(M.sims.filter(s => s.metrics && !ids.has(s.id))).map(s => [s.id, s.metrics]));
     const show = (k, v) => (typeof v !== 'number' ? '–' : /_bps$/.test(k) || k === 'total' ? (v / 1e6).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) + ' Mbps' : /_frac$|_util$/.test(k) ? String(v) : v.toLocaleString('en-US'));
     const val = (mm, k) => (k === 'total' ? mm.udp_goodput_bps + mm.tcp_goodput_bps : mm[k]);  // the measurement shown is the one of the simulation it matched
-    const rows = TH_DATA.numbers(text, mine[0].metrics, others).map(q => ({ ...q, where: q.status === 'agrees' ? mine[0].id : q.other, status: q.status === 'other' ? (ids.has(q.other) ? 'agrees' : 'other') : q.status }))
+    return TH_DATA.numbers(text, mine[0].metrics, others).map(q => ({ ...q, where: q.status === 'agrees' ? mine[0].id : q.other, status: q.status === 'other' ? (ids.has(q.other) ? 'agrees' : 'other') : q.status }))
       .map(q => (q.status !== 'differs' && q.where && others[q.where] ? { ...q, measured: show(q.key, val(others[q.where], q.key)) } : q));
-    if (!rows.length) return ''; const off = rows.filter(q => q.status === 'differs').length, e = EV.e;
+  },
+  numCheck(text, sims) {
+    const rows = EV.numRows(EV.M, text, sims); if (!rows.length) return ''; const off = rows.filter(q => q.status === 'differs').length, e = EV.e;
     return `<details${off ? ' open' : ''}><summary>${off ? `<span class="bad">✕ ${off} of ${rows.length}</span> numbers differ from the measurements` : `<span class="ok">✓</span> ${rows.length} number${rows.length === 1 ? '' : 's'} agree with the measurements`}</summary>
       <table><thead><tr><th data-by="model">it wrote</th><th>measure</th><th class="num" data-by="simulator">measured</th><th></th></tr></thead><tbody>${rows.map(q => `<tr><td>${e(q.written)}</td><td>${e(q.what)}</td><td class="num">${e(q.measured)}</td>
         <td>${q.status === 'agrees' ? `<span class="ok">✓</span> ${EV.link(q.where)}` : q.status === 'other' ? `from another experiment: ${EV.link(q.where)}` : '<span class="bad">✕ differs</span>'}</td></tr>`).join('')}</tbody></table></details>`;

@@ -1,6 +1,5 @@
-// The sections below the flow charts (stage 6 of RESTRUCTURE_PLAN.md): 1 brief, 2 session summary, 3 hypotheses,
-// 4 tests (grouped under their experiments), 5 final report with each claim's evidence; and the printable evidence sheet of one claim.
-// Everything a click opens appears in the panel on the right, which stays in view.
+// The session's summary, the tests list (one row per test, grouped under its experiment), the final report in full
+// with each claim's evidence, and the printable evidence sheet of one claim.
 // ======================================================================================================
 Object.assign(EV, {
   summaryKV() {
@@ -17,11 +16,8 @@ Object.assign(EV, {
       <p class="sm" style="margin-top:6px">${EV.term('Hypothesis', 'hypotheses')} by state: ${EV.STATES.filter(s => st[s]).map(s => `${st[s]} ${s}`).join(' · ') || 'none'} · ${EV.term('Experiment', 'experiments')} by kind: ${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(' · ') || 'none'}</p>`;
   },
 
-  sections() {
-    const M = EV.M, e = EV.e, left = new Set((M.meta && M.meta.left_open) || []);
-    const hyps = M.hyps.map(h => `<div class="hc" data-act="open" data-t="hyp" data-id="${h.id}"><svg width="12" height="12" style="display:inline;vertical-align:-1px"><rect class="bx ${EV.stCls(h.state)}" x="1" y="1" width="10" height="10" rx="3"/></svg>
-        <b>${EV_ICON.hypothesis} ${h.id}</b> · ${e(h.state)}${left.has(h.id) || h.state === 'ended without a verdict' ? ' <span class="warnc">left open at the end</span>' : ''}<br><span class="sm">${e(h.text.length > 220 ? h.text.slice(0, 218) + '…' : h.text)}</span>
-        <br><span class="sm">${h.tests.length ? 'tested in ' + h.exps.join(', ') : 'not put to a test'} · ${h.verdict ? `verdict ${h.verdict.id} (turn ${h.verdict.turn}): ${e(h.verdict.result)}` : h.drop ? 'dropped' : 'no verdict'}</span></div>`).join('');
+  testsCard() {
+    const M = EV.M, e = EV.e;
     // the main list: one row per test, grouped under a light heading per experiment; an exploration is a heading with its question
     const list = M.exps.map(x => { const ts = M.tests.filter(T => T.exp === x.id), n = x.sims.length;
       const head = `<tr class="grp pick" data-act="open" data-t="exp" data-id="${x.id}"><td colspan="4">${EV_ICON.experiment} experiment ${x.id} · ${x.turn ? 'turn ' + x.turn : 'before the first turn'} · ${n} simulation${n === 1 ? '' : 's'} · ${
@@ -30,12 +26,8 @@ Object.assign(EV, {
         return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b> <span class="sm">${e(txt.length > 90 ? txt.slice(0, 88) + '…' : txt)}</span></td><td class="sm">${e(EV.compared(T))}</td>
           <td>${T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? '<span class="mut">not checked</span>' : '–'}</td>
           <td>${v ? `${v.id} ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}` : '<span class="mut">no verdict</span>'}</td></tr>`; }).join(''); }).join('');
-    return `<div class="ev-card" id="s-brief">${EV.briefCard().replace('<h2>', '<h2>1 · ')}</div>
-      <div class="ev-card" id="s-summary"><h2>2 · ${EV.term('Session', 'Session')} summary</h2>${EV.summaryKV()}</div>
-      <div class="ev-card" id="s-hyps"><h2>3 · ${EV.term('Hypothesis', 'Hypotheses')}<small>click one to open it on the right</small></h2>${hyps ? `<div class="hcs">${hyps}</div>` : '<p class="sm">none</p>'}</div>
-      <div class="ev-card" id="s-tests"><h2>4 · ${EV.term('Test', 'Tests')}<small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in · click a row to open it on the right</small></h2>
-        ${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${list}</tbody></table></div>` : '<p class="sm">none</p>'}</div>
-      <div class="ev-card" id="s-report">${EV.reportBody().replace('<h2>', '<h2>5 · ')}</div>`;
+    return `<div class="ev-card" id="s-tests"><h2>${EV.term('Test', 'Tests')}<small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in · click a row to open it on the right</small></h2>
+        ${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${list}</tbody></table></div>` : '<p class="sm">none</p>'}</div>`;
   },
 
   // one line that says what an evidence item is
