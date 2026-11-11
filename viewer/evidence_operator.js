@@ -70,7 +70,7 @@ Object.assign(EV, {
     const need = list.filter(x => !EV.cmp[x.id] || EV.cmp[x.id].sig !== `${x.records}|${x.running}`);
     if (need.length && !EV.cmpBusy) { EV.cmpBusy = true;
       Promise.all(need.map(async x => { const [m, sc] = await Promise.all([EV.json(`../sessions/${x.id}/session.json`), EV.json(`../checks/scores/${x.id}.json`)]); EV.cmp[x.id] = { sig: `${x.records}|${x.running}`, m, sc }; }))
-        .then(() => { EV.cmpBusy = false; if (EV.s.tab === 'compare') EV.draw(); }); }
+        .then(() => { EV.cmpBusy = false; if (EV.s.view === 'compare') EV.draw(); }); }
     const rows = list.map(x => { const c = EV.cmp[x.id] || {}, m = c.m || {}, sc = c.sc, fl = m.flags, cl = sc && sc.checklist || [];
       const n = j => cl.filter(q => q.judgement === j).length;
       return `<tr class="pick" data-act="pick" data-id="${e(x.id)}"><td><b>${e(x.id)}</b></td><td>${e(x.policy || 'not recorded')}</td><td class="sm">${fl ? e(Object.entries(fl).map(([k, v]) => k + ' ' + v).join(' · ')) : EV.nr}</td>

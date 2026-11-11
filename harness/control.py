@@ -3,7 +3,8 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
 
   GET  any file        the project's files, read-only, exactly as before
   GET  /api/status     what is running, the last lines of the session's output, "briefs" (the ids in briefs/) and
-                       "sessions": every session folder (id, brief, records, experiments, first and last time, policy, model, running)
+                       "sessions": every session folder (id, brief, records, experiments, first and last time, policy, model, running,
+                       checks held and failed, and from checks/: the score in short and the reviewer's ticks and sign-off)
   GET  /api/sessions   that list alone
   POST /api/run        {params, policy, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
                        The brief (default two-hosts-open) gives the fixed settings and the ranges.
@@ -106,21 +107,35 @@ def sessions():
     dirs = sorted(p for p in tools.SESSIONS.iterdir() if p.is_dir() and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", p.name)) if tools.SESSIONS.is_dir() else []
     if "?" in others and dirs:  # a loop started from a terminal without --session made the newest folder
         others.add(max(dirs, key=lambda p: p.stat().st_mtime).name)
+    hidden = set(json.loads((CHECKS / "random.json").read_text())) if (CHECKS / "random.json").is_file() else set()  # sessions whose scheduling policy the harness chose
     out = []
     for d in dirs:
-        led, idx = d / "ledger.jsonl", d / "runs/index.json"
-        sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in (led, idx, d / "session.json"))
+        led, idx, score, review = d / "ledger.jsonl", d / "runs/index.json", CHECKS / "scores" / f"{d.name}.json", CHECKS / "reviews" / f"{d.name}.json"
+        sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in (led, idx, d / "session.json", score, review))
         if CACHE.get(d.name, (None,))[0] != sig:
             recs = lines(led)
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
             meta = json.loads((d / "session.json").read_text()) if (d / "session.json").is_file() else {}
+            checks = [(r.get("body") or {}).get("result") for r in recs if r["type"] == "check"]
+            sc = json.loads(score.read_text()) if score.is_file() else None
+            marks = json.loads(review.read_text()) if review.is_file() else {}
             CACHE[d.name] = (sig, {"id": d.name, "brief": meta.get("brief"), "records": len(recs), "runs": len(lines(idx)),
-                "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs), "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" and not (r.get("body") or {}).get("same_as") for r in recs),  # run, as the budget counts them
-                "turns": max([r["turn"] for r in recs], default=0),
+                "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs),
+                "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" and not (r.get("body") or {}).get("same_as") for r in recs),  # run, as the budget counts them
+                "allowed": ((meta.get("given") or {}).get("limits") or {}).get("simulations") or (meta.get("flags") or {}).get("budget"),
+                "turns": max([r["turn"] for r in recs], default=0), "held": checks.count("held"), "failed": checks.count("failed"),
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
-                "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs)})
-        out.append({**CACHE[d.name][1], "policy": policy.get(d.name), "running": d.name == here or d.name in others})
+                "has_report": any(r["type"] == "report" for r in recs),
+                "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs),
+                # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
+                "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"),
+                                 "holds": all((sc.get("conditions_hold_at_the_recommendation") or {}).values())},
+                "review": {"ticked": sorted(k for k, m in marks.items() if m.get("tick") and k != "signoff"),
+                           "signed": {"name": marks["signoff"].get("note"), "at": marks["signoff"].get("at")} if "signoff" in marks else None}})
+        row = CACHE[d.name][1]
+        secret = d.name in hidden and not row["score"]  # a policy the harness chose is shown only once the session is scored
+        out.append({**row, "policy": None if secret else policy.get(d.name), "policy_hidden": secret, "running": d.name == here or d.name in others})
     return out
 
 

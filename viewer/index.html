@@ -3,8 +3,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!-- The evidence view (~/EVIDENCE_VIEW.md, with stage 6 of ~/RESTRUCTURE_PLAN.md): for one session, what was done step by
      step, who did each step, why the model said it took it, and what the simulations showed. Served by harness/control.py.
-     evidence_data.js reads a session's files (never its drafts); evidence.js loads, handles clicks, the replay and the
-     review marks; evidence_top.js the top of the page (introduction, structure map, turn loop, legend, claims);
+     evidence_data.js reads a session's files (never its drafts); evidence.js decides the view from the address, loads,
+     handles clicks, the replay and the review marks; evidence_home.js is Home (no session selected); evidence_top.js the top of the page (introduction, structure map, turn loop, legend, claims);
      evidence_views.js View 1 (session flow) and View 2 (hypothesis map); evidence_flow.js View 3 (one test) and
      the chart; evidence_cards.js the trail, the work-log card, the brief; evidence_test.js a test and a hypothesis;
      evidence_panels.js the experiment panel and a simulation's result panel; evidence_more.js the sections below (brief,
@@ -68,13 +68,16 @@
 .ev .heat rect.cell { stroke: var(--surface-1); stroke-width: 1; } .ev details summary { cursor: pointer; color: var(--text-secondary); }
 .ev .hcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; } .ev .hc { border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
 .ev .hc:hover { border-color: var(--text-primary); } .ev code { font-size: 12px; overflow-wrap: anywhere; } .ev a[data-act] { cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted); }
+.ev-acts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; } .ev .big { font-size: 15px; padding: 8px 16px; font-weight: 600; max-width: 100%; }
+@media (max-width: 900px) { .ev-acts { grid-template-columns: 1fr; } }
+.ev th a { cursor: pointer; } .ev .pill.live { color: var(--good); border-color: var(--good); } .ev tr.run td { background: color-mix(in srgb, var(--good) 7%, transparent); }
 #ev-print { display: none; }
 @media print { .ev > *:not(#ev-print) { display: none !important; } #ev-print { display: block; } .ev { background: #fff; color: #000; padding: 0; } }
 </style></head><body>
 <div class="ev" id="ev"><div class="ev-card">Loading the session list…</div></div>
 <script>
 const css = n => getComputedStyle(document.getElementById('ev')).getPropertyValue(n).trim();  // also used by adrs_view.js
-['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
+['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_home.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
   const s = document.createElement('script'); s.src = name + '?t=' + Date.now(); s.onload = ok; s.onerror = () => no(name); document.head.appendChild(s); })), Promise.resolve())
   .then(() => EV.start()).catch(name => { document.getElementById('ev').innerHTML = '<div class="ev-card">Cannot load ' + name + '.</div>'; });
 </script>

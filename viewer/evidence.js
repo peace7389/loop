@@ -1,10 +1,12 @@
-// EV: the evidence page. This file: loading, the top bar, clicks, the replay and the review marks.
+// EV: the evidence page. This file: the address (which view), loading, the top bar, clicks, the replay and the review marks.
+// evidence_home.js draws Home (no session selected).
 // evidence_top.js draws the introduction, the structure map, the legend and the claim chips; evidence_views.js and
 // evidence_flow.js the three flow charts; evidence_cards.js, evidence_test.js and evidence_panels.js what opens beside them;
 // evidence_more.js the sections below; evidence_operator.js the Operator and Compare tabs.
 // ======================================================================================================
 const EV = {
-  s: { brief: null, sid: null, tab: 'session', sel: null, step: null, claim: null, path: false, collapsed: {}, intro: true, heat: ['weightUdp', 'queuePkts'], wide: {}, xchart: null },
+  s: { view: 'home', sid: null, brief: null, sel: null, step: null, claim: null, path: false, collapsed: {}, intro: true, heat: ['weightUdp', 'queuePkts'], wide: {}, xchart: null,
+       op: false, home: { sort: 'started', dir: -1, filter: '' } },   // op: the "operator columns" switch
   M: null, st: null, files: {}, marks: {}, charts: {}, sig: '',
   e: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   term: (name, text) => `<abbr title="${EV.e(EV_DEF[name] || '')}">${EV.e(text || name.toLowerCase())}</abbr>`,
@@ -14,61 +16,82 @@ const EV = {
   val(k, v) { return v == null ? '–' : typeof v !== 'number' ? String(v) : /_bps$/.test(k) ? EV.mb(v) + ' Mbps' : Number.isInteger(v) ? v.toLocaleString('en-US') : String(+v.toPrecision(6)); },
   async get(url) { try { const r = await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { cache: 'no-store' }); return r.ok ? await r.text() : null; } catch (x) { return null; } },
   async json(url) { const t = await EV.get(url); try { return t == null ? null : JSON.parse(t); } catch (x) { return null; } },
+  async post(path, body) {  // the operator's actions go through control.py; a refusal comes back as its own sentence
+    const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) }), j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `refused (${r.status})`); return j;
+  },
+  store: (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (x) { return null; } },
+
+  // ---- the address decides the view: /viewer/ is Home; ?session=<id> that session's page (&tab=operator its operator
+  // tab); ?tab=compare the comparison of the sessions of one brief
+  route() {
+    const q = new URLSearchParams(location.search), S = EV.s, tab = q.get('tab');
+    S.sid = q.get('session') || null; S.brief = q.get('brief') || S.brief; S.view = tab === 'compare' ? 'compare' : !S.sid ? 'home' : tab === 'operator' ? 'operator' : 'session';
+  },
+  address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : ''}`; },
+  go(o) {  // to another view or session; the browser's Back returns
+    const S = EV.s, other = 'sid' in o && o.sid !== S.sid; Object.assign(S, o);
+    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; }
+    history.pushState(null, '', EV.address()); EV.sig = ''; return EV.load();
+  },
 
   async start() {
-    const q = new URLSearchParams(location.search); EV.s.sid = q.get('session'); EV.s.tab = q.get('tab') || 'session';
+    EV.s.op = EV.store('ev-op') === '1'; EV.route();
     const root = document.getElementById('ev');
-    root.addEventListener('click', EV.click); root.addEventListener('change', EV.change);
-    document.addEventListener('keydown', ev => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || EV.s.tab !== 'session') return;
+    root.addEventListener('click', EV.click); root.addEventListener('change', EV.change); root.addEventListener('input', EV.input);
+    window.addEventListener('popstate', () => { EV.route(); EV.sig = ''; EV.load(); });
+    document.addEventListener('keydown', ev => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || EV.s.view !== 'session' || !EV.M) return;
       if (ev.key === 'ArrowRight') { EV.replay('next'); ev.preventDefault(); } else if (ev.key === 'ArrowLeft') { EV.replay('prev'); ev.preventDefault(); } });
     await EV.load();
     setInterval(EV.load, 8000);
   },
 
-  // the session list, then the chosen session's own files; the page is drawn again only when something changed
+  // the session list, then the chosen session's own files; the page is drawn again only when something changed, and
+  // never while the reader is typing in one of its fields
   async load() {
     const st = await EV.json('../api/status'); if (!st || !Array.isArray(st.sessions)) { document.getElementById('ev').innerHTML = '<div class="ev-card">This page is served by harness/control.py, which lists the sessions. It does not answer.</div>'; return; }
-    EV.st = st; const S = EV.s, all = st.sessions;
-    if (!all.some(x => x.id === S.sid)) S.sid = (all.find(x => x.running) || all[all.length - 1] || {}).id || null;
-    const row = all.find(x => x.id === S.sid) || {}; S.brief = S.brief && S.keepBrief ? S.brief : row.brief || null;
-    const base = `../sessions/${S.sid}/`, sig = JSON.stringify([S.sid, row.records, row.running, row.how, S.tab]);
+    const S = EV.s, all = st.sessions, row = all.find(x => x.id === S.sid) || null, a = document.activeElement;
+    if (EV.sig && a && a.closest && a.closest('#ev') && ['INPUT', 'TEXTAREA'].includes(a.tagName) && a.type !== 'checkbox') return;
+    EV.st = st;
+    if ((S.view === 'session' || S.view === 'operator') && !row) S.view = 'home';
+    if (S.view === 'home' || S.view === 'compare') {
+      const sig = JSON.stringify([S.view, all.map(x => [x.id, x.records, x.running, x.how, x.score, x.review, x.policy]), st.briefs, st.session && st.session.running]);
+      if (sig === EV.sig) return; EV.sig = sig; return EV.draw(); }
+    const base = `../sessions/${S.sid}/`, sig = JSON.stringify([S.sid, row.records, row.running, row.how, S.view, row.score, row.policy]);
     if (sig === EV.sig) return; EV.sig = sig;
-    const [led, meta, rep, idx, op, score, marks] = await Promise.all([EV.get(base + 'ledger.jsonl'), EV.json(base + 'session.json'), EV.json(base + 'report.json'), EV.get(base + 'runs/index.json'),
-      EV.get('../checks/operator.jsonl'), EV.json(`../checks/scores/${S.sid}.json`), EV.json(`../checks/reviews/${S.sid}.json`)]);
-    const oper = EV_DATA.lines(op).filter(o => o.session === S.sid);
-    EV.files = { row, score, index: EV_DATA.lines(idx), policy: (oper[0] && (oper[0].policy || oper[0].mode)) || row.policy || null, key: row.brief ? await EV.json(`../checks/keys/${row.brief}.json`) : null,
-                 scores: {} };
-    EV.marks = marks || {};
+    const [led, meta, rep, idx, score, marks] = await Promise.all([EV.get(base + 'ledger.jsonl'), EV.json(base + 'session.json'), EV.json(base + 'report.json'), EV.get(base + 'runs/index.json'),
+      row.score ? EV.json(`../checks/scores/${S.sid}.json`) : null, row.review && (row.review.ticked.length || row.review.signed) ? EV.json(`../checks/reviews/${S.sid}.json`) : EV.marksFor === S.sid ? EV.marks : null]);
+    // the scheduling policy comes from control.py only: it withholds a policy the harness chose until the session is scored
+    EV.files = { row, score, index: EV_DATA.lines(idx), policy: row.policy || null, key: row.brief ? await EV.json(`../checks/keys/${row.brief}.json`) : null };
+    EV.marks = marks || {}; EV.marksFor = S.sid;
     EV.M = EV_DATA.build({ id: S.sid, ledger: EV_DATA.lines(led), session: meta, report: rep, running: !!row.running });
-    if (S.sel && S.selFor !== S.sid) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; }
-    S.selFor = S.sid;
     EV.draw();
   },
 
   draw() {
-    const S = EV.s, e = EV.e, st = EV.st, y = window.scrollY;
+    const S = EV.s, e = EV.e, st = EV.st, y = window.scrollY, on = v => (S.view === v ? 'on' : '');
     Object.values(EV.charts).forEach(c => c.destroy()); EV.charts = {};
     const label = x => `${x.id} · ${x.brief || 'before briefs'} · ${String(x.started || '').replace('T', ' ').slice(0, 16) || 'no record yet'} · ${x.simulations || 0} simulations · ${x.running ? 'running now' : x.how || 'ending not recorded'}`;
-    const briefs = [...new Set(st.sessions.map(x => x.brief || ''))];
-    const tabs = [['session', 'Session'], ['operator', 'Operator'], ['compare', 'Compare sessions']];
-    const bar = `<div class="ev-bar"><label>${EV.term('Brief', 'Brief')} <select data-ch="brief">${briefs.map(b => `<option value="${e(b)}"${b === (S.brief || '') ? ' selected' : ''}>${e(b || 'before briefs')}</option>`).join('')}</select></label>
-      <label>${EV.term('Session', 'Session')} <select data-ch="session">${st.sessions.filter(x => (x.brief || '') === (S.brief || '')).slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select></label>
-      <span>${tabs.map(([k, t]) => `<button data-act="tab" data-id="${k}" class="${S.tab === k ? 'on' : ''}">${t}</button>`).join(' ')}</span>
-      <span class="end">other pages: <a href="index_runs.html?session=${e(S.sid)}">runs compared</a> · <a href="index_full.html?session=${e(S.sid)}">system, packet events, control</a></span></div>`;
-    const body = !EV.M ? '<div class="ev-card">No session yet.</div>' : S.tab === 'operator' ? EV.operatorTab() : S.tab === 'compare' ? EV.compareTab() : EV.sessionTab();
+    const bar = `<div class="ev-bar"><button data-act="view" data-id="home" class="${on('home')}">Home</button>
+      <label>${EV.term('Session', 'Session')} <select data-ch="session"><option value="">choose a session…</option>${st.sessions.slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select></label>
+      <span>${S.sid ? `<button data-act="view" data-id="session" class="${on('session')}">Session</button> <button data-act="view" data-id="operator" class="${on('operator')}">${EV.term('Operator', 'Operator')}</button> ` : ''}<button data-act="view" data-id="compare" class="${on('compare')}">Compare sessions</button></span>
+      <label style="font-weight:400" title="Operator-only items: the scheduling policy, the gap to the best row of the sweep"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label>
+      <span class="end">other pages: <a href="index_runs.html${S.sid ? '?session=' + e(S.sid) : ''}">runs compared</a> · <a href="index_full.html${S.sid ? '?session=' + e(S.sid) : ''}">system, packet events, older control page</a></span></div>`;
+    if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
+    const body = S.view === 'home' ? EV.homeView() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
     document.getElementById('ev').innerHTML = bar + body + '<div id="ev-print"></div>';
-    if (S.tab === 'session') { EV.applyReplay(); EV.afterDraw(); } else if (S.tab === 'operator') EV.afterOperator();
+    if (S.view === 'session') { EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator();
     if (window.scrollY !== y) window.scrollTo(0, y);
   },
 
   // ---- clicks: every clickable thing carries data-act (and data-id); nothing here moves the page
   click(ev) {
     const t = ev.target.closest('[data-act]'); if (!t) return; const S = EV.s, a = t.dataset.act, id = t.dataset.id;
-    if (a === 'tab') { S.tab = id; EV.sig = ''; history.replaceState(null, '', `?session=${S.sid}&tab=${id}`); return EV.load(); }
+    if (a === 'view') return EV.go(id === 'home' ? { view: 'home', sid: null } : { view: id });
+    if (a === 'pick') return EV.go({ view: 'session', sid: id });
+    if (a === 'sort') { const h = S.home; h.dir = h.sort === id ? -h.dir : 1; h.sort = id; return EV.draw(); }
     if (a === 'open') { S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id, test: t.dataset.test || undefined };  // test: the test a simulation was opened from
-      if (S.tab !== 'session') { S.tab = 'session'; EV.sig = ''; history.replaceState(null, '', `?session=${S.sid}&tab=session`); return EV.load(); }  // from the heat map
-      return EV.draw(); }
-    if (a === 'pick') { S.sid = id; S.tab = 'session'; S.sel = null; S.step = null; S.claim = null; EV.sig = ''; history.replaceState(null, '', `?session=${id}&tab=session`); return EV.load(); }
+      return S.view !== 'session' ? EV.go({ view: 'session' }) : EV.draw(); }  // from the heat map: to the session's page
     if (a === 'step') { const k = Number(id), o = EV.M.steps[k].open; S.sel = { ...o, id: o.t === 'log' ? o.turn : o.id, k }; return EV.draw(); }
     if (a === 'replay') return EV.replay(id);
     if (a === 'claim') { S.claim = S.claim === Number(id) ? null : Number(id); const c = EV.M.claims[Number(id) - 1]; if (S.claim && c && (c.tests[0] || c.exps[0])) S.sel = c.tests[0] ? { t: 'test', id: c.tests[0] } : { t: 'exp', id: c.exps[0] }; return EV.draw(); }
@@ -80,15 +103,19 @@ const EV = {
     if (a === 'print') return EV.printSheet(Number(id));
     if (a === 'goto') { const el = document.getElementById(id); if (el) el.scrollIntoView({ block: 'start' }); return; }
     if (a === 'export') return EV.exportChart(id, t.dataset.x);
+    if (EV.act && EV.act[a]) return EV.act[a](id, t);  // the actions the other files add
   },
   change(ev) {
     const t = ev.target, S = EV.s;
-    if (t.dataset.ch === 'session') { S.sid = t.value; S.sel = null; S.step = null; S.claim = null; EV.sig = ''; history.replaceState(null, '', `?session=${S.sid}&tab=${S.tab}`); return EV.load(); }
-    if (t.dataset.ch === 'brief') { S.brief = t.value || null; S.keepBrief = true; const first = EV.st.sessions.filter(x => (x.brief || '') === t.value).pop(); if (first) { S.sid = first.id; S.sel = null; S.step = null; } S.keepBrief = false; EV.sig = ''; return EV.load(); }
+    if (t.dataset.ch === 'session') return EV.go(t.value ? { view: S.view === 'operator' ? 'operator' : 'session', sid: t.value } : { view: 'home', sid: null });
+    if (t.dataset.ch === 'op') { S.op = t.checked; EV.store('ev-op', S.op ? '1' : '0'); return EV.draw(); }
+    if (t.dataset.ch === 'brief') { S.brief = t.value; history.replaceState(null, '', EV.address()); return EV.draw(); }
     if (t.dataset.ch === 'heat') { S.heat[Number(t.dataset.i)] = t.value; return EV.draw(); }
     if (t.dataset.ch === 'cmp') { S.cmp = t.value || null; return EV.draw(); }
     if (t.dataset.ch === 'review') return EV.saveReview(t.closest('[data-item]'));
+    if (EV.chg && EV.chg[t.dataset.ch]) return EV.chg[t.dataset.ch](t);
   },
+  input(ev) { const t = ev.target; if (t.dataset.in === 'filter') { EV.s.home.filter = t.value; EV.homeRows(); } },  // typing in the filter redraws the rows only
 
   // ---- replay: at step k everything recorded later is greyed, in all three views
   replay(how) {
