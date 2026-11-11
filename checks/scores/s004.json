@@ -1,0 +1,101 @@
+{
+ "session": "s004",
+ "brief": "two-hosts-udp-demand",
+ "scheduling_policy": "share",
+ "sweep": "sw-20261111-190100",
+ "sweep_size": 720,
+ "goal": {
+  "target": "tcp_goodput_bps",
+  "direction": "max",
+  "conditions": [
+   "udp_loss_frac <= 0.01"
+  ],
+  "from": "the brief"
+ },
+ "best_row": {
+  "weightUdp": "0.28",
+  "queuePkts": "4",
+  "tcpVariant": "TcpNewReno",
+  "duration": "10",
+  "seed": "1",
+  "udp_goodput_bps": 297823680.0,
+  "tcp_goodput_bps": 670779629.0,
+  "udp_loss_frac": 0.007265,
+  "link_util": 0.999999
+ },
+ "rows_meeting_the_conditions": 535,
+ "rows_as_good_as_the_best": 1,
+ "recommendation": {
+  "weightUdp": 0.3034,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic"
+ },
+ "recommendation_with_defaults": {
+  "weightUdp": 0.3034,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "nearest_row": {
+  "weightUdp": "0.3",
+  "queuePkts": "100",
+  "tcpVariant": "TcpCubic",
+  "duration": "10",
+  "seed": "1",
+  "udp_goodput_bps": 293720000.0,
+  "tcp_goodput_bps": 674820128.0,
+  "udp_loss_frac": 0.020944,
+  "link_util": 1.0
+ },
+ "nearest_row_distance": 0.003778,
+ "on_the_grid": false,
+ "conditions_hold_at_the_recommendation": {
+  "udp_loss_frac <= 0.01": false
+ },
+ "gap_on_target": -4040499.0,
+ "gap_as_part_of_best": -0.006023586324503602,
+ "at_the_recommendation_itself": {
+  "measured": {
+   "udp_goodput_bps": 297082240,
+   "tcp_goodput_bps": 671509421,
+   "udp_loss_frac": 0.009736,
+   "link_util": 1.0
+  },
+  "conditions_hold": {
+   "udp_loss_frac <= 0.01": true
+  },
+  "gap_on_target": -729792.0
+ },
+ "expected_by_the_model": {
+  "tcp_goodput_bps": 671509421,
+  "udp_loss_frac": 0.009736,
+  "link_util": 1.0
+ },
+ "simulations_used": 36,
+ "simulations_allowed": 40,
+ "how_the_session_ended": "done by the model",
+ "left_open": [],
+ "checklist": [
+  {
+   "n": 1,
+   "item": "States the goal it optimises",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 2,
+   "item": "Finds that the setting only matters under contention / when the UDP flow uses less than its part",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 3,
+   "item": "Finds the effect of a short queue with a hard-backing-off TCP variant",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 4,
+   "item": "Does not spend simulations on differences smaller than run-to-run variation",
+   "judgement": "unjudged"
+  }
+ ]
+}

@@ -12,6 +12,11 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
                        Without "session" it is a new session (the next id sNNN) on the named brief (default two-hosts-open;
                        budget defaults to the brief's limit); with the id of an existing session it continues that one.
   POST /api/stop       stops the session that was started here
+  POST /api/sweep      {brief, policy, grid: {knob: [values]}}: every combination of the grid, run by the built program
+                       directly, at most 64 at a time -> checks/sweeps/<id>/table.csv (one row per simulation) and
+                       status.json (progress). One sweep at a time. Returns the sweep's status, with its id.
+  GET  /api/sweep/<id> that sweep's status.json
+  POST /api/sweep/<id>/stop   stops it; the rows finished so far stay in the table
   POST /api/brief      {brief}: saves a NEW brief as briefs/<id>.json after the same check loop.py makes (tools.check_brief).
                        An id that already exists is refused: a brief is never overwritten.
 
@@ -21,7 +26,8 @@ Who writes what (the write-ownership rule):
                (session, run, policy, seconds), which no tool reads. "policy" is the scheduling policy: how the scheduler
                divides the link, share or cap (records written before 2026-11-11 call it "mode"; both are read).
   control.py   checks/: checks/op-<timestamp>/ (one operator run), checks/control.jsonl (the list of those runs),
-               checks/sessions/<id>.log (a session's terminal output); and briefs/<id>.json, new files only.
+               checks/sessions/<id>.log (a session's terminal output), checks/sweeps/<id>/ (a sweep's table and
+               status); and briefs/<id>.json, new files only.
                It starts and stops loop.py and does nothing else.
   the viewer   nothing. Its Control page only calls the POST endpoints above.
 An operator run is made by the built program directly, never by tools.run, so it never reaches a session's folder: no
@@ -33,7 +39,7 @@ process of the user who runs this server (an SSH tunnel of that user counts), an
 page (so no other web page open in the same browser can call it). Parameters go through tools.clamp, like the model's.
 Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the page's brief editor.
 Python standard library only."""
-import argparse, http.server, json, os, re, signal, subprocess, sys, threading, time
+import argparse, csv, http.server, itertools, json, os, re, shutil, signal, subprocess, sys, threading, time
 from pathlib import Path
 import tools
 
@@ -44,6 +50,8 @@ HOST, PORT = "127.0.0.1", 8600
 LOCK, RUN_LOCK = threading.Lock(), threading.Lock()
 SESSION = {}  # the session started here, if any: id, proc, flags, started, log
 CACHE = {}    # session id -> (file times, its row in /api/sessions)
+SWEEP = {}    # the sweep running here, if any: id, thread, stop
+PARALLEL, SWEEP_MAX = 64, 5000  # simulations of a sweep running at the same time; most simulations one sweep may ask for
 
 
 class Refused(Exception):
@@ -124,7 +132,8 @@ def status():
     count = lambda p: sum(1 for l in p.open() if l.strip()) if p.exists() else 0
     return {"control": True, "session": s, "other_loop": other_loop(), "run_busy": RUN_LOCK.locked(),
             "sessions": sessions(), "briefs": sorted(p.stem for p in tools.BRIEFS.glob("*.json")),
-            "operator_runs": count(CHECKS / "control.jsonl")}
+            "operator_runs": count(CHECKS / "control.jsonl"),
+            "sweeps": sorted(p.name for p in (CHECKS / "sweeps").iterdir() if (p / "status.json").is_file()) if (CHECKS / "sweeps").is_dir() else []}
 
 
 def operator_run(body):
@@ -195,6 +204,109 @@ def save_brief(body):
     return {"saved": bid, "file": f"briefs/{bid}.json"}
 
 
+def write_status(folder, st):
+    tmp = folder / "status.json.tmp"
+    tmp.write_text(json.dumps(st, indent=1) + "\n")
+    tmp.replace(folder / "status.json")
+
+
+def run_sweep(folder, brief, policy, combos, st, stop):
+    """Every combination, at most PARALLEL at a time, by the built program directly. One row per simulation in
+    table.csv, in the order they finish (sorted by number at the end); a run's own folder is removed once its row is written."""
+    cols = ["i", *tools.OPTIONS, *tools.MANIFEST["outputs"], "seconds", "error"]
+    rows, running, nxt, t_start = [], {}, 0, time.time()
+    with (folder / "table.csv").open("w", newline="") as f:
+        out = csv.DictWriter(f, cols)
+        out.writeheader()
+        while running or (nxt < len(combos) and not stop.is_set()):
+            while nxt < len(combos) and len(running) < PARALLEL and not stop.is_set():
+                opts, d = tools.options(combos[nxt], brief), folder / "runs" / str(nxt)
+                d.mkdir(parents=True)
+                proc = subprocess.Popen([str(BIN)] + [f"--{k}={v}" for k, v in opts.items()] + [f"--out={d}"], cwd=d, stdout=subprocess.DEVNULL, stderr=(d / "stderr.txt").open("w"),
+                                        env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy})
+                running[nxt] = (proc, d, time.time(), opts)
+                nxt += 1
+            time.sleep(0.2)
+            for i, (proc, d, t0, opts) in list(running.items()):
+                if stop.is_set() and proc.poll() is None:
+                    proc.kill()
+                if proc.poll() is None:
+                    continue
+                row = {"i": i, **opts, "seconds": round(time.time() - t0, 1)}
+                if proc.returncode == 0 and (d / "metrics.json").exists():
+                    row.update(json.loads((d / "metrics.json").read_text()))
+                else:
+                    row["error"] = "stopped" if stop.is_set() else (" ".join((d / "stderr.txt").read_text().split())[-300:] or f"exit {proc.returncode}")
+                    st["failed"] += 1
+                rows.append(row)
+                out.writerow(row)
+                f.flush()
+                shutil.rmtree(d, ignore_errors=True)
+                del running[i]
+                st.update(done=len(rows), running=len(running), seconds=round(time.time() - t_start, 1))
+                write_status(folder, st)
+    with (folder / "table.csv").open("w", newline="") as f:
+        out = csv.DictWriter(f, cols)
+        out.writeheader()
+        out.writerows(sorted(rows, key=lambda r: r["i"]))
+    shutil.rmtree(folder / "runs", ignore_errors=True)
+    st.update(state="stopped" if stop.is_set() else "done", running=0, ended=time.strftime("%Y-%m-%dT%H:%M:%S"), seconds=round(time.time() - t_start, 1))
+    write_status(folder, st)
+
+
+def start_sweep(body):
+    """A grid of knob values for one brief and one scheduling policy; every combination is one simulation."""
+    policy, grid = body.get("policy", "share"), body.get("grid")
+    try:
+        brief = tools.load_brief(body.get("brief", tools.DEFAULT_BRIEF))
+    except ValueError as e:
+        raise Refused(400, str(e))
+    if policy not in ("share", "cap") or not isinstance(grid, dict) or not grid or not all(isinstance(v, list) and v for v in grid.values()):
+        raise Refused(400, "a sweep needs policy (share or cap) and grid: {knob: [values, ...]} with at least one value per knob")
+    if set(grid) - set(brief["knobs"]):
+        raise Refused(400, f"the grid names settings that are not knobs of the brief: {', '.join(sorted(set(grid) - set(brief['knobs'])))}")
+    for k, values in grid.items():
+        for v in values:
+            try:
+                clamps = tools.clamp({k: v}, brief)[1]
+            except (ValueError, TypeError) as e:
+                raise Refused(400, f"{k}={v!r} cannot be read: {e}")
+            if clamps:
+                raise Refused(400, f"{k}={v!r} is outside what the brief allows")
+    combos = [dict(zip(grid, c)) for c in itertools.product(*grid.values())]
+    if len(combos) > SWEEP_MAX:
+        raise Refused(400, f"the grid has {len(combos)} combinations; a sweep is at most {SWEEP_MAX}")
+    with LOCK:
+        if SWEEP and SWEEP["thread"].is_alive():
+            raise Refused(409, f"sweep {SWEEP['id']} is still running")
+        sid = "sw-" + time.strftime("%Y%m%d-%H%M%S")
+        folder = CHECKS / "sweeps" / sid
+        folder.mkdir(parents=True)
+        st = {"id": sid, "brief": brief["id"], "policy": policy, "grid": grid, "total": len(combos), "done": 0, "failed": 0, "running": 0, "state": "running",
+              "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "ended": None, "seconds": 0}
+        write_status(folder, st)
+        stop = threading.Event()
+        thread = threading.Thread(target=run_sweep, args=(folder, brief, policy, combos, st, stop), daemon=True)
+        SWEEP.clear()
+        SWEEP.update(id=sid, thread=thread, stop=stop)
+        thread.start()
+    return st
+
+
+def sweep_status(sid):
+    path = CHECKS / "sweeps" / sid / "status.json"
+    if not re.fullmatch(r"sw-[0-9-]{15}", sid) or not path.is_file():
+        raise Refused(404, "no such sweep")
+    return json.loads(path.read_text())
+
+
+def stop_sweep(sid):
+    if not SWEEP or SWEEP["id"] != sid or not SWEEP["thread"].is_alive():
+        raise Refused(409, "that sweep is not running here")
+    SWEEP["stop"].set()
+    return {"stopping": sid}
+
+
 def start_session(body):
     """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal."""
     budget, draft, policy, base = body.get("budget"), body.get("draft", "on"), body.get("policy", body.get("mode", "share")), body.get("baseline", True)
@@ -260,6 +372,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.answer(200, status())
         if self.path.split("?")[0] == "/api/sessions":
             return self.answer(200, sessions())
+        if self.path.split("?")[0].startswith("/api/sweep/"):
+            try:
+                return self.answer(200, sweep_status(self.path.split("?")[0].split("/")[3]))
+            except Refused as e:
+                return self.answer(e.code, {"error": e.text})
         super().do_GET()
 
     def do_POST(self):
@@ -279,7 +396,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": stop_session, "/api/brief": lambda: save_brief(body)}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": stop_session, "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body)}.get(self.path)
+            m = re.fullmatch(r"/api/sweep/([^/]+)/stop", self.path)
+            if m:
+                do = lambda: stop_sweep(m.group(1))
             if not do:
                 raise Refused(404, "no such endpoint")
             self.answer(200, do())

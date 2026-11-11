@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --udpTos=0 --out=/home/chunguck.kim/project/checks/build3/c08-udp-default-tos
+exit 0, 11.9 s

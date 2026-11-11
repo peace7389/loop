@@ -332,6 +332,19 @@ still more than the link holds.
 | TcpNewReno, queuePkts 4 | 0.5764 | every interval |
 | linkDelay 5 ms (queuePkts 8, Cubic; not a manifest parameter) | 0.6810 | every interval |
 
+**Checks 5 to 11 (2026-11-11, from `~/CHECKS_AND_REPAIRS.md`; outputs in
+`checks/build3/`, results appended to `checks/build3/results.json`).** 5a
+(queuePkts 4, TcpNewReno): UDP/link 0.5764, pass. 5b (queuePkts 4, TcpCubic):
+0.5079, pass. 6 (cap, udpRate 200Mbps): UDP 0.2000 Gbps, no drops, TCP 0.4827,
+link use 0.7050, pass. 7 (cap, defaults): within 0.14% of share, pass. 8 (UDP
+with the default TOS): drops_band0 0, TCP 0, UDP 0.9790 Gbps, pass. 9 (packet
+count): sent = received + dropped to 0.0001%, pass. 10 (seed): seed 1 twice
+byte-identical, seed 2 differs in series.csv and by at most 0.0002% in the
+metrics, pass. 11 (duration 2 and 30 against 10): **FAIL**: rates and fractions
+agree to 0.001%, but at duration 2 the TCP queue's drops and the
+retransmissions are 15 in 2 s (7.5 per second) against 71 in 10 s (7.1 per
+second), 5.6% apart, over the 2% allowed; duration 30 is within 0.5%.
+
 Open decision for the operator: accept that the effect is reachable only with
 queuePkts 4-7 or a non-Cubic variant, or change the scenario (a longer link
 delay) so that it appears at the settings of check 5.
@@ -711,6 +724,26 @@ below, and 7.5 where they differ.
   after the first was cut off at the 16,000-token limit, and without this the
   model would have been asked for ever. `SIGHUP` (its terminal closed) is
   recorded like `SIGTERM`.
+- **Stage 5 (2026-11-11): the operator's side.** All of it is under `checks/`;
+  no function of `tools.py` reads there. (a) Sweep: `POST /api/sweep` {brief,
+  policy, grid {knob: [values]}} runs every combination by the built program
+  directly, at most 64 at a time, one sweep at a time, at most 5,000
+  simulations; `checks/sweeps/<id>/table.csv` has one row per simulation (its
+  number, the nine program options, the outputs, seconds, error) and
+  `status.json` the progress; `GET /api/sweep/<id>`, `POST /api/sweep/<id>/stop`.
+  A run's own folder is removed once its row is written. (b) Answer key:
+  `checks/keys/<brief>.json` = {brief, per_scheduling_policy {share|cap: {sweep,
+  notes}}, checklist}. (c) Score: `harness/score.py <session>` writes
+  `checks/scores/<session>.json`: the best row of the sweep for the goal (the
+  brief's, or for an open goal the one the operator enters with `--target`,
+  `--direction`, `--condition`); the row nearest the recommendation, the gap on
+  the target and whether the conditions hold there; when the recommendation is
+  not a grid point, also one operator simulation at exactly the recommended
+  settings with the same figures; simulations used and sweep size; the
+  checklist, each item yes / no / unjudged, set by the operator (`--judge
+  N=yes`) and kept when the score is written again. Sweeps made:
+  `sw-20261111-190100` (share) and `sw-20261111-190604` (cap), brief
+  `two-hosts-udp-demand`, 720 simulations each.
 - Viewer, until stage 6: all three pages read such a ledger as one row per
   simulation (`TH_DATA.flat`, `_flat`, `FLAT`), with the first tested hypothesis
   of its experiment and, on the streamlined page, the harness's checks as the

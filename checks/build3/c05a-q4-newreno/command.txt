@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --queuePkts=4 --tcpVariant=TcpNewReno --out=/home/chunguck.kim/project/checks/build3/c05a-q4-newreno
+exit 0, 24.9 s

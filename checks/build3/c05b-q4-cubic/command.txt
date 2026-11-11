@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --queuePkts=4 --tcpVariant=TcpCubic --out=/home/chunguck.kim/project/checks/build3/c05b-q4-cubic
+exit 0, 25.6 s

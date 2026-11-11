@@ -35,5 +35,64 @@
   "measured": "UDP 0.2000 Gbps, drops_band0 0, TCP 0.7671 Gbps, link use 1.0000",
   "pass": true,
   "same_files_as_build2": true
+ },
+ {
+  "build": "checks 5 to 11, 2026-11-11, from ~/CHECKS_AND_REPAIRS.md; same build as checks 1-4 above (scenario source unchanged, commit 26944da)"
+ },
+ {
+  "check": "5a",
+  "params": "queuePkts 4, TcpNewReno",
+  "predicted": "UDP goodput / link rate >= 0.55; link use ~ 1.00 (within 0.01)",
+  "measured": "UDP/link 0.5764, link use 1.0000, TCP/link 0.3964, tcp_retrans 1830",
+  "pass": true
+ },
+ {
+  "check": "5b",
+  "params": "queuePkts 4, TcpCubic",
+  "predicted": "UDP goodput / link rate between 0.495 and 0.53; link use ~ 1.00 (within 0.01)",
+  "measured": "UDP/link 0.5079, link use 1.0000, TCP/link 0.4639, tcp_retrans 3417",
+  "pass": true
+ },
+ {
+  "check": "6",
+  "params": "policy cap, udpRate 200Mbps",
+  "predicted": "UDP ~ 0.20 Gbps (within 3%) with no drops; TCP ~ 0.48 Gbps (within 3%, not ~ 0.77); link use ~ 0.70 (within 0.02)",
+  "measured": "UDP 0.2000 Gbps, drops_band0 0, TCP 0.4827 Gbps, link use 0.7050",
+  "pass": true
+ },
+ {
+  "check": "7",
+  "params": "policy cap, all defaults",
+  "predicted": "UDP and TCP goodput within 1% of the share-policy run at the same settings",
+  "measured": "cap: UDP 0.4889, TCP 0.4827 Gbps; share: UDP 0.4895, TCP 0.4820 Gbps; differences 0.137% and 0.137%",
+  "pass": true
+ },
+ {
+  "check": "8",
+  "params": "UDP sent with the default TOS (--udpTos=0, operator-only)",
+  "predicted": "both flows in the TCP queue: drops_band0 = 0, TCP goodput near 0 (under 1% of the link), UDP near the link rate (at least 0.95 Gbps)",
+  "measured": "drops_band0 0, drops_band1 911,591, TCP 0.0000 Gbps, UDP 0.9790 Gbps, link use 1.0000",
+  "pass": true
+ },
+ {
+  "check": "9",
+  "params": "all defaults",
+  "predicted": "UDP packets sent = received + dropped at the sender, within 1%",
+  "measured": "measured 10 s: sent 1,785,715 = received 437,077 + dropped 1,348,637 (off by 0.0001%); whole run by the flow monitor: sent 1,964,230 = received 480,916 + dropped 1,483,314 (off by 0.0000%)",
+  "pass": true
+ },
+ {
+  "check": "10",
+  "params": "seed 1 twice; then seed 2",
+  "predicted": "the two seed-1 runs are byte-identical; seed 2 gives a different series.csv with every metric within 1%",
+  "measured": "seed 1 twice: identical files ['metrics.json', 'series.csv', 'params.json', 'flowmon.xml']; seed 2: series.csv differs: True, largest metric difference 0.0002% (link_util)",
+  "pass": true
+ },
+ {
+  "check": "11",
+  "params": "duration 2; duration 30",
+  "predicted": "every metric within 2% of the duration-10 run (counts of drops and retransmissions compared per second)",
+  "measured": "duration 2: largest difference 5.63% (drops_band1); over 2%: {'drops_band1': '5.63%', 'tcp_retrans': '5.63%'}; tcp_retrans 15 in 2 s = 7.50/s against 7.10/s | duration 30: largest difference 0.47% (drops_band1); tcp_retrans 214 in 30 s = 7.13/s against 7.10/s",
+  "pass": false
  }
 ]

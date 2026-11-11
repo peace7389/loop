@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --duration=30 --out=/home/chunguck.kim/project/checks/build3/c11-duration30
+exit 0, 76.3 s
