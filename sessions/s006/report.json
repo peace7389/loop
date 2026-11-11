@@ -1,0 +1,86 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01, using the measured outputs for the recommended deterministic settings.",
+ "recommendation": {
+  "weightUdp": 0.30295,
+  "queuePkts": 200,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 297010560,
+  "tcp_goodput_bps": 671580083,
+  "udp_loss_frac": 0.009975,
+  "drops_band0": 2672,
+  "drops_band1": 26,
+  "tcp_retrans": 26,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.30295
+ },
+ "explanation": "The scheduler does not give UDP's unused configured share to TCP: lowering weightUdp increases TCP goodput almost linearly, so the optimal strategy is to choose the smallest weightUdp that still keeps UDP loss at or below 1%. With queuePkts=200, duration=10, TcpCubic, and seed=1, weightUdp=0.30295 is the lowest tested weight that satisfies udp_loss_frac <= 0.01; weightUdp=0.3029 violates the condition. queuePkts=200 is on the TCP-goodput plateau (same TCP goodput as queuePkts=10-100 at weightUdp=0.303) but has fewer TCP drops than queuePkts=100, while queuePkts=1000 lowers UDP loss only by paying a TCP-goodput penalty. TcpCubic ties the best loss-based variants; BBR and Vegas are much slower. duration=10 is stable and does not materially reduce TCP goodput relative to duration=2 at this operating point. Thus weightUdp=0.30295, queuePkts=200, TcpCubic, duration=10, seed=1 is the best tested feasible setting. If a safety margin is required, weightUdp=0.303 with the same queue and TCP variant is a near-equivalent fallback costing only about 47.5 kbps of TCP goodput.",
+ "holds_when": "The link remains 1 Gbps with 50 us delay and 1500-byte MTU; UDP sends 1400-byte packets at 300 Mbps; TCP has data and 1 MB buffers; the scheduler remains non-work-conserving; the same seed/start-time pattern and 10-second measured window are used; and the system is operated at queuePkts=200 with TcpCubic.",
+ "breaks_when": "It would change if the scheduler became work-conserving, if UDP rate or packet size changed, if seed/start-time variation shifted the UDP-loss threshold, if a larger UDP-loss margin were required, if queuePkts were made very large (causing TCP bufferbloat), if BBR or Vegas were used, or if the measured duration were changed enough to alter the measured loss window.",
+ "claims": [
+  {
+   "text": "The scheduler is non-work-conserving, so TCP goodput is controlled primarily by (1 - weightUdp) and increases when weightUdp is reduced.",
+   "evidence": [
+    "E1",
+    "C1",
+    "C2",
+    "V1"
+   ]
+  },
+  {
+   "text": "At queuePkts=200, duration=10, TcpCubic, seed=1, weightUdp=0.30295 is feasible and gives tcp_goodput_bps=671580083, while weightUdp=0.3029 is infeasible.",
+   "evidence": [
+    "E4",
+    "C14",
+    "C16"
+   ]
+  },
+  {
+   "text": "queuePkts=200 is on the TCP-goodput plateau and avoids the TCP-goodput penalty seen at queuePkts=1000.",
+   "evidence": [
+    "E2",
+    "E3",
+    "C9",
+    "C13",
+    "V9",
+    "V13"
+   ]
+  },
+  {
+   "text": "TcpCubic is as good as the other loss-based TCP variants tested, while BBR and Vegas are much slower.",
+   "evidence": [
+    "E2",
+    "C8",
+    "V8"
+   ]
+  },
+  {
+   "text": "duration=2 is not needed for the recommended operating point; duration=10 gives stable, near-steady measurements.",
+   "evidence": [
+    "E3",
+    "C10",
+    "C11",
+    "V10",
+    "V11"
+   ]
+  },
+  {
+   "text": "weightUdp=0.303 is a robust fallback with udp_loss_frac about 0.0098 and tcp_goodput_bps about 671.53 Mbps.",
+   "evidence": [
+    "E2",
+    "E4",
+    "C17"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact feasible threshold between weightUdp=0.3029 and 0.30295 was not resolved.",
+  "Robustness across many seeds and start-time offsets was only sampled with seed=1 and seed=2.",
+  "Whether some untested queue length or duration combination can make a weight below 0.30295 feasible without the large TCP penalty seen at queuePkts=1000 remains unknown.",
+  "The exact effect of longer measured durations on the UDP-loss threshold was not tested."
+ ]
+}

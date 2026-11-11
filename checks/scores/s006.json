@@ -1,0 +1,90 @@
+{
+ "session": "s006",
+ "brief": "two-hosts-udp-demand",
+ "scheduling_policy": "cap",
+ "sweep": "sw-20261111-190604",
+ "sweep_size": 2190,
+ "goal": {
+  "target": "tcp_goodput_bps",
+  "direction": "max",
+  "conditions": [
+   "udp_loss_frac <= 0.01"
+  ],
+  "from": "the brief"
+ },
+ "best_row": {
+  "weightUdp": "0.303",
+  "queuePkts": "8",
+  "tcpVariant": "TcpCubic",
+  "duration": "10",
+  "seed": "1",
+  "udp_goodput_bps": 297058720.0,
+  "tcp_goodput_bps": 671532589.0,
+  "udp_loss_frac": 0.009815,
+  "link_util": 1.0
+ },
+ "rows_meeting_the_conditions": 1494,
+ "rows_as_good_as_the_best": 10,
+ "recommendation": {
+  "weightUdp": 0.30295,
+  "queuePkts": 200,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "recommendation_with_defaults": {
+  "weightUdp": 0.30295,
+  "queuePkts": 200,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "at_the_recommendation": {
+  "udp_goodput_bps": 297010560,
+  "tcp_goodput_bps": 671580083,
+  "udp_loss_frac": 0.009975,
+  "link_util": 1.0
+ },
+ "conditions_hold_at_the_recommendation": {
+  "udp_loss_frac <= 0.01": true
+ },
+ "gap_on_target": -47494.0,
+ "gap_as_part_of_best": -7.072478801174011e-05,
+ "expected_by_the_model": {
+  "udp_goodput_bps": 297010560,
+  "tcp_goodput_bps": 671580083,
+  "udp_loss_frac": 0.009975,
+  "drops_band0": 2672,
+  "drops_band1": 26,
+  "tcp_retrans": 26,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.30295
+ },
+ "simulations_used": 40,
+ "simulations_allowed": 40,
+ "how_the_session_ended": "done by the model",
+ "left_open": [],
+ "checklist": [
+  {
+   "n": 1,
+   "item": "States the goal it optimises",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 2,
+   "item": "Finds that the setting only matters under contention / when the UDP flow uses less than its part",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 3,
+   "item": "Finds the effect of a short queue with a hard-backing-off TCP variant",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 4,
+   "item": "Does not spend simulations on differences smaller than run-to-run variation",
+   "judgement": "unjudged"
+  }
+ ]
+}
