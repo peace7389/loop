@@ -16,7 +16,9 @@ Object.assign(EV, {
     else if (s.t === 'report' && M.repRec) add(M.repRec.id);
     return o;
   },
-  treeOpen(key, dflt) { const v = EV.s.tree[key]; return v === undefined ? dflt : v; },
+  // a row is unfolded unless the reader folded it; a test is folded unless it is the selected one or names the selected simulation
+  treeOpen(key) { const v = EV.s.tree[key]; if (v !== undefined) return v; if (!key.startsWith('test:')) return true;
+    const s = EV.s.sel || {}, T = EV.M.testById[key.slice(5)]; return (s.t === 'test' && s.id === T.id) || (s.t === 'sim' && (s.test ? s.test === T.id : T.sims.some(q => q.id === s.id))); },
 
   viewTree() {
     const M = EV.M, S = EV.s, e = EV.e, sel = S.sel || {}, st = id => M.recStep[id] ?? 0, cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
@@ -27,17 +29,17 @@ Object.assign(EV, {
       step: st(q.id), sel: sel.t === 'sim' && sel.id === q.id && (!sel.test || !T || sel.test === T.id), state: q.error ? '<span class="bad">no measurements</span>' : '' });
     let out = '';
     M.turns.forEach(t => {
-      const k0 = t.steps[0] ? t.steps[0].k : 0, tk = 'turn:' + t.n, open = EV.treeOpen(tk, true), x = t.exp, bits = [];
+      const k0 = t.steps[0] ? t.steps[0].k : 0, tk = 'turn:' + t.n, open = EV.treeOpen(tk), x = t.exp, bits = [];
       if (t.verdicts.length) bits.push(`${t.verdicts.length} verdict${t.verdicts.length === 1 ? '' : 's'}`); if (t.hyps.length) bits.push(`${t.hyps.length} new hypothes${t.hyps.length === 1 ? 'is' : 'es'}`); if (t.drops.length) bits.push(`${t.drops.length} dropped`);
       out += row(0, { t: 'log', id: t.n, icon: EV_ICON.turn, name: t.n ? 'turn ' + t.n : 'start', words: t.n ? e(bits.join(' · ') || (t.report ? 'the final report' : x ? '' : M.ended || t.malformed.length ? 'nothing usable' : 'waiting for the answer')) : 'the brief and the baseline, by the harness', step: k0, fold: tk, open,
         sel: sel.t === 'log' && sel.id === t.n, state: t.n ? (t.left == null ? '' : `${t.left} left`) : '' });
       if (!open) return;
       t.malformed.forEach(m => { out += row(1, { t: 'log', id: t.n, icon: EV_ICON.malformed, name: 'refused', words: 'the whole answer: ' + e(cut((m.body.refused || []).map(q => q.reason).join(' | ') || m.body.error, 70)), step: st(m.id), warn: true }); });
       t.refusals.forEach(m => { out += row(1, { t: 'log', id: t.n, icon: EV_ICON.malformed, name: 'refused part', words: e(m.body.part) + ': ' + e(cut(m.body.reason || m.body.text, 70)), step: st(m.id), warn: true }); });
-      if (x) { const ts = M.tests.filter(T => T.exp === x.id), xk = 'exp:' + x.id, xo = EV.treeOpen(xk, true), held = x.checks.filter(c => c.result === 'held').length, named = new Set(ts.flatMap(T => T.sims.map(q => q.id)));
+      if (x) { const ts = M.tests.filter(T => T.exp === x.id), xk = 'exp:' + x.id, xo = EV.treeOpen(xk), held = x.checks.filter(c => c.result === 'held').length, named = new Set(ts.flatMap(T => T.sims.map(q => q.id)));
         out += row(1, { t: 'exp', id: x.id, icon: EV_ICON.experiment, name: x.id, words: `${x.sims.length} simulation${x.sims.length === 1 ? '' : 's'} · ${ts.length ? ts.length + (ts.length === 1 ? ' test' : ' tests') : x.by === 'harness' ? 'the baseline' : 'explores: ' + e(cut(x.question, 50))}`,
           step: st(x.id), fold: xk, open: xo, sel: sel.t === 'exp' && sel.id === x.id, state: x.checks.length ? span(Math.max(...x.checks.map(c => st(c.id))), `<span class="ok">${held} held</span> · <span class="${x.checks.length - held ? 'bad' : 'mut'}">${x.checks.length - held} failed</span>`) : '' });
-        if (xo) { ts.forEach(T => { const k = 'test:' + T.id, mine = (sel.t === 'test' && sel.id === T.id) || (sel.t === 'sim' && sel.test === T.id), to = EV.treeOpen(k, mine), v = T.verdict, h = M.hypById[T.hyp];
+        if (xo) { ts.forEach(T => { const k = 'test:' + T.id, to = EV.treeOpen(k), v = T.verdict, h = M.hypById[T.hyp];
             out += row(2, { t: 'test', id: T.id, icon: EV_ICON.test, name: T.hyp, words: e(cut(h && h.text, 46)), step: st(x.id), fold: k, open: to, sel: sel.t === 'test' && sel.id === T.id || (sel.t === 'hyp' && sel.id === T.hyp),
               state: (T.check ? span(st(T.check.id), res(T.check)) : '') + (v ? span(st(v.id), ` · ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}`) : '') });
             if (to) T.sims.forEach(q => { out += simRow(3, q, T); }); });
@@ -49,6 +51,6 @@ Object.assign(EV, {
   },
 });
 EV.act = Object.assign(EV.act || {}, {
-  tfold(id) { const S = EV.s, sel = S.sel || {}, dflt = id.startsWith('test:') ? (sel.t === 'test' && 'test:' + sel.id === id) || (sel.t === 'sim' && 'test:' + sel.test === id) : true; S.tree[id] = !EV.treeOpen(id, dflt); EV.draw(); },
+  tfold(id) { EV.s.tree[id] = !EV.treeOpen(id); EV.draw(); },
   left(id) { EV.s.left = id; EV.draw(); },
 });

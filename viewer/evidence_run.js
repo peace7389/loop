@@ -10,8 +10,6 @@ Object.assign(EV, {
     const n = EV.nw, o = { policy: n.policy, draft: n.draft, baseline: !!n.baseline }, num = (k, to) => { if (String(n[k]).trim()) o[to] = Number(n[k]); };
     num('budget', 'budget'); num('tokens', 'max_tokens'); num('temp', 'temperature'); return o;
   },
-  // the scheduling policy as the page may show it: a policy the harness chose stays hidden until the session is scored
-  policyText: x => (x && x.policy_hidden ? '<span class="mut">chosen by the harness: shown once the session is scored</span>' : x && x.policy ? EV.e(x.policy) : EV.nr),
 
   newPanel() {
     const n = EV.nw, st = EV.st, e = EV.e; if (!st.briefs.includes(n.brief)) n.brief = st.briefs[0] || null;

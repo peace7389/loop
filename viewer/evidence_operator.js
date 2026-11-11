@@ -13,7 +13,7 @@ Object.assign(EV, {
   },
   sweepId() { const f = EV.files, k = f.key && f.key.per_scheduling_policy && f.key.per_scheduling_policy[f.policy]; return (f.score && f.score.sweep) || (k && k.sweep) || null; },
   async afterOperator() {
-    const id = EV.sweepId(); if (!id || id in EV.sweeps) return EV.afterRun();  // the sweep table is there (or there is none): the run and sweep forms
+    const id = EV.sweepId(); if (!id || id in EV.sweeps) return EV.afterRun ? EV.afterRun() : undefined;  // the sweep table is there (or there is none): the run and sweep forms
     EV.sweeps[id] = null; const t = await EV.get(`../checks/sweeps/${id}/table.csv`); EV.sweeps[id] = t ? EV.csv(t) : 'none'; EV.draw();
   },
 
@@ -63,6 +63,6 @@ Object.assign(EV, {
           <p class="sm">A negative gap means the recommendation, simulated by the operator, did better than every row of the sweep.</p>
           <div class="ev-top"><div><h3>the sweep's best row</h3>${kv(sc.best_row)}</div><div><h3>the recommendation, simulated</h3>${kv(sc.recommendation)}${kv(sc.at_the_recommendation)}</div></div>`}</div>
         <div class="ev-card"><h2>Checklist<small>judged by the operator</small></h2>${sc && sc.checklist ? `<table><tbody>${sc.checklist.map(c => `<tr><td>${c.n}</td><td>${e(c.item)}</td><td class="${c.judgement === 'yes' ? 'ok' : c.judgement === 'no' ? 'bad' : 'mut'}">${e(c.judgement)}</td></tr>`).join('')}</tbody></table>` : `<p class="sm">checklist: ${EV.nr}</p>`}</div></div>
-      ${EV.runCard()}${EV.sweepCard()}`;
+      ${EV.runCard ? EV.runCard() + EV.sweepCard() : ''}`;
   },
 });

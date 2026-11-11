@@ -23,6 +23,8 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
   POST /api/sweep/<id>/stop   stops it; the rows finished so far stay in the table
   POST /api/review     {session, item, tick, note}: the reviewer's tick and note for one item of a session's page
                        -> checks/reviews/<session>.json (read back by the page as a file)
+  POST /api/export     {session, operator}: that session as a folder that opens without a server (export_session.py) ->
+                       checks/exports/<session>-<time>/ and a zip; never its drafts; operator-only data only with operator true
   POST /api/brief      {brief}: saves a NEW brief as briefs/<id>.json after the same check loop.py makes (tools.check_brief).
                        An id that already exists is refused: a brief is never overwritten.
 
@@ -33,7 +35,8 @@ Who writes what (the write-ownership rule):
                divides the link, share or cap (records written before 2026-11-11 call it "mode"; both are read).
   control.py   checks/: checks/op-<timestamp>/ (one operator run), checks/control.jsonl (the list of those runs),
                checks/sessions/<id>.log (a session's terminal output), checks/sweeps/<id>/ (a sweep's table and
-               status), checks/reviews/<session>.json (the reviewer's ticks and notes); and briefs/<id>.json, new files only.
+               status), checks/reviews/<session>.json (the reviewer's ticks and notes), checks/random.json (sessions whose policy
+               the server chose), checks/exports/ (exported sessions); and briefs/<id>.json, new files only.
                It starts and stops loop.py and does nothing else.
   the viewer   nothing. Its Control page only calls the POST endpoints above.
 An operator run is made by the built program directly, never by tools.run, so it never reaches a session's folder: no
@@ -47,7 +50,7 @@ Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the 
 Python standard library only."""
 import argparse, csv, http.server, itertools, json, os, random, re, shutil, signal, subprocess, sys, threading, time
 from pathlib import Path
-import tools
+import export_session, tools
 
 ROOT, H, CHECKS = tools.ROOT, tools.HARNESS, tools.ROOT / "checks"
 BIN = tools.NS3 / "build/scratch/two-hosts/ns3.49-two-hosts-optimized"
@@ -377,6 +380,18 @@ def save_review(body):
     return {"session": sid, "items": len(marks)}
 
 
+def export(body):
+    """One session as a folder (and a zip) that opens without a server; operator-only data only when asked for."""
+    sid = body.get("session")
+    row = next((r for r in sessions() if r["id"] == sid), None) if isinstance(sid, str) else None
+    if not row or type(body.get("operator", False)) is not bool:
+        raise Refused(400, "an export needs session (the id of an existing session) and operator (true or false: include the operator-only data)")
+    if row["running"]:
+        raise Refused(409, f"session {sid} is still running: export it when it has ended")
+    with LOCK:
+        return export_session.make(sid, body.get("operator", False), row)
+
+
 def start_session(body):
     """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal. Several can run
     side by side. With the scheduling policy "random" the server chooses share or cap itself and notes the session in
@@ -487,7 +502,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": lambda: stop_session(body), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body)}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": lambda: stop_session(body), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body), "/api/export": lambda: export(body)}.get(self.path)
             m = re.fullmatch(r"/api/sweep/([^/]+)/stop", self.path)
             if m:
                 do = lambda: stop_sweep(m.group(1))

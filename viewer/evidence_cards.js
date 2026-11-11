@@ -27,7 +27,7 @@ Object.assign(EV, {
     if (simTests.length) bits.push(simTests.map((q, i) => part('test', q.id, `${i ? '' : EV_ICON.test + ' ' + EV.term('Test', simTests.length > 1 ? 'Tests' : 'Test') + ' of '}${e(q.hyp)}`)).join(', '));
     if (sim) bits.push(part('sim', sim.id, `${EV_ICON.simulation} ${EV.term('Simulation', 'Simulation')} ${e(sim.id)}`));
     if (sel.t === 'report') bits.push(part('report', 'report', `${EV_ICON.report} ${EV.term('Final report', 'Final report')}`));
-    return `<div class="trail">${bits.join(' › ')}</div>`;
+    return `<div class="trail">${bits.join(' › ')} <span class="noprint" style="float:right">${EV.copyBtn(sel)}</span></div>`;
   },
   stepOf(sel) {  // the step of the session flow at which the opened item was recorded (for the replay)
     const M = EV.M;

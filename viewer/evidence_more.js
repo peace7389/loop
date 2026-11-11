@@ -63,6 +63,7 @@ Object.assign(EV, {
         : r.type === 'verdict' ? `<p>because: ${e(b.because)}</p><p>next: ${e(b.next)}</p>` : r.type === 'evidence' ? `<ul>${(b.lines || []).map(l => `<li>${e(l)}</li>`).join('')}</ul>` : r.type === 'simulation' ? `<p>${e(JSON.stringify(b.params))}</p><p>${e(JSON.stringify(b.metrics))}</p>` : '';
       return `<h3>${e(id)} · ${e(r ? r.type : 'not in the ledger')} · recorded ${e(r ? r.ts : '')}</h3><p>${EV.evLine(id)}</p>${more}<p>reviewer: ${mk.tick ? '✓ reviewed' : 'not reviewed'}${mk.note ? ' · note: ' + e(mk.note) : ''}</p>`; };
     document.getElementById('ev-print').innerHTML = `<h1>Evidence sheet · session ${e(M.id)} · claim ${n}</h1><p>${e(c.text)}</p><p>${c.evidence.length} evidence items · ${c.state}</p>${c.evidence.map(full).join('')}`;
+    const root = document.getElementById('ev'); root.classList.add('sheet'); window.onafterprint = () => root.classList.remove('sheet');  // print the sheet alone, then the page is itself again
     window.print();
   },
 });

@@ -23,18 +23,18 @@ Object.assign(EV, {
       ${rep ? `It ended with this recommendation: ${e(recText)}.` : M.ended ? 'It ended without a final report.' : 'It is still running.'}</p><button data-act="intro">dismiss</button></div>`;
     const txt = v => (Array.isArray(v) ? v.map(q => e(q)).join(' · ') : e(v ?? 'not recorded')), kv = o => (o && typeof o === 'object' ? Object.entries(o).map(([k, v]) => `<span class="pill">${e(TH_DATA.KNOB[k] || TH_DATA.PLAIN[k] || k)} <b>${e(EV.val(k, v))}</b></span>`).join(' ') : e(o ?? 'not recorded'));
     const state = { held: 'checks held', failed: 'a check failed', none: 'no evidence cited', unchecked: 'evidence without a check' };
-    const claims = !rep ? '' : !M.claims.length ? '<p class="sm">The report states no claims.</p>' : `<h3>its claims<span class="sm" style="text-transform:none;letter-spacing:0"> · click one to mark its evidence and open its test</span></h3><div class="chips">${M.claims.map(q => {
+    const claims = !rep ? '' : !M.claims.length ? '<p class="sm">The report states no claims.</p>' : `<h3>its claims<span class="sm noprint" style="text-transform:none;letter-spacing:0"> · click one to mark its evidence and open its test</span></h3><div class="chips">${M.claims.map(q => {
         const n = q.evidence.filter(id => (EV.marks['rec:' + id] || {}).tick).length;
-        return `<button class="chip ${q.state}${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" title="${e(q.text)}"><b>claim ${q.n}</b>${e(q.text.length > 70 ? q.text.slice(0, 68) + '…' : q.text)}<br><span class="sm">${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'} · ${state[q.state]}${n ? ` · ${n} reviewed` : ''}</span></button>`; }).join('')}</div>
+        return `<button class="chip ${q.state}${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" title="${e(q.text)}"><b>claim ${q.n}</b><span class="ct">${e(q.text)}</span><br><span class="sm">${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'} · ${state[q.state]}${n ? ` · ${n} reviewed` : ''}</span></button>`; }).join('')}</div>
       <p class="sm">${M.claims.length} claims · ${M.claims.filter(q => q.state === 'held').length} backed by held checks · ${M.claims.filter(q => q.state === 'failed').length} backed by a failed check ·
         <span class="${M.claims.some(q => q.state === 'none') ? 'warnc' : ''}">${M.claims.filter(q => q.state === 'none').length} with no evidence</span>${M.claims.some(q => q.state === 'unchecked') ? ` · ${M.claims.filter(q => q.state === 'unchecked').length} citing evidence that has no check` : ''}
         ${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
     const body = !rep ? `<p><b>No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>`
       : `<div class="ov" data-step="${M.repRec ? M.recStep[M.repRec.id] ?? 0 : 0}"><div><span>the goal</span>${txt(rep.goal)}</div><div><span>recommended settings</span>${kv(rep.recommendation)}</div><div><span>expected result</span>${kv(rep.expected)}</div>
-          <div><span>explanation</span><div class="${S.more ? '' : 'clamp'}">${txt(rep.explanation)}</div><a data-act="more">${S.more ? 'less' : 'more'}</a></div>
+          <div><span>explanation</span><div class="${S.more ? '' : 'clamp'}">${txt(rep.explanation)}</div><a class="noprint" data-act="more">${S.more ? 'less' : 'more'}</a></div>
           <div><span>holds when</span>${txt(rep.holds_when)}</div><div><span>breaks when</span>${txt(rep.breaks_when)}</div>${claims}</div>`;
     return `<div class="ev-card" id="s-overview"><h2>Overview<small>what this session is and what it concluded, from its ${EV.term('Final report', 'final report')}</small></h2>${intro}${body}
-      <p class="sm">open on the right: ${rep ? '<a data-act="open" data-t="report" data-id="report">the full final report</a> · ' : ''}<a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p></div>`;
+      <p class="sm noprint">open on the right: ${rep ? '<a data-act="open" data-t="report" data-id="report">the full final report</a> · ' : ''}<a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p>${EV.shareBar()}</div>`;
   },
 
   // ---- the work: the left side is the tree, the session flow or the hypothesis map; the selection is shared
@@ -57,7 +57,7 @@ Object.assign(EV, {
   },
 
   sessionTab() {
-    return `${EV.headStrip()}${EV.banner()}
+    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}
       <div class="ev-main"><div>${EV.overview()}${EV.highCard()}${EV.bestCard()}${EV.workCard()}${EV.testsCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },

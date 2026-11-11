@@ -8,12 +8,13 @@ Object.assign(EV, {
   expBtns: id => `<div class="exp">save <button data-act="export" data-id="${id}" data-x="png">PNG</button> <button data-act="export" data-id="${id}" data-x="csv">CSV</button></div>`,
   chartJs() {  // Chart.js from the CDN, once; the page is drawn again when it arrives
     if (window.Chart) return true; if (EV.cj) return false; EV.cj = 'loading';
-    const s = document.createElement('script'); s.src = TASK_VIEW.CDN; s.onload = () => { EV.cj = 'ready'; EV.draw(); }; s.onerror = () => { EV.cj = 'failed'; }; document.head.appendChild(s); return false;
+    const s = document.createElement('script'); s.src = window.EV_EXPORT ? EV_EXPORT.chart || 'not-in-this-export.js' : TASK_VIEW.CDN;  // an exported copy has its own copy of the library, or none
+    s.onload = () => { EV.cj = 'ready'; EV.draw(); }; s.onerror = () => { EV.cj = 'failed'; EV.draw(); }; document.head.appendChild(s); return false;
   },
 
   canvas(kind, id, wide) {  // the place of a chart that afterDraw draws: of a test, or of a whole experiment
     const cid = `ev-c-${kind}-${id}`;
-    return window.Chart ? `<div class="cv" style="height:240px"><canvas id="${cid}" data-chart="${kind}" data-id="${EV.e(id)}"${wide ? ' data-wide="1"' : ''}></canvas></div>${EV.expBtns(cid)}` : (EV.chartJs(), '<p class="sm">Loading the chart library…</p>');
+    return window.Chart ? `<div class="cv" style="height:240px"><canvas id="${cid}" data-chart="${kind}" data-id="${EV.e(id)}"${wide ? ' data-wide="1"' : ''}></canvas></div>${EV.expBtns(cid)}` : (EV.chartJs(), `<p class="sm">${EV.cj === 'failed' ? 'The chart library is not available here, so this chart is not drawn.' : 'Loading the chart library…'}</p>`);
   },
   // an experiment: the batch of simulations planned in one turn, the tests run in it, and all its simulations
   expPanel(id) {
@@ -53,7 +54,7 @@ Object.assign(EV, {
     const meas = Object.keys(m).filter(q => !['link_rate_bps', 'weight_udp'].includes(q)), d = (q) => { if (!ctl || typeof cm[q] !== 'number' || typeof m[q] !== 'number') return '–';
       const [u, f] = EV.unit(q), v = f(m[q]) - f(cm[q]); return (v > 0 ? '+' : v < 0 ? '−' : '±') + (+Math.abs(v).toPrecision(5)).toLocaleString('en-US') + (u ? ' ' + u : ''); };
     const show = (q, v) => { const [u, f] = EV.unit(q); return typeof v !== 'number' ? '–' : (+f(v).toPrecision(7)).toLocaleString('en-US') + (u ? ' ' + u : ''); };
-    const charts = !src ? `<p class="sm">charts over time: ${EV.nr} (no run id)</p>` : sr === 'none' ? `<p class="sm">charts over time: ${EV.nr} (the run has no series.csv)</p>` : !sr || !window.Chart ? (EV.chartJs(), '<p class="sm">Loading the charts…</p>')
+    const charts = !src ? `<p class="sm">charts over time: ${EV.nr} (no run id)</p>` : sr === 'none' ? `<p class="sm">charts over time: ${EV.nr} (the run has no series.csv)</p>` : !sr || !window.Chart ? (EV.chartJs(), `<p class="sm">${EV.cj === 'failed' ? 'The chart library is not available here, so the charts over time are not drawn.' : 'Loading the charts…'}</p>`)
       : `<div class="charts" data-by="simulator">${EV.TIME.filter(q => !q.need || q.need(sr)).map(q => `<figure style="margin:0"><div class="cv" style="height:200px"><canvas id="th-c-${q.id}"></canvas></div>${EV.expBtns(q.id)}</figure>`).join('')}</div>`;
     return `<div class="ev-top"><div><h3>settings${ctl ? ' · against ' + o.ctlHead : ''}</h3>${ctl ? '' : `<p class="sm">the experiment's control: ${EV.nr}</p>`}
           <table><thead><tr><th>setting</th><th>this simulation</th><th>${e(o.ctlName || 'control')}</th></tr></thead><tbody>${keys.map(q => `<tr class="${diff(q) ? 'diff' : ''}"><td>${e(TH_DATA.KNOB[q] || q)}</td><td>${e(s.params[q] ?? '–')}${diff(q) ? ' <span class="warnc">≠</span>' : ''}</td><td>${ctl ? e(ctl.params[q] ?? '–') : '–'}</td></tr>`).join('')}</tbody></table></div>

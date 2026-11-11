@@ -4,6 +4,8 @@
 // ======================================================================================================
 Object.assign(EV, {
   ended: x => (x.running ? 'running now' : x.how || 'not recorded'),
+  // the scheduling policy as the page may show it: a policy the harness chose stays hidden until the session is scored
+  policyText: x => (x && x.policy_hidden ? '<span class="mut">chosen by the harness: shown once the session is scored</span>' : x && x.policy ? EV.e(x.policy) : EV.nr),
   gapText: x => (!x.score || typeof x.score.gap !== 'number' ? null : (/_bps$/.test(x.score.target) ? (x.score.gap / 1e6).toFixed(3) + ' Mbps' : String(+x.score.gap.toPrecision(4))) + ` (${(100 * x.score.part).toFixed(2)}%)`),
   // "N sessions · R with a final report · C meet the brief's conditions · largest gap to the best G%", from the list
   results(brief) {
@@ -38,7 +40,7 @@ Object.assign(EV, {
   homeView() {
     const e = EV.e, S = EV.s, st = EV.st, h = S.home, all = st.sessions, briefs = [...new Set(all.map(x => x.brief || ''))];
     const th = ([k, t, c]) => `<th${c ? ` class="${c}"` : ''}><a data-act="sort" data-id="${k}" title="Sort by this column">${t}${h.sort === k ? (h.dir > 0 ? ' ▲' : ' ▼') : ''}</a></th>`;
-    return `<div class="ev-acts">
+    return `<div class="ev-acts"${EV.off ? ' style="display:none"' : ''}>
         <div class="ev-card"><h2>New session</h2><p class="sm">Write or choose an assignment and start the AI on it.</p><p>${EV.newPanel ? `<button class="big" data-act="new">${S.newOpen ? 'Close' : 'New session…'}</button>` : '<a href="index_full.html#control">the older control page starts one</a>'}</p></div>
         <div class="ev-card"><h2>Open a session</h2><p class="sm">See what the AI did and check it against the measurements.</p>
           <p><select data-ch="session" class="big"><option value="">choose a session…</option>${all.slice().reverse().map(x => `<option value="${e(x.id)}">${e(`${x.id} · ${x.brief || 'before briefs'} · ${EV.ended(x)}`)}</option>`).join('')}</select></p></div>

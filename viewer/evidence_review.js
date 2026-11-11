@@ -26,10 +26,10 @@ Object.assign(EV, {
   queueView() {
     const M = EV.M, S = EV.s, e = EV.e, q = EV.queue(M), so = EV.marks.signoff, on = i => S.sel && `${S.sel.t}:${S.sel.id}` === `${i.open.t}:${i.open.id}` && (!i.claim || S.claim === i.claim);
     const row = (i, n) => { const m = EV.marks[i.key] || {};
-      return `<div class="qi review${on(i) ? ' on' : ''}" data-item="${e(i.key)}"><input type="checkbox" data-ch="review"${m.tick ? ' checked' : ''} title="checked"><div><a data-act="qopen" data-id="${n}">${i.kinds.filter(k => k !== 'test' && k !== 'claim').map(k => `<span class="pill ${k === 'refused' || k === 'numbers differ' || k === 'verdict contradicts its check' ? 'warnc' : ''}">${e(k)}</span> `).join('')}${e(i.text)}</a>
-        ${i.evidence ? `<br><span class="sm">its evidence: ${i.evidence.map(EV.link).join(', ') || '<span class="warnc">none cited</span>'}</span>` : ''}</div><input type="text" data-ch="review" placeholder="note" value="${e(m.note || '')}"></div>`; };
+      return `<div class="qi review${on(i) ? ' on' : ''}" data-item="${e(i.key)}"><input type="checkbox" data-ch="review"${m.tick ? ' checked' : ''}${EV.off ? ' disabled' : ''} title="checked"><div><a data-act="qopen" data-id="${n}">${i.kinds.filter(k => k !== 'test' && k !== 'claim').map(k => `<span class="pill ${k === 'refused' || k === 'numbers differ' || k === 'verdict contradicts its check' ? 'warnc' : ''}">${e(k)}</span> `).join('')}${e(i.text)}</a>
+        ${i.evidence ? `<br><span class="sm">its evidence: ${i.evidence.map(EV.link).join(', ') || '<span class="warnc">none cited</span>'}</span>` : ''}</div><input type="text" data-ch="review" placeholder="note" value="${e(m.note || '')}"${EV.off ? ' disabled' : ''}></div>`; };
     return `<div id="p-queue"><div class="qlist">${q.map(row).join('') || '<p class="sm">Nothing to check yet.</p>'}</div>
-      <div class="ev-bar" style="margin:8px 0"><b>Sign off</b>${so ? `<span class="ok">signed off by ${e(so.note)} on ${e(String(so.at || '').slice(0, 10))}</span> <button data-act="unsign">withdraw</button>`
+      <div class="ev-bar" style="margin:8px 0${EV.off && !so ? ';display:none' : ''}"><b>Sign off</b>${so ? `<span class="ok">signed off by ${e(so.note)} on ${e(String(so.at || '').slice(0, 10))}</span>${EV.off ? '' : ' <button data-act="unsign">withdraw</button>'}`
         : `<input type="text" id="so-name" placeholder="your name" style="width:180px"> <button data-act="sign">Sign off this review</button><span class="sm">stored with the review; Home then shows it on this session's row</span>`}${S.soMsg ? ` <span class="bad">${e(S.soMsg)}</span>` : ''}</div>
       <p class="sm" style="border-top:1px solid var(--border);padding-top:8px">The item opened from the queue is shown below.</p></div>`;
   },

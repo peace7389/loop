@@ -4,3 +4,4 @@ ns-3.49/
 flowmon.xml
 __pycache__/
 .pre-change/
+checks/exports/
