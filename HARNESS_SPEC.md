@@ -549,8 +549,10 @@ in the ledger; `pass_if` non-empty.
   `wrr-queue-disc.*` is not, and the tool returns "not available" for it
   without saying why. The scenario file passes `--mode` straight through
   with no comment that reveals the mechanism; keep comments there neutral.
-- All tool outputs are truncated to a fixed character cap before being put in
-  the prompt.
+- All tool outputs are truncated to a fixed character cap (6,000) before being
+  put in the prompt, except `read_source`, whose result is given whole
+  (operator, 2026-11-11: the cap had cut `two-hosts.cc`, about 19,000
+  characters, to its first third).
 - No tool takes a path argument; only ids and names from a fixed set.
 
 ### 7.4 `loop.py`

@@ -10,7 +10,7 @@ import tools
 ROOT = Path.home() / "project"
 H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127.0.0.1:18000/v1"
 LEDGER = SID = None  # the current session's ledger and id, set in main()
-CAP = 6000  # characters of any tool result or ledger body shown to the model
+CAP = 6000  # characters of any tool result (except read_source, which is given whole) or ledger body shown to the model
 CEILING = 150  # most experiments one invocation can be granted: --budget plus every budget_request grant
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
 PREFIX = {"hypothesis": "H", "experiment": "X", "evidence": "E", "verdict": "V", "malformed": "M", "note": "N", "draft": "D"}
@@ -101,6 +101,8 @@ def call(q):
     except Exception as e:  # a bad argument is the model's problem, reported back to it
         out = f"error: {e}"
     s = out if isinstance(out, str) else json.dumps(out)
+    if q.get("tool") == "read_source":  # the whole file: a source cut off part-way hides whatever comes after the cut
+        return s
     return s[:CAP] + (" ...[truncated]" if len(s) > CAP else "")
 
 def main():
