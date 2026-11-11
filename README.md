@@ -15,7 +15,7 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `harness/tools.py` | Everything the model can reach: read-only tools and `run()` |
 | `harness/manifest.json`, `prompt.txt`, `schema.json` | The task as the model sees it, the prompt, the answer format |
 | `harness/control.py` | The operator's small server for the viewer (port 8600); `make_trace.py` records packet events |
-| `ledger.jsonl` | The AI session's record: scratch (reasoning), hypothesis, experiment, evidence, verdict, note, malformed |
+| `ledger.jsonl` | The AI session's record: draft (what the model wrote before its answer), hypothesis, experiment, evidence, verdict, note, malformed |
 | `runs/index.json` | Every run the model can see: id, params, metrics. `runs/operator.jsonl`: the scheduler mode of each (hidden from the model) |
 | `runs/<id>/` | One simulation: `params.json`, `metrics.json`, `series.csv` (a sample every 0.1 s) |
 | `checks/` | Operator checks of the simulator itself (no AI), with the command of each |

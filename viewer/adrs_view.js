@@ -653,8 +653,8 @@ const TH_DATA = {
         run_id: rid, changed, settings: Object.entries(params).map(([key, val]) => [D.KNOB[key] || key, D.knob(key, val)]),
         criteria: crit, met: checked.filter(c => c.ok).length, total: checked.length,
         verdict: v ? { id: v.id, turn: v.turn, result: vb.result, because: vb.because, next: vb.next } : null, error: eb.error });
-      const think = led.filter(s => s.type === 'scratch' && s.turn === ev.turn).pop();
-      programs.push(program(n, rid, eb.error ? null : metrics, { reasoning: think ? (think.body || {}).reasoning || null : null }));
+      const think = led.filter(s => (s.type === 'draft' || s.type === 'scratch') && s.turn === ev.turn).pop();
+      programs.push(program(n, rid, eb.error ? null : metrics, { reasoning: think ? (think.body || {}).text || (think.body || {}).reasoning || null : null }));
     });
     const turns = [...new Set(led.map(r => r.turn))].sort((a, b) => a - b).map(t => {
       const recs = led.filter(r => r.turn === t), ev = recs.find(r => r.type === 'evidence'), vd = recs.find(r => r.type === 'verdict'), note = recs.find(r => r.type === 'note');
@@ -665,10 +665,10 @@ const TH_DATA = {
       else if (recs.some(r => r.type === 'malformed')) { kind = 'wasted'; label = 'No usable answer (the reply was cut off or invalid)'; }
       else if (note) { const b = note.body || {}, asked = (b.requests || []).map(q => q.tool).join(', ');
         if (b.text === 'model declared done') { kind = 'done'; label = 'The AI declared it was done'; } else { kind = 'info'; label = asked ? `Asked for information (${asked})` : 'Note'; } }
-      return { turn: t, kind, label, exp, calls: recs.filter(r => r.type === 'scratch').length };
+      return { turn: t, kind, label, exp, calls: recs.filter(r => r.type === 'draft' || r.type === 'scratch').length };
     });
     const count = k => turns.filter(t => t.kind === k).length, real = hyps.filter(h => !h.baseline), judged = hyps.filter(h => h.verdict);
-    const res = r => judged.filter(h => h.verdict.result === r).length, scratch = led.filter(r => r.type === 'scratch');
+    const res = r => judged.filter(h => h.verdict.result === r).length, scratch = led.filter(r => r.type === 'draft' || r.type === 'scratch');
     const mins = led.length ? Math.round((new Date(led[led.length - 1].ts) - new Date(led[0].ts)) / 60000) : null;
     const latest = real[real.length - 1];
     const page = { kind: 'loop', title: 'Two hosts, one link', kicker: 'AI hypothesis loop over a network simulation (ns-3)', question: man.task || '',

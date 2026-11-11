@@ -4,7 +4,7 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
   GET  any file        the project's files, read-only, exactly as before
   GET  /api/status     what is running, the ledger's size, the last lines of the session's output
   POST /api/run        {params, mode}: one operator simulation -> checks/op-<timestamp>/, returns its metrics
-  POST /api/session    {budget, thinking, mode, baseline}: starts loop.py with those flags, returns the session id
+  POST /api/session    {budget, draft, mode, baseline}: starts loop.py with those flags, returns the session id
   POST /api/stop       stops the session that was started here
 
 Who writes what (the write-ownership rule):
@@ -117,16 +117,16 @@ def operator_run(body):
 
 def start_session(body):
     """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal."""
-    budget, thinking, mode, base = body.get("budget", 30), body.get("thinking", "on"), body.get("mode", "share"), body.get("baseline", True)
-    if type(budget) is not int or budget < 1 or thinking not in ("on", "off") or mode not in ("share", "cap") or type(base) is not bool:
-        raise Refused(400, "budget must be a whole number of at least 1, thinking on or off, mode share or cap, baseline true or false")
+    budget, draft, mode, base = body.get("budget", 30), body.get("draft", "on"), body.get("mode", "share"), body.get("baseline", True)
+    if type(budget) is not int or budget < 1 or draft not in ("on", "off") or mode not in ("share", "cap") or type(base) is not bool:
+        raise Refused(400, "budget must be a whole number of at least 1, draft on or off, mode share or cap, baseline true or false")
     with LOCK:
         if (SESSION and SESSION["proc"].poll() is None) or other_loop():
             raise Refused(409, "a session is already running")
         sid = "s-" + time.strftime("%Y%m%d-%H%M%S")
         (CHECKS / "sessions").mkdir(parents=True, exist_ok=True)
         log = CHECKS / "sessions" / f"{sid}.log"
-        flags = {"budget": budget, "thinking": thinking, "mode": mode, "baseline": "on" if base else "off"}
+        flags = {"budget": budget, "draft": draft, "mode": mode, "baseline": "on" if base else "off"}
         cmd = LOOP + [x for k, v in flags.items() for x in (f"--{k}", str(v))]
         with log.open("w") as f:
             f.write(" ".join(cmd) + "\n")

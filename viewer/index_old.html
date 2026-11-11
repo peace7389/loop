@@ -41,7 +41,7 @@ async function load(){
   if(!sel&&runs.length)sel=runs[runs.length-1].id;
   trail();runTable();scatter();if(sel)detail(sel);
 }
-const colr={hypothesis:'--acc',experiment:'--mid',evidence:'--mut',verdict:'--acc',malformed:'--bad',note:'--mut',scratch:'--line'};
+const colr={hypothesis:'--acc',experiment:'--mid',evidence:'--mut',verdict:'--acc',malformed:'--bad',note:'--mut',scratch:'--line',draft:'--line'};
 function trail(){
   if(!ledger.length){$('trail').textContent='no ledger yet (stages 3-4 write it)';return}
   const byId={};ledger.forEach(r=>byId[r.id]=r);
@@ -52,7 +52,7 @@ function trail(){
     else if(r.type==='experiment')txt=`${esc(JSON.stringify(b.params||{}))} <span class="muted">pass if</span> ${esc(b.pass_if||'')}`;
     else if(r.type==='evidence')txt=`run <b>${esc(b.run_id||'')}</b> ${esc(Object.entries(b).filter(([k])=>!['run_id','pass_if'].includes(k)).map(([k,v])=>k+'='+fmt(v,k)).join(' · '))}`;
     else if(r.type==='hypothesis')txt=esc(b.text||b.hypothesis||JSON.stringify(b))+(b.prediction?` <span class="muted">predicts</span> ${esc(b.prediction)}`:'');
-    else if(r.type==='scratch')txt=`<details><summary>model reasoning, ${(b.reasoning||'').length} chars${b.finish_reason?' · '+esc(b.finish_reason):''}</summary><pre>${esc(b.reasoning||'')}</pre></details>`;
+    else if(r.type==='draft'||r.type==='scratch')txt=`<details><summary>model draft, ${(b.text||b.reasoning||'').length} chars${b.finish_reason?' · '+esc(b.finish_reason):''}</summary><pre>${esc(b.text||b.reasoning||'')}</pre></details>`;
     else txt=esc(typeof b==='string'?b:JSON.stringify(b));
     return `<div class="rec${r.type==='evidence'?' ev':''}" style="--d:${depth(r)*14}px;--c:var(${c})" data-run="${r.type==='evidence'?esc(b.run_id||''):''}"><b>${r.type}</b><span class="id">${esc(r.id)} · turn ${r.turn}</span><div>${txt}</div></div>`}).join('');
   $('trail').querySelectorAll('.ev').forEach(e=>e.onclick=()=>{sel=e.dataset.run;detail(sel);runTable()});

@@ -10,7 +10,8 @@ H, LEDGER, API = ROOT / "harness", ROOT / "ledger.jsonl", "http://127.0.0.1:1800
 CAP = 6000  # characters of any tool result or ledger body shown to the model
 CEILING = 150  # most experiments one invocation can be granted: --budget plus every budget_request grant
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
-PREFIX = {"hypothesis": "H", "experiment": "X", "evidence": "E", "verdict": "V", "malformed": "M", "note": "N", "scratch": "S"}
+PREFIX = {"hypothesis": "H", "experiment": "X", "evidence": "E", "verdict": "V", "malformed": "M", "note": "N", "draft": "D"}
+DRAFT_TYPES = ("draft", "scratch")  # "scratch" is the name used in ledgers written before 2026-11-11
 
 def load_ledger():
     return [json.loads(l) for l in LEDGER.read_text().splitlines() if l.strip()] if LEDGER.exists() else []
@@ -47,20 +48,20 @@ def shown(r):
     return json.dumps(b)
 
 def render(ledger):
-    """The ledger as text for the prompt, one line per record. Scratch records (the model's own past reasoning) are kept on disk, not replayed."""
+    """The ledger as text for the prompt, one line per record. Draft records (what the model wrote before its answer) are kept on disk, not replayed."""
     lines = [f"[{r['id']}] turn {r['turn']} {r['type']}" + (f" (parent {r['parent']})" if r["parent"] else "") + ": " + shown(r)[:CAP]
-             for r in ledger if r["type"] != "scratch"]
+             for r in ledger if r["type"] not in DRAFT_TYPES]
     return "\n".join(lines) or "(empty)"
 
 def count_tokens(model, text):
     """Tokens of a text, counted by the model server's own tokenizer."""
     return requests.post(API.removesuffix("/v1") + "/tokenize", json={"model": model, "prompt": text}, timeout=300).json()["count"]
 
-def ask(model, system, user, schema, thinking, temperature):
+def ask(model, system, user, schema, draft, temperature):
     body = {"model": model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "temperature": temperature, "max_tokens": 8000 if thinking else 1500,
+            "temperature": temperature, "max_tokens": 8000 if draft else 1500,
             "response_format": {"type": "json_schema", "json_schema": {"name": "turn", "schema": schema}}}
-    if not thinking:
+    if not draft:
         body["chat_template_kwargs"] = {"enable_thinking": False}
     r = requests.post(API + "/chat/completions", json=body, timeout=1800).json()
     ch = r["choices"][0]
@@ -94,7 +95,7 @@ def call(q):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--budget", type=int, default=30, help=f"experiments granted at the start (at most {CEILING}; the model can ask for more, up to {CEILING} in total)")
-    ap.add_argument("--thinking", choices=["on", "off"], default="on")
+    ap.add_argument("--draft", choices=["on", "off"], default="on", help="on: the model may write a draft before its JSON answer (max_tokens 8000) and the draft is kept in the ledger; off: answer only (max_tokens 1500)")
     ap.add_argument("--mode", choices=["share", "cap"], default="share")
     ap.add_argument("--temperature", type=float, default=0.3)
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the default experiment and record it as evidence E0")
@@ -122,9 +123,9 @@ def main():
             pending = []
         last, parsed, err, content = (ledger[-1]["id"] if ledger else None), None, None, ""
         for _attempt in range(2):
-            content, reasoning, finish, usage = ask(model, system, user, schema, a.thinking == "on", a.temperature)
-            if a.thinking == "on":
-                last = append(ledger, turn, "scratch", last, {"reasoning": reasoning, "model": model, "finish_reason": finish, "tokens": usage.get("completion_tokens")})
+            content, draft, finish, usage = ask(model, system, user, schema, a.draft == "on", a.temperature)
+            if a.draft == "on":
+                last = append(ledger, turn, "draft", last, {"text": draft, "model": model, "finish_reason": finish, "tokens": usage.get("completion_tokens")})
             if not content.strip() or finish == "length":
                 err = f"empty content or finish_reason={finish}"
                 continue

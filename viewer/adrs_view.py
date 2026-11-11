@@ -186,7 +186,7 @@ def _loop_parts():
         if h.get("type") != "hypothesis":
             h = {}
         # the thinking of the call that produced this experiment: the last scratch record of the same turn
-        think = [s for s in led if s["type"] == "scratch" and s["turn"] == r["turn"]]
+        think = [s for s in led if s["type"] in ("draft", "scratch") and s["turn"] == r["turn"]]
         # the whole turn: from the last record before it to the evidence record
         before = [s for s in led[:k] if s["turn"] < r["turn"]]
         t0, t1 = _epoch(before[-1].get("ts")) if before else None, _epoch(r.get("ts"))
@@ -228,7 +228,7 @@ def _loop_main():
             facts.append(["Verdict", "none: a baseline has no hypothesis to judge" if eb.get("note") else "none: the loop stopped before the model judged this hypothesis"])
         tb = (q["think"] or {}).get("body") or {}
         p = _program(i, rid, _epoch(e.get("ts")), params, m if "udp_goodput_bps" in m else None, eb.get("error"), op.get("mode"),
-                     reasoning=tb.get("reasoning") or None,
+                     reasoning=tb.get("text") or tb.get("reasoning") or None,
                      headline=result or ("baseline" if eb.get("note") else "not judged"), headline_cls=result or "pending", facts=facts,
                      changes=f"{h.get('id', 'no hypothesis')} · turn {e['turn']} · run {rid}: {_params_text(xb.get('params') or params)}")
         if isinstance(op.get("seconds"), (int, float)):
@@ -238,7 +238,7 @@ def _loop_main():
         programs.append(p)
     running = _running()
     last = programs[-1] if programs else None
-    scratch = [r for r in led if r["type"] == "scratch"]
+    scratch = [r for r in led if r["type"] in ("draft", "scratch")]
     model = ((scratch[-1].get("body") or {}).get("model") if scratch else None) or "?"
     status = {"running": running,
               "last_completed": {"iteration": last["iteration"] if last else 0, "seconds": times.get(last["id"], 0) if last else 0,
@@ -412,7 +412,7 @@ def list_runs_main():
     out = []
     if D["ledger"]:
         led, exps = _loop_parts()
-        scratch = [r for r in led if r["type"] == "scratch"]
+        scratch = [r for r in led if r["type"] in ("draft", "scratch")]
         out.append({"name": LOOP, "mtime": _mtime(LEDGER), "iterations": len(exps), "running": _running(),
                     "model": ((scratch[-1].get("body") or {}).get("model") if scratch else None) or "?", "backend": "vllm",
                     "switches": ["thinking"] if scratch else [], "started": (led[0].get("ts") or "").replace("T", " ")[:16] or None})

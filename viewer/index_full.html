@@ -124,7 +124,7 @@ async function load() {
 // ======================================================================================================
 const CONTROL = {
   st: null, busy: '', err: { run: '', session: '' }, last: null, el: null, raw: null,
-  ui: { params: {}, mode: 'share', budget: 30, thinking: 'on', smode: 'share', baseline: true },
+  ui: { params: {}, mode: 'share', budget: 30, draft: 'on', smode: 'share', baseline: true },
 
   async post(path, body) {
     const r = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -157,13 +157,13 @@ const CONTROL = {
         `<div class="th-wide"><div>
            <div class="ct-form">
              <label>Experiments<small>budget · 1 to 150 · the AI may ask for more, up to 150 in all</small><input type="number" id="ct-budget" min="1" max="150" step="1" value="${e(ui.budget)}"></label>
-             <label>Thinking<small>thinking · whether the AI reasons before each answer</small>${pick('ct-thinking', ui.thinking, [['on', 'on'], ['off', 'off']])}</label>
+             <label>Draft<small>draft · whether the AI writes a draft before each answer</small>${pick('ct-draft', ui.draft, [['on', 'on'], ['off', 'off']])}</label>
              <label>Scheduler mode<small>mode · never shown to the AI</small>${pick('ct-smode', ui.smode, MODES)}</label>
              <label class="check"><input type="checkbox" id="ct-baseline"${ui.baseline ? ' checked' : ''}><span>Baseline run first (E0)<small id="ct-basenote"></small></span></label></div>
            <button class="ct-go" id="ct-start">Start session</button><button class="ct-go plain" id="ct-stop">Stop session</button>
          </div><div class="ct-box" id="ct-session"></div></div>`);
     el.querySelectorAll('[data-p]').forEach(i => { i.oninput = i.onchange = () => { ui.params[i.dataset.p] = i.value; C.paint(); }; });
-    [['ct-mode', 'mode'], ['ct-thinking', 'thinking'], ['ct-smode', 'smode']].forEach(([id, k]) => { $(id).onchange = ev => { ui[k] = ev.target.value; }; });
+    [['ct-mode', 'mode'], ['ct-draft', 'draft'], ['ct-smode', 'smode']].forEach(([id, k]) => { $(id).onchange = ev => { ui[k] = ev.target.value; }; });
     $('ct-budget').oninput = ev => { ui.budget = ev.target.value; };
     $('ct-baseline').onchange = ev => { ui.baseline = ev.target.checked; };
     $('ct-reset').onclick = () => { ui.params = {}; ui.mode = 'share'; C.again(); };
@@ -175,7 +175,7 @@ const CONTROL = {
     };
     $('ct-start').onclick = async () => {
       C.busy = 'session'; C.err.session = ''; C.paint();
-      try { await C.post('../api/session', { budget: Number(ui.budget), thinking: ui.thinking, mode: ui.smode, baseline: !!ui.baseline && !(C.st && C.st.ledger_records) }); } catch (x) { C.err.session = x.message; }
+      try { await C.post('../api/session', { budget: Number(ui.budget), draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline && !(C.st && C.st.ledger_records) }); } catch (x) { C.err.session = x.message; }
       C.busy = ''; await load(); C.paint();
     };
     $('ct-stop').onclick = async () => {
@@ -190,7 +190,7 @@ const CONTROL = {
   paint() {
     const C = CONTROL, e = TASK_VIEW._e, st = C.st, raw = C.raw; if (!C.el || !C.el.isConnected || !st || !$('ct-status')) return;
     const S = st.session, on = S && S.running, n = st.ledger_records, P = raw.manifest.params || {};
-    const flags = S ? `${S.flags.budget} experiments, thinking ${S.flags.thinking}, ${S.flags.mode} mode` : '';
+    const flags = S ? `${S.flags.budget} experiments, draft ${S.flags.draft}, ${S.flags.mode} mode` : '';
     const lastLine = S ? String(S.output || '').trim().split('\n').pop() : '';
     $('ct-status').className = 'ct-status' + (on || st.other_loop || st.run_busy ? ' live' : '');
     $('ct-status').innerHTML = '<i></i><span>' + (on ? `<b>An AI session is running</b> (${e(S.id)}, started ${e(S.started.slice(11, 16))}: ${e(flags)}).`
