@@ -1,0 +1,66 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.302,
+  "queuePkts": 8,
+  "tcpVariant": "TcpCubic",
+  "duration": 5
+ },
+ "expected": {
+  "udp_goodput_bps": 297758720,
+  "tcp_goodput_bps": 670843341,
+  "udp_loss_frac": 0.007482,
+  "drops_band0": 1002,
+  "drops_band1": 1521,
+  "tcp_retrans": 1521,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.302
+ },
+ "explanation": "The scheduler is work-conserving: when UDP does not need its configured share, TCP uses the unused capacity. UDP demand is fixed at about 300 Mbps, so the safe operating point is just above the UDP share threshold. With the default queue, UDP loss falls below 1% between weightUdp=0.30 and 0.35, and TCP goodput is highest near that threshold because increasing weightUdp further gives UDP more configured share than it needs and reduces TCP's share. At weightUdp=0.30, queue size controls the tradeoff: larger queues let TCP push more traffic but increase UDP loss, while very small queues keep UDP safe but cap TCP. The tested point weightUdp=0.302, queuePkts=8, TcpCubic is the best tested setting that satisfies udp_loss_frac <= 0.01: it gives tcp_goodput_bps=670843341 with udp_loss_frac=0.007482. This is higher than the safe default-queue point weightUdp=0.305, queuePkts=100, which gave tcp_goodput_bps=669997709, and higher than all safe TCP variants tested at the same near-threshold point. TcpCubic is preferred because BBR and Vegas underutilize the link, BIC violates the UDP-loss constraint, and NewReno/LinuxReno are safe but slightly slower.",
+ "holds_when": "The link is 1 Gbps with 50 us one-way delay, MTU 1500, UDP sends 1400-byte packets at 300 Mbps, TCP is always backlogged, the scheduler is work-conserving, and the measurement conditions are close to the tested ones, especially duration=5 and default seed=1.",
+ "breaks_when": "If UDP rate, link rate, MTU, packet size, scheduler behavior, TCP buffer size, or measurement duration/seed changes enough to move the UDP-loss threshold; if weightUdp is reduced below about 0.302 at queuePkts=8 or queuePkts is increased without increasing weightUdp, UDP loss can exceed 1%; if a longer or more variable measurement window is required, a safer point such as weightUdp=0.305, queuePkts=100, TcpCubic may be preferable.",
+ "claims": [
+  {
+   "text": "The scheduler lends unused UDP bandwidth to TCP, so TCP can exceed its strict configured share when UDP is underutilized.",
+   "evidence": [
+    "E1",
+    "C1"
+   ]
+  },
+  {
+   "text": "With default queuePkts, the UDP-loss threshold is between weightUdp=0.30 and 0.35; weightUdp=0.305 is safe and gives higher TCP goodput than weightUdp=0.35.",
+   "evidence": [
+    "E1",
+    "E2",
+    "C2",
+    "C4"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.30, queue size trades TCP goodput against UDP loss: queuePkts=6 is safe but TCP is about 668.7 Mbps, queuePkts=8 gives higher TCP but violates the UDP-loss constraint, and larger queues give still higher TCP but much higher UDP loss.",
+   "evidence": [
+    "E3"
+   ]
+  },
+  {
+   "text": "The best tested safe setting is weightUdp=0.302, queuePkts=8, TcpCubic, with tcp_goodput_bps=670843341 and udp_loss_frac=0.007482.",
+   "evidence": [
+    "E4",
+    "C9"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.302, queuePkts=8, TcpCubic is the best safe TCP variant; BBR and Vegas are safe but much slower, BIC is faster but unsafe, and NewReno/LinuxReno are safe but slower.",
+   "evidence": [
+    "E4",
+    "C10"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether weightUdp values between 0.302 and 0.305, or queuePkts values around 8 with slightly different weights, can give a larger safe TCP goodput.",
+  "Whether the recommended near-threshold point remains safe for duration=10, other seeds, or longer traffic runs.",
+  "Whether a different queue size combined with a slightly higher weightUdp can beat 670843341 bps while keeping UDP loss below 1%."
+ ]
+}

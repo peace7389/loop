@@ -1,0 +1,78 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.3029,
+  "queuePkts": 400,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 296960160,
+  "tcp_goodput_bps": 671628736,
+  "udp_loss_frac": 0.009658,
+  "drops_band0": 2587,
+  "drops_band1": 7,
+  "tcp_retrans": 7,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.3029
+ },
+ "explanation": "The scheduler behaves as a strict weighted-fair scheduler for the configured shares: when UDP demand is below weightUdp, TCP does not receive the unused UDP share, so TCP goodput is approximately (1-weightUdp) times the link rate scaled by TCP payload overhead. This is shown by the default and weightUdp=0.35 runs, where link_util is UDP wire demand plus the configured TCP share rather than near 1.0. UDP's required scheduler share is just below 0.303 for the fixed 300 Mbps UDP payload load: at queuePkts=400, weightUdp=0.3028 gives udp_loss_frac=0.010016, violating the constraint, while weightUdp=0.3029 gives udp_loss_frac=0.009658 and tcp_goodput_bps=671628736, the highest TCP goodput tested under the constraint. queuePkts=400 is the best tested queue size because it reaches the same TCP goodput as queuePkts=100 at weightUdp=0.303 (671532589 bps) but reduces UDP loss from 0.009815 to 0.0093 and TCP drops/retransmissions from 91 to 7, while queuePkts=1000 gives much lower TCP goodput at the same weight. TcpBbr was tested at the same feasible point and was feasible but far worse for TCP goodput (409658893 bps, link_util=0.728358), so TcpCubic is the best tested TCP variant. The recommended point therefore sits just on the feasible side of the UDP-loss boundary, where TCP receives almost all of its configured share and the link is fully utilized.",
+ "holds_when": "The fixed system parameters remain unchanged: 1 Gbps link, 50 us one-way delay, 1500-byte MTU, UDP application sending 1400-byte packets at 300 Mbps payload, TCP always backlogged, 1 MB TCP buffers, 10-packet device queue, and the observed strict weighted-fair scheduler behavior. The recommendation is measured for duration=10 and seed=1; nearby seeds tested at the adjacent point weightUdp=0.303, queuePkts=100 showed very small seed variation, but seed robustness at exactly 0.3029, queuePkts=400 was not directly tested.",
+ "breaks_when": "If the UDP offered load increases, the feasible weightUdp threshold rises and 0.3029 would violate udp_loss_frac <= 0.01. If scheduler behavior changes to work-conserving lending of idle UDP share, the optimum weightUdp could be lower. If seed or duration changes move UDP loss above 0.01 at 0.3029, use weightUdp=0.303 with queuePkts=400, which has more margin and only about 0.096 Mbps lower TCP goodput in the tested seed. If another TCP variant not tested here (TcpNewReno, TcpLinuxReno, TcpVegas, or TcpBic) outperforms TcpCubic, the TCP variant recommendation could change.",
+ "claims": [
+  {
+   "text": "The scheduler does not lend idle UDP share to TCP; TCP goodput tracks the configured TCP share when UDP demand is below weightUdp.",
+   "evidence": [
+    "E0",
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "At queuePkts=400, the UDP-loss boundary for the fixed UDP load lies between weightUdp=0.3028 and weightUdp=0.3029.",
+   "evidence": [
+    "E4",
+    "E5",
+    "C10",
+    "C12"
+   ]
+  },
+  {
+   "text": "queuePkts=400 is better than queuePkts=100 and queuePkts=1000 at the boundary: it matches queuePkts=100 TCP goodput while reducing UDP loss and TCP drops, and avoids the TCP-goodput penalty of queuePkts=1000.",
+   "evidence": [
+    "E2",
+    "E3",
+    "E4",
+    "C4",
+    "C8",
+    "V4",
+    "V8"
+   ]
+  },
+  {
+   "text": "TcpCubic outperforms TcpBbr for this goal at the tested feasible settings.",
+   "evidence": [
+    "E4",
+    "C9",
+    "C11"
+   ]
+  },
+  {
+   "text": "The highest tested feasible TCP goodput is obtained with weightUdp=0.3029, queuePkts=400, TcpCubic, duration=10, seed=1.",
+   "evidence": [
+    "E5",
+    "C12",
+    "E4"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact optimum between weightUdp=0.3028 and 0.3029 was not tested; the true feasible maximum may be slightly above 671628736 bps.",
+  "Other TCP variants (TcpNewReno, TcpLinuxReno, TcpVegas, TcpBic) were not tested against TcpCubic.",
+  "Seed robustness at exactly weightUdp=0.3029, queuePkts=400 was not directly tested, although adjacent points showed very small seed sensitivity.",
+  "Queue sizes between 400 and 1000 were not fully explored; queuePkts=400 is best among tested values but not proven globally optimal."
+ ]
+}

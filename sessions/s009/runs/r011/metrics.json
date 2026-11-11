@@ -1,0 +1,11 @@
+{
+  "udp_goodput_bps": 297550400,
+  "tcp_goodput_bps": 663215718,
+  "udp_loss_frac": 0.005260,
+  "drops_band0": 1409,
+  "drops_band1": 0,
+  "tcp_retrans": 0,
+  "link_util": 1.000000,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.304000
+}

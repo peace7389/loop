@@ -1,0 +1,89 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.30265,
+  "queuePkts": 600,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 296716000,
+  "tcp_goodput_bps": 671870707,
+  "udp_loss_frac": 0.009811,
+  "drops_band0": 2628,
+  "drops_band1": 3,
+  "tcp_retrans": 3,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.30265
+ },
+ "explanation": "The scheduler's configured UDP share is the dominant control. With the default weightUdp=0.5, TCP receives only about half the link and gets 482.667 Mbps even though the link is not fully utilized. Reducing weightUdp lets TCP use more of the 1 Gbps link; at weightUdp=0.32 TCP reaches 656.426 Mbps, and near the UDP-loss threshold TCP reaches about 671.5-671.9 Mbps with link_util about 1.0. The UDP flow needs slightly more than 0.3026 of the link because of packetization/scheduling effects; below the threshold its queue overflows and udp_loss_frac exceeds 0.01. Queue size affects the UDP-loss margin: queuePkts=100 becomes unacceptable just below about 0.30295, queuePkts=400 allows about 0.30285, and queuePkts=600 allowed 0.30265 in the tested runs. queuePkts=1000 reduced TCP goodput at weightUdp=0.32, indicating bufferbloat or scheduling delay, so 600 is the best tested queue size. TCP congestion control does not materially increase goodput once the TCP share is filled: TcpCubic, TcpNewReno, TcpLinuxReno, and TcpBic all reached the same 671.533 Mbps at weightUdp=0.303 and queuePkts=100, while TcpBbr and TcpVegas were much lower. Therefore the constrained optimum is to set weightUdp as low as possible while keeping UDP loss at or below 1%, with queuePkts=600 and a loss-based TCP variant; the best tested such point is weightUdp=0.30265, queuePkts=600, TcpCubic.",
+ "holds_when": "The link is 1 Gbps with 50 us one-way delay, UDP sends 1400-byte packets at 300 Mbps, TCP has 1 MB buffers and a full segment fills one 1500-byte packet, the scheduler behaves as observed in these runs, seed=1, and duration=10 s. It also assumes the UDP loss constraint is exactly udp_loss_frac <= 0.01 over the measured window.",
+ "breaks_when": "It would change if the UDP rate, UDP packet size, link rate, link delay, TCP buffers, scheduler policy, seed, or measurement duration change enough to move the UDP-loss threshold; if a stricter UDP-loss target is required; if queuePkts is increased too far and bufferbloat reduces TCP goodput; or if TcpBbr or TcpVegas is used instead of a loss-based variant.",
+ "claims": [
+  {
+   "text": "TCP goodput is primarily limited by the scheduler's configured TCP share; lowering weightUdp below 0.5 increases TCP goodput substantially while UDP loss can remain acceptable near 0.32.",
+   "evidence": [
+    "E0",
+    "E1",
+    "C1",
+    "C2",
+    "V1",
+    "V2"
+   ]
+  },
+  {
+   "text": "The UDP-loss constraint binds near weightUdp about 0.30265-0.30295, depending on queue size; below the threshold udp_loss_frac exceeds 0.01.",
+   "evidence": [
+    "E1",
+    "C2",
+    "E2",
+    "C5",
+    "C6",
+    "E3",
+    "C9",
+    "E4",
+    "C11",
+    "E5",
+    "C13"
+   ]
+  },
+  {
+   "text": "queuePkts=600 is the best tested queue size for this constrained optimum: very small queues do not improve TCP goodput, queuePkts=1000 reduces TCP goodput, and queuePkts=400/600 improve the UDP-loss margin enough to permit a lower weightUdp.",
+   "evidence": [
+    "E2",
+    "C3",
+    "C4",
+    "E3",
+    "C8",
+    "E4",
+    "C11",
+    "C12",
+    "E5",
+    "C13"
+   ]
+  },
+  {
+   "text": "Loss-based TCP variants fill the configured TCP share and give the same TCP goodput at the tested operating point, while TcpBbr and TcpVegas underfill the link and reduce TCP goodput.",
+   "evidence": [
+    "E3",
+    "C7",
+    "V7"
+   ]
+  },
+  {
+   "text": "The best tested setting satisfying udp_loss_frac <= 0.01 is weightUdp=0.30265, queuePkts=600, TcpCubic, duration=10, seed=1, with tcp_goodput_bps=671870707 and udp_loss_frac=0.009811.",
+   "evidence": [
+    "E5",
+    "C13"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether queuePkts between 600 and 1000, or a different queue size, permits an even lower weightUdp without bufferbloat.",
+  "Whether weightUdp slightly below 0.30265 with queuePkts=600 remains within udp_loss_frac <= 0.01.",
+  "Whether the optimum is robust across other seeds and longer measurement durations.",
+  "Whether TcpNewReno or TcpLinuxReno would give the same TCP goodput with fewer TCP queue drops at the recommended queue size and weight."
+ ]
+}

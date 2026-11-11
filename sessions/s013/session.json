@@ -1,0 +1,107 @@
+{
+ "id": "s013",
+ "brief": "two-hosts-udp-demand",
+ "model": "Qwen/Qwen3.8-Flash-Next-FP8",
+ "started": "2026-11-11T20:02:22",
+ "flags": {
+  "budget": 40,
+  "draft": "on",
+  "max_tokens": 32000,
+  "temperature": 0.3,
+  "baseline": "on"
+ },
+ "given": {
+  "id": "two-hosts-udp-demand",
+  "task": "Two computers are connected by a single wire. One sends, one receives. The sender uses UDP and TCP at the same time: the UDP application's sending rate is fixed, and TCP sends as fast as it can. A scheduler on the sender splits the link between them by a configurable ratio. Find the settings that best meet the goal given in this brief, and explain why they are best.",
+  "description": "Two computers, a sender and a receiver, are joined by one point-to-point link of 1Gbps with a one-way delay of 50us. The largest packet the link carries is 1500 bytes. The sender runs two applications at the same time, both sending to the receiver: a UDP application that sends 1400-byte packets at a constant rate (300Mbps, fixed in this brief), and a TCP application that always has data to send (its congestion control is the setting tcpVariant; a full TCP segment fills exactly one 1500-byte packet; its send and receive buffers are 1 MB). On the sender, packets wait in two queues in front of the link, one for UDP and one for TCP. Each queue holds at most queuePkts packets, and a packet that arrives at a full queue is dropped. A scheduler takes packets from the two queues and hands them to the link: weightUdp is the part of the link configured for UDP, and TCP is configured with the rest. How the scheduler behaves when one of the two queues has less to send than its part allows is not described here; finding that out is part of the work. Behind the scheduler the link's device has its own transmit buffer of 10 packets. Nothing else uses the link; the receiver counts what arrives and returns TCP acknowledgements. In each simulation the two applications start within the first 10 ms (seed sets the exact start times), traffic runs for one second that is not measured, and then for duration seconds, over which the outputs are measured.",
+  "system": {
+   "linkRate": "1Gbps",
+   "linkDelay": "50us",
+   "mtu": 1500,
+   "udpPacketBytes": 1400,
+   "udpRate": "300Mbps"
+  },
+  "knobs": {
+   "weightUdp": {
+    "min": 0.05,
+    "max": 0.95,
+    "default": 0.5,
+    "meaning": "the ratio knob: part of the link configured for UDP (TCP gets the rest)"
+   },
+   "queuePkts": {
+    "min": 4,
+    "max": 1000,
+    "default": 100,
+    "meaning": "length of each queue in the scheduler, in packets"
+   },
+   "tcpVariant": {
+    "choices": [
+     "TcpCubic",
+     "TcpNewReno",
+     "TcpLinuxReno",
+     "TcpBbr",
+     "TcpVegas",
+     "TcpBic"
+    ],
+    "default": "TcpCubic",
+    "meaning": "TCP congestion control used by the TCP sender"
+   },
+   "duration": {
+    "min": 2,
+    "max": 30,
+    "default": 10,
+    "meaning": "seconds of measured traffic per experiment (one extra second of traffic runs first and is not counted in the outputs)"
+   },
+   "seed": {
+    "min": 1,
+    "max": 1000,
+    "default": 1,
+    "meaning": "random seed of the simulation"
+   }
+  },
+  "goal": {
+   "kind": "given",
+   "target": {
+    "measure": "tcp_goodput_bps",
+    "direction": "max"
+   },
+   "conditions": [
+    "udp_loss_frac <= 0.01"
+   ]
+  },
+  "limits": {
+   "simulations": 40,
+   "simulations_per_experiment": 12
+  },
+  "outputs": {
+   "udp_goodput_bps": "payload bits per second delivered to the UDP receiver",
+   "tcp_goodput_bps": "payload bits per second delivered to the TCP receiver",
+   "udp_loss_frac": "fraction of UDP packets sent that never arrived",
+   "drops_band0": "packets dropped from the scheduler's UDP queue",
+   "drops_band1": "packets dropped from the scheduler's TCP queue",
+   "tcp_retrans": "TCP segments the sender sent again",
+   "link_util": "bits actually transmitted on the wire divided by link capacity, over the traffic window",
+   "link_rate_bps": "link capacity in bits per second",
+   "weight_udp": "the ratio knob as used in that run"
+  },
+  "tools": {
+   "describe_system": "this brief, with the descriptions of the outputs and the tools",
+   "metrics": "metrics(run_id): the output values of a simulation (run ids are in the evidence lines, e.g. r003)",
+   "series": "series(run_id, every_n): per-100ms samples of a run: t,udp_bps,tcp_bps,cwnd,drops_band0,drops_band1,q_band0,q_band1,qmin_band0,qmin_band1 (at most 100 rows; drops are totals since traffic began; q = packets waiting in each queue at the sample time, qmin = the fewest waiting since the previous sample; the measured seconds begin at t = 2)",
+   "grep_trace": "grep_trace(run_id, pattern, limit): lines of the run's flow-monitor XML matching a regular expression (at most 50)",
+   "list_runs": "list_runs(): id, params and metrics of every simulation of this session so far"
+  },
+  "how_to_run": "An experiment is a set of simulations with one purpose, run at once. Fill the 'experiment' field of your answer: its kind (test or explore), the simulations (runs: a label and the params that differ from the defaults), and for a test the decision rules, comparisons stated before the simulations run. The harness runs the simulations, appends the evidence (one line per simulation) and checks every decision rule itself.",
+  "budget": "the budget counts simulations; the number left is stated in each turn"
+ },
+ "prompt": "You are a researcher working on a system you cannot see inside. You reach it only through the tools listed in the brief and through experiments the harness runs for you.\n\nYour task is the one stated in the brief. The brief also describes the system in plain words (description) and gives its fixed settings (system), the settings you may change with their ranges and defaults (knobs), the goal and the limits.\n\nThe ledger is the complete record of everything you have hypothesised, run, observed and concluded. You have no other memory. Each turn you read it and answer with one JSON object. Its parts:\n\n1. observations: what you read in the ledger and in the tool results.\n2. hypotheses: new claims about how the system behaves, each with a falsifiable prediction (a number, a range, or a direction). Any number of hypotheses may be open at the same time. The harness numbers them in order: if the last hypothesis in the ledger is H3, your first new one is H4, the next H5. You may use those ids in the same answer. With each new hypothesis say in follows_from what it follows from: the ids of the earlier verdicts, checks or evidence tables that led you to it, or the word brief when it comes from the brief alone; an id that is not in the ledger is refused.\n3. drop: open hypotheses you give up without a verdict, each with a reason. Only a hypothesis none of whose decision rules has been checked can be dropped; once one has been checked, the hypothesis needs a verdict.\n4. experiment: at most one per turn. An experiment is a set of simulations with one purpose; the harness runs them all at once. It may hold several simulations, for example a control and variations of one setting, so that one simulation can be compared with another.\n   - kind \"test\": tests lists the ids of the open hypotheses it tests, and decision_rules has at least one decision rule for each of them.\n   - kind \"explore\": question says what you want to find out; tests and decision_rules stay empty. Use it when you do not yet have a claim to test.\n   - runs: the simulations, each with a label of its own (letters, digits and _ only) and params: the knobs you set for it. A knob you leave out takes its default. A simulation with the same settings and seed as an earlier one of this session is not run again: the earlier result is returned, and it does not count against the budget. Parameters outside the allowed ranges are clamped, and a setting the brief fixes cannot be changed (the brief's value is used); the ledger records the value actually used.\n   - varied: the knobs that differ between the simulations. control: the label of the simulation the others are compared with, or null.\n   - decision_rules: each decision rule (stated before the simulations) belongs to one tested hypothesis (for) and is a comparison that decides whether its prediction held. The harness checks it itself from the measured values, so write decision_rule exactly in this form: numbers; measure@label, the value of an output in the simulation with that label; + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; comparisons joined by AND and OR, with parentheses to group them. An experiment with a decision rule the harness cannot read is refused, and none of its simulations is run. With each decision rule give a rival, a competing explanation of how the system behaves, and say in rival_predicts whether the decision rule would hold (held) or fail (failed) if the rival were true; a decision rule that would hold under the rival too cannot tell the two explanations apart, so the harness refuses it and you must choose simulations where the two explanations give different results.\n5. After an experiment the harness appends the evidence (one line per simulation) and, for every decision rule, a check: the decision rule with the measured numbers written into it, and HELD or FAILED. You never write evidence or checks yourself.\n6. verdicts: your judgement of hypotheses whose decision rules have been checked. Each names the hypothesis (for), says supported, refuted or inconclusive, cites the check and evidence ids in because, and says in next what you will do and why. A verdict for a hypothesis that has no checked decision rule is rejected. A verdict closes the hypothesis.\n7. requests: if you need information to design the next step, ask for it through the tools described in the brief; the results come back in the next turn.\n8. budget_request: the budget counts simulations. If the simulations left will not be enough to answer the task, say how many more you need and why, in a turn that also does something else. The harness grants it only up to the limit of the brief (limits.simulations) and records the grant. Otherwise leave it null.\n9. done and report: when you believe you have an answer to the task, set done to true and fill report in the same answer; the session then ends. Until then leave report null and done false, and keep testing. If the budget runs out first, the harness gives you one last turn in which no experiment is accepted and the report is required. The report has:\n   - goal: the goal your answer is best for. If the brief's goal is open, the goal you chose and why. If it is given, that goal.\n   - recommendation: the settings you recommend, as knob: value. Only knobs, each within its range; a setting the brief fixes cannot be recommended.\n   - expected: the output values you expect at the recommendation, by the outputs' names.\n   - explanation: why this setting is best. holds_when: the conditions under which your answer stays valid. breaks_when: the conditions under which it would change.\n   - claims: the statements your answer rests on, each with evidence: the ids of the ledger records that support it (for example E3, C5). Every id must exist in the ledger; a report that cites an id that does not exist is rejected.\n   - open_questions: what you could not settle.\n   Before the report, give a verdict on every hypothesis that has a checked decision rule; the verdicts can be in the same answer as the report.\n\nIf one part of your answer cannot be used (for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read), the harness leaves that part out, accepts the rest, and says in a note which part it refused and why; read the note and repair that part. If several turns in a row give nothing usable, the harness gives one last turn in which only the final report is accepted.\n\nBe concrete and quantitative. Prefer experiments that distinguish between explanations.\n",
+ "ended": "2026-11-11T20:32:26",
+ "how": "simulation limit reached",
+ "report": "R1",
+ "left_open": [],
+ "without_verdict": [],
+ "turns": 7,
+ "simulations": 40,
+ "calls": 7,
+ "cut_off": 0
+}

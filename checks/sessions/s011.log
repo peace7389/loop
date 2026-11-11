@@ -1,0 +1,2 @@
+session s011 (brief two-hosts-udp-demand): /home/chunguck.kim/project/sessions/s011
+stopped: session s011, done by the model, 39 simulations, 5 turns, ledger /home/chunguck.kim/project/sessions/s011/ledger.jsonl

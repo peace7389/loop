@@ -1,0 +1,76 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.304,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 297636640,
+  "tcp_goodput_bps": 670962656,
+  "udp_loss_frac": 0.007888,
+  "drops_band0": 2113,
+  "drops_band1": 93,
+  "tcp_retrans": 93,
+  "link_util": 0.999999,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.304
+ },
+ "explanation": "The UDP application offers about 300 Mbps, i.e. about 0.30 of the 1 Gbps link. When weightUdp is at least about 0.31, UDP is lossless and TCP goodput is flat at about 668.633 Mbps because the scheduler is work-conserving and TCP uses the unused UDP share (E1, C1, V1). To maximize TCP, the best strategy is to lower weightUdp just enough that UDP loss remains within the allowed 1%, because TCP can then use the link capacity freed by the dropped UDP packets. At queuePkts=100, weightUdp=0.302 violates the constraint with udp_loss_frac=0.014414, while weightUdp=0.304 satisfies it with udp_loss_frac=0.007888 and gives tcp_goodput_bps=670962656, higher than any lossless UDP setting (E2, C3, V3). Increasing weightUdp further reduces TCP goodput toward the lossless value; decreasing it below 0.304 makes UDP loss exceed 1%. Queue-size sweeps did not find a better feasible operating point: very large queues did not make weightUdp=0.30 feasible, small queues either caused TCP drops without improving TCP goodput or kept UDP lossless at lower TCP goodput, and the q8 fine sweep found no feasible point above weightUdp=0.304 (E2, E3, E4, C4, C5, C6, V4, V5). TcpCubic is preferred among tested variants because it saturates the link; TcpBbr at a comparable point left the link only 73.3% utilized and delivered much less TCP payload (E4, C7). Therefore weightUdp=0.304, queuePkts=100, TcpCubic is the best tested setting that satisfies the UDP-loss constraint while maximizing TCP goodput.",
+ "holds_when": "The fixed system remains as described: 1 Gbps link, 50 us one-way delay, 1500-byte MTU, UDP sending 1400-byte packets at 300 Mbps, TCP always backlogged with 1500-byte segments, scheduler queues as described, seed=1, duration=10 s, and TcpCubic. The recommendation is for the measured window used by the harness.",
+ "breaks_when": "It could change if a different seed or duration changes the measured UDP loss, if the UDP rate or packet size changes, if the scheduler's borrowing behavior changes, if another TCP variant saturates the link while producing a more favorable queue/loss tradeoff, or if untested weights just above the 1% UDP-loss threshold (for example near weightUdp=0.3034 with queuePkts=100, or near weightUdp=0.3006 with queuePkts=8) are tested and found feasible with higher TCP goodput.",
+ "claims": [
+  {
+   "text": "The scheduler is work-conserving for TCP once UDP demand is below its configured share; TCP goodput is essentially unchanged from weightUdp=0.31 through 0.90.",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "The UDP-loss constraint becomes satisfiable near weightUdp=0.304 at queuePkts=100: weightUdp=0.302 has udp_loss_frac=0.014414, while weightUdp=0.304 has udp_loss_frac=0.007888.",
+   "evidence": [
+    "E2",
+    "C3",
+    "V3"
+   ]
+  },
+  {
+   "text": "The best tested feasible TCP goodput is tcp_goodput_bps=670962656 at weightUdp=0.304, queuePkts=100, TcpCubic, seed=1, duration=10.",
+   "evidence": [
+    "E2",
+    "C3",
+    "V3"
+   ]
+  },
+  {
+   "text": "Queue-size variations tested did not beat the best feasible point: queuePkts=1000 at weightUdp=0.30 remained infeasible, queuePkts=5-9 did not both satisfy UDP loss <=1% and exceed weightUdp=0.304, and the q8 fine sweep also failed to find a feasible better point.",
+   "evidence": [
+    "E2",
+    "E3",
+    "E4",
+    "C4",
+    "C5",
+    "C6",
+    "V4",
+    "V5"
+   ]
+  },
+  {
+   "text": "TcpBbr is not a better tested choice for this saturated-link objective: at q8w030021 it had link_util=0.733125 and tcp_goodput_bps=411354790, far below TcpCubic's 672503328 at the same weight and queue.",
+   "evidence": [
+    "E4",
+    "C7"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether an untested weightUdp just above the estimated 1% UDP-loss threshold, for example around 0.3034 with queuePkts=100 or around 0.3006 with queuePkts=8, is feasible and gives TCP goodput slightly above 670962656 bps.",
+  "How robust the recommendation is to different seeds and different duration values.",
+  "Whether any of the untested TCP variants (TcpNewReno, TcpLinuxReno, TcpVegas, TcpBic) can saturate the link and produce a better feasible TCP/UDP loss tradeoff than TcpCubic.",
+  "The exact scheduler mechanism that makes small queues produce lossless UDP but high TCP drops, and larger queues trade UDP loss for higher TCP goodput."
+ ]
+}

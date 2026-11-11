@@ -1,0 +1,77 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.303,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 297058720,
+  "tcp_goodput_bps": 671532589,
+  "udp_loss_frac": 0.009815,
+  "drops_band0": 2629,
+  "drops_band1": 91,
+  "tcp_retrans": 91,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.303
+ },
+ "explanation": "The scheduler behaves non-work-conservatively with respect to UDP's configured share: TCP's achieved rate tracks the configured TCP share (1-weightUdp), not the link capacity left after UDP's actual demand. Evidence: at weightUdp=0.20, TCP goodput is 770.968486 Mbps while UDP loss is 34.6412%, and TCP goodput decreases as weightUdp increases. Therefore, to maximize TCP goodput under the UDP-loss constraint, choose the smallest weightUdp that keeps udp_loss_frac <=0.01. With queuePkts=100 and TcpCubic, weightUdp=0.302 gives udp_loss_frac=0.013081, while weightUdp=0.303 gives udp_loss_frac=0.009815 and tcp_goodput_bps=671.532589 Mbps. Larger weights satisfy the constraint but reduce TCP goodput: 0.304 gives 670.567642 Mbps, 0.305 gives 669.601536 Mbps, and 0.31 gives 666.08 Mbps. queuePkts=100 is preferred because queuePkts=1000 lowers TCP goodput by about 7.85 Mbps at weightUdp=0.305 and does not make weightUdp=0.30 feasible. TcpCubic is a loss-based variant that fills the scheduler share; BBR and Vegas underfill it.",
+ "holds_when": "The fixed link is 1 Gbps with 50 us one-way delay, UDP sends 1400-byte packets at 300 Mbps, the scheduler uses the same configured UDP share and is non-work-conserving for unused UDP share, queuePkts=100, a loss-based TCP variant is used, and the seed is one of the tested seeds 1-5 or behaves similarly.",
+ "breaks_when": "The UDP rate or packet size changes, the scheduler becomes work-conserving or uses a different service discipline, the seed causes UDP loss above 1% at weightUdp=0.303, queuePkts=1000 is used, or BBR/Vegas is used for TCP.",
+ "claims": [
+  {
+   "text": "The scheduler is non-work-conserving with respect to UDP's unused share, so TCP throughput is governed primarily by the configured TCP share (1-weightUdp).",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "With queuePkts=100 and TcpCubic, the smallest tested weightUdp satisfying udp_loss_frac <=0.01 is 0.303; 0.302 fails and 0.303 passes.",
+   "evidence": [
+    "E3",
+    "C6",
+    "V6"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.303, queuePkts=100, TcpCubic, UDP loss and TCP goodput are stable across seeds 1-5.",
+   "evidence": [
+    "E4",
+    "C9",
+    "C12"
+   ]
+  },
+  {
+   "text": "queuePkts=100 is better than queuePkts=1000 for this objective: q1000 lowers TCP goodput and does not rescue an infeasible weightUdp.",
+   "evidence": [
+    "E2",
+    "E3",
+    "C4",
+    "C7",
+    "C8",
+    "V4",
+    "V7",
+    "V8"
+   ]
+  },
+  {
+   "text": "Loss-based TCP variants fill the scheduler share, while BBR and Vegas underfill it; TcpCubic is a tested choice at the recommended setting.",
+   "evidence": [
+    "E2",
+    "C5",
+    "V5"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact continuous threshold between weightUdp=0.302 and 0.303 was not tested; 0.303 is the smallest tested feasible value.",
+  "Robustness beyond seeds 1-5 was not tested.",
+  "The effect of duration values other than the default 10 seconds was not tested.",
+  "TcpNewReno, TcpLinuxReno, and TcpBic likely match TcpCubic's goodput at weightUdp=0.303, but that exact setting was not tested for those variants."
+ ]
+}

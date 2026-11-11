@@ -1,0 +1,1 @@
+[{"linkRate": "1Gbps", "linkDelay": "50us", "mtu": 1500, "udpRate": "300Mbps", "weightUdp": 0.302, "queuePkts": 8, "tcpVariant": "TcpCubic", "duration": 5, "seed": 1}, "share", 1794417637.0]
