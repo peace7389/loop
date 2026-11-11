@@ -24,7 +24,7 @@ Object.assign(EV, {
       <span class="end">reviewed ${ticked} of ${n} steps <span class="prog"><i style="width:${n ? 100 * ticked / n : 0}%"></i></span></span>`;
     return `${intro}<div class="ev-top"><div class="ev-card"><h2>How a session is built<small>this session's counts; click a box to go to that part</small></h2>${EV.structureMap()}</div>
         <div class="ev-card"><h2>Who produced it</h2>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
-      <div class="ev-card" id="p-claims"><h2>${EV.term('Final report', 'Final report')}: its claims<small>click one to mark its evidence in both charts and open its experiment</small></h2>${claims}</div>
+      <div class="ev-card" id="p-claims"><h2>${EV.term('Final report', 'Final report')}: its claims<small>click one to mark its evidence in both charts and open its test</small></h2>${claims}</div>
       <div class="ev-card ev-bar" style="margin-bottom:12px">${replay}</div>
       <div class="ev-main"><div><div class="ev-card"><h2>Session flow<small>time runs down; click a box to open it on the right</small></h2><div class="ev-scroll ev-lanes">${EV.viewLanes()}</div></div>
           ${EV.sections()}</div>
@@ -43,25 +43,28 @@ Object.assign(EV, {
 
   // ---- the structure map: how a session is built, with this session's counts from its ledger; a click goes to that part
   structureMap() {
-    const M = EV.M, c = M.counts, reused = M.sims.filter(s => s.same_as).length, base = M.exps.filter(x => x.by === 'harness').length, W = 126, H = 58;
+    const M = EV.M, c = M.counts, reused = M.sims.filter(s => s.same_as).length, base = M.exps.filter(x => x.by === 'harness').length, W = 116, H = 58;
     const node = (x, y, term, word, n, by, icon, to, small) => EV.box(x, y, W, H, by,
       `${icon} ${EV.term(term, word)}<br><b style="font-size:15px">${n}</b>${small ? ` <small>${small}</small>` : ''}`, `data-act="goto" data-id="${to}"`);
-    const col = i => 8 + i * 150, a = (x1, y1, x2, y2) => `<path class="edge" d="M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}" marker-end="url(#ev-ah)"/>`;
+    const col = i => 8 + i * 134, a = (x1, y1, x2, y2) => `<path class="edge" d="M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}" marker-end="url(#ev-ah)"/>`;
     const r = (i, y) => [col(i) + W, y + H / 2], l = (i, y) => [col(i) - 2, y + H / 2];
     const Y = { top: 6, mid: 72, bot: 138 };
-    const edges = [[0, Y.mid, 1, Y.mid], [1, Y.mid, 2, Y.top], [1, Y.mid, 2, Y.mid], [1, Y.mid, 2, Y.bot], [2, Y.mid, 3, Y.top], [2, Y.mid, 3, Y.bot], [3, Y.top, 4, Y.mid], [3, Y.bot, 4, Y.mid], [4, Y.mid, 5, Y.mid]]
-      .map(([i, y, j, z]) => a(...r(i, y), ...l(j, z))).join('') + `<path class="edge" d="M${col(2) + W / 2},${Y.top} C${col(2) + W / 2},-30 ${col(5) + W / 2},-30 ${col(5) + W / 2},${Y.mid - 2}" marker-end="url(#ev-ah)" stroke-dasharray="3 3"/>`;
-    return `<svg viewBox="0 -34 ${col(5) + W + 8} ${Y.bot + H + 40}" width="100%" role="img" aria-label="How a session is built, with this session's counts">${EV.arrowDefs()}${edges}
+    // brief → session → hypotheses / experiments / final report; experiment → tests; test → decision rule, simulations → check → verdict
+    const edges = [[0, Y.mid, 1, Y.mid], [1, Y.mid, 2, Y.top], [1, Y.mid, 2, Y.mid], [1, Y.mid, 2, Y.bot], [2, Y.mid, 3, Y.mid], [3, Y.mid, 4, Y.top], [3, Y.mid, 4, Y.bot], [4, Y.top, 5, Y.mid], [4, Y.bot, 5, Y.mid], [5, Y.mid, 6, Y.mid]]
+      .map(([i, y, j, z]) => a(...r(i, y), ...l(j, z))).join('') + `<path class="edge" d="M${col(2) + W / 2},${Y.top} C${col(2) + W / 2},-30 ${col(6) + W / 2},-30 ${col(6) + W / 2},${Y.mid - 2}" marker-end="url(#ev-ah)" stroke-dasharray="3 3"/>
+        <path class="edge" d="M${col(2) + W},${Y.top + H / 2} C${col(3) - 20},${Y.top + H / 2} ${col(3) + W / 2},${Y.top + 20} ${col(3) + W / 2},${Y.mid - 2}" marker-end="url(#ev-ah)" stroke-dasharray="3 3"/>`;
+    return `<svg viewBox="0 -34 ${col(6) + W + 8} ${Y.bot + H + 40}" width="100%" role="img" aria-label="How a session is built, with this session's counts">${EV.arrowDefs()}${edges}
       ${node(col(0), Y.mid, 'Brief', 'brief', M.brief ? 1 : 0, 'operator', EV_ICON.brief, 's-brief', M.brief ? '' : EV.nr)}
       ${node(col(1), Y.mid, 'Session', 'session', 1, 'harness', '▢', 's-summary', `${c.turn} ${c.turn === 1 ? 'turn' : 'turns'}`)}
       ${node(col(2), Y.top, 'Hypothesis', 'hypotheses', c.hypothesis, 'model', EV_ICON.hypothesis, 's-hyps', c.drop ? `${c.drop} dropped` : '')}
-      ${node(col(2), Y.mid, 'Experiment', 'experiments', c.experiment, 'model', EV_ICON.experiment, 's-exps', base ? `incl. ${base} baseline` : '')}
+      ${node(col(2), Y.mid, 'Experiment', 'experiments', c.experiment, 'model', EV_ICON.experiment, 's-tests', base ? `incl. ${base} baseline` : '')}
       ${node(col(2), Y.bot, 'Final report', 'final report', c.report, 'model', EV_ICON.report, 's-report', '')}
-      ${node(col(3), Y.top, 'Decision rule', 'decision rules', c.rule, 'model', '⊢', 's-exps', '')}
-      ${node(col(3), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-exps', reused ? `${reused} returned from earlier` : '')}
-      ${node(col(4), Y.mid, 'Check', 'checks', c.check, 'harness', EV_ICON.check, 's-exps', M.old ? EV.nr : `${M.checks.filter(q => q.result === 'held').length} held`)}
-      ${node(col(5), Y.mid, 'Verdict', 'verdicts', c.verdict, 'model', EV_ICON.verdict, 's-hyps', '')}
-      <text x="${(col(2) + col(5) + W) / 2}" y="-24" text-anchor="middle">a verdict judges a hypothesis</text></svg>`;
+      ${node(col(3), Y.mid, 'Test', 'tests', c.test, 'model', EV_ICON.test, 's-tests', 'one hypothesis, one rule')}
+      ${node(col(4), Y.top, 'Decision rule', 'decision rules', c.rule, 'model', '⊢', 's-tests', '')}
+      ${node(col(4), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-tests', reused ? `${reused} returned from earlier` : '')}
+      ${node(col(5), Y.mid, 'Check', 'checks', c.check, 'harness', EV_ICON.check, 's-tests', M.old ? EV.nr : `${M.checks.filter(q => q.result === 'held').length} held`)}
+      ${node(col(6), Y.mid, 'Verdict', 'verdicts', c.verdict, 'model', EV_ICON.verdict, 's-hyps', '')}
+      <text x="${(col(2) + col(6) + W) / 2}" y="-24" text-anchor="middle">a verdict judges a hypothesis</text></svg>`;
   },
 
   // ---- the turn loop: decide → run → check → look again, with the number of turns
@@ -77,7 +80,7 @@ Object.assign(EV, {
   // ---- who produced what: one colour per source, with this session's record counts; and the one symbol per record type
   legend() {
     const say = { model: 'what the AI wrote', harness: 'what the harness computed, found or decided', simulator: 'what a simulation measured', operator: 'what the person set: the brief, the scheduling policy' };
-    const names = { brief: 'brief', hypothesis: 'hypothesis', drop: 'dropped hypothesis', experiment: 'experiment', simulation: 'simulation', evidence: 'evidence table', check: 'check',
+    const names = { brief: 'brief', hypothesis: 'hypothesis', drop: 'dropped hypothesis', experiment: 'experiment', test: 'test', simulation: 'simulation', evidence: 'evidence table', check: 'check',
                     verdict: 'verdict', report: 'final report', note: 'note', malformed: 'refused answer', request: 'request for information', result: 'its result', turn: 'turn record' };
     return `<table><tbody>${['model', 'harness', 'simulator', 'operator'].map(b => `<tr data-by="${b}"><td><i class="sw"></i><b>${b}</b></td><td class="num">${EV.M.bySource[b]} record${EV.M.bySource[b] === 1 ? '' : 's'}</td><td class="sm">${say[b]}</td></tr>`).join('')}</tbody></table>
       <p class="sm" style="margin-top:6px">${Object.entries(EV_ICON).map(([k, i]) => `<span style="white-space:nowrap;margin-right:10px">${i} ${names[k]}</span>`).join(' ')}</p>`;

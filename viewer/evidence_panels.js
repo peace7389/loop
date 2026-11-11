@@ -1,4 +1,4 @@
-// The experiment panel (View 3, its chart, its simulations and checks) and the result panel of one simulation (settings
+// The experiment panel (the batch: its tests, its simulations, one chart on request) and the result panel of one simulation (settings
 // against the control, measurements against the control, the time charts of the run page with their shared time
 // marker, PNG / CSV export, a second run to compare). afterDraw draws the Chart.js charts once the HTML is in place.
 // ======================================================================================================
@@ -11,19 +11,29 @@ Object.assign(EV, {
     const s = document.createElement('script'); s.src = TASK_VIEW.CDN; s.onload = () => { EV.cj = 'ready'; EV.draw(); }; s.onerror = () => { EV.cj = 'failed'; }; document.head.appendChild(s); return false;
   },
 
+  canvas(kind, id, wide) {  // the place of a chart that afterDraw draws: of a test, or of a whole experiment
+    const cid = `ev-c-${kind}-${id}`;
+    return window.Chart ? `<div class="cv" style="height:240px"><canvas id="${cid}" data-chart="${kind}" data-id="${EV.e(id)}"${wide ? ' data-wide="1"' : ''}></canvas></div>${EV.expBtns(cid)}` : (EV.chartJs(), '<p class="sm">Loading the chart library…</p>');
+  },
+  // an experiment: the batch of simulations planned in one turn, the tests run in it, and all its simulations
   expPanel(id) {
-    const M = EV.M, e = EV.e, x = M.expById[id]; if (!x) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
-    const ctl = x.sims.find(s => s.label === x.control), k = EV.measureOf(x), [u, f] = EV.unit(k);
+    const M = EV.M, S = EV.s, e = EV.e, x = M.expById[id]; if (!x) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
+    const ctl = x.sims.find(s => s.label === x.control), ts = M.tests.filter(t => t.exp === id), simK = Math.max(0, ...x.sims.map(s => M.recStep[s.id] ?? 0)), n = x.sims.length;
     const diff = s => (ctl && s !== ctl ? Object.keys(s.params).filter(q => JSON.stringify(s.params[q]) !== JSON.stringify(ctl.params[q])).map(q => `${q} ${s.params[q]}`).join(', ') || 'same as the control' : s === ctl ? '<b>the control</b>' : EV.nr);
-    const sentence = `${x.kind === 'test' ? 'Tests ' + (x.tests.join(', ') || 'not recorded') : x.by === 'harness' ? 'The baseline: ' + (x.question || 'the defaults') : 'Explores: ' + (x.question || 'not recorded')}; ${x.sims.length} simulation${x.sims.length === 1 ? '' : 's'}, varying ${x.varied.join(' and ') || 'nothing recorded'}, against the control “${x.control || 'not recorded'}”.`;
-    return `<h2>${EV_ICON.experiment} ${EV.term('Experiment', 'Experiment')} ${e(x.id)}<small>turn ${x.turn} · ${e(x.by)}</small></h2><p>${e(sentence)}</p>${EV.viewExp(x)}
-      <div class="ev-top" style="margin-top:8px"><div data-step="${Math.max(0, ...x.sims.map(s => M.recStep[s.id] ?? 0))}">${window.Chart ? `<div class="cv" style="height:250px"><canvas id="ev-xc"></canvas></div>${EV.expBtns('ev-xc')}` : EV.chartJs() ? '' : '<p class="sm">Loading the chart library…</p>'}</div>
-        <div><h3>${EV.term('Check', 'checks')} by the harness</h3>${x.checks.length ? `<table><tbody>${x.checks.map(c => `<tr data-step="${M.recStep[c.id] ?? 0}"><td>${EV.link(c.id)} ${e(c.for)}</td><td><code>${e(c.rule)}</code><br><span class="sm">${e(c.numbers)}</span></td><td class="${c.result === 'held' ? 'ok' : 'bad'}">${e(c.result)}</td></tr>`).join('')}</tbody></table>` : `<p class="sm">${x.old ? 'The first format had no checks by the harness: ' + EV.nr : x.rules.length ? EV.nr : 'no decision rule, so nothing to check'}.</p>`}
-          <h3>${EV.term('Verdict', 'verdicts')}</h3>${x.tests.map(h => { const H = M.hypById[h], v = H && H.verdict, bad = EV.contradicts(v, x.checks.filter(c => c.for === h));
-            return `<p class="sm"${v ? ` data-step="${M.recStep[v.id] ?? 0}"` : ''}>${EV.link(h)}: ${v ? `${EV.link(v.id)} <b>${e(v.result)}</b>${bad ? ' <span class="warnc">⚠ disagrees with its check</span>' : ''}` : 'no verdict'}</p>`; }).join('') || '<p class="sm">nothing tested</p>'}</div></div>
+    const what = x.by === 'harness' ? `The baseline, run by the harness before the first turn: ${e(x.question || 'every setting at its default')}.`
+      : ts.length ? `The batch of ${n} simulation${n === 1 ? '' : 's'} the model planned in turn ${x.turn}, for ${ts.length} ${EV.term('Test', ts.length === 1 ? 'test' : 'tests')}. Varied: ${e(x.varied.join(', ') || 'not recorded')}; control: ${e(x.control || 'not recorded')}.`
+      : `An exploration: a batch of ${n} simulation${n === 1 ? '' : 's'} with no tests. Its question: ${e(x.question || 'not recorded')} Varied: ${e(x.varied.join(', ') || 'not recorded')}.`;
+    const span = (k, html) => `<span data-step="${k}">${html}</span>`, pc = v => (typeof v === 'number' ? (+(100 * v).toPrecision(4)) + ' %' : '–');
+    const rows = ts.map(T => { const kc = T.check ? M.recStep[T.check.id] ?? simK : simK, v = T.verdict;
+      return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b></td><td>${e(EV.compared(T))}</td><td>${span(kc, T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? 'not checked' : '–')}</td>
+        <td>${v ? span(M.recStep[v.id] ?? kc, `${v.id} ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}`) : 'no verdict'}</td></tr>`; }).join('');
+    return `<h2>${EV_ICON.experiment} ${EV.term('Experiment', 'Experiment')} ${e(x.id)}<small>turn ${x.turn} · ${e(x.by)} · the container its tests were run in</small></h2><p>${what}</p>
+      ${ts.length ? `<h3>the tests in it<span class="sm" style="text-transform:none;letter-spacing:0"> · click one to open it</span></h3><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
+      <p class="sm" style="margin-top:8px"><button data-act="xchart" data-id="${e(x.id)}">${S.xchart === x.id ? 'hide the chart' : `show one measure over all ${n} simulations`}</button></p>${S.xchart === x.id ? `<div data-step="${simK}">${EV.canvas('exp', x.id)}</div>` : ''}
       <h3>its ${EV.term('Simulation', 'simulations')}<span class="sm" style="text-transform:none;letter-spacing:0"> · click one to open it</span></h3>
-      <table><thead><tr><th>simulation</th><th>label</th><th>settings against the control</th><th class="num">${e(TH_DATA.PLAIN[k] || k)}${u ? ', ' + u : ''}</th><th>run</th></tr></thead><tbody>${x.sims.map(s => `<tr class="pick" data-act="open" data-t="sim" data-id="${e(s.id)}" data-step="${M.recStep[s.id] ?? 0}">
-        <td>${s.same_as ? '○' : EV_ICON.simulation} ${e(s.id)}</td><td>${e(s.label)}</td><td>${diff(s)}</td><td class="num">${s.metrics && typeof s.metrics[k] === 'number' ? (+f(s.metrics[k]).toPrecision(7)).toLocaleString('en-US') : '–'}</td><td>${e(s.run || '')}${s.same_as ? ` <span class="sm">= ${e(s.same_as)}</span>` : ''}</td></tr>`).join('')}</tbody></table>`;
+      <table><thead><tr><th>simulation</th><th>label</th><th>settings against the control</th><th>named by the tests of</th><th class="num">UDP loss</th><th class="num">TCP goodput</th><th>run</th></tr></thead><tbody>${x.sims.map(s => `<tr class="pick" data-act="open" data-t="sim" data-id="${e(s.id)}" data-step="${M.recStep[s.id] ?? 0}">
+        <td>${s.same_as ? '○' : EV_ICON.simulation} ${e(s.id)}</td><td>${e(s.label)}</td><td>${diff(s)}</td><td>${ts.filter(T => T.sims.includes(s)).map(T => e(T.hyp)).join(', ') || '–'}</td><td class="num">${pc((s.metrics || {}).udp_loss_frac)}</td>
+        <td class="num">${s.metrics && typeof s.metrics.tcp_goodput_bps === 'number' ? EV.mb(s.metrics.tcp_goodput_bps) + ' Mbps' : '–'}</td><td>${e(s.run || '')}${s.same_as ? ` <span class="sm">= ${e(s.same_as)}</span>` : ''}</td></tr>`).join('')}</tbody></table>`;
   },
 
   TIME: [  // the run page's time charts (adrs_view.js), drawn by its TASK_VIEW._time
@@ -61,7 +71,9 @@ Object.assign(EV, {
   async afterDraw() {
     const S = EV.s, M = EV.M, T = TASK_VIEW; Object.values(T._charts).forEach(c => { try { c.destroy(); } catch (q) {} }); T._charts = {};
     if (!S.sel || !window.Chart) return; T._last = [document.getElementById('ev')]; T._P = { kind: 'evidence' };
-    if (S.sel.t === 'exp' && M.expById[S.sel.id]) EV.expChart(M.expById[S.sel.id], 'ev-xc');
+    document.querySelectorAll('#ev canvas[data-chart]').forEach(c => { const T = c.dataset.chart === 'test' ? M.testById[c.dataset.id] : null, x = M.expById[T ? T.exp : c.dataset.id]; if (!x) return;
+      if (T) EV.chart(c.id, { x, sims: c.dataset.wide ? x.sims : T.sims, rules: [{ rule: T.rule, for: T.hyp }], control: c.dataset.wide ? x.control : T.control, test: T.id });
+      else EV.chart(c.id, { x, sims: x.sims, rules: x.rules, control: x.control }); });
     if (S.sel.t !== 'sim' || !M.simById[S.sel.id]) return;
     const a = M.simById[S.sel.id], b = S.cmp && M.simById[S.cmp];
     const got = (await Promise.all([a, b].filter(Boolean).map(EV.loadSeries))).some(Boolean); if (got) return EV.draw();

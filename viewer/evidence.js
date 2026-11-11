@@ -1,10 +1,10 @@
 // EV: the evidence page. This file: loading, the top bar, clicks, the replay and the review marks.
 // evidence_top.js draws the introduction, the structure map, the legend and the claim chips; evidence_views.js and
-// evidence_flow.js the three flow charts; evidence_cards.js and evidence_panels.js what opens beside them;
+// evidence_flow.js the three flow charts; evidence_cards.js, evidence_test.js and evidence_panels.js what opens beside them;
 // evidence_more.js the sections below; evidence_operator.js the Operator and Compare tabs.
 // ======================================================================================================
 const EV = {
-  s: { brief: null, sid: null, tab: 'session', sel: null, step: null, claim: null, path: false, collapsed: {}, intro: true, heat: ['weightUdp', 'queuePkts'] },
+  s: { brief: null, sid: null, tab: 'session', sel: null, step: null, claim: null, path: false, collapsed: {}, intro: true, heat: ['weightUdp', 'queuePkts'], wide: {}, xchart: null },
   M: null, st: null, files: {}, marks: {}, charts: {}, sig: '',
   e: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   term: (name, text) => `<abbr title="${EV.e(EV_DEF[name] || '')}">${EV.e(text || name.toLowerCase())}</abbr>`,
@@ -65,13 +65,15 @@ const EV = {
   click(ev) {
     const t = ev.target.closest('[data-act]'); if (!t) return; const S = EV.s, a = t.dataset.act, id = t.dataset.id;
     if (a === 'tab') { S.tab = id; EV.sig = ''; history.replaceState(null, '', `?session=${S.sid}&tab=${id}`); return EV.load(); }
-    if (a === 'open') { S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id };
+    if (a === 'open') { S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id, test: t.dataset.test || undefined };  // test: the test a simulation was opened from
       if (S.tab !== 'session') { S.tab = 'session'; EV.sig = ''; history.replaceState(null, '', `?session=${S.sid}&tab=session`); return EV.load(); }  // from the heat map
       return EV.draw(); }
     if (a === 'pick') { S.sid = id; S.tab = 'session'; S.sel = null; S.step = null; S.claim = null; EV.sig = ''; history.replaceState(null, '', `?session=${id}&tab=session`); return EV.load(); }
     if (a === 'step') { const k = Number(id), o = EV.M.steps[k].open; S.sel = { ...o, id: o.t === 'log' ? o.turn : o.id, k }; return EV.draw(); }
     if (a === 'replay') return EV.replay(id);
-    if (a === 'claim') { S.claim = S.claim === Number(id) ? null : Number(id); const c = EV.M.claims[Number(id) - 1]; if (S.claim && c && c.exps[0]) S.sel = { t: 'exp', id: c.exps[0] }; return EV.draw(); }
+    if (a === 'claim') { S.claim = S.claim === Number(id) ? null : Number(id); const c = EV.M.claims[Number(id) - 1]; if (S.claim && c && (c.tests[0] || c.exps[0])) S.sel = c.tests[0] ? { t: 'test', id: c.tests[0] } : { t: 'exp', id: c.exps[0] }; return EV.draw(); }
+    if (a === 'wide') { S.wide[id] = !S.wide[id]; return EV.draw(); }      // a test's chart over all the simulations of its experiment
+    if (a === 'xchart') { S.xchart = S.xchart === id ? null : id; return EV.draw(); }  // an experiment's chart, on request
     if (a === 'path') { S.path = !S.path; return EV.draw(); }
     if (a === 'fold') { S.collapsed[id] = !S.collapsed[id]; return EV.draw(); }
     if (a === 'intro') { S.intro = false; return EV.draw(); }

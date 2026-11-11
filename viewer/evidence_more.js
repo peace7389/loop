@@ -1,5 +1,5 @@
 // The sections below the flow charts (stage 6 of RESTRUCTURE_PLAN.md): 1 brief, 2 session summary, 3 hypotheses,
-// 4 experiments, 5 final report with each claim's evidence; and the printable evidence sheet of one claim.
+// 4 tests (grouped under their experiments), 5 final report with each claim's evidence; and the printable evidence sheet of one claim.
 // Everything a click opens appears in the panel on the right, which stays in view.
 // ======================================================================================================
 Object.assign(EV, {
@@ -21,16 +21,20 @@ Object.assign(EV, {
     const M = EV.M, e = EV.e, left = new Set((M.meta && M.meta.left_open) || []);
     const hyps = M.hyps.map(h => `<div class="hc" data-act="open" data-t="hyp" data-id="${h.id}"><svg width="12" height="12" style="display:inline;vertical-align:-1px"><rect class="bx ${EV.stCls(h.state)}" x="1" y="1" width="10" height="10" rx="3"/></svg>
         <b>${EV_ICON.hypothesis} ${h.id}</b> · ${e(h.state)}${left.has(h.id) || h.state === 'ended without a verdict' ? ' <span class="warnc">left open at the end</span>' : ''}<br><span class="sm">${e(h.text.length > 220 ? h.text.slice(0, 218) + '…' : h.text)}</span>
-        <br><span class="sm">tested by ${h.exps.join(', ') || 'no experiment'} · ${h.verdict ? `verdict ${h.verdict.id} (turn ${h.verdict.turn}): ${e(h.verdict.result)}` : h.drop ? 'dropped' : 'no verdict'}</span></div>`).join('');
-    const exps = M.exps.map(x => { const held = x.checks.filter(c => c.result === 'held').length, vs = x.tests.map(h => [h, M.hypById[h] && M.hypById[h].verdict]).filter(q => q[1]);
-      return `<tr class="pick" data-act="open" data-t="exp" data-id="${x.id}"><td>${EV_ICON.experiment} <b>${x.id}</b></td><td>${x.by === 'harness' ? 'baseline' : e(x.kind || '–')}</td><td>${x.tests.length ? x.tests.join(', ') : e(x.question || '–')}</td><td>${e(x.varied.join(', ') || '–')}</td>
-        <td class="num">${x.sims.length}${x.sims.some(s => s.same_as) ? ` <span class="sm">(${x.sims.filter(s => s.same_as).length} ○)</span>` : ''}</td>
-        <td>${x.checks.length ? `<span class="ok">${held} held</span> · <span class="${x.checks.length - held ? 'bad' : 'mut'}">${x.checks.length - held} failed</span>` : x.rules.length ? 'not checked' : '–'}</td>
-        <td>${vs.map(([h, v]) => `${h} ${e(v.result)}${EV.contradicts(v, x.checks.filter(c => c.for === h)) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}`).join(', ') || '–'}</td></tr>`; }).join('');
+        <br><span class="sm">${h.tests.length ? 'tested in ' + h.exps.join(', ') : 'not put to a test'} · ${h.verdict ? `verdict ${h.verdict.id} (turn ${h.verdict.turn}): ${e(h.verdict.result)}` : h.drop ? 'dropped' : 'no verdict'}</span></div>`).join('');
+    // the main list: one row per test, grouped under a light heading per experiment; an exploration is a heading with its question
+    const list = M.exps.map(x => { const ts = M.tests.filter(T => T.exp === x.id), n = x.sims.length;
+      const head = `<tr class="grp pick" data-act="open" data-t="exp" data-id="${x.id}"><td colspan="4">${EV_ICON.experiment} experiment ${x.id} · ${x.turn ? 'turn ' + x.turn : 'before the first turn'} · ${n} simulation${n === 1 ? '' : 's'} · ${
+        ts.length ? ts.length + (ts.length === 1 ? ' test' : ' tests') : x.by === 'harness' ? 'the baseline, no tests' : 'no tests: it explores “' + e(x.question || 'not recorded') + '”'}</td></tr>`;
+      return head + ts.map(T => { const h = M.hypById[T.hyp], v = T.verdict, txt = h ? h.text : '';
+        return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b> <span class="sm">${e(txt.length > 90 ? txt.slice(0, 88) + '…' : txt)}</span></td><td class="sm">${e(EV.compared(T))}</td>
+          <td>${T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? '<span class="mut">not checked</span>' : '–'}</td>
+          <td>${v ? `${v.id} ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}` : '<span class="mut">no verdict</span>'}</td></tr>`; }).join(''); }).join('');
     return `<div class="ev-card" id="s-brief">${EV.briefCard().replace('<h2>', '<h2>1 · ')}</div>
       <div class="ev-card" id="s-summary"><h2>2 · ${EV.term('Session', 'Session')} summary</h2>${EV.summaryKV()}</div>
       <div class="ev-card" id="s-hyps"><h2>3 · ${EV.term('Hypothesis', 'Hypotheses')}<small>click one to open it on the right</small></h2>${hyps ? `<div class="hcs">${hyps}</div>` : '<p class="sm">none</p>'}</div>
-      <div class="ev-card" id="s-exps"><h2>4 · ${EV.term('Experiment', 'Experiments')}<small>click a row to open it on the right</small></h2>${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>#</th><th>kind</th><th>tests, or question</th><th>varied</th><th class="num">${EV.term('Simulation', 'simulations')}</th><th>${EV.term('Decision rule', 'decision rules')}</th><th>${EV.term('Verdict', 'verdicts')}</th></tr></thead><tbody>${exps}</tbody></table></div>` : '<p class="sm">none</p>'}</div>
+      <div class="ev-card" id="s-tests"><h2>4 · ${EV.term('Test', 'Tests')}<small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in · click a row to open it on the right</small></h2>
+        ${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${list}</tbody></table></div>` : '<p class="sm">none</p>'}</div>
       <div class="ev-card" id="s-report">${EV.reportBody().replace('<h2>', '<h2>5 · ')}</div>`;
   },
 

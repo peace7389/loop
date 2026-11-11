@@ -642,6 +642,7 @@ const TH_DATA = {
     // the written number in the measure's own unit, and half a unit of its last written digit
     const read = (approx, raw, unit, k, measured) => { const t = raw.replace(/,/g, ''), n = parseFloat(t), mant = t.split(/[eE]/)[0], ex = /[eE]/.test(t) ? parseInt(t.split(/[eE]/)[1], 10) : 0;
       if (!isFinite(n) || (unit && unit !== '%' && !rate(k)) || (unit === '%' && !frac(k))) return null;
+      if (!unit && rate(k) && Math.abs(n) < 1) return null;  // a bare number below 1 after a rate's name is not that rate ("TCP goodput: 0.304 gives ..." names a weight)
       let mult = unit ? { '%': 0.01, bps: 1, kbps: 1e3, Mbps: 1e6, Gbps: 1e9 }[unit] : 1;
       if (!unit && rate(k) && Math.abs(n) < 1e5 && measured) mult = [1e6, 1e9].sort((a, b) => Math.abs(Math.log(Math.abs(n * a / measured))) - Math.abs(Math.log(Math.abs(n * b / measured))))[0];  // "489.3" for a rate: Mbps or Gbps, whichever is nearer
       const tol = 0.5 * Math.pow(10, ex - (mant.split('.')[1] || '').length) * mult;

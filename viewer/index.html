@@ -5,10 +5,10 @@
      step, who did each step, why the model said it took it, and what the simulations showed. Served by harness/control.py.
      evidence_data.js reads a session's files (never its drafts); evidence.js loads, handles clicks, the replay and the
      review marks; evidence_top.js the top of the page (introduction, structure map, turn loop, legend, claims);
-     evidence_views.js View 1 (session flow) and View 2 (hypothesis map); evidence_flow.js View 3 (one experiment) and
-     its chart; evidence_cards.js the trail, the work-log card, a hypothesis, the brief; evidence_panels.js the
-     experiment panel and a simulation's result panel; evidence_more.js the sections below (brief, summary, hypotheses,
-     experiments, final report) and the evidence sheet; evidence_operator.js the Operator and Compare tabs. The page writes nothing
+     evidence_views.js View 1 (session flow) and View 2 (hypothesis map); evidence_flow.js View 3 (one test) and
+     the chart; evidence_cards.js the trail, the work-log card, the brief; evidence_test.js a test and a hypothesis;
+     evidence_panels.js the experiment panel and a simulation's result panel; evidence_more.js the sections below (brief,
+     summary, hypotheses, tests grouped under their experiments, final report) and the evidence sheet; evidence_operator.js the Operator and Compare tabs. The page writes nothing
      except the reviewer's ticks and notes, through POST /api/review. The earlier pages: index_runs.html (runs compared,
      any setting against any measure), index_full.html (system objects, packet events, run control and the brief editor). -->
 <style>
@@ -37,7 +37,8 @@
 @media (max-width: 1100px) { .ev-main, .ev-top { grid-template-columns: 1fr; } }
 .ev-scroll { overflow: auto; } .ev-lanes { max-height: 1100px; } .ev-map { max-height: 300px; }
 .ev-side { position: sticky; top: 8px; max-height: calc(100vh - 16px); overflow: auto; } .ev-side .ev-card { margin-bottom: 8px; }
-.ev .later .bt, .ev text.later, .ev .later text, .ev .later title, .ev div.later, .ev tr.later, .ev p.later, .ev li.later { visibility: hidden; }
+.ev .later .bt, .ev text.later, .ev .later text, .ev .later title, .ev div.later, .ev tr.later, .ev p.later, .ev li.later, .ev span.later { visibility: hidden; }
+.ev tr.grp td { background: var(--surface-0); color: var(--text-secondary); font-size: 12.5px; font-weight: 600; padding: 4px 8px; }
 .ev svg { display: block; } .ev svg text { font: 11px system-ui, sans-serif; fill: var(--text-secondary); }
 .ev .bx { fill: var(--surface-1); stroke: var(--border); stroke-width: 1; } .ev g[data-act] { cursor: pointer; } .ev g[data-act]:hover .bx { stroke: var(--text-primary); }
 .ev .bx.warn { stroke: var(--warning); stroke-width: 2; stroke-dasharray: 5 3; } .ev .bx.sel { stroke: var(--text-primary); stroke-width: 2.5; }
@@ -73,7 +74,7 @@
 <div class="ev" id="ev"><div class="ev-card">Loading the session list…</div></div>
 <script>
 const css = n => getComputedStyle(document.getElementById('ev')).getPropertyValue(n).trim();  // also used by adrs_view.js
-['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
+['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_operator.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
   const s = document.createElement('script'); s.src = name + '?t=' + Date.now(); s.onload = ok; s.onerror = () => no(name); document.head.appendChild(s); })), Promise.resolve())
   .then(() => EV.start()).catch(name => { document.getElementById('ev').innerHTML = '<div class="ev-card">Cannot load ' + name + '.</div>'; });
 </script>
