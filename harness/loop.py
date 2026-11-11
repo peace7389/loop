@@ -342,7 +342,7 @@ def main():
     ap.add_argument("--brief", help=f"brief id (briefs/<id>.json) of a new session; default {tools.DEFAULT_BRIEF}. An existing session keeps its own")
     ap.add_argument("--budget", type=int, help=f"simulations granted at the start; default: the brief's limits.simulations (never more than that limit; when it is lower, a budget_request can raise it up to the limit)")
     ap.add_argument("--draft", choices=["on", "off"], default="on", help="on: the model may write a draft before its JSON answer and the draft is kept in the ledger; off: answer only")
-    ap.add_argument("--max-tokens", type=int, help="most tokens of one answer, draft included; default 8000 with the draft, 3000 without")
+    ap.add_argument("--max-tokens", type=int, help="most tokens of one answer, draft included; default 32000 with the draft (the default), 3000 without")
     ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap"], default="share", help="the scheduling policy: how the scheduler divides the link. The operator's choice, never shown to the model (--mode is its earlier name)")
     ap.add_argument("--temperature", type=float, default=0.3)
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the harness's own default experiment X0")
@@ -359,7 +359,7 @@ def main():
     per = brief["limits"]["simulations_per_experiment"]
     schema["properties"]["experiment"]["anyOf"][0]["properties"]["runs"]["maxItems"] = per
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget
-    a.max_tokens = a.max_tokens or (8000 if a.draft == "on" else 3000)
+    a.max_tokens = a.max_tokens or (32000 if a.draft == "on" else 3000)
     limit = brief["limits"]["simulations"]  # the most simulations the session can ever be granted
     LEDGER, meta = tools.SESSION / "ledger.jsonl", tools.SESSION / "session.json"
     if a.budget > limit:

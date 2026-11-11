@@ -743,6 +743,9 @@ below, and 7.5 where they differ.
   sessions were converted with `harness/move_drafts.py` (every other ledger
   line byte-identical). The viewer does not show a draft's text; the
   operator decided on 2026-11-11 to leave it so.
+- **Defaults (operator, 2026-11-11):** `--draft on` with `--max-tokens 32000`
+  (the setting of s005; 8,000 and 16,000 cut answers off). With `--draft off`
+  the default stays 3,000.
 - **Three changes after session s007 (operator, 2026-11-11).** (1) A decision
   rule may join comparisons with AND and OR (AND first) and group them with
   parentheses. (2) An answer is taken part by part (`loop.sort_out`): each
