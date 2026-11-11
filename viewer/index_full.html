@@ -133,8 +133,8 @@ async function load() {
 
 // ======================================================================================================
 // CONTROL: the "Control" page, present only when the page is served by harness/control.py. A form for one operator
-// simulation (the manifest's parameters and the scheduler mode) and a form for an AI session (loop.py's flags), two
-// buttons, a status line. The page writes nothing: it calls POST /api/run, /api/session and /api/stop, and control.py
+// simulation (the brief's knobs and the scheduler mode), a form for an AI session (loop.py's flags) and the brief
+// editor (brief_editor.js), with their buttons and a status line. The page writes nothing: it calls POST /api/run, /api/session, /api/stop and /api/brief, and control.py
 // does the rest. An operator run is saved under checks/, never in runs/ or the ledger, so the AI cannot see it.
 // ======================================================================================================
 const CONTROL = {
@@ -177,7 +177,7 @@ const CONTROL = {
              <label>Scheduler mode<small>mode · never shown to the AI</small>${pick('ct-smode', ui.smode, MODES)}</label>
              <label class="check"><input type="checkbox" id="ct-baseline"${ui.baseline ? ' checked' : ''}><span>Baseline run first (E0)<small id="ct-basenote"></small></span></label></div>
            <button class="ct-go" id="ct-start">Start session</button><button class="ct-go plain" id="ct-stop">Stop session</button>
-         </div><div class="ct-box" id="ct-session"></div></div>`);
+         </div><div class="ct-box" id="ct-session"></div></div>`) + '<div id="ct-editor"></div>';
     el.querySelectorAll('[data-p]').forEach(i => { i.oninput = i.onchange = () => { ui.params[i.dataset.p] = i.value; C.paint(); }; });
     [['ct-mode', 'mode'], ['ct-draft', 'draft'], ['ct-smode', 'smode'], ['ct-brief', 'brief']].forEach(([id, k]) => { $(id).onchange = ev => { ui[k] = ev.target.value; }; });
     $('ct-budget').oninput = ev => { ui.budget = ev.target.value; };
@@ -199,6 +199,9 @@ const CONTROL = {
       try { await C.post('../api/stop', {}); } catch (x) { C.err.session = x.message; }
       C.busy = ''; await load(); C.paint();
     };
+    // 3. the brief editor (brief_editor.js): its own node, kept across redraws of this page
+    if (typeof BRIEF_EDITOR !== 'undefined') BRIEF_EDITOR.mount($('ct-editor'), { get st() { return CONTROL.st; }, post: C.post, e, sec,
+      session: () => ({ draft: ui.draft, mode: ui.smode, baseline: !!ui.baseline }), after: async () => { await load(); C.paint(); } });
     C.paint();
   },
 
@@ -235,6 +238,7 @@ const CONTROL = {
         : S ? `<p><b>${e(S.id)}</b> has ended${S.returncode === 0 ? '' : S.returncode < 0 ? ' (stopped)' : ` (exit ${e(S.returncode)})`}: ${e(flags)}.</p>${S.returncode < 0 ? '<p class="th-sm" style="margin-top:4px">An experiment that was running when it was stopped has no evidence record.</p>' : ''}`
         : '<p class="th-muted">No session has been started from this page since control.py started.</p>') +
       (S && lastLine ? `<details${on ? '' : ' open'}><summary>The loop’s own output</summary><pre>${e(S.output)}</pre></details>` : '');
+    if (typeof BRIEF_EDITOR !== 'undefined' && BRIEF_EDITOR.node) BRIEF_EDITOR.paint();
   },
 };
 
@@ -485,6 +489,9 @@ const RUN_TOOLS = {
   },
 };
 
+const be = document.createElement('script');  // the brief editor of the Control page
+be.src = 'brief_editor.js?t=' + Date.now();
+document.head.appendChild(be);
 const s = document.createElement('script');  // the shared content + layout code, never from the browser's cache
 s.src = 'adrs_view_full.js?t=' + Date.now();
 s.onload = () => { load(); setInterval(load, 5000); RUN_TOOLS.load(); };

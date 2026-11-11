@@ -15,7 +15,7 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, runs what it asked. `--brief <id>` chooses the brief of a new session, `--session <id>` the session (default: a new id `sNNN`) |
 | `harness/tools.py` | Everything the model can reach: read-only tools and `run()`. Every path is inside the current session's folder; a run id is accepted only if that session's own index lists it |
 | `harness/manifest.json`, `prompt.txt`, `schema.json` | What is the same for every brief (the outputs and the tools, described), the prompt, the answer format |
-| `harness/control.py` | The operator's small server for the viewer (port 8600); `make_trace.py` records packet events |
+| `harness/control.py` | The operator's small server for the viewer (port 8600): lists sessions and briefs, starts sessions and operator runs, saves new briefs; `make_trace.py` records packet events |
 | `sessions/<id>/` | One session = one complete attempt by the model, in its own folder; sessions know nothing about each other. `s001` is the first session (2026-11-09) |
 | `sessions/<id>/ledger.jsonl` | The session's record: draft (what the model wrote before its answer), hypothesis, experiment, evidence, verdict, note, malformed |
 | `sessions/<id>/runs/index.json` | The session's own simulations, the only ones its tools can see: id, params, metrics |
@@ -26,7 +26,7 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `checks/build1/` | The operator's first checks of both scheduler modes (`sanity-*`, `share-*`, `cap-*`), with their `index.json` |
 | `checks/build2/`, `checks/build3/` | Operator checks of the revised simulator, with the command of each and `results.json` |
 | `trace/` | Short packet-level event recordings made by the operator |
-| `viewer/` | The viewer: `index.html` + `adrs_view.js` (one page); `index_full.html` + `adrs_view_full.js` is the earlier six-page version |
+| `viewer/` | The viewer: `index.html` + `adrs_view.js` (one page); `index_full.html` + `adrs_view_full.js` is the earlier six-page version, whose Control page holds the operator's forms, including the brief editor (`brief_editor.js`) |
 
 ## Not in the repository
 

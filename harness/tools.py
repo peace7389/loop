@@ -11,34 +11,73 @@ SESSION = None          # the current session's folder, set by open_session(); n
 BRIEF = None            # what the current session was given: its brief (description filled in) plus MANIFEST
 MANIFEST = json.loads((HARNESS / "manifest.json").read_text())  # the same for every brief: outputs, tools, how an experiment is run
 OPTIONS = ("linkRate", "linkDelay", "mtu", "udpRate", "tcpVariant", "queuePkts", "duration", "seed", "weightUdp")  # program options a brief sets
+KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed")  # those the answer format (schema.json) lets the model set; the others can only be fixed
 DEFAULT_BRIEF = "two-hosts-open"
 MODE = "share"          # operator's choice, set by loop.py; goes to the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
 RUN_TIMEOUT = 600
 
-def load_brief(brief_id):
-    """briefs/<id>.json, checked, with the {placeholders} of its description filled from its own system settings."""
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) or not (BRIEFS / f"{brief_id}.json").is_file():
-        raise ValueError(f"unknown brief {brief_id!r}")
-    b = json.loads((BRIEFS / f"{brief_id}.json").read_text())
-    knobs, system, goal, limits = b.get("knobs") or {}, b.get("system") or {}, b.get("goal") or {}, b.get("limits") or {}
-    bad = [f"'{k}' is not a setting of the program" for k in list(knobs) + list(system) if k not in OPTIONS + ("udpPacketBytes",)]
+def _ok(k, v):
+    """Whether the program can be started with setting k = v."""
+    try:
+        if k in ("linkRate", "udpRate"):
+            return _rate_bps(v) >= (1 if k == "linkRate" else 0)
+        if k == "linkDelay":
+            return bool(re.fullmatch(r"\d+(\.\d+)?(ns|us|ms|s)", str(v)))
+        if k == "tcpVariant":
+            return bool(re.fullmatch(r"Tcp[A-Za-z0-9]+", str(v)))
+        if k in ("mtu", "queuePkts", "seed"):
+            return type(v) is int and v >= (576 if k == "mtu" else 1)
+        if k in ("weightUdp", "duration"):
+            return type(v) in (int, float) and (0.05 <= v <= 0.95 if k == "weightUdp" else v > 0)
+        return k == "udpPacketBytes" and v == 1400   # set by the scenario; a brief can only state it
+    except (TypeError, ValueError):
+        return False
+
+def check_brief(b, brief_id):
+    """Every reason a brief cannot be used, or none; returns it with the {placeholders} of its description filled
+    from its own system settings. The one check for a brief: loop.py (through open_session) and control.py both use it."""
+    knobs, system, goal, limits = (b.get(k) if isinstance(b.get(k), dict) else {} for k in ("knobs", "system", "goal", "limits"))
+    num = lambda k, v: _rate_bps(v) if k == "udpRate" else v
+    bad = [] if b.get("id") == brief_id and re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) else ["id must equal the file name (letters, digits, - and _)"]
+    bad += [f"'{k}' must be a text" for k in ("task", "description") if not isinstance(b.get(k), str) or not b[k].strip()]
+    bad += [f"'{k}' is not a setting of the program" for k in list(knobs) + list(system) if k not in OPTIONS + ("udpPacketBytes",)]
     bad += [f"'{k}' is both fixed (system) and adjustable (knobs)" for k in knobs if k in system]
-    bad += [f"knob '{k}' needs a default and either choices or min and max" for k, s in knobs.items() if "default" not in s or not ("choices" in s or ("min" in s and "max" in s))]
-    bad += [f"'{k}' must be a text" for k in ("task", "description") if not str(b.get(k) or "").strip()] + ([] if b.get("id") == brief_id else ["id must equal the file name"])
-    if system.get("udpPacketBytes", 1400) != 1400:
-        bad.append("udpPacketBytes is 1400 in the scenario and cannot be set")
+    bad += [f"'{k}' can only be a fixed setting (the answer format has no field for it)" for k in knobs if k in OPTIONS and k not in KNOBS]
+    bad += [f"'{k}' is missing: give it a fixed value (system) or make it a knob" for k in OPTIONS if k not in knobs and k not in system]
+    bad += [f"fixed setting '{k}': {v!r} is not a value the program accepts" for k, v in system.items() if k in OPTIONS + ("udpPacketBytes",) and not _ok(k, v)]
+    for k, s in knobs.items():
+        if k not in KNOBS or not isinstance(s, dict):
+            continue
+        if not isinstance(s.get("meaning"), str) or not s["meaning"].strip():
+            bad.append(f"knob '{k}' needs a meaning (one line the model reads)")
+        if "choices" in s:
+            if not isinstance(s["choices"], list) or not s["choices"] or not all(_ok(k, c) for c in s["choices"]) or s.get("default") not in s["choices"]:
+                bad.append(f"knob '{k}' needs a list of acceptable choices and a default that is one of them")
+        elif not all(x in s and _ok(k, s[x]) for x in ("min", "max", "default")):
+            bad.append(f"knob '{k}' needs min, max and default, each a value the program accepts (or a list of choices)")
+        elif not num(k, s["min"]) <= num(k, s["default"]) <= num(k, s["max"]) or num(k, s["min"]) == num(k, s["max"]):
+            bad.append(f"knob '{k}' needs min < max and a default between them")
     if goal.get("kind") == "given":
-        t = goal.get("target") or {}
-        if t.get("measure") not in MANIFEST["outputs"] or t.get("direction") not in ("max", "min") or not isinstance(goal.get("conditions"), list):
-            bad.append("a given goal needs target {measure: an output, direction: max|min} and a list of conditions")
+        t = goal.get("target") if isinstance(goal.get("target"), dict) else {}
+        c = goal.get("conditions")
+        if t.get("measure") not in MANIFEST["outputs"] or t.get("direction") not in ("max", "min"):
+            bad.append("a given goal needs a target: a measure that is one of the outputs, and a direction max or min")
+        if not isinstance(c, list) or not all(isinstance(x, str) and x.strip() for x in c):
+            bad.append("a given goal needs a list of conditions, each a text (the list may be empty)")
     elif goal.get("kind") != "open":
         bad.append("goal.kind must be open or given")
     bad += [f"limits.{k} must be a whole number of at least 1" for k in ("simulations", "simulations_per_experiment") if type(limits.get(k)) is not int or limits[k] < 1]
-    used = set(re.findall(r"\{(\w+)\}", str(b.get("description"))))
-    bad += [f"the description uses {{{k}}}, which is not one of the brief's system settings" for k in sorted(used - set(system))]
+    used = set(re.findall(r"\{(\w+)\}", b["description"])) if isinstance(b.get("description"), str) else set()
+    bad += [f"the description uses {{{k}}}, which is not one of the brief's fixed settings" for k in sorted(used - set(system))]
     if bad:
         raise ValueError(f"brief {brief_id}: " + "; ".join(bad))
     return {**b, "description": re.sub(r"\{(\w+)\}", lambda m: str(system[m.group(1)]), b["description"])}
+
+def load_brief(brief_id):
+    """briefs/<id>.json, checked, with its description filled in."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) or not (BRIEFS / f"{brief_id}.json").is_file():
+        raise ValueError(f"unknown brief {brief_id!r}")
+    return check_brief(json.loads((BRIEFS / f"{brief_id}.json").read_text()), brief_id)
 
 def next_session_id():
     ids = [int(p.name[1:]) for p in SESSIONS.iterdir() if re.fullmatch(r"s\d{3}", p.name)] if SESSIONS.is_dir() else []

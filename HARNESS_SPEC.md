@@ -525,6 +525,18 @@ fixed settings and `read_source`.
   and tells the model what `done` means for an open and for a given goal.
 - `control.py`: `/api/status` lists `briefs`; `/api/session` and `/api/run` take
   `brief`.
+- Brief editor (operator, 2026-11-11): `viewer/brief_editor.js`, section 3 of the
+  Control page of `index_full.html` (there is no separate operator tab yet). A
+  form with the task, the description (with a preview as the model will read
+  it), every setting with a Fixed / Knob switch, the goal and the limits. "Save
+  as new brief" calls `POST /api/brief`, which runs `tools.check_brief` (the one
+  check `loop.py` also uses through `open_session`) and writes
+  `briefs/<id>.json` only if no file of that id exists; "Start session with this
+  brief" is enabled when the form equals a saved brief. `check_brief` also
+  requires: every program option either fixed or a knob; only the six settings
+  of `schema.json` as knobs (`linkRate`, `linkDelay`, `mtu` are fixed only);
+  values the program accepts; min < max with the default between; a meaning for
+  every knob.
 - Verified: both briefs give the expected `describe_system()`; in
   `two-hosts-udp-demand` an experiment asking `udpRate=1Gbps` ran at 300Mbps with
   `clamped: {"udpRate": ["1Gbps", "300Mbps"]}`; the default run of

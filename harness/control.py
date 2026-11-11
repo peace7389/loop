@@ -11,14 +11,17 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
                        Without "session" it is a new session (the next id sNNN) on the named brief (default two-hosts-open;
                        budget defaults to the brief's limit); with the id of an existing session it continues that one.
   POST /api/stop       stops the session that was started here
+  POST /api/brief      {brief}: saves a NEW brief as briefs/<id>.json after the same check loop.py makes (tools.check_brief).
+                       An id that already exists is refused: a brief is never overwritten.
 
 Who writes what (the write-ownership rule):
   loop.py      its own session's folder, sessions/<id>/: session.json, ledger.jsonl, and runs/ through tools.run. Nothing else writes
                there, and no tool can read outside it. It also appends one line per run to checks/operator.jsonl
                (session, run, mode, seconds), which no tool reads.
-  control.py   checks/ only: checks/op-<timestamp>/ (one operator run), checks/control.jsonl (the list of those runs),
-               checks/sessions/<id>.log (a session's terminal output). It starts and stops loop.py and does nothing else.
-  the viewer   nothing. Its Control page only calls the three POST endpoints above.
+  control.py   checks/: checks/op-<timestamp>/ (one operator run), checks/control.jsonl (the list of those runs),
+               checks/sessions/<id>.log (a session's terminal output); and briefs/<id>.json, new files only.
+               It starts and stops loop.py and does nothing else.
+  the viewer   nothing. Its Control page only calls the POST endpoints above.
 An operator run is made by the built program directly, never by tools.run, so it never reaches a session's folder: no
 tool the model has can see it. The scheduler mode reaches the simulation as the environment variable TWOHOSTS_SCHED only; the model never sees it.
 
@@ -26,7 +29,7 @@ Who may call it. The server listens on 127.0.0.1 only (there is no option to cha
 that alone would let any local user start runs; a POST is therefore accepted only when the connection was opened by a
 process of the user who runs this server (an SSH tunnel of that user counts), and only as application/json from this
 page (so no other web page open in the same browser can call it). Parameters go through tools.clamp, like the model's.
-Briefs (briefs/<id>.json) are written by the operator by hand; nothing here writes them.
+Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the page's brief editor.
 Python standard library only."""
 import argparse, http.server, json, os, re, signal, subprocess, sys, threading, time
 from pathlib import Path
@@ -160,6 +163,35 @@ def operator_run(body):
         RUN_LOCK.release()
 
 
+def save_brief(body):
+    """A brief from the page's editor, written as a new file briefs/<id>.json if tools.check_brief accepts it."""
+    b = body.get("brief")
+    bid = b.get("id") if isinstance(b, dict) else None
+    if not isinstance(bid, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{1,59}", bid):
+        raise Refused(400, "the brief needs an id of 2 to 60 characters: lower-case letters, digits, - and _")
+    path = tools.BRIEFS / f"{bid}.json"
+    if path.exists():
+        raise Refused(409, f"a brief named {bid} already exists. A brief is never overwritten: choose another id")
+    knobs = b.get("knobs") if isinstance(b.get("knobs"), dict) else {}
+    b = {**{k: b.get(k) for k in ("id", "task", "description", "system")},   # only the fields a brief has, in the usual order
+         "knobs": {k: {x: s[x] for x in ("min", "max", "choices", "default", "meaning") if x in s} if isinstance(s, dict) else s for k, s in knobs.items()},
+         "goal": b.get("goal"), "limits": b.get("limits")}
+    try:
+        tools.check_brief(b, bid)
+    except ValueError as e:
+        raise Refused(400, str(e))
+    text = json.dumps(b, indent=2)
+    for s in b["knobs"].values():  # one knob per line, like the briefs written by hand
+        text = text.replace(json.dumps(s, indent=2).replace("\n", "\n    "), json.dumps(s))
+    tools.BRIEFS.mkdir(exist_ok=True)
+    try:
+        with path.open("x") as f:
+            f.write(text + "\n")
+    except FileExistsError:
+        raise Refused(409, f"a brief named {bid} already exists. A brief is never overwritten: choose another id")
+    return {"saved": bid, "file": f"briefs/{bid}.json"}
+
+
 def start_session(body):
     """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal."""
     budget, draft, mode, base = body.get("budget"), body.get("draft", "on"), body.get("mode", "share"), body.get("baseline", True)
@@ -244,7 +276,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": stop_session}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": stop_session, "/api/brief": lambda: save_brief(body)}.get(self.path)
             if not do:
                 raise Refused(404, "no such endpoint")
             self.answer(200, do())
