@@ -23,6 +23,7 @@ LEDGER = SID = None  # the current session's ledger and id, set in main()
 CAP = 6000  # characters of any tool result or ledger body shown to the model
 CEILING = 150  # most simulations one invocation can be granted: the starting budget plus every budget_request grant
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
+UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
 PREFIX = {"hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
           "malformed": "M", "note": "N", "draft": "D"}
 # who produced the content of a record, written into it as "by": the model (what it wrote), the simulator (what was
@@ -319,7 +320,7 @@ def main():
     if a.baseline == "on":
         baseline(ledger)
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
-    how = None  # how the session ended; None while it runs
+    how, unusable = None, 0  # how the session ended (None while it runs); turns in a row without a usable answer
 
     def finish():
         """session.json: when and how the session ended, the report's ledger id, the hypotheses still open."""
@@ -333,7 +334,8 @@ def main():
         ap.error(f"session {SID} ended with its final report ({json.loads(meta.read_text())['report']}) and cannot be continued")
     if meta.exists() and "how" in (m := json.loads(meta.read_text())):  # a session that is continued is running again
         meta.write_text(json.dumps({k: v for k, v in m.items() if k not in ("ended", "how", "report", "left_open")}, indent=1) + "\n")
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # stopped from outside: still record that it ended
+    for sig in (signal.SIGTERM, signal.SIGHUP):  # stopped from outside, or its terminal closed: still record that it ended
+        signal.signal(sig, lambda *_: sys.exit(143))
     try:
         while how is None:
             final = sims >= budget  # the budget is used up: one last turn, in which no experiment is accepted and the report is required
@@ -370,9 +372,14 @@ def main():
                 parsed = None
             if parsed is None:
                 append(ledger, turn, "malformed", last, {"error": err, "content": content[:2000]})
+                unusable += 1
                 if final:
                     how = "simulation limit reached, no usable report"
+                elif unusable >= UNUSABLE:  # without this a model whose every answer is cut off or refused would be asked for ever
+                    append(ledger, turn, "note", ledger[-1]["id"], {"text": f"loop stopped by the harness: {UNUSABLE} turns in a row gave no usable answer"})
+                    how = f"{UNUSABLE} turns in a row without a usable answer"
                 continue
+            unusable = 0
             br = parsed.get("budget_request")
             if br and not final:  # granted up to the ceiling, before this turn's experiment is counted
                 granted = max(0, min(br["simulations"], CEILING - budget))

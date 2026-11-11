@@ -693,6 +693,11 @@ below, and 7.5 where they differ.
   large", "stopped from outside"), `report` (its ledger id or null) and
   `left_open` (hypotheses still open). A session that has its report cannot be
   continued.
+  The loop also stops by itself after 3 turns in a row without a usable answer
+  (`how`: "3 turns in a row without a usable answer"): in `s003` every answer
+  after the first was cut off at the 16,000-token limit, and without this the
+  model would have been asked for ever. `SIGHUP` (its terminal closed) is
+  recorded like `SIGTERM`.
 - Viewer, until stage 6: all three pages read such a ledger as one row per
   simulation (`TH_DATA.flat`, `_flat`, `FLAT`), with the first tested hypothesis
   of its experiment and, on the streamlined page, the harness's checks as the
