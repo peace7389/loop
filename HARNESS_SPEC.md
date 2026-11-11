@@ -743,6 +743,19 @@ below, and 7.5 where they differ.
   sessions were converted with `harness/move_drafts.py` (every other ledger
   line byte-identical). The viewer does not show a draft's text; the
   operator decided on 2026-11-11 to leave it so.
+- **Three changes after session s007 (operator, 2026-11-11).** (1) A decision
+  rule may join comparisons with AND and OR (AND first) and group them with
+  parentheses. (2) An answer is taken part by part (`loop.sort_out`): each
+  verdict, drop, new hypothesis, the experiment, the budget request and the
+  report is accepted or refused on its own; a refused part becomes a `note` by
+  the harness ("refused part of the answer: ... Reason: ..."), which the next
+  turn's ledger text shows, and the rest of the answer is used. The whole
+  answer is refused (a `malformed` record) only when nothing in it can be
+  used. (3) After 3 turns in a row without anything usable the session is not
+  ended at once: one last turn follows that accepts only the final report;
+  `how` is then "3 turns in a row without a usable answer, report given in the
+  last turn", or without the last three words when that turn brings no usable
+  report either.
 - **Stage 5 (2026-11-11): the operator's side.** All of it is under `checks/`;
   no function of `tools.py` reads there. (a) Sweep: `POST /api/sweep` {brief,
   policy, grid {knob: [values]}} runs every combination by the built program

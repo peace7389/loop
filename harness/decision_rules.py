@@ -1,10 +1,10 @@
 """Decision rules: the comparisons the model states before its simulations run. The harness reads them and checks them itself.
 Grammar: numbers; measure@label (an output value of the simulation with that label; the @label may be left out when the
 experiment has one simulation); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == per
-comparison; comparisons joined by AND. The viewer's own parser for the pass rules of the first session reads the same grammar without @label."""
+comparison; comparisons joined by AND and OR (AND first), with parentheses to group them. The viewer's own parser for the pass rules of the first session reads the same grammar without @label."""
 import re
 
-TOKEN = re.compile(r"\s*(?:(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)(?:@([A-Za-z0-9_]+))?|(<=|>=|==|&&|<|>|[-+*/(),]))")
+TOKEN = re.compile(r"\s*(?:(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)(?:@([A-Za-z0-9_]+))?|(<=|>=|==|&&|\|\||<|>|[-+*/(),]))")
 COMPARE = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, ">=": lambda a, b: a >= b, "==": lambda a, b: a == b}
 FUNCS = {"abs": abs, "min": min, "max": max}
 
@@ -20,12 +20,13 @@ def _tokens(text):
                 break
             raise DecisionRuleError(f"cannot read {text[i:i + 12].strip()!r}")
         num, name, label, op = m.groups()
-        out.append(("num", float(num)) if num else ("and",) if op == "&&" or (name and name.upper() == "AND" and not label) else ("name", name, label) if name else ("op", op))
+        word = name.upper() if name and not label else op
+        out.append(("num", float(num)) if num else ("and",) if word in ("AND", "&&") else ("or",) if word in ("OR", "||") else ("name", name, label) if name else ("op", op))
         i = m.end()
     return out
 
 def parse(text, measures, labels):
-    """The decision rule as a list of comparisons (left, operator, right), or DecisionRuleError saying what is wrong with it."""
+    """The decision rule as a tree of comparisons joined by AND and OR, or DecisionRuleError saying what is wrong with it."""
     toks, pos = _tokens(text), 0
     def peek():
         return toks[pos] if pos < len(toks) else ("end",)
@@ -75,17 +76,42 @@ def parse(text, measures, labels):
                 raise DecisionRuleError(f"no simulation in this experiment is labelled {label}")
             return ("val", name, label or labels[0])
         raise DecisionRuleError("a value is missing")
-    out = []
-    while True:
+    def comparison():
         left = expr()
         op = take() if pos < len(toks) else ("end",)
         if op[0] != "op" or op[1] not in COMPARE:
             raise DecisionRuleError("each comparison needs exactly one of < <= > >= ==")
-        out.append((left, op[1], expr()))
-        if pos >= len(toks):
-            return out
-        if take() != ("and",):
-            raise DecisionRuleError("comparisons are joined by AND")
+        return ("cmp", left, op[1], expr())
+    def part():  # one comparison, or a group of comparisons in brackets
+        nonlocal pos
+        start = pos
+        try:
+            return comparison()
+        except DecisionRuleError:
+            pos = start
+            if peek() != ("op", "("):
+                raise
+        take()
+        group = either()
+        if (take() if pos < len(toks) else ("end",)) != ("op", ")"):
+            raise DecisionRuleError("a bracket is not closed")
+        return group
+    def both():
+        parts = [part()]
+        while peek() == ("and",):
+            take()
+            parts.append(part())
+        return parts[0] if len(parts) == 1 else ("and", parts)
+    def either():
+        parts = [both()]
+        while peek() == ("or",):
+            take()
+            parts.append(both())
+        return parts[0] if len(parts) == 1 else ("or", parts)
+    tree = either()
+    if pos < len(toks):
+        raise DecisionRuleError("comparisons are joined by AND or OR")
+    return tree
 
 def _value(node, values):
     kind = node[0]
@@ -107,7 +133,12 @@ def _value(node, values):
 
 def check(text, measures, labels, values):
     """Evaluate a decision rule from the measured values {label: metrics}. Returns (held, the decision rule with the numbers written in)."""
-    held = all(COMPARE[op](_value(l, values), _value(r, values)) for l, op, r in parse(text, measures, labels))
+    def truth(node):  # every part is evaluated, so a simulation without a value is always noticed
+        if node[0] == "cmp":
+            return COMPARE[node[2]](_value(node[1], values), _value(node[3], values))
+        results = [truth(n) for n in node[1]]
+        return all(results) if node[0] == "and" else any(results)
+    held = truth(parse(text, measures, labels))
     def number(m):
         name, label = m.group(2), m.group(3)
         if not name or name not in measures:

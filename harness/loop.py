@@ -211,88 +211,121 @@ def check_report(rep, brief, ids):
         return "report.open_questions must be a list of texts (it may be empty)"
     return None
 
-def validate(t, brief, ledger, left, final=False, insist=True):
-    """None if the answer can be used as it is; otherwise the first thing wrong with it (the turn is then malformed and
-    nothing in it is recorded or run). final: the budget is used up and this is the last turn."""
+def experiment_problem(ex, brief, ledger, left, st):
+    """None if the experiment can be run as designed; otherwise what is wrong with it. st: the hypotheses' states with the
+    accepted parts of the same answer already applied."""
+    text = lambda v: isinstance(v, str) and bool(v.strip())
+    runs, per = ex.get("runs") or [], brief["limits"]["simulations_per_experiment"]
+    labels = [r.get("label") for r in runs]
+    if not 1 <= len(runs) <= per:
+        return f"an experiment has 1 to {per} simulations"
+    if len(set(labels)) != len(labels) or not all(re.fullmatch(r"[A-Za-z0-9_]{1,20}", str(l)) for l in labels):
+        return "every simulation needs its own label: letters, digits and _ only, at most 20 characters"
+    if any(set(r.get("params") or {}) - set(brief["knobs"]) - set(brief["system"]) for r in runs):
+        return "a simulation's params has keys that are not settings of the brief"
+    try:
+        fresh = sum(1 for r in plan(ledger, runs) if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
+    except (ValueError, TypeError) as e:
+        return f"a simulation has a setting that cannot be read: {e}"
+    if fresh > left:
+        return f"the experiment needs {fresh} new simulations but only {left} are left in the budget"
+    if ex.get("control") not in (None, "", *labels) or set(ex.get("varied") or []) - set(brief["knobs"]):
+        return "control must be the label of one of the simulations (or null), and varied must name knobs"
+    tests, rs = ex.get("tests") or [], ex.get("decision_rules") or []
+    if ex.get("kind") == "test":
+        if not tests or any(st.get(h) != "open" for h in tests):
+            return "a test experiment needs tests: the ids of open hypotheses"
+        if any(r.get("for") not in tests for r in rs) or set(tests) - {r.get("for") for r in rs}:
+            return "a test experiment needs at least one decision rule for each tested hypothesis, and none for any other"
+        for r in rs:
+            try:
+                decision_rules.parse(r.get("decision_rule"), tools.MANIFEST["outputs"], labels)
+            except decision_rules.DecisionRuleError as e:
+                return f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
+            if not text(r.get("rival")) or r.get("rival_predicts") not in ("held", "failed"):
+                return f"the decision rule for {r['for']} needs a rival (a competing explanation of how the system behaves) and rival_predicts (held or failed)"
+            if r["rival_predicts"] == "held":
+                return "this decision rule would hold under the rival too; choose simulations where the two explanations give different results"
+    elif ex.get("kind") == "explore":
+        if not text(ex.get("question")) or tests or rs:
+            return "an explore experiment needs a question, and has no tests and no decision rules"
+    else:
+        return "experiment.kind must be test or explore"
+    return None
+
+def sort_out(t, brief, ledger, left, mode=None, insist=True):
+    """The parts of an answer that can be used, and the parts that cannot, each with the reason: (ok, refused).
+    ok = {verdicts, drop, hypotheses, experiment, report, budget_request}; refused = [(part, reason), ...].
+    A refused part is left out and the rest is accepted. mode: None for an ordinary turn; "budget" for the last turn
+    after the budget is used up (no experiment); "report" for a last turn that accepts only the final report."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
     st, checked = states(ledger)
-    new, drops, verdicts, ex = t.get("hypotheses") or [], t.get("drop") or [], t.get("verdicts") or [], t.get("experiment")
-    for v in verdicts:
-        if st.get(v.get("for")) != "open":
-            return f"verdict: {v.get('for')} is not an open hypothesis"
-        if v["for"] not in checked:
-            return f"verdict for {v['for']}: no decision rule of that hypothesis has been checked yet, so there is nothing to judge it by"
-        if v.get("result") not in ("supported", "refuted", "inconclusive") or not text(v.get("because")):
-            return f"verdict for {v['for']}: needs a result (supported, refuted or inconclusive) and a because"
-        st[v["for"]] = v["result"]
-    for d in drops:
-        if d.get("id") in checked and st.get(d["id"]) == "open":
-            return f"drop: {d['id']} has a checked decision rule, so it cannot be dropped: it needs a verdict (supported, refuted or inconclusive) instead"
-        if st.get(d.get("id")) != "open" or not text(d.get("why")):
-            return f"drop: {d.get('id')} must be an open hypothesis, with a reason"
-        st[d["id"]] = "dropped"
-    if not all(text(h.get("text")) for h in new):
-        return "a hypothesis needs a text"
-    for i in range(len(new)):
-        st[f"H{len([r for r in ledger if r['type'] == 'hypothesis']) + i + 1}"] = "open"  # the ids they are about to get
-    if final and ex is not None:
-        return "the simulation budget is used up: no experiment is accepted in the last turn"
-    if ex is not None:
-        runs, per = ex.get("runs") or [], brief["limits"]["simulations_per_experiment"]
-        labels = [r.get("label") for r in runs]
-        if not 1 <= len(runs) <= per:
-            return f"an experiment has 1 to {per} simulations"
-        if len(set(labels)) != len(labels) or not all(re.fullmatch(r"[A-Za-z0-9_]{1,20}", str(l)) for l in labels):
-            return "every simulation needs its own label: letters, digits and _ only, at most 20 characters"
-        if any(set(r.get("params") or {}) - set(brief["knobs"]) - set(brief["system"]) for r in runs):
-            return "a simulation's params has keys that are not settings of the brief"
-        try:
-            fresh = sum(1 for r in plan(ledger, runs) if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
-        except (ValueError, TypeError) as e:
-            return f"a simulation has a setting that cannot be read: {e}"
-        if fresh > left:
-            return f"the experiment needs {fresh} new simulations but only {left} are left in the budget"
-        if ex.get("control") not in (None, "", *labels) or set(ex.get("varied") or []) - set(brief["knobs"]):
-            return "control must be the label of one of the simulations (or null), and varied must name knobs"
-        tests, rs = ex.get("tests") or [], ex.get("decision_rules") or []
-        if ex.get("kind") == "test":
-            if not tests or any(st.get(h) != "open" for h in tests):
-                return "a test experiment needs tests: the ids of open hypotheses"
-            if any(r.get("for") not in tests for r in rs) or set(tests) - {r.get("for") for r in rs}:
-                return "a test experiment needs at least one decision rule for each tested hypothesis, and none for any other"
-            for r in rs:
-                try:
-                    decision_rules.parse(r.get("decision_rule"), tools.MANIFEST["outputs"], labels)
-                except decision_rules.DecisionRuleError as e:
-                    return f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
-                if not text(r.get("rival")) or r.get("rival_predicts") not in ("held", "failed"):
-                    return f"the decision rule for {r['for']} needs a rival (a competing explanation of how the system behaves) and rival_predicts (held or failed)"
-                if r["rival_predicts"] == "held":
-                    return "this decision rule would hold under the rival too; choose simulations where the two explanations give different results"
-        elif ex.get("kind") == "explore":
-            if not text(ex.get("question")) or tests or rs:
-                return "an explore experiment needs a question, and has no tests and no decision rules"
+    ok, no = {"verdicts": [], "drop": [], "hypotheses": [], "experiment": None, "report": None, "budget_request": None}, []
+    only = "this last turn accepts only the final report"
+    for v in t.get("verdicts") or []:
+        part = f"verdict for {v.get('for')}"
+        if mode == "report":
+            no.append((part, only))
+        elif st.get(v.get("for")) != "open":
+            no.append((part, f"{v.get('for')} is not an open hypothesis"))
+        elif v["for"] not in checked:
+            no.append((part, "no decision rule of that hypothesis has been checked yet, so there is nothing to judge it by"))
+        elif v.get("result") not in ("supported", "refuted", "inconclusive") or not text(v.get("because")):
+            no.append((part, "a verdict needs a result (supported, refuted or inconclusive) and a because"))
         else:
-            return "experiment.kind must be test or explore"
+            ok["verdicts"].append(v)
+            st[v["for"]] = v["result"]
+    for d in t.get("drop") or []:
+        part = f"drop of {d.get('id')}"
+        if mode == "report":
+            no.append((part, only))
+        elif d.get("id") in checked and st.get(d["id"]) == "open":
+            no.append((part, f"{d['id']} has a checked decision rule, so it cannot be dropped: it needs a verdict (supported, refuted or inconclusive) instead"))
+        elif st.get(d.get("id")) != "open" or not text(d.get("why")):
+            no.append((part, f"{d.get('id')} must be an open hypothesis, and a drop needs a reason"))
+        else:
+            ok["drop"].append(d)
+            st[d["id"]] = "dropped"
+    known = len([r for r in ledger if r["type"] == "hypothesis"])
+    for h in t.get("hypotheses") or []:
+        if mode == "report":
+            no.append(("new hypothesis", only))
+        elif not text(h.get("text")):
+            no.append(("new hypothesis", "a hypothesis needs a text"))
+        else:
+            ok["hypotheses"].append(h)
+            st[f"H{known + len(ok['hypotheses'])}"] = "open"  # the id it is about to get
+    ex = t.get("experiment")
+    if ex is not None:
+        why = only if mode == "report" else "the simulation budget is used up: no experiment is accepted in the last turn" if mode == "budget" else experiment_problem(ex, brief, ledger, left, st)
+        if why:
+            no.append(("experiment", why))
+        else:
+            ok["experiment"] = ex
     br = t.get("budget_request")
-    if br is not None and not (isinstance(br, dict) and type(br.get("simulations")) is int and br["simulations"] >= 1 and text(br.get("why"))):
-        return "budget_request needs simulations (a whole number of at least 1) and a one-sentence why"
+    if br is not None:
+        if mode:
+            no.append(("budget_request", "no more simulations can be asked for in a last turn"))
+        elif not (isinstance(br, dict) and type(br.get("simulations")) is int and br["simulations"] >= 1 and text(br.get("why"))):
+            no.append(("budget_request", "it needs simulations (a whole number of at least 1) and a one-sentence why"))
+        else:
+            ok["budget_request"] = br
     report = t.get("report")
     if report is None:
-        if final or t.get("done"):
-            return "the last turn needs the final report" if final else "done needs the final report: fill report, or set done to false"
-    elif not (final or t.get("done")):
-        return "a report ends the session: give it together with done = true, or leave it null"
+        if t.get("done") and not mode:
+            no.append(("done", "done needs the final report: fill report, or set done to false"))
+    elif not (mode or t.get("done")):
+        no.append(("report", "a report ends the session: give it together with done = true, or leave it null"))
     else:
-        err = check_report(report, brief, {r["id"] for r in ledger})
-        if err:
-            return err
         waiting = sorted((h for h in checked if st.get(h) == "open"), key=lambda h: int(h[1:]))  # tested, and not judged even by this answer
-        if insist and waiting:  # refused once per session: the model is asked for these verdicts together with the report
-            return NEED + ", ".join(waiting) + ". Give their verdicts in the same answer as the report."
-    if not (new or drops or verdicts or ex is not None or t.get("requests") or t.get("done") or report is not None):
-        return "the answer does nothing: no hypothesis, drop, verdict, experiment or request, and done is false"
-    return None
+        why = check_report(report, brief, {r["id"] for r in ledger})
+        if not why and insist and waiting and mode != "report":  # said once per session: the verdicts are asked for together with the report
+            why = NEED + ", ".join(waiting) + ". Give their verdicts in the same answer as the report."
+        if why:
+            no.append(("report", why))
+        else:
+            ok["report"] = report
+    return ok, no
 
 def call(q):
     fn = tools.TOOLS.get(q.get("tool"))
@@ -343,6 +376,7 @@ def main():
         baseline(ledger)
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
     asked = False  # whether the model was already asked for the verdicts that were missing when it sent its report
+    giving_up = False  # set after UNUSABLE turns in a row without a usable answer: the next turn is the last and takes only the report
     how, unusable = None, 0  # how the session ended (None while it runs); turns in a row without a usable answer
     count = {"calls": 0, "length": 0}  # requests answered by the model server, and how many of them ended with finish_reason "length"
 
@@ -362,7 +396,9 @@ def main():
         signal.signal(sig, lambda *_: sys.exit(143))
     try:
         while how is None:
-            final = sims >= budget  # the budget is used up: one last turn, in which no experiment is accepted and the report is required
+            # a last turn: "report" after too many unusable answers (only the final report is accepted), "budget" when the
+            # budget is used up (no experiment is accepted and the report is required); otherwise an ordinary turn
+            mode, need_now = "report" if giving_up else "budget" if sims >= budget else None, False
             text = render(ledger)
             size = count_tokens(model, text)
             if size > LEDGER_TOKENS:
@@ -371,7 +407,9 @@ def main():
                 break
             turn += 1
             user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: " + ("used up. THIS IS THE LAST TURN: no experiment is accepted and budget_request is no longer possible. "
-                    "Give your verdicts on hypotheses whose decision rules have been checked, and write the final report (report)." if final else
+                    "Give your verdicts on hypotheses whose decision rules have been checked, and write the final report (report)." if mode == "budget" else
+                    f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
+                    "write it from what the ledger holds." if mode == "report" else
                     f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). One experiment holds at most {min(per, budget - sims)} simulations.")
                     + f"\n\nLEDGER:\n{text}")
             if pending:
@@ -394,36 +432,45 @@ def main():
                 except ValueError as e:
                     err, parsed = f"invalid JSON: {e}", None
                     continue
-                err = validate(parsed, brief, ledger, budget - sims, final, insist=not asked)
-                if err is None:
+                ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked)
+                rq = [] if mode else (parsed.get("requests") or [])[:3]
+                if any(r.startswith(NEED) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
+                    asked = need_now = True
+                if any(ok.values()) or rq:  # something in the answer can be used: it is accepted, without the refused parts
+                    err = None
                     break
+                err = ("nothing in the answer could be used. " + " | ".join(f"{part}: {why}" for part, why in no)) if no else \
+                    "the answer does nothing: no hypothesis, drop, verdict, experiment, report or request"
                 parsed = None
-                if err.startswith(NEED):  # said once; the next turn shows it, and the report is then taken as it comes
-                    asked = True
+                if need_now:  # no second try with the same text: the model must first see which verdicts are missing
                     break
             if parsed is None:
                 append(ledger, turn, "malformed", last, {"error": err, "content": content[:2000]})
-                unusable += 1
-                if final and not err.startswith(NEED):
-                    how = "simulation limit reached, no usable report"
-                elif unusable >= UNUSABLE:  # without this a model whose every answer is cut off or refused would be asked for ever
-                    append(ledger, turn, "note", ledger[-1]["id"], {"text": f"loop stopped by the harness: {UNUSABLE} turns in a row gave no usable answer"})
+                if mode == "report":  # the last turn that was given for the report alone
                     how = f"{UNUSABLE} turns in a row without a usable answer"
+                elif mode == "budget":
+                    how = None if need_now else "simulation limit reached, no usable report"  # after the one request for verdicts: one more last turn
+                else:
+                    unusable += 1
+                    if unusable >= UNUSABLE:  # no ending yet: one last turn follows, which accepts only the final report
+                        giving_up = True
+                        append(ledger, turn, "note", ledger[-1]["id"], {"text": f"{UNUSABLE} turns in a row gave no usable answer: the harness ends the session after one last turn, in which only the final report is accepted"})
                 continue
             unusable = 0
-            br = parsed.get("budget_request")
-            if br and not final:  # granted up to the ceiling, before this turn's experiment is counted
+            for part, why in no:  # each refused part: a note, shown to the model in the next turn; the rest of the answer was accepted
+                append(ledger, turn, "note", last, {"text": f"refused part of the answer: {part}. Reason: {why.rstrip('.')}. The other parts of that answer were accepted.", "part": part})
+            br = ok["budget_request"]
+            if br:  # granted up to the brief's limit, before this turn's experiment is counted
                 granted = max(0, min(br["simulations"], limit - budget))
                 budget += granted
                 append(ledger, turn, "note", last, {"text": f"budget request: {br['simulations']} more simulations asked, {granted} granted; the budget is now {budget} (the brief's limit is {limit})", "why": br["why"]})
-            rq = (parsed.get("requests") or [])[:3]
             for q in rq:  # each tool request and what came back are kept in the ledger (request: by the model; result: by the harness);
                 out = call(q)  # like the simulation records they are not part of the ledger text of later turns
                 qid = append(ledger, turn, "request", last, {"tool": q.get("tool"), "args": q.get("args") or {}})
                 append(ledger, turn, "result", qid, {"tool": q.get("tool"), "result": out})
                 pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{out}")
-            ex, report = parsed.get("experiment"), parsed.get("report")
-            if not (parsed.get("hypotheses") or parsed.get("drop") or parsed.get("verdicts") or ex is not None or report is not None):  # only requests
+            ex, report = ok["experiment"], ok["report"]
+            if not (ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ex is not None or report is not None or br):  # only requests
                 tool_only += 1
                 if tool_only > 3:
                     pending = [" (tool-only turn limit reached: results withheld, decide now)"]
@@ -432,18 +479,22 @@ def main():
             tool_only = 0
             seen = [parsed.get("observations")]  # what the model said it read, kept once: in the first record this turn adds
             obs = lambda: {"observations": seen.pop()} if seen else {}
-            for v in parsed.get("verdicts") or []:
+            for v in ok["verdicts"]:
                 append(ledger, turn, "verdict", v["for"], {k: v.get(k) for k in ("for", "result", "because", "next")} | obs())
-            for d in parsed.get("drop") or []:
+            for d in ok["drop"]:
                 append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
-            for h in parsed.get("hypotheses") or []:
+            for h in ok["hypotheses"]:
                 last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "prediction": h.get("prediction")} | obs())
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
-            if report is not None:  # accepted (validate): the ledger, report.json, and the session is over
+            if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over
                 append(ledger, turn, "report", last, report | obs())
                 (tools.SESSION / "report.json").write_text(json.dumps(report, indent=1) + "\n")
-                how = "done by the model" if parsed.get("done") else "simulation limit reached"
+                how = "done by the model" if mode is None else "simulation limit reached" if mode == "budget" else f"{UNUSABLE} turns in a row without a usable answer, report given in the last turn"
+            elif mode == "report":
+                how = f"{UNUSABLE} turns in a row without a usable answer"
+            elif mode == "budget" and not need_now:  # a last turn without a usable report (after the one request for verdicts there is one more)
+                how = "simulation limit reached, no usable report"
     except ModelServerError as e:  # the session ends cleanly: the error is in the ledger, and session.json says how it ended
         append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"model server error: {e}"})
         how = "model server error"
