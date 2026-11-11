@@ -741,8 +741,8 @@ below, and 7.5 where they differ.
   `sessions/<id>/drafts.jsonl` (`id`, `turn`, `text`); its ledger record keeps
   `chars`, `tokens`, `model`, `finish_reason` and no text. The five existing
   sessions were converted with `harness/move_drafts.py` (every other ledger
-  line byte-identical). Not done: the viewer does not show a draft's text any
-  more, and the on-request loading is still to be written.
+  line byte-identical). The viewer does not show a draft's text; the
+  operator decided on 2026-11-11 to leave it so.
 - **Stage 5 (2026-11-11): the operator's side.** All of it is under `checks/`;
   no function of `tools.py` reads there. (a) Sweep: `POST /api/sweep` {brief,
   policy, grid {knob: [values]}} runs every combination by the built program
