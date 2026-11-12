@@ -50,7 +50,7 @@ Object.assign(EV, {
   },
   highCard() {
     const M = EV.M, h = EV.highlights(M), S = EV.s, on = q => S.sel && `${S.sel.t}:${S.sel.id}` === q.key;
-    return `<div class="ev-card" id="s-high"><h2>Highlights<small>the key moments, chosen by fixed rules from the records; click one to open it</small></h2>
+    return `<div class="ev-card" id="s-high"><h2>Highlights <small>the key moments, chosen by fixed rules from the records; click one to open it</small></h2>
       ${h.items.length ? `<ol class="hl">${h.items.map(q => `<li data-step="${q.step}" class="${q.warn ? 'warn' : ''}${on(q) ? ' on' : ''}"><a data-act="open" data-t="${q.open.t}" data-id="${EV.e(q.open.id)}">${q.html}</a></li>`).join('')}</ol>` : `<p class="sm">${M.ended ? 'Nothing in this session meets a rule for a highlight.' : 'Nothing yet.'}</p>`}
       ${h.left ? `<p class="sm">${h.all} moments qualified; ${h.left} ${h.left === 1 ? 'was' : 'were'} left out to keep seven (the first of each kind is kept before the second of any).</p>` : ''}</div>`;
   },

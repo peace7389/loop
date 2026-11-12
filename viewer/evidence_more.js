@@ -26,7 +26,7 @@ Object.assign(EV, {
         return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b> <span class="sm">${e(txt.length > 90 ? txt.slice(0, 88) + '…' : txt)}</span></td><td class="sm">${e(EV.compared(T))}</td>
           <td>${T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? '<span class="mut">not checked</span>' : '–'}</td>
           <td>${v ? `${v.id} ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}` : '<span class="mut">no verdict</span>'}</td></tr>`; }).join(''); }).join('');
-    return `<div class="ev-card" id="s-tests"><h2>${EV.term('Test', 'Tests')}<small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in · click a row to open it on the right</small></h2>
+    return `<div class="ev-card" id="s-tests"><h2>${EV.term('Test', 'Tests')} <small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in · click a row to open it on the right</small></h2>
         ${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${list}</tbody></table></div>` : '<p class="sm">none</p>'}</div>`;
   },
 
@@ -45,7 +45,7 @@ Object.assign(EV, {
     const kv = o => (o && typeof o === 'object' ? `<table><tbody>${Object.entries(o).map(([k, v]) => `<tr><td>${e(TH_DATA.KNOB[k] || TH_DATA.PLAIN[k] || k)}</td><td class="num">${e(EV.val(k, v))}</td></tr>`).join('')}</tbody></table>` : `<p>${e(o ?? 'not recorded')}</p>`);
     const txt = v => (Array.isArray(v) ? `<ul style="margin:0;padding-left:18px">${v.map(q => `<li>${e(q)}</li>`).join('')}</ul>` : `<p>${e(v ?? 'not recorded')}</p>`);
     const all = [rep.explanation, rep.holds_when, rep.breaks_when, ...(rep.claims || []).map(c => c.text)].flat().filter(Boolean).join('\n');
-    return `<h2>${EV_ICON.report} ${EV.term('Final report', 'Final report')}<small>turn ${M.repRec ? M.repRec.turn : EV.nr} · ${EV.link((M.repRec || {}).id || '')}</small></h2>
+    return `<h2>${EV_ICON.report} ${EV.term('Final report', 'Final report')} <small>turn ${M.repRec ? M.repRec.turn : EV.nr} · ${EV.link((M.repRec || {}).id || '')}</small></h2>
       <div class="ev-top"><div><h3>recommendation</h3>${kv(rep.recommendation)}</div><div><h3>expected performance</h3>${kv(rep.expected)}</div></div>
       <h3>goal, as it states it</h3>${txt(rep.goal)}<h3>explanation</h3>${txt(rep.explanation)}<h3>holds when</h3>${txt(rep.holds_when)}<h3>breaks when</h3>${txt(rep.breaks_when)}
       ${rep.open_questions ? `<h3>open questions</h3>${txt(rep.open_questions)}` : ''}

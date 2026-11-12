@@ -28,7 +28,7 @@ Object.assign(EV, {
     const rows = ts.map(T => { const kc = T.check ? M.recStep[T.check.id] ?? simK : simK, v = T.verdict;
       return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b></td><td>${e(EV.compared(T))}</td><td>${span(kc, T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? 'not checked' : '–')}</td>
         <td>${v ? span(M.recStep[v.id] ?? kc, `${v.id} ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}`) : 'no verdict'}</td></tr>`; }).join('');
-    return `<h2>${EV_ICON.experiment} ${EV.term('Experiment', 'Experiment')} ${e(x.id)}<small>turn ${x.turn} · ${e(x.by)} · the container its tests were run in</small></h2><p>${what}</p>
+    return `<h2>${EV_ICON.experiment} ${EV.term('Experiment', 'Experiment')} ${e(x.id)} <small>turn ${x.turn} · ${e(x.by)} · the container its tests were run in</small></h2><p>${what}</p>
       ${ts.length ? `<h3>the tests in it<span class="sm" style="text-transform:none;letter-spacing:0"> · click one to open it</span></h3><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
       <p class="sm" style="margin-top:8px"><button data-act="xchart" data-id="${e(x.id)}">${S.xchart === x.id ? 'hide the chart' : `show one measure over all ${n} simulations`}</button></p>${S.xchart === x.id ? `<div data-step="${simK}">${EV.canvas('exp', x.id)}</div>` : ''}
       <h3>its ${EV.term('Simulation', 'simulations')}<span class="sm" style="text-transform:none;letter-spacing:0"> · click one to open it</span></h3>
@@ -65,7 +65,7 @@ Object.assign(EV, {
   simPanel(id) {
     const M = EV.M, e = EV.e, s = M.simById[id]; if (!s) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
     const x = M.expById[s.exp], ctl = x && x.sims.find(q => q.label === x.control);
-    return `<h2>${EV_ICON.simulation} ${EV.term('Simulation', 'Simulation')} ${e(s.id)}<small>label “${e(s.label || '')}” · run ${e(s.run || 'not recorded')} · finished ${EV.time(s.ts)}</small></h2>
+    return `<h2>${EV_ICON.simulation} ${EV.term('Simulation', 'Simulation')} ${e(s.id)} <small>label “${e(s.label || '')}” · run ${e(s.run || 'not recorded')} · finished ${EV.time(s.ts)}</small></h2>
       ${s.same_as ? `<p class="sm">○ The result of ${EV.link(s.same_as)} (same settings and seed), returned again: nothing was run, and it was not counted against the budget.</p>` : ''}${s.error ? `<p class="bad">No measurements: ${e(s.error)}</p>` : ''}
       ${EV.resultPanel(s, ctl, { ctlHead: ctl ? `the control ${EV.link(ctl.id)} “${e(ctl.label)}”` : '', others: M.sims.filter(q => q.id !== s.id && q.run && !q.error) })}`;
   },

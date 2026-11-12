@@ -16,7 +16,7 @@ Object.assign(EV, {
     const b = EV.briefOf(n.brief), lim = b && b.limits ? b.limits.simulations : null, running = st.sessions.filter(x => x.running).length;
     const radio = (v, more) => `<label style="display:block;font-weight:400;margin:4px 0"><input type="radio" name="nw-policy" data-ch="nw" data-k="policy" value="${v}"${n.policy === v ? ' checked' : ''}> <b>${v}</b> <span class="sm">${more}</span></label>`;
     const field = (label, html, note) => `<div><span>${label}</span>${html}<span>${note}</span></div>`;
-    return `<div class="ev-card" id="new-panel"><h2>New session<small>one complete attempt by the AI at one ${EV.term('Brief', 'brief')} · ${running} running now</small></h2>
+    return `<div class="ev-card" id="new-panel"><h2>New session <small>one complete attempt by the AI at one ${EV.term('Brief', 'brief')} · ${running} running now</small></h2>
       <div class="nw">
         <div><h3>1 · ${EV.term('Brief', 'Brief')}</h3><p><select data-ch="nw" data-k="brief">${st.briefs.map(id => `<option${id === n.brief ? ' selected' : ''}>${e(id)}</option>`).join('')}</select></p>
           <p class="sm">${b ? `${e(b.task || '')}<br><b>goal</b> ${e(b.goal && b.goal.kind === 'open' ? 'open: chosen by the model' : EV.goal(b.goal))} · <b>limit</b> ${e(lim ?? 'not recorded')} simulations` : b === null ? 'This brief cannot be read.' : 'Loading…'}</p>

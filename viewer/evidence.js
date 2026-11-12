@@ -90,7 +90,7 @@ const EV = {
     const foot = EV.off ? '' : `<div class="ev-foot noprint">earlier pages: <a href="index_runs.html${S.sid ? '?session=' + e(S.sid) : ''}">runs compared</a> · <a href="index_full.html${S.sid ? '?session=' + e(S.sid) : ''}">system, packet events, older control page</a></div>`;
     if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
     const body = S.view === 'home' ? EV.homeView() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
-    const root = document.getElementById('ev'), inner = ['.tree', '.ev-lanes', '.ev-map', '.ev-side', '.qlist'].map(q => { const el = root.querySelector(q); return el && [q, el.scrollTop, el.scrollLeft]; }).filter(Boolean);
+    const root = document.getElementById('ev'), inner = ['.tree', '.ev-lanes', '.ev-map', '.ev-side', '.qlist', '.gl-scroll'].map(q => { const el = root.querySelector(q); return el && [q, el.scrollTop, el.scrollLeft]; }).filter(Boolean);
     root.innerHTML = bar + body + foot + '<div id="ev-print"></div>';
     inner.forEach(([q, top, left]) => { const el = root.querySelector(q); if (el) { el.scrollTop = top; el.scrollLeft = left; } });  // the lists that scroll inside the page stay where the reader left them
     if (S.view === 'session' && EV.M && !EV.off) history.replaceState(null, '', EV.address());  // the address follows the selection: it is always the link to what is open

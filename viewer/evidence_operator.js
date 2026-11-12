@@ -54,15 +54,15 @@ Object.assign(EV, {
     const pick = i => `<select data-ch="heat" data-i="${i}">${knobs.map(k => `<option${EV.s.heat[i] === k ? ' selected' : ''}>${e(k)}</option>`).join('')}</select>`;
     const notes = f.key && f.key.per_scheduling_policy && f.key.per_scheduling_policy[f.policy];
     const kv = o => `<table><tbody>${Object.entries(o || {}).map(([k, v]) => `<tr><td>${e(k)}</td><td class="num">${e(EV.val(k, typeof v === 'string' && v !== '' && !isNaN(+v) ? +v : v))}</td></tr>`).join('')}</tbody></table>`;
-    return `<div class="ev-card"><h2>${EV.term('Operator', 'Operator')} view of session ${e(M.id)}<small>read from checks/ only; never shown to the model</small></h2>
+    return `<div class="ev-card"><h2>${EV.term('Operator', 'Operator')} view of session ${e(M.id)} <small>read from checks/ only; never shown to the model</small></h2>
         <p>${EV.term('Scheduling policy', 'Scheduling policy')}: <b>${EV.policyText(f.row)}</b> · sweep ${e(id || 'not recorded')}${notes && notes.notes ? `</p><details><summary>the answer key's notes for this policy</summary><p class="sm">${e(notes.notes)}</p></details>` : '</p>'}</div>
-      <div class="ev-card"><h2>The sweep<small>${knobs.length ? `across ${pick(0)} up ${pick(1)}` : ''}</small></h2>${!id ? `<p class="sm">sweep: ${EV.nr}</p>` : rows === 'none' ? `<p class="sm">the sweep table: ${EV.nr}</p>` : !rows ? '<p class="sm">Loading the sweep table…</p>' : !goal ? `<p class="sm">goal: ${EV.nr}</p>` : EV.heat(rows, goal)}</div>
+      <div class="ev-card"><h2>The sweep <small>${knobs.length ? `across ${pick(0)} up ${pick(1)}` : ''}</small></h2>${!id ? `<p class="sm">sweep: ${EV.nr}</p>` : rows === 'none' ? `<p class="sm">the sweep table: ${EV.nr}</p>` : !rows ? '<p class="sm">Loading the sweep table…</p>' : !goal ? `<p class="sm">goal: ${EV.nr}</p>` : EV.heat(rows, goal)}</div>
       <div class="ev-top"><div class="ev-card"><h2>Score</h2>${!sc ? `<p class="sm">score: ${EV.nr} (harness/score.py ${e(M.id)} writes it once the session has ended)</p>` : `
           <div class="kv"><div><span>gap to the best row, on ${e(sc.goal.target)}</span><b>${e(EV.gap(sc))}</b></div><div><span>as part of the best</span><b>${(100 * sc.gap_as_part_of_best).toFixed(3)}%</b></div>
             <div><span>conditions hold at the recommendation</span><b>${Object.values(sc.conditions_hold_at_the_recommendation || {}).every(Boolean) ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'}</b></div><div><span>simulations used / allowed</span><b>${sc.simulations_used} / ${sc.simulations_allowed}</b></div></div>
           <p class="sm">A negative gap means the recommendation, simulated by the operator, did better than every row of the sweep.</p>
           <div class="ev-top"><div><h3>the sweep's best row</h3>${kv(sc.best_row)}</div><div><h3>the recommendation, simulated</h3>${kv(sc.recommendation)}${kv(sc.at_the_recommendation)}</div></div>`}</div>
-        <div class="ev-card"><h2>Checklist<small>judged by the operator</small></h2>${sc && sc.checklist ? `<table><tbody>${sc.checklist.map(c => `<tr><td>${c.n}</td><td>${e(c.item)}</td><td class="${c.judgement === 'yes' ? 'ok' : c.judgement === 'no' ? 'bad' : 'mut'}">${e(c.judgement)}</td></tr>`).join('')}</tbody></table>` : `<p class="sm">checklist: ${EV.nr}</p>`}</div></div>
+        <div class="ev-card"><h2>Checklist <small>judged by the operator</small></h2>${sc && sc.checklist ? `<table><tbody>${sc.checklist.map(c => `<tr><td>${c.n}</td><td>${e(c.item)}</td><td class="${c.judgement === 'yes' ? 'ok' : c.judgement === 'no' ? 'bad' : 'mut'}">${e(c.judgement)}</td></tr>`).join('')}</tbody></table>` : `<p class="sm">checklist: ${EV.nr}</p>`}</div></div>
       ${EV.runCard ? EV.runCard() + EV.sweepCard() : ''}`;
   },
 });

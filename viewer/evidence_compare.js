@@ -24,7 +24,7 @@ Object.assign(EV, {
       <td><a data-act="pick" data-id="${e(x.id)}"><b>${e(x.id)}</b></a>${x.running ? ' <span class="pill live">running</span>' : ''}</td><td>${e(String(x.started || '').replace('T', ' ').slice(0, 16)) || EV.nr}</td><td>${x.running ? 'running now' : x.how ? e(x.how) : EV.nr}</td>
       <td class="num">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td><td>${x.held + x.failed ? `<span class="ok">${x.held} held</span> · <span class="${x.failed ? 'bad' : 'mut'}">${x.failed} failed</span>` : '<span class="mut">no checks</span>'}</td><td>${EV.reviewCell(x)}</td>
       ${S.op ? `<td>${x.policy_hidden ? '<span class="mut">hidden until scored</span>' : e(x.policy || '') || EV.nr}</td><td class="num">${EV.gapText(x) || '<span class="mut">not scored</span>'}</td>` : ''}</tr>`;
-    return `<div class="ev-card"><h2>Compare sessions<small>the sessions of one ${EV.term('Brief', 'brief')} · tick two or more to see them side by side (at most eight)</small></h2>
+    return `<div class="ev-card"><h2>Compare sessions <small>the sessions of one ${EV.term('Brief', 'brief')} · tick two or more to see them side by side (at most eight)</small></h2>
         <p><label>${EV.term('Brief', 'Brief')} <select data-ch="brief">${briefs.map(b => `<option value="${e(b)}"${b === (S.brief || '') ? ' selected' : ''}>${e(b || 'before briefs')} (${st.sessions.filter(x => (x.brief || '') === b).length})</option>`).join('')}</select></label> <span class="sm">${e(EV.results(S.brief || ''))}</span></p>
         <div class="ev-scroll"><table><thead><tr><th>compare</th><th>session</th><th>started</th><th>how it ended</th><th class="num">simulations used</th><th>tests held / failed</th><th>review progress</th>${S.op ? '<th>scheduling policy</th><th class="num">gap to the best</th>' : ''}</tr></thead>
           <tbody id="cmp-rows">${rows.map(tr).join('')}</tbody></table></div></div>
@@ -43,7 +43,7 @@ Object.assign(EV, {
       return `<tr><td>recommends ${e(k)}${differ ? ' <span class="warnc" title="the ticked sessions differ here">≠</span>' : ''}</td>${vals.map(v => `<td${differ && v !== most ? ' class="dif"' : ''}>${v === '' ? '<span class="mut">not stated</span>' : e(v)}</td>`).join('')}</tr>`; }).join('');
     const firsts = list.map(q => { const h = EV.highlights(q.M).items.find(i => i.rule === 1);
       return `<p><i class="sw" style="background:${EV.color(q.slot)}"></i><b>${e(q.x.id)}</b> ${h ? `<a data-act="pickitem" data-id="${e(q.x.id)}" data-t="${h.open.t}" data-item="${e(h.open.id)}">${h.html}</a>` : '<span class="mut">no test held</span>'}</p>`; }).join('');
-    return `<div class="ev-card" id="cmp-best"><h2>Best so far, side by side<small>the best value so far among the simulations that meet the brief's conditions; one line per session, named at its end</small></h2>${chart}</div>
+    return `<div class="ev-card" id="cmp-best"><h2>Best so far, side by side <small>the best value so far among the simulations that meet the brief's conditions; one line per session, named at its end</small></h2>${chart}</div>
       <div class="ev-card" id="cmp-table"><h2>How they went</h2><div class="ev-scroll"><table><thead><tr><th></th>${list.map(head).join('')}</tr></thead><tbody>
         ${row('how it ended', q => (q.x.running ? 'running now' : e(q.x.how || 'not recorded')))}${row(EV.term('Simulation', 'simulations') + ' used', q => `${q.x.simulations ?? 0}${q.x.allowed ? ' / ' + q.x.allowed : ''}`)}
         ${row(EV.term('Turn', 'turns'), q => q.M.counts.turn)}${row(EV.term('Hypothesis', 'hypotheses'), q => `${q.M.hyps.length}<span class="sm"> · ${EV.STATES.filter(s => q.M.hyps.some(h => h.state === s)).map(s => `${q.M.hyps.filter(h => h.state === s).length} ${s}`).join(' · ')}</span>`)}
@@ -51,7 +51,7 @@ Object.assign(EV, {
         ${recRows || row('recommendation', q => '<span class="mut">no final report</span>')}
         ${S.op ? row(EV.term('Scheduling policy', 'scheduling policy'), q => EV.policyText(q.x)) + row('gap to the best', q => EV.gapText(q.x) || '<span class="mut">not scored</span>') : ''}</tbody></table></div>
         <p class="sm">≠ the ticked sessions recommend different values; the cells that differ from the most common value are marked.</p></div>
-      <div class="ev-card" id="cmp-first"><h2>The first ${EV.term('Test', 'test')} that held, in each<small>click one to open it in its session</small></h2>${firsts}</div>
+      <div class="ev-card" id="cmp-first"><h2>The first ${EV.term('Test', 'test')} that held, in each <small>click one to open it in its session</small></h2>${firsts}</div>
       ${S.op ? EV.parallelCards(list) : ''}`;
   },
 });

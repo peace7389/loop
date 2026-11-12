@@ -12,7 +12,7 @@ Object.assign(EV, {
     const inp = ([k, d]) => (d.choices ? `<select data-ch="or" data-k="${e(k)}">${d.choices.map(c => `<option${(o.vals[k] ?? d.default) === c ? ' selected' : ''}>${e(c)}</option>`).join('')}</select>`
       : `<input type="text" data-ch="or" data-k="${e(k)}" value="${e(o.vals[k] ?? '')}" placeholder="${e(d.default)}">`);
     const defaults = { id: 'defaults', label: 'the brief\'s defaults', params: Object.fromEntries(knobs.map(([k, d]) => [k, d.default])) };
-    return `<div class="ev-card" id="op-run"><h2>Run one simulation<small>an ${EV.term('Operator', 'operator')} run with chosen settings · stored under checks/, never in a session</small></h2>
+    return `<div class="ev-card" id="op-run"><h2>Run one simulation <small>an ${EV.term('Operator', 'operator')} run with chosen settings · stored under checks/, never in a session</small></h2>
       <div class="kv">${knobs.map(q => `<div><span>${e(TH_DATA.KNOB[q[0]] || q[0])} (${e(q[0])})${q[1].choices ? '' : ` · ${e(q[1].min)} to ${e(q[1].max)}`}</span>${inp(q)}</div>`).join('')}
         <div><span>${EV.term('Scheduling policy', 'scheduling policy')}</span><select data-ch="or" data-k="_policy"><option${o.policy === 'share' ? ' selected' : ''}>share</option><option${o.policy === 'cap' ? ' selected' : ''}>cap</option></select></div></div>
       <p style="margin-top:8px"><button data-act="oprun"${o.busy ? ' disabled' : ''}>${o.busy ? 'Running… (about 20 s)' : 'Run'}</button> <span class="sm">a field left empty keeps the brief's default</span>${o.msg ? ` <span class="bad">${e(o.msg)}</span>` : ''}
@@ -26,7 +26,7 @@ Object.assign(EV, {
     const M = EV.M, w = EV.sw, e = EV.e, b = M.brief; if (!b) return '';
     const knobs = Object.entries(b.knobs || {}), vals = k => String(w.grid[k] || '').split(',').map(v => v.trim()).filter(Boolean), any = knobs.some(([k]) => vals(k).length), n = knobs.reduce((a, [k]) => a * (vals(k).length || 1), 1);
     const st = w.st, live = st && st.state === 'running';
-    return `<div class="ev-card" id="op-sweep"><h2>Run a sweep<small>a grid of knob values; every combination is one simulation · its table is stored under checks/sweeps/</small></h2>
+    return `<div class="ev-card" id="op-sweep"><h2>Run a sweep <small>a grid of knob values; every combination is one simulation · its table is stored under checks/sweeps/</small></h2>
       <div class="kv">${knobs.map(([k, d]) => `<div><span>${e(k)}: values, separated by commas</span><input type="text" data-ch="sw" data-k="${e(k)}" value="${e(w.grid[k] || '')}" placeholder="${e(d.choices ? d.choices.slice(0, 2).join(', ') : `${d.min}, ${d.default}, ${d.max}`)}"></div>`).join('')}
         <div><span>${EV.term('Scheduling policy', 'scheduling policy')}</span><select data-ch="sw" data-k="_policy"><option${w.policy === 'share' ? ' selected' : ''}>share</option><option${w.policy === 'cap' ? ' selected' : ''}>cap</option></select></div></div>
       <p class="sm" style="margin-top:6px">A knob left empty keeps the brief's default. <span id="sw-n">${any ? `<b>${n.toLocaleString('en-US')} combination${n === 1 ? '' : 's'}</b>.` : 'No value entered yet.'}</span></p>

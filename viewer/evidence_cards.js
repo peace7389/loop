@@ -39,7 +39,7 @@ Object.assign(EV, {
 
   detail() {
     const S = EV.s, M = EV.M, sel = S.sel, e = EV.e;
-    if (!sel || sel.t === 'session') return `${sel ? EV.trail(sel) : ''}<h2>${EV.term('Session', 'Session')} ${e(M.id)}<small>click any item on the left to open it here</small></h2>${EV.summaryKV()}`;
+    if (!sel || sel.t === 'session') return `${sel ? EV.trail(sel) : ''}<h2>${EV.term('Session', 'Session')} ${e(M.id)} <small>click any item on the left to open it here</small></h2>${EV.summaryKV()}`;
     const k = EV.stepOf(sel);
     if (S.step != null && k != null && k > S.step) return `<p class="sm">The item opened here was recorded after step ${S.step + 1}; while the replay is at that step it is not shown.</p>`;
     const body = sel.t === 'log' ? EV.logCard(sel.id) : sel.t === 'hyp' ? EV.hypCard(sel.id) : sel.t === 'test' ? EV.testPanel(sel.id) : sel.t === 'exp' ? EV.expPanel(sel.id) : sel.t === 'sim' ? EV.simPanel(sel.id)
@@ -67,7 +67,7 @@ Object.assign(EV, {
   // ---- the work-log card: what the model had, what it decided, why in its own words
   logCard(n) {
     const M = EV.M, e = EV.e, t = M.turns.find(q => q.n === n); if (!t) return `<p class="sm">Turn ${e(n)}: ${EV.nr}.</p>`;
-    if (n === 0) return `<h2>Before the first turn<small>the harness</small></h2><p>The harness showed the model the brief and ran the baseline: ${t.exp ? EV.link(t.exp.id) : EV.nr}.</p>`;
+    if (n === 0) return `<h2>Before the first turn <small>the harness</small></h2><p>The harness showed the model the brief and ran the baseline: ${t.exp ? EV.link(t.exp.id) : EV.nr}.</p>`;
     const shown = t.added ? t.added.filter(id => M.byId[id] && (M.byId[id].type === 'malformed' || (M.byId[id].type === 'note' && M.byId[id].body.part))) : null;
     const had = `<div class="who" data-by="harness"><h3>1 · What it had</h3><div class="kv"><div><span>${EV.term('Simulation', 'simulations')} left</span><b>${t.left ?? EV.nr}</b></div><div><span>open hypotheses</span><b>${t.open ?? EV.nr}</b></div>
         <div><span>kind of turn</span><b>${t.rec ? e(t.last ? 'last turn (' + t.last + ')' : 'ordinary') : EV.nr}</b></div></div>
@@ -85,7 +85,7 @@ Object.assign(EV, {
     const why = [t.observations ? `<p><b>observations</b> ${e(t.observations)}</p>${EV.numCheck(t.observations, EV.simsOfTurn(n - 1))}` : `<p class="sm">observations: ${EV.nr}</p>`,
       ...t.verdicts.map(v => { const h = M.hypById[v.body.for], xs = h ? h.exps.map(id => M.expById[id]).filter(q => q.turn < n) : [], sims = xs.length ? xs[xs.length - 1].sims : [];
         return `<p><b>${v.id} because</b> ${e(v.body.because || '')}</p>${EV.numCheck(v.body.because, sims)}<p class="sm"><b>next</b> ${e(v.body.next || EV.nr)}</p>`; })];
-    return `<h2>${EV_ICON.turn} Work log, turn ${n}<small>built from the model's recorded answer and the harness's turn record</small></h2>${had}
+    return `<h2>${EV_ICON.turn} Work log, turn ${n} <small>built from the model's recorded answer and the harness's turn record</small></h2>${had}
       <div class="who" data-by="model"><h3>2 · What it decided</h3><ul style="margin:0;padding-left:18px">${dec.join('') || '<li class="mut">nothing usable</li>'}</ul></div>
       <div class="who" data-by="model"><h3>3 · Why, in its own words</h3>${why.join('')}</div>`;
   },
@@ -94,7 +94,7 @@ Object.assign(EV, {
     const M = EV.M, e = EV.e, b = M.brief, x0 = M.exps.find(x => x.by === 'harness');
     if (!b) return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')}</h2><p class="sm">${EV.nr}: this session was made before briefs existed.</p>`;
     const kv = o => `<table><tbody>${Object.entries(o || {}).map(([k, v]) => `<tr><td>${e(k)}</td><td>${e(typeof v === 'object' ? Object.entries(v).map(([a, c]) => `${a}: ${Array.isArray(c) ? c.join(', ') : c}`).join(' · ') : v)}</td></tr>`).join('')}</tbody></table>`;
-    return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')} ${e(b.id)}<small>written by the ${EV.term('Operator', 'operator')}</small></h2><p>${e(b.task || '')}</p>
+    return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')} ${e(b.id)} <small>written by the ${EV.term('Operator', 'operator')}</small></h2><p>${e(b.task || '')}</p>
       <h3>fixed settings</h3>${kv(b.system)}<h3>knobs and ranges</h3>${kv(b.knobs)}<h3>goal</h3><p>${e(EV.goal(b.goal))}</p><h3>limits</h3>${kv(b.limits)}
       <p class="sm">the baseline the harness ran before the first turn: ${x0 ? EV.link(x0.id) + ' · ' + x0.sims.map(s => EV.link(s.id)).join(', ') : EV.nr}</p>`;
   },

@@ -47,9 +47,9 @@ Object.assign(EV, {
     return `<div class="ev-title"><h1>All sessions</h1>${EV.newPanel ? `<button class="big primary" data-act="new" title="Write or choose an assignment and start the AI on it">${S.newOpen ? 'Close' : 'New session…'}</button>` : ''}
         <span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${running} running now` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
       ${S.newOpen && EV.newPanel ? EV.newPanel() : ''}
-      <div class="ev-card"><h2>Results so far<small>one line per ${EV.term('Brief', 'brief')}, counted from the sessions and, where they exist, their scores</small></h2>
+      <div class="ev-card"><h2>Results so far <small>one line per ${EV.term('Brief', 'brief')}, counted from the sessions and, where they exist, their scores</small></h2>
         ${briefs.map(b => `<p><b>${e(b || 'before briefs')}</b>: ${e(EV.results(b))}</p>`).join('') || '<p class="sm">No session yet.</p>'}</div>
-      <div class="ev-card"><h2>Sessions<small><span id="home-n">${all.length} of ${all.length}</span> shown · click a row to open it · click a column title to sort</small></h2>
+      <div class="ev-card"><h2>Sessions <small><span id="home-n">${all.length} of ${all.length}</span> shown · click a row to open it · click a column title to sort</small></h2>
         <p><input type="text" data-in="filter" placeholder="filter: any words of the id, brief, start, ending…" value="${e(h.filter)}" style="width:min(420px,100%)"></p>
         <div class="ev-scroll"><table><thead><tr>${EV.HOME.concat(S.op ? EV.HOME_OP : []).map(th).join('')}</tr></thead><tbody id="home-rows">${EV.homeRows()}</tbody></table></div></div>`;
   },

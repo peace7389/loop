@@ -66,7 +66,7 @@ Object.assign(EV, {
     const line = S.op && sc && sc.best_row && sc.best_row[d.g.target] != null ? [Number(sc.best_row[d.g.target]), 'best row of the sweep'] : null;
     const said = !d.pts.length ? 'No simulation has run yet.' : d.best == null ? 'No simulation meets the brief\'s conditions.' : `Best result that meets the conditions: <b>${fmt(d.best)}</b>, first reached by ${EV.link(d.last.s.id)} (simulation ${d.last.n} of ${n}).`;
     const rec = !M.report ? '' : d.rec ? ` The recommended settings were run as ${EV.link(d.rec.s.id)}: <b>${fmt(d.rec.v)}</b>${d.rec.ok ? '' : ', which does not meet the conditions'}.` : ' The recommended settings were not simulated in this session.';
-    return `<div class="ev-card" id="s-best"><h2>Best so far<small>${e(d.g.max ? 'largest' : 'smallest')} ${e(d.g.target)}${d.g.text ? ' while ' + e(d.g.text) : ''} · click a dot to open that ${EV.term('Simulation', 'simulation')}</small></h2>
+    return `<div class="ev-card" id="s-best"><h2>Best so far <small>${e(d.g.max ? 'largest' : 'smallest')} ${e(d.g.target)}${d.g.text ? ' while ' + e(d.g.text) : ''} · click a dot to open that ${EV.term('Simulation', 'simulation')}</small></h2>
       ${d.pts.length ? EV.bestSvg([{ d, name: M.id, color: 'var(--text-primary)' }], { dots: true, zoom: !!S.zoom, line, seen }) : ''}
       <p class="sm">● meets the brief's conditions · ○ does not · <b>—</b> the best so far among those that do · ◯ the recommended settings${line ? ' · <span style="color:var(--by-operator)">- -</span> the best row of the sweep (operator column)' : ''}
         · <button data-act="zoom">${S.zoom ? 'show every simulation' : 'zoom on the best-so-far line'}</button></p>

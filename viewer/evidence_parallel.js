@@ -10,14 +10,14 @@ Object.assign(EV, {
 
   parallelCards(list) {
     const e = EV.e, brief = list[0].M.brief, g = EV.goalOf(brief); if (!brief) return '';
-    if (!g) return `<div class="ev-card"><h2>The sweep<small>${EV.term('Operator', 'operator')} column</small></h2><p class="sm">Not applicable: the goal is chosen by the model, so there is no target to draw.</p></div>`;
+    if (!g) return `<div class="ev-card"><h2>The sweep <small>${EV.term('Operator', 'operator')} column</small></h2><p class="sm">Not applicable: the goal is chosen by the model, so there is no target to draw.</p></div>`;
     const key = EV.fetchOnce(EV.keys, brief.id, `../checks/keys/${brief.id}.json`), per = (key && key.per_scheduling_policy) || {};
     if (key === undefined) return '<div class="ev-card"><p class="sm">Reading the answer key…</p></div>';
     const pols = [...new Set(list.map(q => q.x.policy).filter(Boolean))];
     const cards = pols.map(pol => { const sid = per[pol] && per[pol].sweep, rows = sid ? EV.sweepRows(sid) : 'none', mine = list.filter(q => q.x.policy === pol);
       const recs = mine.map(q => { const sc = q.x.score ? EV.fetchOnce(EV.scores, q.x.id, `../checks/scores/${q.x.id}.json`) : null; return sc ? { name: q.x.id, color: EV.color(q.slot), values: { ...(sc.recommendation_with_defaults || sc.recommendation || {}), [g.target]: (sc.at_the_recommendation || {})[g.target] } } : null; }).filter(Boolean);
       const body = rows === 'none' ? `<p class="sm">the sweep of this scheduling policy: ${EV.nr}</p>` : !rows ? '<p class="sm">Reading the sweep table…</p>' : EV.parallelSvg(rows, brief, g, recs);
-      return `<div class="ev-card cmp-par"><h2>The sweep under “${e(pol)}”, and the recommendations<small>${EV.term('Operator', 'operator')} column · sweep ${e(sid || 'not recorded')} · sessions ${e(mine.map(q => q.x.id).join(', '))}${mine.length > recs.length ? ` · ${mine.length - recs.length} not scored, so not drawn` : ''}</small></h2>${body}</div>`; }).join('');
+      return `<div class="ev-card cmp-par"><h2>The sweep under “${e(pol)}”, and the recommendations <small>${EV.term('Operator', 'operator')} column · sweep ${e(sid || 'not recorded')} · sessions ${e(mine.map(q => q.x.id).join(', '))}${mine.length > recs.length ? ` · ${mine.length - recs.length} not scored, so not drawn` : ''}</small></h2>${body}</div>`; }).join('');
     const hidden = list.filter(q => q.x.policy_hidden).length;
     return (cards || `<div class="ev-card"><p class="sm">the scheduling policy of the ticked sessions: ${EV.nr}</p></div>`) + (hidden ? `<div class="ev-card"><p class="sm">${hidden} ticked session${hidden === 1 ? ' has' : 's have'} a scheduling policy chosen by the harness: not drawn until scored.</p></div>` : '');
   },

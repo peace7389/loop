@@ -1,4 +1,4 @@
-// A session's page, top to bottom: the header strip (always visible); the overview (the introduction and the research
+// A session's page, top to bottom: the header strip (always visible); what the session is made of (evidence_glance.js); the overview (the introduction and the research
 // overview from the final report, with its claims); the highlights; best so far; the work (tree | session flow |
 // hypothesis map); the tests list; "How to read this page". The detail of whatever is selected is the right-hand pane:
 // it stays in view beside all of these, so no click has to move the page.
@@ -33,14 +33,14 @@ Object.assign(EV, {
       : `<div class="ov" data-step="${M.repRec ? M.recStep[M.repRec.id] ?? 0 : 0}"><div><span>the goal</span>${txt(rep.goal)}</div><div><span>recommended settings</span>${kv(rep.recommendation)}</div><div><span>expected result</span>${kv(rep.expected)}</div>
           <div><span>explanation</span><div class="${S.more ? '' : 'clamp'}">${txt(rep.explanation)}</div><a class="noprint" data-act="more">${S.more ? 'less' : 'more'}</a></div>
           <div><span>holds when</span>${txt(rep.holds_when)}</div><div><span>breaks when</span>${txt(rep.breaks_when)}</div>${claims}</div>`;
-    return `<div class="ev-card" id="s-overview"><h2>Overview<small>what this session is and what it concluded, from its ${EV.term('Final report', 'final report')}</small></h2>${intro}${body}
+    return `<div class="ev-card" id="s-overview"><h2>Overview <small>what this session is and what it concluded, from its ${EV.term('Final report', 'final report')}</small></h2>${intro}${body}
       <p class="sm noprint">open on the right: ${rep ? '<a data-act="open" data-t="report" data-id="report">the full final report</a> · ' : ''}<a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p>${EV.shareBar()}</div>`;
   },
 
   // ---- the work: the left side is the tree, the session flow or the hypothesis map; the selection is shared
   workCard() {
     const S = EV.s, M = EV.M, left = S.left || 'tree', n = M.steps.length, k = S.step == null ? n - 1 : S.step, b = (id, t) => `<button data-act="left" data-id="${id}" class="${left === id ? 'on' : ''}">${t}</button>`;
-    return `<div class="ev-card" id="s-work"><h2>The work<small>${left === 'tree' ? 'turn → experiment → test → simulation' : left === 'lanes' ? 'time runs down, in the lane of whoever did each step' : 'left to right by the turn each hypothesis was stated'} · click an item to open it on the right</small></h2>
+    return `<div class="ev-card" id="s-work"><h2>The work <small>${left === 'tree' ? 'each turn with its experiment, the tests in that experiment, and the simulations each test uses' : left === 'lanes' ? 'time runs down, in the lane of whoever did each step' : 'left to right by the turn each hypothesis was stated'} · click an item to open it on the right</small></h2>
       <div class="ev-bar"><span>${b('tree', 'Tree')} ${b('lanes', 'Session flow')} ${b('map', 'Hypothesis map')}</span>${left === 'map' ? `<button data-act="path" class="${S.path ? 'on' : ''}">show the path to the answer</button>` : ''}
         <span class="end"><b>Replay</b> <button data-act="replay" data-id="first">« first</button> <button data-act="replay" data-id="prev">◀</button> <button data-act="replay" data-id="next">▶</button> <button data-act="replay" data-id="last">last »</button>
           <span class="sm">step ${n ? k + 1 : 0} of ${n}${S.step == null ? '' : ': later items are greyed'} · arrow keys</span></span></div>
@@ -57,7 +57,7 @@ Object.assign(EV, {
   },
 
   sessionTab() {
-    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}
+    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.glance()}
       <div class="ev-main"><div>${EV.overview()}${EV.highCard()}${EV.bestCard()}${EV.workCard()}${EV.testsCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },

@@ -877,12 +877,32 @@ line at the foot of every view.
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
-| A session | Header strip (always visible); overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
-| The work | The left side switches between Tree (turn, experiment, test, simulation), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
+| A session | Header strip (always visible); "What this session is made of"; overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
+| The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
 | Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score, the checklist; "Run one simulation" and "Run a sweep" |
 | Compare tab | Sessions of one brief with a tick each; two or more ticked are shown side by side: their best-so-far lines, a table, the first test that held; with operator columns on, the sweep as a parallel-coordinates chart with each recommendation as a bold line |
 | Share | "Copy link" on every item; export; print (overview, highlights, best so far, tests list; or the evidence sheet of one claim) |
+
+**"What this session is made of"** (`evidence_glance.js`) is the first card of
+a session's page, under the header strip: the whole session as one picture.
+
+- A column per turn (and "start" for the harness's baseline); a row per kind
+  of item: hypotheses, decision rules, simulations (under the name of their
+  experiment), checks, verdicts, the final report. One mark per item, and each
+  row's title gives the number of items.
+- Down a column stand a hypothesis, its decision rule, the simulations of the
+  turn's experiment, the check and the verdict: together one test.
+- A hypothesis that stands a second time (tested in a later turn, or put to
+  another decision rule) and a verdict that stands under a second decision
+  rule are drawn hollow and counted once.
+- A mark opens its item in the detail pane, and the page does not move.
+  Pointing at a mark marks what belongs with it, and a sentence under the
+  table says what it is.
+- The marks shrink and wrap so that every turn fits the width of the page; a
+  session with too many turns for that scrolls sideways inside the card.
+- During the replay an item recorded after the chosen step is an empty dot,
+  with no text, state or title. Two exceptions are known (section 15, item 8).
 
 The **test** is the unit of evidence: one hypothesis put to one decision rule.
 The experiment is only the batch it was run in. Nothing in `loop.py` records a
@@ -919,8 +939,11 @@ Rules of the page:
 
 The page's checks are kept outside the repository, in
 `~/research/tools/evidence_checks/` (`ev.sh` and Playwright scripts: click
-everything, the "Done when" checks of both plans, the replay leak test, and
-`ev_bar.py`: the top bar has the same items at the same places in every view).
+everything, the "Done when" checks of both plans, the replay leak test, 
+`ev_bar.py`: the top bar has the same items at the same places in every view,
+and `ev_glance.py`: in the card "What this session is made of" each number
+equals the marks drawn, the replay shows nothing recorded later, and a click
+opens the item without moving the page).
 Anything that starts, stops or writes is tried on a scratch copy of the project
 on port 8611, never on the real sessions.
 
@@ -996,6 +1019,13 @@ untracked until they say otherwise.
 7. All sessions used one model, temperature 0.3, seed 1 for the simulations
    unless the model chose otherwise. Nothing here says how the results vary
    with another model.
+8. In the card "What this session is made of", during the replay: (a) the key
+   under the table lists every sign that occurs anywhere in the session, so at
+   an early step it already names "refuted" or "dropped" before one has
+   happened; (b) when an item recorded later is still selected, the sentence
+   under the table describes it. Found by `ev_glance.py` on 2026-11-12; not
+   repaired. The card also prints with the page, although the print rule names
+   four parts (overview, highlights, best so far, tests list).
 
 ## 16. History in short
 
@@ -1050,11 +1080,12 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 114 | the shell: colours, styles, the list of scripts |
+| `index.html` | 127 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 56 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
+| `evidence_glance.js` | 105 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 76 | best so far |
@@ -1091,6 +1122,6 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
-| `README.md` | 46 | what is where, for a reader of the repository |
+| `README.md` | 47 | what is where, for a reader of the repository |
 
-48 files, 7,983 lines in all.
+49 files, 8,102 lines in all.
