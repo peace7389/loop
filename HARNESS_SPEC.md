@@ -937,7 +937,8 @@ the whole session as one picture.
 - During the replay an item recorded after the chosen step is an empty dot,
   with no text, state or title; the key and the sentence under the table name
   only what is recorded by then.
-- The card is not printed.
+- The card folds like "The system": a "fold" button in its heading, and the
+  browser remembers it. It is not printed.
 
 The **test** is the unit of evidence: one hypothesis put to one decision rule.
 The experiment is only the batch it was run in. Nothing in `loop.py` records a
@@ -1122,7 +1123,7 @@ above all, so the counts understate the size.
 | `evidence_home.js` | 56 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 108 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_glance.js` | 112 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 76 | best so far |
@@ -1161,4 +1162,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 48 | what is where, for a reader of the repository |
 
-51 files, 8,395 lines in all.
+51 files, 8,399 lines in all.

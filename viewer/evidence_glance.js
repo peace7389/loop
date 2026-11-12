@@ -4,6 +4,7 @@
 // it marks what belongs with it and says in words what it is. During the replay nothing recorded after the chosen step
 // is drawn here at all: a later item is an empty dot, with no text, state or title; the key and the sentence under the
 // table name only what is recorded by then. The card is not printed (the page prints four parts, and this is not one).
+// It folds like the card "The system": a "fold" button in its heading, and the browser remembers it.
 // ======================================================================================================
 Object.assign(EV, {
   // the hypotheses, tests and simulations that belong with an item (the selected one, or the one pointed at)
@@ -43,6 +44,8 @@ Object.assign(EV, {
   },
 
   glance() {
+    const fold = EV.store('ev-made') === '1', foldBtn = `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`;
+    if (fold) return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item, a column per ${EV.term('Turn', 'turn')} · folded</small> ${foldBtn}</h2></div>`;
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, live = S.step == null, I = EV_ICON, sel = S.sel || {}, info = EV.glInfo(S.sel), st = live ? null : EV_DATA.stateAt(M, S.step);
     const claim = S.claim ? M.claims[S.claim - 1] : null, hitT = new Set(claim ? claim.tests : []), hitH = new Set(claim ? claim.hyps : []);
     const gap = '<i class="gm"></i>';   // an empty place
@@ -84,7 +87,7 @@ Object.assign(EV, {
       ['○ a simulation returned from an earlier one, not run again', M.sims.some(q => q.same_as && seen(q.id))], [`${I.experiment} X0 the harness's baseline, outside the budget`, M.exps.some(x => x.by === 'harness' && seen(x.id))],
       ['<s>◆</s> dropped', M.hyps.some(h => h.drop && seen(h.drop.id))], ['<span class="warnc">⚠</span> refused', cols.some(c => c.t.malformed.concat(c.t.refusals).some(q => seen(q.id)))]].filter(q => q[1]).map(q => `<span>${q[0]}</span>`).join('');
     EV._gl = '';
-    return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item · a column is one ${EV.term('Turn', 'turn')}, read it downwards · click a mark to open it on the right${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small></h2>
+    return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item · a column is one ${EV.term('Turn', 'turn')}, read it downwards · click a mark to open it on the right${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small> ${foldBtn}</h2>
       <div class="ev-scroll gl-scroll${fits ? '' : ' gl-more'}"><table class="gl" style="--gw:${W}px"><thead><tr data-by="harness"><th><span class="gi">${I.turn}</span>${EV.term('Turn', 'Turns')} <b>${n.turn}</b>${notes ? ' <span class="sm">one answer of the model each</span>' : ''}</th>${head}</tr></thead><tbody>
         ${row('model', I.hypothesis, 'Hypothesis', 'Hypotheses', n.hyp, 'the model\'s claims', 'hyp')}
         ${row('model', '⊢', 'Decision rule', 'Decision rules', n.rule, 'stated before the simulations', 'rule')}
@@ -105,4 +108,5 @@ Object.assign(EV, {
     say.innerHTML = EV.glSay(sel || EV.s.sel);
   },
 });
+EV.act = Object.assign(EV.act || {}, { glfold() { EV.store('ev-made', EV.store('ev-made') === '1' ? '0' : '1'); EV.draw(); } });
 document.getElementById('ev').addEventListener('mouseover', EV.glHover);
