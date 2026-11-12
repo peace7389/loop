@@ -1159,6 +1159,6 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
-| `README.md` | 47 | what is where, for a reader of the repository |
+| `README.md` | 48 | what is where, for a reader of the repository |
 
-51 files, 8,394 lines in all.
+51 files, 8,395 lines in all.
