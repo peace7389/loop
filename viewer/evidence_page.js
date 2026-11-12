@@ -1,4 +1,4 @@
-// A session's page, top to bottom: the header strip (always visible); what the session is made of (evidence_glance.js); the overview (the introduction and the research
+// A session's page, top to bottom: the header strip (always visible); the system (evidence_system.js); what the session is made of (evidence_glance.js); the overview (the introduction and the research
 // overview from the final report, with its claims); the highlights; best so far; the work (tree | session flow |
 // hypothesis map); the tests list; "How to read this page". The detail of whatever is selected is the right-hand pane:
 // it stays in view beside all of these, so no click has to move the page.
@@ -7,7 +7,7 @@ Object.assign(EV, {
   headStrip() {
     const M = EV.M, row = EV.files.row || {}, m = M.meta || {}, e = EV.e, held = M.checks.filter(c => c.result === 'held').length, failed = M.checks.filter(c => c.result === 'failed').length, rec = M.report && M.report.recommendation;
     const bits = [`${EV_ICON.brief} ${EV.term('Brief', 'brief')} <b>${M.brief ? e(M.brief.id) : EV.nr}</b>`, `${EV.term('Session', 'session')} <b>${e(M.id)}</b>`, `model <b>${m.model ? e(m.model) : EV.nr}</b>`,
-      row.running ? '<span class="pill live">running</span>' : `<b>${m.how ? e(m.how) : 'ending ' + EV.nr}</b>`, `<b>${m.simulations ?? row.simulations ?? 0}${row.allowed ? ' / ' + row.allowed : ''}</b> ${EV.term('Simulation', 'simulations')}`,
+      row.running ? '<span class="pill live">running</span>' : `<b>${m.how ? e(m.how) : 'ending ' + EV.nr}</b>`, `<b>${m.simulations ?? (M.old ? M.sims.length : row.simulations ?? 0)}${row.allowed ? ' / ' + row.allowed : ''}</b> ${EV.term('Simulation', 'simulations')}`,
       `${EV.term('Test', 'tests')} <b class="ok">${held} held</b> / <b class="${failed ? 'bad' : ''}">${failed} failed</b>`,
       rec && typeof rec === 'object' ? `recommends <b>${e(Object.entries(rec).map(([k, v]) => `${k} ${v}`).join(', '))}</b>` : `<span class="mut">no recommendation${M.ended ? '' : ' yet'}</span>`];
     if (EV.s.op) bits.push(`<span data-by="operator"><i class="sw"></i>${EV.term('Scheduling policy', 'policy')} <b>${EV.policyText(row)}</b> · gap to the best <b>${EV.gapText(row) || '<span class="mut">not scored</span>'}</b></span>`);
@@ -57,7 +57,7 @@ Object.assign(EV, {
   },
 
   sessionTab() {
-    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.glance()}
+    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.systemCard()}${EV.glance()}
       <div class="ev-main"><div>${EV.overview()}${EV.highCard()}${EV.bestCard()}${EV.workCard()}${EV.testsCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },

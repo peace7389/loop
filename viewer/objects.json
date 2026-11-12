@@ -1,6 +1,6 @@
 {
-  "about": "Every ns-3 object the scenario creates, with its settings, for the viewer's network diagram. Read by viewer/adrs_view.js only (no harness tool reads it, so the model never sees it). Values in {braces} are filled from the manifest's defaults: udpRate, tcpVariant, queuePkts, weightUdp, tcpShare, duration, seed, linkRate, linkDelay, mtu, segment (= mtu - 52), mode. Row flag: ai = a setting the AI may change, ns3 = an ns-3 default the script does not set, op = set by the operator.",
-  "checked": "against ns-3.49/scratch/two-hosts/two-hosts.cc and link-queue-disc.cc, 2026-11-11 (scheduler renamed LinkQueueDisc; its scheduling policy now comes from the environment variable TWOHOSTS_SCHED); update both together",
+  "about": "Every ns-3 object the scenario creates, with its settings, for the viewer's network diagram. Read by the viewer only: viewer/adrs_view.js, and viewer/evidence_system.js, which draws the system at the top of a session's page and finds each object here by its host, layer and name (no harness tool reads it, so the model never sees it). \"measured\" lists the outputs of metrics.json that are measured at an object. Values in {braces} are filled from the manifest's defaults: udpRate, tcpVariant, queuePkts, weightUdp, tcpShare, duration, seed, linkRate, linkDelay, mtu, segment (= mtu - 52), mode. Row flag: ai = a setting the AI may change, ns3 = an ns-3 default the script does not set, op = set by the operator.",
+  "checked": "against ns-3.49/scratch/two-hosts/two-hosts.cc and link-queue-disc.cc, 2026-11-11 (scheduler renamed LinkQueueDisc; its scheduling policy is no longer a program option: how it is set is in HARNESS_SPEC.md 6.2, not here, because this file goes into exported sessions); update both together",
   "layers": [
     {"key": "apps", "name": "Applications", "roles": {"sender": "create the data", "receiver": "count what arrives"}},
     {"key": "stack", "name": "Internet Stack", "roles": {"sender": "TCP stores and paces; UDP passes straight through", "receiver": "hands arriving data up to the applications"}},
@@ -21,16 +21,16 @@
       "stack": [
         {"name": "UDP socket", "cls": "UdpSocketImpl", "flow": "udp", "rows": [
           ["Send buffer", "none: nothing is held back"], ["Resends lost packets", "never"], ["Header added", "8 bytes"]]},
-        {"name": "TCP socket", "cls": "{tcpVariant}", "flow": "tcp", "rows": [
+        {"name": "TCP socket", "cls": "{tcpVariant}", "flow": "tcp", "measured": ["tcp_retrans"], "rows": [
           ["Congestion control", "{tcpVariantPlain}", "ai"], ["Segment payload", "{segment} bytes"], ["Send buffer", "1 MB"], ["Receive buffer", "1 MB"],
           ["First window", "10 segments", "ns3"], ["TCP options", "timestamps, SACK, window scaling", "ns3"], ["Shortest resend timer", "1 s", "ns3"]]},
         {"name": "IPv4", "cls": "Ipv4L3Protocol", "wide": true, "rows": [
           ["Address", "10.0.0.1 / 24"], ["Header added", "20 bytes"], ["Largest packet", "{mtu} bytes (larger ones would be split)"]]}
       ],
       "tc": [
-        {"name": "UDP queue", "cls": "FifoQueueDisc · band 0", "flow": "udp", "rows": [
+        {"name": "UDP queue", "cls": "FifoQueueDisc · band 0", "flow": "udp", "measured": ["drops_band0"], "rows": [
           ["Room for", "{queuePkts} packets", "ai"], ["Takes", "packets marked priority 6"], ["When full", "the new packet is dropped"]]},
-        {"name": "TCP queue", "cls": "FifoQueueDisc · band 1", "flow": "tcp", "rows": [
+        {"name": "TCP queue", "cls": "FifoQueueDisc · band 1", "flow": "tcp", "measured": ["drops_band1"], "rows": [
           ["Room for", "{queuePkts} packets", "ai"], ["Takes", "every other packet"], ["When full", "the new packet is dropped"]]},
         {"name": "Scheduler", "cls": "LinkQueueDisc", "wide": true, "key": true, "rows": [
           ["UDP : TCP share of the link", "{weightUdp} : {tcpShare}", "ai"], ["Scheduling policy", "{mode}", "op"],
@@ -44,8 +44,8 @@
     {
       "key": "receiver", "node": "Node 1", "title": "Receiver", "sub": "10.0.0.2",
       "apps": [
-        {"name": "UDP sink", "cls": "PacketSink", "flow": "udp", "rows": [["Port", "9"], ["Counts", "bytes that arrive"], ["Reported as", "UDP goodput"]]},
-        {"name": "TCP sink", "cls": "PacketSink", "flow": "tcp", "rows": [["Port", "10"], ["Counts", "bytes that arrive"], ["Reported as", "TCP goodput"]]}
+        {"name": "UDP sink", "cls": "PacketSink", "flow": "udp", "measured": ["udp_goodput_bps", "udp_loss_frac"], "rows": [["Port", "9"], ["Counts", "bytes that arrive"], ["Reported as", "UDP goodput"]]},
+        {"name": "TCP sink", "cls": "PacketSink", "flow": "tcp", "measured": ["tcp_goodput_bps"], "rows": [["Port", "10"], ["Counts", "bytes that arrive"], ["Reported as", "TCP goodput"]]}
       ],
       "stack": [
         {"name": "UDP socket", "cls": "UdpSocketImpl", "flow": "udp", "rows": [["Receive buffer", "128 kB", "ns3"]]},
@@ -63,7 +63,7 @@
       ]
     }
   ],
-  "channel": {"name": "Point-to-point link", "cls": "PointToPointChannel", "rows": [
+  "channel": {"name": "Point-to-point link", "cls": "PointToPointChannel", "measured": ["link_util"], "rows": [
     ["Delay, one way", "{linkDelay}"], ["Capacity", "{linkRate} (set by the two devices)"], ["Stores packets", "no: each one is delivered after the delay"]]},
   "around": [
     {"name": "Random numbers", "cls": "RngSeedManager · UniformRandomVariable", "rows": [

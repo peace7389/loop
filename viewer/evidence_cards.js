@@ -74,8 +74,8 @@ Object.assign(EV, {
       <p class="sm">records added since its previous turn: ${t.added ? (t.added.length ? t.added.map(EV.link).join(', ') : 'none') : EV.nr}</p>
       <p class="sm">refusal notes it was shown: ${shown ? (shown.length ? shown.map(id => `${EV.link(id)} <span class="warnc">${e(M.byId[id].body.part || 'whole answer')}</span>: ${e(M.byId[id].body.reason || M.byId[id].body.error || '')}`).join('<br>') : 'none') : EV.nr}</p></div>`;
     const x = t.exp, fixed = x ? Object.keys(x.sims[0] ? x.sims[0].params : {}).filter(k => x.sims.every(s => JSON.stringify(s.params[k]) === JSON.stringify(x.sims[0].params[k]))) : [];
-    const refused = t.malformed.map(m => `<li class="warnc">${EV_ICON.malformed} whole answer refused (${EV.link(m.id)}): ${e((m.body.refused || []).map(q => q.part + ': ' + q.reason).join(' | ') || m.body.error)}</li>`)
-      .concat(t.refusals.map(m => `<li class="warnc">${EV_ICON.malformed} refused part (${EV.link(m.id)}) ${e(m.body.part)}: ${e(m.body.reason || m.body.text)}</li>`));
+    const refused = t.malformed.map(m => `<li class="warnc" data-step="${M.recStep[m.id] ?? 0}">${EV_ICON.malformed} whole answer refused (${EV.link(m.id)}): ${e((m.body.refused || []).map(q => q.part + ': ' + q.reason).join(' | ') || m.body.error)}</li>`)
+      .concat(t.refusals.map(m => `<li class="warnc" data-step="${M.recStep[m.id] ?? 0}">${EV_ICON.malformed} refused part (${EV.link(m.id)}) ${e(m.body.part)}: ${e(m.body.reason || m.body.text)}</li>`));
     const dec = [...t.verdicts.map(v => `<li>${EV.term('Verdict', 'verdict')} ${EV.link(v.id)} on ${EV.link(v.body.for)}: <b>${e(v.body.result)}</b></li>`),
       ...t.drops.map(d => `<li>${EV_ICON.drop} dropped ${EV.link(d.body.for)}</li>`),
       ...t.hyps.map(h => `<li>new ${EV.term('Hypothesis', 'hypothesis')} ${EV.link(h.id)}: ${e(h.text)}${h.prediction ? `<br><span class="sm">prediction: ${e(h.prediction)}</span>` : ''}<br><span class="sm">follows from: ${h.follows ? h.follows.map(EV.link).join(', ') : EV.nr}</span></li>`),

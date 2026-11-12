@@ -182,6 +182,7 @@ draft's length and token count.
 │   ├── score.py                  operator: score a session against a sweep (10.4)
 │   ├── export_session.py         operator: a session as a folder that opens offline (10.6)
 │   ├── make_trace.py             operator: packet-event recordings (10.7)
+│   ├── check_objects.py          operator: the picture of the system against the scenario source (6.4)
 │   └── move_drafts.py            operator, used once: draft text out of old ledgers
 ├── sessions/<id>/                one session; ids s001, s002, ...
 │   ├── session.json              what it was given, the flags, how it ended (8.8)
@@ -365,6 +366,16 @@ The eleven checks, as measured with build 3:
 | 9 | packet count, defaults | UDP sent = received + dropped, to 0.0001% | pass |
 | 10 | seed 1 twice, then seed 2 | seed 1 byte-identical; seed 2 differs in `series.csv`, metrics within 0.0002% | pass |
 | 11 | duration 2 and 30 against 10 | rates within 0.001%; counts under 50 events are exempt | pass (**DECISION 2026-11-11**: the exemption) |
+
+`harness/check_objects.py` is the twelfth thing to run after a change of the
+scenario. The viewer's picture of the system (12.1) states values that the
+scenario fixes in its source: the UDP packet size, the ports, the device's
+queue, the TCP buffers, the scheduler's quantum, the start times. Nothing
+updates them when the scenario changes. The check reads `two-hosts.cc` and
+`link-queue-disc.cc` and compares them, value by value, with
+`viewer/objects.json` and with the picture's script; it writes nothing and ends
+with status 1 if a value differs or can no longer be read. On 2026-11-12: 42
+values compared, 42 ok.
 
 What checks 5a and 5b show: with short queues TCP's queue empties after a
 loss, and under share UDP then gets more than its configured part. With Cubic
@@ -797,7 +808,8 @@ review has been made yet.
 `POST /api/export {session, operator}` makes
 `checks/exports/<session>-<time>[-operator]/` and a zip: the page and one file
 with this session's files as text (its ledger without the draft records,
-`session.json`, `report.json`, `runs/index.json`, every `series.csv`). It opens
+`session.json`, `report.json`, `runs/index.json`, every `series.csv`) and
+`viewer/objects.json`, which holds no operator-only value. It opens
 by double-clicking `index.html`, with no server. `drafts.jsonl` is never read.
 Operator-only data (policy, score, review, answer key, sweep table) goes in
 only with `operator: true`. A running session cannot be exported.
@@ -877,15 +889,35 @@ line at the foot of every view.
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
-| A session | Header strip (always visible); "What this session is made of"; overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
+| A session | Header strip (always visible); "The system"; "What this session is made of"; overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
 | Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score, the checklist; "Run one simulation" and "Run a sweep" |
 | Compare tab | Sessions of one brief with a tick each; two or more ticked are shown side by side: their best-so-far lines, a table, the first test that held; with operator columns on, the sweep as a parallel-coordinates chart with each recommendation as a bold line |
 | Share | "Copy link" on every item; export; print (overview, highlights, best so far, tests list; or the evidence sheet of one claim) |
 
-**"What this session is made of"** (`evidence_glance.js`) is the first card of
-a session's page, under the header strip: the whole session as one picture.
+**"The system"** (`evidence_system.js`) is the first card of a session's page,
+under the header strip: the two computers of the brief, each an outline that
+holds its ns-3 objects in the order a packet passes them (applications,
+internet stack, traffic control, net device), and the link between them.
+
+- The objects and what the scenario fixes about them come from
+  `viewer/objects.json` (hand-kept; `harness/check_objects.py` compares it with
+  the scenario source, 6.4). The values come from the session: its brief's
+  fixed settings and each knob's default, or the settings of the simulation
+  the reader opened last; "show the brief's defaults" brings the defaults back.
+- A setting the model may change is written in the model's colour.
+- A click on an object shows it beside the picture, inside the card: its
+  settings; for a knob, its range and the values this session tried; and what
+  is measured there, with the opened simulation's values. The object chosen is
+  not the session's selection: the item open in the detail pane stays open, and
+  the page does not move.
+- The scheduling policy is shown only with the operator columns on.
+- The card folds, and the browser remembers it. It is not printed. During the
+  replay it shows nothing recorded after the chosen step.
+
+**"What this session is made of"** (`evidence_glance.js`) is the second card:
+the whole session as one picture.
 
 - A column per turn (and "start" for the harness's baseline); a row per kind
   of item: hypotheses, decision rules, simulations (under the name of their
@@ -900,9 +932,12 @@ a session's page, under the header strip: the whole session as one picture.
   Pointing at a mark marks what belongs with it, and a sentence under the
   table says what it is.
 - The marks shrink and wrap so that every turn fits the width of the page; a
-  session with too many turns for that scrolls sideways inside the card.
+  session with too many turns for that scrolls sideways inside the card, and
+  the card says so.
 - During the replay an item recorded after the chosen step is an empty dot,
-  with no text, state or title. Two exceptions are known (section 15, item 8).
+  with no text, state or title; the key and the sentence under the table name
+  only what is recorded by then.
+- The card is not printed.
 
 The **test** is the unit of evidence: one hypothesis put to one decision rule.
 The experiment is only the batch it was run in. Nothing in `loop.py` records a
@@ -943,7 +978,11 @@ everything, the "Done when" checks of both plans, the replay leak test,
 `ev_bar.py`: the top bar has the same items at the same places in every view,
 and `ev_glance.py`: in the card "What this session is made of" each number
 equals the marks drawn, the replay shows nothing recorded later, and a click
-opens the item without moving the page).
+opens the item without moving the page; in the card "The system" every object
+is drawn and opens beside the picture, the values are the brief's or the
+opened simulation's, and the scheduling policy stays operator-only).
+`ev_replay.py` does not count an id that stands in words the model itself had
+written by that step, such as "next: run X4".
 Anything that starts, stops or writes is tried on a scratch copy of the project
 on port 8611, never on the real sessions.
 
@@ -955,8 +994,8 @@ on port 8611, never on the real sessions.
 | `index_full.html` + `adrs_view_full.js` | the six-page viewer of 2026-11-10: overview, system objects (`objects.json`), experiments, packet events, runs, control (with the brief editor, `brief_editor.js`) |
 | `index_old.html` | the first page of 2026-11-09 |
 
-Nothing needs them any more except the packet-event recordings and the system
-diagram, which only `index_full.html` shows.
+Nothing needs them any more except the packet-event recordings, which only
+`index_full.html` shows.
 
 ### 12.3 In the ADRS main viewer
 
@@ -992,7 +1031,10 @@ untracked until they say otherwise.
 - Do not invent a value for something that was not recorded.
 - Do not overwrite a brief, rewrite an old session, or edit a ledger line.
 - Do not change the ns-3 scenario without the operator's word; after a change,
-  run the eleven checks again and make the sweeps and recordings again.
+  run the eleven checks and `check_objects.py` again, bring
+  `viewer/objects.json` up to date, and make the sweeps and recordings again.
+- Do not write into `viewer/objects.json` how the scheduling policy is set: the
+  file goes into exported sessions.
 - Do not modify anything under `ns-3.49/` except `scratch/two-hosts/`; no
   `main(` in any file there other than `two-hosts.cc`.
 - Do not install system packages or Python packages; do not add a framework,
@@ -1019,13 +1061,6 @@ untracked until they say otherwise.
 7. All sessions used one model, temperature 0.3, seed 1 for the simulations
    unless the model chose otherwise. Nothing here says how the results vary
    with another model.
-8. In the card "What this session is made of", during the replay: (a) the key
-   under the table lists every sign that occurs anywhere in the session, so at
-   an early step it already names "refuted" or "dropped" before one has
-   happened; (b) when an item recorded later is still selected, the sentence
-   under the table describes it. Found by `ev_glance.py` on 2026-11-12; not
-   repaired. The card also prints with the page, although the print rule names
-   four parts (overview, highlights, best so far, tests list).
 
 ## 16. History in short
 
@@ -1034,7 +1069,7 @@ untracked until they say otherwise.
 | 2026-11-09 | First build in five stages: scenario with the stock priority scheduler, the weighted scheduler with two behaviours, tools, the loop, a first viewer. Session s001: 12 turns, 5 experiments; 40% of the model's answers were cut off at 8,000 tokens. |
 | 2026-11-10 | Simulator revised (build 2) after a review found TCP segments split in two and the seed without effect. Operator checks 1 to 4. The viewer grew to six pages; the control server replaced the plain file server; the project became a task of the ADRS main viewer. |
 | 2026-11-11 | Scheduler renamed and the policy moved to an environment variable (build 3), after s001 showed the model reading the policy's name in the source. `RESTRUCTURE_PLAN.md` stages 1 to 5: sessions in their own folders; briefs; experiments of several simulations with decision rules checked by the harness; the final report; sweep, answer key and score. `CHECKS_AND_REPAIRS.md`: checks 5 to 11, and repairs B1 (loss cannot be negative, build 4), B2 (a tested hypothesis needs a verdict), B3 (draft text in its own file). Terms fixed: decision rule, scheduling policy. Rivals; simulations not run twice; answers taken part by part. `EVIDENCE_VIEW.md` and `PAGE_REDESIGN.md`: the evidence page (replacing stage 6). Sessions s002 to s019. The project became a public git repository. |
-| 2026-11-12 | Stage 7: this document rewritten as a whole. |
+| 2026-11-12 | Stage 7: this document rewritten as a whole. The top bar made the same in every view. Two cards at the top of a session's page: "The system" and "What this session is made of". `check_objects.py`. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (the last two
@@ -1065,7 +1100,8 @@ above all, so the counts understate the size.
 | `manifest.json` | 22 | outputs and tools, described |
 | `control.py` | 529 | the operator's server |
 | `score.py` | 126 | operator: score a session |
-| `export_session.py` | 68 | operator: export a session |
+| `export_session.py` | 70 | operator: export a session |
+| `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
 | `make_trace.py` | 38 | operator: packet-event recordings |
 | `move_drafts.py` | 33 | operator, used once: draft text out of old ledgers |
 
@@ -1080,12 +1116,13 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 127 | the shell: colours, styles, the list of scripts |
+| `index.html` | 134 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 56 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
-| `evidence_glance.js` | 105 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
+| `evidence_glance.js` | 108 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 76 | best so far |
@@ -1103,6 +1140,7 @@ above all, so the counts understate the size.
 | `evidence_compare.js` | 63 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 54 | links, export, print |
+| `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
 | `brief_editor.js` | 182 | the brief editor |
 
 **Earlier pages and the ADRS adapter (`viewer/`)**
@@ -1114,7 +1152,6 @@ above all, so the counts understate the size.
 | `index_runs.html` | 114 | shell of the run page |
 | `index_full.html` | 516 | the six-page viewer |
 | `adrs_view_full.js` | 988 | its content |
-| `objects.json` | 77 | the ns-3 objects of the system diagram (hand-kept) |
 | `index_old.html` | 99 | the first page |
 
 **Other**
@@ -1124,4 +1161,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 47 | what is where, for a reader of the repository |
 
-49 files, 8,102 lines in all.
+51 files, 8,394 lines in all.

@@ -30,6 +30,8 @@ def make(sid, operator, row):
     for rel in ("session.json", "report.json", "runs/index.json"):
         if (src / rel).is_file():
             files[f"sessions/{sid}/{rel}"] = (src / rel).read_text()
+    if (viewer / "objects.json").is_file():  # the ns-3 objects of the picture of the system; it holds no operator-only value
+        files["objects.json"] = (viewer / "objects.json").read_text()
     for series in sorted((src / "runs").glob("*/series.csv")):
         files[f"sessions/{sid}/runs/{series.parent.name}/series.csv"] = series.read_text()
     line = {k: row.get(k) for k in ROW} | {"running": False, "stoppable": False, "policy": None, "policy_hidden": False, "score": None, "review": {"n": 0, "ticked": [], "signed": None}}

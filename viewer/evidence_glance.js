@@ -2,7 +2,8 @@
 // per item. Down a column stand a hypothesis, its decision rule, the simulations of the turn's experiment, the check and
 // the verdict: together one test. A mark opens its item in the pane on the right (the page does not move); pointing at
 // it marks what belongs with it and says in words what it is. During the replay nothing recorded after the chosen step
-// is drawn here at all: a later item is an empty dot, with no text, state or title.
+// is drawn here at all: a later item is an empty dot, with no text, state or title; the key and the sentence under the
+// table name only what is recorded by then. The card is not printed (the page prints four parts, and this is not one).
 // ======================================================================================================
 Object.assign(EV, {
   // the hypotheses, tests and simulations that belong with an item (the selected one, or the one pointed at)
@@ -20,7 +21,9 @@ Object.assign(EV, {
   glSay(sel) {
     const M = EV.M, e = EV.e, seen = EV.seen, I = EV_ICON, by = (m, id) => (sel && sel.t === id ? m : null);
     const cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }, pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-    const T = by(M.testById[sel && sel.id], 'test'), h = by(M.hypById[sel && sel.id], 'hyp'), s = by(M.simById[sel && sel.id], 'sim'), x = by(M.expById[sel && sel.id], 'exp'), t = by(M.turns.find(q => sel && q.n === sel.id), 'log');
+    const now = (m, id) => (m && seen(id(m)) ? m : null), step = EV.s.step;  // nothing recorded after the replay's step is described, even while it is still selected
+    const T = now(by(M.testById[sel && sel.id], 'test'), q => q.exp), h = now(by(M.hypById[sel && sel.id], 'hyp'), q => q.id), s = now(by(M.simById[sel && sel.id], 'sim'), q => q.id), x = now(by(M.expById[sel && sel.id], 'exp'), q => q.id);
+    const t = by(M.turns.find(q => sel && q.n === sel.id && (step == null || (q.steps[0] ? q.steps[0].k : 0) <= step)), 'log');
     const xSay = q => (M.tests.some(u => u.exp === q.id) ? pl(M.tests.filter(u => u.exp === q.id).length, 'test') : q.by === 'harness' ? 'the baseline, run by the harness' : 'no tests: it explores “' + e(cut(q.question, 70)) + '”');
     if (T) { const hy = M.hypById[T.hyp], c = T.check && seen(T.check.id) ? T.check : null, v = T.verdict && seen(T.verdict.id) ? T.verdict : null;
       return `<b>${I.test} Test of ${e(T.hyp)}</b> in experiment ${e(T.exp)}, turn ${T.turn}: ` + [`${I.hypothesis} hypothesis “${e(cut(hy && hy.text, 64))}”`, T.rule ? '⊢ its decision rule' : null, `${I.simulation} ${pl(T.sims.length, 'simulation')}`,
@@ -54,8 +57,8 @@ Object.assign(EV, {
     // with which every turn fits the width of the page; with none, the smallest, and the table scrolls sideways. A column
     // with more tests than fit in one line wraps, the same way in every row, so a test still stands in one line downwards.
     const room = document.getElementById('ev').clientWidth - 76, places = (c, cap, per) => Math.max(Math.min(c.ts.length + c.own.length, cap), Math.min(c.x ? c.x.sims.length : 0, per), 1);
-    const fit = [[17, 8, 6, 1], [15, 8, 6, 1], [13, 6, 5, 1], [13, 6, 4, 0], [11, 5, 4, 0]].find(([w, cap, per, notes]) => (notes ? 320 : 170) + cols.reduce((a, c) => a + Math.max(52, places(c, cap, per) * w) + 19, 0) <= room) || [11, 5, 4, 0];
-    const [W, cap, per, notes] = fit; cols.forEach(c => { c.w = W * places(c, cap, per); });
+    const fit = [[17, 8, 6, 1], [15, 8, 6, 1], [13, 6, 5, 1], [13, 6, 4, 0], [11, 5, 4, 0]].find(([w, cap, per, notes]) => (notes ? 320 : 170) + cols.reduce((a, c) => a + Math.max(52, places(c, cap, per) * w) + 19, 0) <= room), fits = !!fit;
+    const [W, cap, per, notes] = fit || [11, 5, 4, 0]; cols.forEach(c => { c.w = W * places(c, cap, per); });
     const hm = (h, first, c) => { const s = st ? st[h.id] || 'open' : h.state;  // a hypothesis is drawn filled once, where it was stated; hollow wherever it stands again
       return mark(first ? I.hypothesis : '◇', 'hyp', h.id, first ? h.id : c.x.id, first ? `${h.id} · ${s}` : `${h.id}, ${h.turn === c.t.n ? 'put to another decision rule' : `stated in turn ${h.turn} and tested here`}`, s === 'dropped' ? 'dr' : ''); };
     const cell = {
@@ -74,15 +77,15 @@ Object.assign(EV, {
     const row = (by, icon, term, word, count, note, k) => `<tr data-by="${by}"><th><span class="gi">${icon}</span>${EV.term(term, word)} <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}</th>${cols.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
     const head = cols.map(c => { const r = c.t.malformed.concat(c.t.refusals).filter(q => seen(q.id)).length;
       return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="open" data-t="log" data-id="${c.t.n}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? ` <span class="warnc" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">⚠${r > 1 ? r : ''}</span>` : ''}</td>`; }).join('');
-    const has = f => cols.some(f), res = k => M.checks.some(q => q.result === k), vd = k => M.recs.some(r => r.type === 'verdict' && r.body.result === k);
+    const has = f => cols.some(f), res = k => M.checks.some(q => q.result === k && seen(q.id)), vd = k => M.recs.some(r => r.type === 'verdict' && r.body.result === k && seen(r.id));  // the key names a sign only once one is drawn
     const key = [['<span class="ok">✓</span> held', res('held')], ['<span class="bad">✗</span> failed', res('failed')], ['<span class="ok">▲</span> supported', vd('supported')], ['<span class="bad">▼</span> refuted', vd('refuted')], ['■ inconclusive', vd('inconclusive')],
       ['◇ a hypothesis drawn before: stated in an earlier turn, or put to another decision rule', has(c => c.ts.some((T, i) => { const h = M.hypById[T.hyp]; return h && (h.turn !== c.t.n || c.ts.findIndex(q => q.hyp === T.hyp) !== i); }))],
-      ['△ ▽ □ the same verdict again, under another decision rule of its hypothesis', has(c => c.ts.some((T, i) => T.verdict && c.ts.findIndex(q => q.verdict === T.verdict) !== i))], ['○ a simulation returned from an earlier one, not run again', M.sims.some(q => q.same_as)],
-      [`${I.experiment} X0 the harness's baseline, outside the budget`, M.exps.some(x => x.by === 'harness')],
-      ['<s>◆</s> dropped', M.counts.drop], ['<span class="warnc">⚠</span> refused', M.counts.refused]].filter(q => q[1]).map(q => `<span>${q[0]}</span>`).join('');
+      ['△ ▽ □ the same verdict again, under another decision rule of its hypothesis', has(c => c.ts.some((T, i) => T.verdict && seen(T.verdict.id) && c.ts.findIndex(q => q.verdict === T.verdict) !== i))],
+      ['○ a simulation returned from an earlier one, not run again', M.sims.some(q => q.same_as && seen(q.id))], [`${I.experiment} X0 the harness's baseline, outside the budget`, M.exps.some(x => x.by === 'harness' && seen(x.id))],
+      ['<s>◆</s> dropped', M.hyps.some(h => h.drop && seen(h.drop.id))], ['<span class="warnc">⚠</span> refused', cols.some(c => c.t.malformed.concat(c.t.refusals).some(q => seen(q.id)))]].filter(q => q[1]).map(q => `<span>${q[0]}</span>`).join('');
     EV._gl = '';
-    return `<div class="ev-card" id="s-made"><h2>What this session is made of <small>one mark per item · a column is one ${EV.term('Turn', 'turn')}, read it downwards · click a mark to open it on the right</small></h2>
-      <div class="ev-scroll gl-scroll"><table class="gl" style="--gw:${W}px"><thead><tr data-by="harness"><th><span class="gi">${I.turn}</span>${EV.term('Turn', 'Turns')} <b>${n.turn}</b>${notes ? ' <span class="sm">one answer of the model each</span>' : ''}</th>${head}</tr></thead><tbody>
+    return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item · a column is one ${EV.term('Turn', 'turn')}, read it downwards · click a mark to open it on the right${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small></h2>
+      <div class="ev-scroll gl-scroll${fits ? '' : ' gl-more'}"><table class="gl" style="--gw:${W}px"><thead><tr data-by="harness"><th><span class="gi">${I.turn}</span>${EV.term('Turn', 'Turns')} <b>${n.turn}</b>${notes ? ' <span class="sm">one answer of the model each</span>' : ''}</th>${head}</tr></thead><tbody>
         ${row('model', I.hypothesis, 'Hypothesis', 'Hypotheses', n.hyp, 'the model\'s claims', 'hyp')}
         ${row('model', '⊢', 'Decision rule', 'Decision rules', n.rule, 'stated before the simulations', 'rule')}
         ${row('simulator', I.simulation, 'Simulation', 'Simulations', n.sim, `in ${n.exp} ${EV.term('Experiment', n.exp === 1 ? 'experiment' : 'experiments')}`, 'sim')}
