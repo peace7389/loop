@@ -138,7 +138,9 @@
 .ev table.vc { width: auto; min-width: 320px; } .ev .vc td, .ev .vc th { padding-right: 18px; } .ev .vc-row { display: flex; flex-wrap: wrap; gap: 10px 40px; align-items: flex-start; }
 /* the simulations of each turn along one knob (evidence_knob.js) */
 .ev .kn .ka { stroke: var(--text-muted); stroke-width: 1.2; } .ev .kn .kj { stroke: var(--border); stroke-width: 1; } .ev .kn .kt { font-weight: 600; fill: var(--text-primary); font-size: var(--f-sec); } .ev .kn .ke { fill: var(--text-primary); } .ev .kn g[data-act] { cursor: pointer; }
-.ev .sq { white-space: nowrap; font-size: var(--f-note); } .ev .sq .ok, .ev .sq .bad { font-weight: 700; } .ev .sq-gap { display: inline-block; width: 5px; } .ev td[data-col=returned], .ev td[data-col=unnamed] { white-space: nowrap; }
+.ev .sq { white-space: nowrap; font-size: var(--f-note); } .ev .sq .gk { width: 7px; height: 7px; margin-right: .5px; } .ev .sq-gap { width: 3px !important; } .ev .sq-n { margin-left: 6px; white-space: nowrap; } .ev td.sqc { white-space: nowrap; width: 1%; }
+/* a row of Home and of Compare is one line high: nothing breaks inside a word or a date; a text too long for its column ends in "…" (in full on hover) */
+.ev td.nb { white-space: nowrap; } .ev td.one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 172px; } .ev td.one.w-how { max-width: 176px; } .ev th.tight { width: 1%; } .ev #home-results td, .ev #home-results th { padding-right: 26px; } .ev .sq .ok, .ev .sq .bad { font-weight: 700; } .ev .sq-gap { display: inline-block; width: 5px; } .ev td[data-col=returned], .ev td[data-col=unnamed] { white-space: nowrap; }
 .ev .mg { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; } .ev .mg-n { display: inline-block; min-width: 4.6em; text-align: right; font-variant-numeric: tabular-nums; }
 .ev .gl .gleft { font-size: var(--f-note); font-weight: 400; color: var(--text-secondary); line-height: 1.2; } .ev .gl .gleft .mut { font-size: var(--f-note); }
 /* the tests list follows the replay as the tree does: a later heading or row stays as a grey bar, with nothing to read in it */

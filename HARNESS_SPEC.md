@@ -911,7 +911,7 @@ line at the foot of every view.
 
 | Place | What is there |
 |---|---|
-| Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session and shows its checks in order, how many of its simulations were returned from an earlier one, and how many no decision rule names |
+| Home | A title line with the one action that belongs there, New session; the results so far as a table, one row per brief (sessions, with a final report, meet the brief's conditions, largest gap to the best, not scored; a cell with nothing to count says "not scored"); the table of every session, sortable and filterable, a running one first, where a row opens its session and shows, on one line, its checks in order followed by the counts of held and failed, how many of its simulations were returned from an earlier one ("returned"), and how many no decision rule names ("not named by a rule") |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
 | A session | Header strip (always visible, labelled fields on one line); the overview from the final report, first and at full width, with its claims as rows of full sentences; "The system"; "What this session is made of"; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
@@ -1113,7 +1113,9 @@ printed; nothing is filled in; a click never moves the page.
   the session's checks in the order they were made, as ✓ and ✗, with a small
   gap between turns. At most 40 are drawn, then "+ n more"; a session in the
   first format says "not recorded". The sequence comes from `control.py`'s
-  session row. The open session's summary shows the same sequence, counted
+  session row. After it stand the counts of held and failed, as marks with
+  their numbers; there is no separate column of counts. The column is as wide
+  as the widest sequence and no wider. The open session's summary shows the same sequence, counted
   from its own records, so an exported copy shows it too.
 - **How far each check was from its decision rule** (`evidence_margin.js`): a
   column "margin" in the tests list. It is read from the check's rule with its
@@ -1194,6 +1196,11 @@ Rules of the page:
   a card ("click …", "point at …") is said once, under "Using the page" in
   "How to read this page". What can be clicked shows it by the pointer and a
   change of background under it.
+- **A row of Home and of Compare is one line high.** A brief, a start and an
+  ending never break inside a word or a date; a text too long for its column
+  ends in "…" and is given in full on hover. The review cell says "n to
+  check" until the review has its first tick, then the progress; "not
+  started" is not printed.
 - Missing data is shown as "not recorded". Old sessions open as far as their
   records allow.
 - The page reads a ledger without its draft records and never requests
@@ -1357,11 +1364,11 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 163 | the shell: colours, styles, the list of scripts |
+| `index.html` | 165 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 164 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
-| `evidence_home.js` | 58 | Home |
+| `evidence_home.js` | 69 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
@@ -1407,4 +1414,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-57 files, 8,895 lines in all.
+57 files, 8,908 lines in all.
