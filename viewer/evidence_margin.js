@@ -33,8 +33,7 @@ Object.assign(EV, {
     const m = EV.margin(c.numbers), col = c.result === 'held' ? 'var(--good)' : c.result === 'failed' ? 'var(--critical)' : 'var(--text-muted)';
     if (m === undefined) return `<span class="mut" title="The rule with its numbers written in could not be read">${c.numbers == null ? 'not recorded' : 'not read'}</span>`;
     if (m === null) return '<span class="mut" data-margin="na" title="The rule compares with ==, or its right side is 0: there is no margin">not applicable</span>';
-    const cut = Math.abs(m) > 1, w = Math.min(1, Math.abs(m)) * 24;
-    return `<span class="mg" data-margin="${m}" data-cut="${+cut}" title="${EV.e(c.numbers)}"><span class="mg-n">${EV.marginText(m)}</span><svg width="56" height="12" viewBox="0 0 56 12"><line x1="28" x2="28" y1="1" y2="11" stroke="var(--text-muted)"/>
-      <rect x="${m < 0 ? 28 - w : 28}" y="3.5" width="${Math.max(w, 0.8)}" height="5" fill="${col}"/>${cut ? `<path d="M${m < 0 ? 2.5 : 53.5},2 l${m < 0 ? -2.5 : 2.5},4 l${m < 0 ? 2.5 : -2.5},4" fill="none" stroke="${col}" stroke-width="1.6"/>` : ''}</svg>${cut ? '<span class="sm" title="The bar is cut at 100%">cut</span>' : ''}</span>`;
+    const cut = Math.abs(m) > 1, w = m === 0 ? 0 : Math.max(2, Math.min(1, Math.abs(m)) * 24);  // a bar that is not zero is at least 2 px wide
+    return `<span class="mg" data-margin="${m}" data-cut="${+cut}" title="${EV.e(c.numbers)}"><span class="mg-n">${EV.marginText(m)}</span><svg width="56" height="12" viewBox="0 0 56 12"><rect class="mg-b" x="${m < 0 ? 28 - w : 28}" y="3.5" width="${w}" height="5" fill="${col}"/><line class="mg-0" x1="28" x2="28" y1="0.5" y2="11.5" stroke="var(--text-primary)" stroke-width="1.2"/>${cut ? `<path d="M${m < 0 ? 2.5 : 53.5},2 l${m < 0 ? -2.5 : 2.5},4 l${m < 0 ? 2.5 : -2.5},4" fill="none" stroke="${col}" stroke-width="1.6"/>` : ''}</svg>${cut ? '<span class="sm" title="The bar is cut at 100%">cut</span>' : ''}</span>`;
   },
 });

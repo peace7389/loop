@@ -33,8 +33,10 @@ Object.assign(EV, {
   },
   // series: [{ d: bestData, name, color }]; o.dots: draw the simulations of the (one) series; o.zoom: the scale covers
   // the best-so-far lines only; o.line: [value, label] a horizontal line (the sweep's best row); o.seen: record id -> shown at this replay step
+  // the room a picture has in the left column of a session's page, worked out from the page's width (the columns are in index.html: .ev-main)
+  leftW() { const R = document.getElementById('ev').clientWidth - 40; return Math.max(380, Math.floor((window.innerWidth <= 1100 ? R : Math.max(450, (R - 12) * 0.45)) - 34)); },
   bestSvg(series, o) {
-    const e = EV.e, g = series[0].d.g, [u, f] = EV.unit(g.target), W = 760, H = 250, L = 62, R = o.dots ? 18 : 56, T = 20, B = 34, seen = o.seen || (() => true);
+    const e = EV.e, g = series[0].d.g, [u, f] = EV.unit(g.target), W = o.dots ? EV.leftW() : 760, H = 250, L = 62, R = o.dots ? 18 : 56, T = 20, B = 34, seen = o.seen || (() => true);
     const N = Math.max(...series.map(q => q.d.pts.length), 2), X = n => L + (n - 1) / (N - 1) * (W - L - R);
     const vals = series.flatMap(q => (o.dots && !o.zoom ? q.d.pts.map(p => p.v) : q.d.pts.filter(p => p.best != null).map(p => p.best))).concat(o.line && (o.zoom || !o.dots) ? [o.line[0]] : []).map(f);
     if (!vals.length) return `<p class="sm">No simulation meets the brief's conditions${o.dots ? ', so there is no best-so-far line' : ''}.</p>`;
@@ -57,7 +59,7 @@ Object.assign(EV, {
       s += q.d.pts.map(p => `<g data-act="open" data-t="sim" data-id="${e(p.s.id)}" data-step="${EV.M.recStep[p.s.id] ?? 0}" clip-path="url(#ev-bc)"><circle cx="${X(p.n)}" cy="${Y(p.v)}" r="8" fill="transparent"/>
         <circle cx="${X(p.n)}" cy="${Y(p.v)}" r="4" fill="${p.ok ? col : 'var(--surface-1)'}" stroke="${p.ok ? 'var(--surface-1)' : col}" stroke-width="${p.ok ? 1.5 : 1.8}"/><title>${e(`${p.n}: ${p.s.id} · ${p.s.label || ''} · ${fmt(f(p.v))} ${u} · ${p.ok ? 'meets' : 'does not meet'} the brief's conditions`)}</title></g>`).join('');
       if (q.d.rec) { const p = q.d.rec, k = EV.M.repRec ? EV.M.recStep[EV.M.repRec.id] ?? 0 : 0; s += `<g data-step="${k}"><circle cx="${X(p.n)}" cy="${Y(p.v)}" r="9" fill="none" stroke="var(--text-primary)" stroke-width="2"/><text x="${X(p.n) + (p.n > N * 0.8 ? -13 : 13)}" y="${Y(p.v) + 16}" text-anchor="${p.n > N * 0.8 ? 'end' : 'start'}" style="fill:var(--text-primary);font-weight:600">the recommended settings</text></g>`; } }
-    return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:${o.dots ? 1100 : 900}px" role="img" aria-label="Best so far: ${e(g.target)} over the simulations in the order they ran">${s}</svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}" width="${o.dots ? W : '100%'}" style="max-width:${o.dots ? '100%' : '900px'}" role="img" aria-label="Best so far: ${e(g.target)} over the simulations in the order they ran">${s}</svg>`;
   },
 
   bestCard() {

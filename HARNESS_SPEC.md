@@ -1012,6 +1012,8 @@ internet stack, traffic control, net device), and the link between them.
   not the session's selection: the item open in the detail pane stays open, and
   the page does not move.
 - The scheduling policy is shown only with the operator columns on.
+- The card grows to hold the chosen object's settings: nothing scrolls inside
+  it.
 - The card folds, and the browser remembers it; folded, its heading still says
   which settings it shows. It is not printed. During the replay it shows
   nothing recorded after the chosen step.
@@ -1049,6 +1051,12 @@ it: the whole session as one picture.
   browser remembers it. Folded, its line carries its content: the counts from
   the records by the replay's step ("5 turns · 12 hypotheses · 12 checks, 10
   held and 2 failed as marks · 44 simulations"). It is not printed.
+
+**The tests list** (`evidence_more.js`) gives each test two lines: first the
+hypothesis's id and text, across the card's width, cut after two lines; under
+it what was compared (ended with "…" where it is long, in full on hover), the
+check, the margin and the verdict. The margin's bar has a tick at zero, and a
+bar that is not zero is at least 2 px wide.
 
 **The tests list follows the replay as the tree does.** A group heading and a
 test's row can be read from the step at which their experiment is recorded; a
@@ -1099,14 +1107,18 @@ printed; nothing is filled in; a click never moves the page.
 - **The simulations of each turn, along one knob** (`evidence_knob.js`), on
   the session page under "Best so far": one horizontal axis per turn, one dot
   per simulation at the value it used. Each axis spans that turn's own
-  smallest to largest value, with both ends printed, and two lines join it to
-  the part of the previous axis it covers. A turn with one value keeps the
+  smallest to largest value, with both ends printed with as many decimals as
+  the finest value of that turn ("0.300" and "0.310"), and a shape joins it
+  to the part of the previous axis it covers: filled lightly in the grid
+  colour, its two lines in the muted text colour, so the narrowing can be
+  seen. A turn with one value keeps the
   previous axis and says what it varied instead; the first axis of all is then
   the brief's range. A knob with choices keeps the brief's order. Simulations
-  at the same value are stacked. A dot is filled if the simulation meets the
+  at the same value are stacked. A dot is a simulation, not a flow: it is drawn in the text colour,
+  never in the colour of UDP or TCP. It is filled if the simulation meets the
   brief's conditions, as in "Best so far"; with an open goal there is one kind
-  of dot. A simulation returned from an earlier one carries a small ring beside
-  its dot. The knob shown at first is the one that most experiments vary. With
+  of dot. A simulation returned from an earlier one carries the mark of that
+  kind beside its dot, at the size of a dot. The knob shown at first is the one that most experiments vary. With
   the operator columns on, a line marks the value of the best row of the
   sweep. A click on a dot opens that simulation.
 - **The checks of each session, in order**: on Home, in each session's row,
@@ -1117,8 +1129,8 @@ printed; nothing is filled in; a click never moves the page.
   their numbers; there is no separate column of counts. The column is as wide
   as the widest sequence and no wider. The open session's summary shows the same sequence, counted
   from its own records, so an exported copy shows it too.
-- **How far each check was from its decision rule** (`evidence_margin.js`): a
-  column "margin" in the tests list. It is read from the check's rule with its
+- **How far each check was from its decision rule** (`evidence_margin.js`):
+  the margin, in each test's second line of the tests list. It is read from the check's rule with its
   numbers written in: for `a > b` or `a >= b` it is (a - b) / |b|; for `a < b`
   or `a <= b` it is (b - a) / |b|; comparisons joined by AND give the
   smallest, by OR the largest. A right side of 0, or `==`, has no margin: "not
@@ -1128,7 +1140,7 @@ printed; nothing is filled in; a click never moves the page.
   much of the rule's right side the measured side cleared it. It depends on how
   the rule was written, so it compares checks of the same kind only; it does
   not say whether a prediction was bold." The tests list is printed without
-  this column.
+  the margin.
 - **The target measure where one knob alone differs** (in `evidence_knob.js`),
   on the session page under the chart of the turns: a table, one row per knob.
   A group is a set of simulations that differ in that knob only (a simulation
@@ -1186,6 +1198,12 @@ Rules of the page:
   than 11 px, a picture's text included: where a picture has no room for a
   label at 11 px the label is shortened, not shrunk. The canvas charts take
   their sizes from the same names.
+- **A picture is drawn at its own size** where the page has the room, so that
+  11 px is 11 px on the screen: the flow chart of a test, "Best so far" and
+  the simulations of each turn are drawn to the width they have and drawn
+  again when the window changes; the picture of the system and the structure
+  map have columns as wide as they are. Below a window of about 1,340 px
+  those two are scaled down (15, known limits).
 - **Labels are in sentence case**, small and muted. No style sets capitals or
   letter spacing.
 - Numbers stand in tabular figures everywhere on the page.
@@ -1308,6 +1326,11 @@ untracked until they say otherwise.
 7. All sessions used one model, temperature 0.3, seed 1 for the simulations
    unless the model chose otherwise. Nothing here says how the results vary
    with another model.
+8. **Two pictures are scaled down in a narrow window.** The picture of the
+   system and the structure map of "How to read this page" have a fixed
+   drawing width (1,000 and about 940 px); in a window narrower than about
+   1,340 px (and wider than 1,100, where the page becomes one column) they are
+   scaled to fit, and their text is then smaller than 11 px.
 
 ## 16. History in short
 
@@ -1364,7 +1387,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 165 | the shell: colours, styles, the list of scripts |
+| `index.html` | 168 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 164 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -1374,18 +1397,18 @@ above all, so the counts understate the size.
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 91 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
-| `evidence_best.js` | 77 | best so far |
-| `evidence_knob.js` | 95 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
+| `evidence_best.js` | 79 | best so far |
+| `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 56 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
-| `evidence_flow.js` | 104 | View 3 (one test as a flow chart) and its chart |
+| `evidence_flow.js` | 108 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 43 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
-| `evidence_more.js` | 73 | summary, the tests list, the final report in full, the evidence sheet |
+| `evidence_more.js` | 75 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 70 | verdicts against checks: the table of counts, in a session's summary and on Compare |
-| `evidence_margin.js` | 40 | the margin of a check: how far it was from its decision rule; a column of the tests list |
+| `evidence_margin.js` | 39 | the margin of a check: how far it was from its decision rule; a part of each test's line in the tests list |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
 | `evidence_operator.js` | 52 | the Operator tab: the score, the checklist and its judgements |
 | `evidence_heat.js` | 64 | the sweep as a heat map: the colour range, the stretches of the axis, the session's simulations as marks |
@@ -1414,4 +1437,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-57 files, 8,908 lines in all.
+57 files, 8,919 lines in all.

@@ -101,4 +101,8 @@ Object.assign(EV, {
     ch.thFile = `${o.test || x.id}-${k}`; T._charts[cid] = ch;
   },
 });
-window.addEventListener('resize', () => { if (EV.s.view === 'session' && document.querySelector('#ev .t-flow')) { EV.flowFit(); EV.applyReplay(); } });
+// the pictures of a session's page are drawn to the width they have: when the window changes, they are drawn again (not while the reader types in a field)
+// Only when the width really changed, and never while an evidence sheet is laid out for printing (a redraw would empty it).
+window.addEventListener('resize', () => { clearTimeout(EV._rz); EV._rz = setTimeout(() => { const a = document.activeElement, w = window.innerWidth, same = w === EV._w; EV._w = w;
+  if (!same && EV.s.view === 'session' && EV.M && !document.getElementById('ev').classList.contains('sheet') && !window.matchMedia('print').matches && !(a && ['INPUT', 'TEXTAREA'].includes(a.tagName))) EV.draw(); }, 150); });
+EV._w = window.innerWidth;
