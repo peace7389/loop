@@ -58,7 +58,7 @@ Object.assign(EV, {
 
   sessionTab() {
     return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.systemCard()}${EV.glance()}
-      <div class="ev-main"><div>${EV.overview()}${EV.highCard()}${EV.bestCard()}${EV.workCard()}${EV.testsCard()}</div>
+      <div class="ev-main"><div>${EV.overview()}${EV.highCard()}${EV.bestCard()}${EV.knobCard()}${EV.workCard()}${EV.testsCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },
 });

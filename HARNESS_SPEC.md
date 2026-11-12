@@ -987,6 +987,19 @@ printed; nothing is filled in; a click never moves the page.
   `control.py`'s session rows; with the operator columns on, also one table per
   scheduling policy). **Sessions of different briefs are never added
   together.**
+- **The simulations of each turn, along one knob** (`evidence_knob.js`), on
+  the session page under "Best so far": one horizontal axis per turn, one dot
+  per simulation at the value it used. Each axis spans that turn's own
+  smallest to largest value, with both ends printed, and two lines join it to
+  the part of the previous axis it covers. A turn with one value keeps the
+  previous axis and says what it varied instead; the first axis of all is then
+  the brief's range. A knob with choices keeps the brief's order. Simulations
+  at the same value are stacked. A dot is filled if the simulation meets the
+  brief's conditions, as in "Best so far"; with an open goal there is one kind
+  of dot. A simulation returned from an earlier one carries a small ring beside
+  its dot. The knob shown at first is the one that most experiments vary. With
+  the operator columns on, a line marks the value of the best row of the
+  sweep. A click on a dot opens that simulation.
 
 **The model's numbers against the measurements.** Where the model's text names
 a measure with a number, or gives a number that equals a measured value of the
@@ -998,7 +1011,9 @@ Rules of the page:
   beside it. The one exception is the structure map's boxes, which scroll.
 - One fixed colour per producer: model violet, harness magenta, simulator
   green, operator yellow. UDP is blue and TCP orange in every chart. Never two
-  scales in one chart.
+  scales in one chart, with one exception (**DECISION 2026-11-12**): in "The
+  simulations of each turn, along one knob" every turn has its own axis, with
+  both ends printed and lines joining it to the previous one.
 - Missing data is shown as "not recorded". Old sessions open as far as their
   records allow.
 - The page reads a ledger without its draft records and never requests
@@ -1156,7 +1171,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 136 | the shell: colours, styles, the list of scripts |
+| `index.html` | 138 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 56 | Home |
@@ -1166,6 +1181,7 @@ above all, so the counts understate the size.
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 76 | best so far |
+| `evidence_knob.js` | 72 | the simulations of each turn along one knob, one axis per turn |
 | `evidence_tree.js` | 56 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
 | `evidence_flow.js` | 96 | View 3 (one test as a flow chart) and its chart |
@@ -1202,4 +1218,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 48 | what is where, for a reader of the repository |
 
-53 files, 8,496 lines in all.
+54 files, 8,570 lines in all.
