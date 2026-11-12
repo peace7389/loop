@@ -35,7 +35,7 @@ Object.assign(EV, {
     const fold = EV.store('ev-sys') === '1', V = EV.sysVals(), v = V.v, O = EV.OB, on = !O ? null : EV.sysFind(S.sysObj) ? S.sysObj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
     const shown = V.sim ? `the settings of ${EV_ICON.simulation} ${EV.term('Simulation', 'simulation')} ${e(V.sim.id)} “${e(V.sim.label || '')}”${fold ? '' : ' <button class="cl" data-act="sysdef">show the brief\'s defaults</button>'}`
       : M.brief ? `the settings shown are the ${EV.term('Brief', 'brief')}'s defaults, as in the baseline` : `the brief of this session: ${EV.nr}`;
-    const head = `<h2>The system <small>two computers and one link · ${shown}${fold ? '' : ' · click an object to see its settings beside the picture'}</small> <button class="cl noprint" data-act="sysfold" style="float:right">${fold ? 'unfold' : 'fold'}</button></h2>`;
+    const head = `<h2>The system <small>two computers and one link · ${shown}</small> <button class="cl noprint" data-act="sysfold" style="float:right">${fold ? 'unfold' : 'fold'}</button></h2>`;
     if (fold || !O) return `<div class="ev-card noprint" id="s-system">${head}${fold ? '' : `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`}</div>`;
     // ---- the pieces: a text, an object (a clickable group with its ns-3 class as the tooltip), a box, a queue, a computer
     const R = t => (t == null ? '' : TASK_VIEW._rate(t)), J = (...a) => a.filter(Boolean).join(' · '), T = (x, y, s, cls, anchor) => `<text x="${x}" y="${y}" class="${cls || ''}" text-anchor="${anchor || 'middle'}">${e(s)}</text>`;

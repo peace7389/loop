@@ -41,7 +41,7 @@ Object.assign(EV, {
       return t.n ? `<b>Turn ${t.n}</b>: ${bits.join(' · ') || 'nothing the harness could use'}${t.left == null ? '' : ` · ${pl(t.left, 'simulation')} left at its start`}` : `<b>Start</b>: the brief, and the baseline the harness ran before the model's first turn`; }
     if (sel && sel.t === 'report' && M.report && M.repRec && seen(M.repRec.id)) { const r = M.report.recommendation;
       return `<b>${K('report')}Final report</b>: ${pl(M.claims.length, 'claim')}${r && typeof r === 'object' ? ' · recommends ' + e(Object.entries(r).map(([k, v]) => `${k} ${v}`).join(', ')) : ''}`; }
-    return 'Point at a mark to read what it is. A hypothesis, its decision rule, the simulations that rule names, its check and its verdict stand in one line down a column: together they are one test.';
+    return 'A hypothesis, its decision rule, the simulations that rule names, its check and its verdict stand in one line down a column: together they are one test.';
   },
 
   // how many of each kind the records hold by the replay's step
@@ -96,7 +96,7 @@ Object.assign(EV, {
       [K('dropped') + 'dropped', M.hyps.some(h => h.drop && seen(h.drop.id))], ['<span class="grf warnc">n</span> refused answers or parts in that turn', cols.some(c => c.t.malformed.concat(c.t.refusals).some(q => seen(q.id)))],
       [`<span id="gl-left">simulations left at each turn: ${EV.nr}</span>`, !anyLeft && cols.some(c => c.t.n)]].filter(q => q[1]).map(q => `<span>${q[0]}</span>`).join('');
     EV._gl = '';
-    return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item · a column is one ${EV.term('Turn', 'turn')}, read it downwards · click a mark to open it on the right${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small> ${foldBtn}</h2>
+    return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item · a column is one ${EV.term('Turn', 'turn')}, read downwards${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small> ${foldBtn}</h2>
       <div class="ev-scroll gl-scroll${fits ? '' : ' gl-more'}"><table class="gl" style="--gw:${W}px"><thead><tr data-by="harness"><th><span class="gi"></span>${EV.term('Turn', 'Turns')} <b>${n.turn}</b>${notes ? ' <span class="sm">one answer of the model each</span>' : ''}</th>${head}</tr></thead><tbody>
         ${row('model', 'hyp', 'Hypothesis', 'Hypotheses', n.hyp, 'the model\'s claims', 'hyp')}
         ${row('model', 'rule', 'Decision rule', 'Decision rules', n.rule, 'stated before the simulations', 'rule')}

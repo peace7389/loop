@@ -58,7 +58,7 @@ Object.assign(EV, {
   // ---- the work: the left side is the tree, the session flow or the hypothesis map; the selection is shared
   workCard() {
     const S = EV.s, M = EV.M, left = S.left || 'tree', n = M.steps.length, k = S.step == null ? n - 1 : S.step, b = (id, t) => `<button data-act="left" data-id="${id}" class="${left === id ? 'on' : ''}">${t}</button>`;
-    return `<div class="ev-card" id="s-work"><h2>The work <small>${left === 'tree' ? 'each turn with its experiment, the tests in that experiment, and the simulations each test uses' : left === 'lanes' ? 'time runs down, in the lane of whoever did each step' : 'left to right by the turn each hypothesis was stated'} · click an item to open it on the right</small></h2>
+    return `<div class="ev-card" id="s-work"><h2>The work <small>${left === 'tree' ? 'each turn with its experiment, the tests in that experiment, and the simulations each test uses' : left === 'lanes' ? 'time runs down, in the lane of whoever did each step' : 'left to right by the turn each hypothesis was stated'}</small></h2>
       <div class="ev-bar"><span>${b('tree', 'Tree')} ${b('lanes', 'Session flow')} ${b('map', 'Hypothesis map')}</span>${left === 'map' ? `<button data-act="path" class="${S.path ? 'on' : ''}">show the path to the answer</button>` : ''}
         <span class="end"><b>Replay</b> <button data-act="replay" data-id="first">« first</button> <button data-act="replay" data-id="prev">◀</button> <button data-act="replay" data-id="next">▶</button> <button data-act="replay" data-id="last">last »</button>
           <span class="sm">step ${n ? k + 1 : 0} of ${n}${S.step == null ? '' : ': later items are greyed'} · arrow keys</span></span></div>
@@ -71,6 +71,13 @@ Object.assign(EV, {
       <div class="ev-top" style="margin-top:10px"><div><h3>How a session is built<span class="sm"> · this session's counts; click a box to go to that part</span></h3>${EV.structureMap()}</div>
         <div><h3>Who produced it</h3>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
       <h3>The words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
+      <h3>Using the page</h3><ul class="sm" id="how-use" style="margin:0;padding-left:18px">
+        <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
+        <li>Highlights: click one to open it. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
+        <li>“The system”: click an object to see its settings beside the picture. “What this session is made of”: click a mark to open it; point at a mark to read what it is.</li>
+        <li>The work, and the tests list: click an item or a row to open it. The session's summary: click any item on the left to open it there.</li>
+        <li>An experiment's panel: click a test or a simulation to open it. A simulation's charts over time: point at a chart, and the same moment is marked in all of them.</li>
+        <li>Home: click a row to open that session; click a column title to sort. Compare sessions: tick two or more to see them side by side; click a first test that held to open it in its session.</li></ul>
       <p class="sm">“Work log”: the sequence of the model's steps and its stated reasons. “Operator columns”: anything operator-only, shown when the switch at the top is on.</p></details>`;
   },
 

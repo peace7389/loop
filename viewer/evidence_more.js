@@ -29,7 +29,7 @@ Object.assign(EV, {
         return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}" data-step="${st(x.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b> <span class="sm">${e(txt.length > 90 ? txt.slice(0, 88) + '…' : txt)}</span></td><td class="sm">${e(EV.compared(T))}</td>
           <td>${T.check ? at(st(T.check.id), EV.checkRes(T.check)) : at(end, T.rule ? '<span class="mut">not checked</span>' : '–')}</td><td class="noprint mgc">${EV.marginCell(T.check)}</td>
           <td>${v ? at(st(v.id), `${v.id} ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : at(end, '<span class="mut">no verdict</span>')}</td></tr>`; }).join(''); }).join('');
-    return `<div class="ev-card" id="s-tests"><h2>${EV.term('Test', 'Tests')} <small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in · click a row to open it on the right</small></h2>
+    return `<div class="ev-card" id="s-tests"><h2>${EV.term('Test', 'Tests')} <small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in</small></h2>
         ${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th class="noprint" title="${e(EV.MARGIN_NOTE)}">margin</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${list}</tbody></table></div>
         <p class="sm noprint" id="mg-note"><b>margin</b>: ${e(EV.MARGIN_NOTE)} The bar is cut at ±100%.</p>` : '<p class="sm">none</p>'}</div>`;
   },

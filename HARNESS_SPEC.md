@@ -1159,6 +1159,13 @@ Rules of the page:
 - **Labels are in sentence case**, small and muted. No style sets capitals or
   letter spacing.
 - Numbers stand in tabular figures everywhere on the page.
+- **A defined term** shows its definition on hover wherever it stands. The
+  dotted underline stands only where the term is a label: a card's heading, a
+  column title, a field's or a box's label. Inside a sentence it has none.
+- **The grey line beside a heading says what the card holds.** How to operate
+  a card ("click …", "point at …") is said once, under "Using the page" in
+  "How to read this page". What can be clicked shows it by the pointer and a
+  change of background under it.
 - Missing data is shown as "not recorded". Old sessions open as far as their
   records allow.
 - The page reads a ledger without its draft records and never requests
@@ -1322,7 +1329,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 159 | the shell: colours, styles, the list of scripts |
+| `index.html` | 163 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -1330,7 +1337,7 @@ above all, so the counts understate the size.
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 83 | a session's page, top to bottom |
+| `evidence_page.js` | 90 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 77 | best so far |
 | `evidence_knob.js` | 95 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
@@ -1371,4 +1378,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-56 files, 8,804 lines in all.
+56 files, 8,815 lines in all.

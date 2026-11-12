@@ -22,7 +22,7 @@ Object.assign(EV, {
 
   knobCard() {
     const M = EV.M, S = EV.s, e = EV.e, rows = EV.knTurns(M), K = EV.knKnobs(M, rows), knob = K.names.includes(S.knob) ? S.knob : K.first, num = EV.knNum, show = v => TASK_VIEW._rate(String(v));
-    const head = `<h2>The simulations of each turn, along one knob <small>one dot per ${EV.term('Simulation', 'simulation')} at the value it used · each ${EV.term('Turn', 'turn')} has its own axis, from its smallest to its largest value · click a dot to open it on the right</small></h2>`;
+    const head = `<h2>The simulations of each turn, along one knob <small>one dot per ${EV.term('Simulation', 'simulation')} at the value it used · each ${EV.term('Turn', 'turn')} has its own axis, from its smallest to its largest value</small></h2>`;
     if (!rows.length || !knob) return `<div class="ev-card noprint" id="s-knob">${head}<p class="sm">${rows.length ? 'the knobs of this session: ' + EV.nr : 'No simulation' + (S.step == null ? ' yet.' : ' by this step of the replay.')}</p></div>`;
     const spec = (M.brief && M.brief.knobs && M.brief.knobs[knob]) || {}, cat = spec.choices || null, g = EV.goalOf(M.brief), sc = EV.files.score, plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
     const col = !g ? 'var(--text-secondary)' : /^udp|band0/.test(g.target) ? 'var(--series-1)' : /^tcp|band1/.test(g.target) ? 'var(--series-2)' : 'var(--text-secondary)';

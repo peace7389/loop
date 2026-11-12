@@ -34,7 +34,9 @@
 .ev select, .ev button, .ev input, .ev textarea { font: inherit; font-size: var(--f-text); color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; }
 .ev button { cursor: pointer; } .ev button:hover:not(:disabled) { border-color: var(--text-primary); } .ev button:disabled { opacity: .45; cursor: default; }
 .ev button.on { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
-.ev abbr { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+/* a defined term shows its definition on hover everywhere; the dotted underline stands only where the term is a label: a heading, a column title, a field's or a box's label. Inside a sentence it has none */
+.ev abbr { text-decoration: none; cursor: help; }
+.ev h2 > abbr, .ev h3 > abbr, .ev th > abbr, .ev label > abbr, .ev .hf > span > abbr, .ev .kv div > span > abbr, .ev .bt > abbr, .ev .bt > b > abbr { text-decoration: underline dotted; text-underline-offset: 3px; }
 .ev-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; font-size: var(--f-text); }
 .ev-bar label { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
 /* the top bar never changes: two groups, always all of their items, each at its own place (the buttons have one weight, so the one switched on is no wider) */
@@ -68,7 +70,9 @@
 .ev .later .bt, .ev text.later, .ev .later text, .ev .later title, .ev div.later, .ev tr.later, .ev p.later, .ev li.later, .ev span.later { visibility: hidden; }
 .ev tr.grp td { background: var(--surface-0); color: var(--text-secondary); font-size: var(--f-sec); font-weight: 600; padding: 4px 8px; }
 .ev svg { display: block; } .ev svg text { font: var(--f-note) system-ui, sans-serif; fill: var(--text-secondary); }
-.ev .bx { fill: var(--surface-1); stroke: var(--border); stroke-width: 1; } .ev g[data-act] { cursor: pointer; } .ev g[data-act]:hover .bx { stroke: var(--text-primary); }
+.ev .bx { fill: var(--surface-1); stroke: var(--border); stroke-width: 1; } .ev g[data-act] { cursor: pointer; } .ev g[data-act]:hover .bx { stroke: var(--text-primary); filter: brightness(.95); }
+/* what can be clicked shows it by the pointer and a change of background under it */
+.ev g[data-act]:hover > circle[fill=transparent] { fill: color-mix(in srgb, var(--text-primary) 14%, transparent); } .ev ol.hl li:hover, .ev .hc:hover { background: var(--surface-0); } .ev .gt:hover, .ev .gx:hover { background: color-mix(in srgb, var(--text-primary) 11%, transparent); border-radius: 4px; }
 .ev .bx.warn { stroke: var(--warning); stroke-width: 2; stroke-dasharray: 5 3; } .ev .bx.sel { stroke: var(--text-primary); stroke-width: 2.5; }
 .ev .bx.hit { stroke: var(--series-1); stroke-width: 2.5; }
 .ev .edge { stroke: var(--text-muted); stroke-width: 1.2; fill: none; } .ev .edge.hot { stroke: var(--text-primary); stroke-width: 2.4; } .ev .ring { fill: none; stroke: var(--text-primary); stroke-width: 2; }
