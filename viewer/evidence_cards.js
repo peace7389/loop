@@ -58,9 +58,9 @@ Object.assign(EV, {
   },
   numCheck(text, sims) {
     const rows = EV.numRows(EV.M, text, sims); if (!rows.length) return ''; const off = rows.filter(q => q.status === 'differs').length, e = EV.e;
-    return `<details${off ? ' open' : ''}><summary>${off ? `<span class="bad">✕ ${off} of ${rows.length}</span> numbers differ from the measurements` : `<span class="ok">✓</span> ${rows.length} number${rows.length === 1 ? '' : 's'} agree with the measurements`}</summary>
+    return `<details${off ? ' open' : ''}><summary>${off ? `${EV.warn(`${off} of ${rows.length}`)} numbers differ from the measurements` : `${EV.gkey('check')}${rows.length} number${rows.length === 1 ? '' : 's'} agree with the measurements`}</summary>
       <table><thead><tr><th data-by="model">it wrote</th><th>measure</th><th class="num" data-by="simulator">measured</th><th></th></tr></thead><tbody>${rows.map(q => `<tr><td>${e(q.written)}</td><td>${e(q.what)}</td><td class="num">${e(q.measured)}</td>
-        <td>${q.status === 'agrees' ? `<span class="ok">✓</span> ${EV.link(q.where)}` : q.status === 'other' ? `from another experiment: ${EV.link(q.where)}` : '<span class="bad">✕ differs</span>'}</td></tr>`).join('')}</tbody></table></details>`;
+        <td>${q.status === 'agrees' ? `${EV.gkey('check')}${EV.link(q.where)}` : q.status === 'other' ? `from another experiment: ${EV.link(q.where)}` : EV.warn('differs')}</td></tr>`).join('')}</tbody></table></details>`;
   },
   simsOfTurn(n) { return EV.M.exps.filter(x => x.turn === n).flatMap(x => x.sims); },
 
@@ -76,7 +76,7 @@ Object.assign(EV, {
     const x = t.exp, fixed = x ? Object.keys(x.sims[0] ? x.sims[0].params : {}).filter(k => x.sims.every(s => JSON.stringify(s.params[k]) === JSON.stringify(x.sims[0].params[k]))) : [];
     const refused = t.malformed.map(m => `<li class="warnc" data-step="${M.recStep[m.id] ?? 0}">${EV_ICON.malformed} whole answer refused (${EV.link(m.id)}): ${e((m.body.refused || []).map(q => q.part + ': ' + q.reason).join(' | ') || m.body.error)}</li>`)
       .concat(t.refusals.map(m => `<li class="warnc" data-step="${M.recStep[m.id] ?? 0}">${EV_ICON.malformed} refused part (${EV.link(m.id)}) ${e(m.body.part)}: ${e(m.body.reason || m.body.text)}</li>`));
-    const dec = [...t.verdicts.map(v => `<li>${EV.term('Verdict', 'verdict')} ${EV.link(v.id)} on ${EV.link(v.body.for)}: <b>${e(v.body.result)}</b></li>`),
+    const dec = [...t.verdicts.map(v => `<li>${EV.term('Verdict', 'verdict')} ${EV.link(v.id)} on ${EV.link(v.body.for)}: ${EV.verdictRes(v.body.result)}</li>`),
       ...t.drops.map(d => `<li>${EV_ICON.drop} dropped ${EV.link(d.body.for)}</li>`),
       ...t.hyps.map(h => `<li>new ${EV.term('Hypothesis', 'hypothesis')} ${EV.link(h.id)}: ${e(h.text)}${h.prediction ? `<br><span class="sm">prediction: ${e(h.prediction)}</span>` : ''}<br><span class="sm">follows from: ${h.follows ? h.follows.map(EV.link).join(', ') : EV.nr}</span></li>`),
       ...(x ? [`<li>${EV.term('Experiment', 'experiment')} ${EV.link(x.id)}: a batch of ${x.sims.length} simulations (${e(x.sims.map(s => s.label).join(', '))}); varied <b>${e(x.varied.join(', ') || 'not recorded')}</b>; fixed ${e(fixed.join(', ') || 'none')}; control <b>${e(x.control || 'not recorded')}</b>

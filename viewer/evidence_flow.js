@@ -31,24 +31,24 @@ Object.assign(EV, {
     const cut = (s, m) => { s = String(s || ''); return s.length > m ? s.slice(0, m - 1) + '…' : s; };
     const atK = S.step == null ? null : EV_DATA.stateAt(M, S.step), st = h ? (atK ? atK[h.id] || 'open' : h.state) : 'not recorded';  // during the replay: the state at that step
     const cs = T.check ? [T.check] : [], v = T.verdict, bad = EV.contradicts(v, cs), kc = T.check ? M.recStep[T.check.id] ?? simK : simK, kv = v ? M.recStep[v.id] ?? kc : kc;
-    const res = T.check ? T.check.result : T.rule ? 'not checked' : 'no rule', fill = res === 'held' ? 'var(--good)' : res === 'failed' ? 'var(--critical)' : 'var(--warning)', dx = C[3] + CW[3] / 2;
+    const res = T.check ? T.check.result : T.rule ? 'not checked' : 'no rule', dx = C[3] + CW[3] / 2;
     let svg = EV.box(C[0], y, CW[0], BH, 'model', `${EV_ICON.hypothesis} <b>${e(T.hyp)}</b> · ${e(st)}<br><small>${e(cut(h && h.text, 80))}</small>`, `data-act="open" data-t="hyp" data-id="${e(T.hyp)}" data-step="${M.recStep[T.hyp] ?? 0}"`, h ? EV.stCls(st) : '');
     svg += a(C[0] + CW[0], mid, C[1], mid, ks);
     svg += EV.box(C[1], y, CW[1], BH, 'model', T.rule ? `⊢ <b>${EV.term('Decision rule', 'decision rule')}</b><br><small>${e(cut(T.rule, 64))}</small>${T.rival ? `<br><small>${EV.term('Rival', 'rival')} would give: ${e(T.rival_predicts || 'not recorded')}</small>` : ''}`
       : `⊢ <b>no decision rule</b><br><small>${EV.nr}</small>`, `data-step="${ks}"`, T.rule ? '' : 'warn');
-    if (T.rule) svg += fo(C[1], y + BH + 2, CW[1] + 20, 64, `written ${EV.time(T.ts)} · simulations finished ${EV.time(simEnd)} <span class="${first ? 'ok' : 'warnc'}">${first ? '✓ written first' : '✕ not written first'}</span>`, ks);
+    if (T.rule) svg += fo(C[1], y + BH + 2, CW[1] + 20, 64, `written ${EV.time(T.ts)} · simulations finished ${EV.time(simEnd)} ${first ? `<span class="rs">${EV.gkey('check')}written first</span>` : EV.warn('not written first')}`, ks);
     svg += a(C[1] + CW[1], mid, C[2], mid, simK);
     const rows = T.sims.map((q, i) => { const cy = y + 46 + i * 15;
       return `<g data-act="open" data-t="sim" data-id="${e(q.id)}" data-test="${e(T.id)}"><rect x="${C[2] + 6}" y="${cy - 8}" width="${CW[2] - 10}" height="15" fill="transparent"/><circle cx="${C[2] + 14}" cy="${cy}" r="3.6" class="${q.same_as ? '' : 'stripe'}" style="${q.same_as ? 'fill:none;stroke:var(--by-simulator);stroke-width:1.4' : ''}"/>
-        <text x="${C[2] + 23}" y="${cy + 4}" style="fill:var(--text-primary)">${e(cut(q.id + ' ' + q.label, 17))}${q.label === T.control ? ' ◇' : ''}</text><title>${e(`${q.id} · ${q.label}${q.label === T.control ? ' · the control' : ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`)}</title></g>`; }).join('');
+        <text x="${C[2] + 23}" y="${cy + 4}" style="fill:var(--text-primary)${q.label === T.control ? ';font-weight:700' : ''}">${e(cut(q.id + ' ' + q.label, 17))}</text><title>${e(`${q.id} · ${q.label}${q.label === T.control ? ' · the control' : ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`)}</title></g>`; }).join('');
     svg += `<g data-step="${simK}" data-by="simulator">${EV.box(C[2], y, CW[2], simH, 'simulator', `${EV_ICON.simulation} <b>${n}</b> ${EV.term('Simulation', n === 1 ? 'simulation' : 'simulations')} <small>this rule names</small>`)}${rows}
       ${T.missing.length ? `<text x="${C[2] + 10}" y="${y + simH - 8}" style="fill:var(--warning)">${e(cut('not found: ' + T.missing.join(', '), 24))}</text>` : ''}</g>`;
     svg += a(C[2] + CW[2], mid, C[3] + 8, mid, kc);
-    svg += `<g data-step="${kc}"><polygon points="${dx},${mid - 42} ${dx + 48},${mid} ${dx},${mid + 42} ${dx - 48},${mid}" class="bx" style="fill:color-mix(in srgb, ${fill} 18%, var(--surface-1))"/>
-      <text x="${dx}" y="${mid - 6}" text-anchor="middle">did the rule hold?</text><text x="${dx}" y="${mid + 12}" text-anchor="middle" style="font-weight:700;fill:var(--text-primary)">${e(res)}</text><title>${e(T.check ? `${T.check.id}: ${T.check.rule} → ${T.check.numbers} → ${T.check.result}` : 'no check')}</title></g>`;
+    svg += `<g data-step="${kc}"><polygon points="${dx},${mid - 42} ${dx + 48},${mid} ${dx},${mid + 42} ${dx - 48},${mid}" class="bx"/>
+      <text x="${dx}" y="${mid - 6}" text-anchor="middle">did the rule hold?</text>${T.check ? EV.gks(EV.ck(res), dx - res.length * 3.2 - 9, mid + 2, 12) : ''}<text x="${dx + (T.check ? 7 : 0)}" y="${mid + 12}" text-anchor="middle" style="fill:var(--text-primary)">${e(res)}</text><title>${e(T.check ? `${T.check.id}: ${T.check.rule} → ${T.check.numbers} → ${T.check.result}` : 'no check')}</title></g>`;
     svg += fo(C[3] - 20, y + BH + 2, CW[3] + 52, 64, T.check ? `with the numbers: ${e(cut(T.check.numbers, 90))}` : T.rule ? `the harness's check: ${EV.nr}` : '', kc);
     svg += a(C[3] + CW[3] - 2, mid, C[4], mid, kv);
-    svg += EV.box(C[4], y, CW[4], BH, 'model', v ? `${EV_ICON.verdict} <b>${v.id}</b> · ${e(v.result)}${bad ? ' <span class="warnc">⚠ disagrees with its check</span>' : ''}<br><small>${e(cut(v.because, 70))}</small>`
+    svg += EV.box(C[4], y, CW[4], BH, 'model', v ? `${EV_ICON.verdict} <b>${v.id}</b> · ${EV.verdictRes(v.result)}${bad ? ' ' + EV.warn('disagrees with its check') : ''}<br><small>${e(cut(v.because, 70))}</small>`
       : `${EV_ICON.verdict} <b>no verdict</b><br><small>${h && h.verdict ? 'the hypothesis was tested again first' : M.ended ? 'the session ended without one' : 'not given yet'}</small>`, v ? `data-act="open" data-t="log" data-id="${v.turn}" data-step="${kv}"` : `data-step="${kv}"`, bad ? 'warn' : '');
     svg += a(C[4] + CW[4], mid, C[5], mid, kv);
     svg += EV.box(C[5], y, CW[5], BH, 'model', `<b>next</b><br><small>${!v ? 'no verdict, so no next step' : v.next ? e(cut(v.next, 96)) : EV.nr}</small>`, `data-step="${kv}"`);

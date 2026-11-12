@@ -26,14 +26,14 @@ Object.assign(EV, {
       : `An exploration: a batch of ${n} simulation${n === 1 ? '' : 's'} with no tests. Its question: ${e(x.question || 'not recorded')} Varied: ${e(x.varied.join(', ') || 'not recorded')}.`;
     const span = (k, html) => `<span data-step="${k}">${html}</span>`, pc = v => (typeof v === 'number' ? (+(100 * v).toPrecision(4)) + ' %' : '–');
     const rows = ts.map(T => { const kc = T.check ? M.recStep[T.check.id] ?? simK : simK, v = T.verdict;
-      return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b></td><td>${e(EV.compared(T))}</td><td>${span(kc, T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? 'not checked' : '–')}</td>
-        <td>${v ? span(M.recStep[v.id] ?? kc, `${v.id} ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}`) : 'no verdict'}</td></tr>`; }).join('');
+      return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b></td><td>${e(EV.compared(T))}</td><td>${span(kc, T.check ? EV.checkRes(T.check) : T.rule ? 'not checked' : '–')}</td>
+        <td>${v ? span(M.recStep[v.id] ?? kc, `${v.id} ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : 'no verdict'}</td></tr>`; }).join('');
     return `<h2>${EV_ICON.experiment} ${EV.term('Experiment', 'Experiment')} ${e(x.id)} <small>turn ${x.turn} · ${e(x.by)} · the container its tests were run in</small></h2><p>${what}</p>
       ${ts.length ? `<h3>the tests in it<span class="sm" style="text-transform:none;letter-spacing:0"> · click one to open it</span></h3><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
       <p class="sm" style="margin-top:8px"><button data-act="xchart" data-id="${e(x.id)}">${S.xchart === x.id ? 'hide the chart' : `show one measure over all ${n} simulations`}</button></p>${S.xchart === x.id ? `<div data-step="${simK}">${EV.canvas('exp', x.id)}</div>` : ''}
       <h3>its ${EV.term('Simulation', 'simulations')}<span class="sm" style="text-transform:none;letter-spacing:0"> · click one to open it</span></h3>
       <table><thead><tr><th>simulation</th><th>label</th><th>settings against the control</th><th>named by the tests of</th><th class="num">UDP loss</th><th class="num">TCP goodput</th><th>run</th></tr></thead><tbody>${x.sims.map(s => `<tr class="pick" data-act="open" data-t="sim" data-id="${e(s.id)}" data-step="${M.recStep[s.id] ?? 0}">
-        <td>${s.same_as ? '○' : EV_ICON.simulation} ${e(s.id)}</td><td>${e(s.label)}</td><td>${diff(s)}</td><td>${ts.filter(T => T.sims.includes(s)).map(T => e(T.hyp)).join(', ') || '–'}</td><td class="num">${pc((s.metrics || {}).udp_loss_frac)}</td>
+        <td>${EV.gkey(s.same_as ? 'sim-returned' : 'sim')}${e(s.id)}</td><td>${e(s.label)}</td><td>${diff(s)}</td><td>${ts.filter(T => T.sims.includes(s)).map(T => e(T.hyp)).join(', ') || '–'}</td><td class="num">${pc((s.metrics || {}).udp_loss_frac)}</td>
         <td class="num">${s.metrics && typeof s.metrics.tcp_goodput_bps === 'number' ? EV.mb(s.metrics.tcp_goodput_bps) + ' Mbps' : '–'}</td><td>${e(s.run || '')}${s.same_as ? ` <span class="sm">= ${e(s.same_as)}</span>` : ''}</td></tr>`).join('')}</tbody></table>`;
   },
 
@@ -66,7 +66,7 @@ Object.assign(EV, {
     const M = EV.M, e = EV.e, s = M.simById[id]; if (!s) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
     const x = M.expById[s.exp], ctl = x && x.sims.find(q => q.label === x.control);
     return `<h2>${EV_ICON.simulation} ${EV.term('Simulation', 'Simulation')} ${e(s.id)} <small>label “${e(s.label || '')}” · run ${e(s.run || 'not recorded')} · finished ${EV.time(s.ts)}</small></h2>
-      ${s.same_as ? `<p class="sm">○ The result of ${EV.link(s.same_as)} (same settings and seed), returned again: nothing was run, and it was not counted against the budget.</p>` : ''}${s.error ? `<p class="bad">No measurements: ${e(s.error)}</p>` : ''}
+      ${s.same_as ? `<p class="sm">${EV.gkey('sim-returned')}The result of ${EV.link(s.same_as)} (same settings and seed), returned again: nothing was run, and it was not counted against the budget.</p>` : ''}${s.error ? `<p class="bad">No measurements: ${e(s.error)}</p>` : ''}
       ${EV.resultPanel(s, ctl, { ctlHead: ctl ? `the control ${EV.link(ctl.id)} “${e(ctl.label)}”` : '', others: M.sims.filter(q => q.id !== s.id && q.run && !q.error) })}`;
   },
 

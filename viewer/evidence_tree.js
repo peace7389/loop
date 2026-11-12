@@ -24,8 +24,8 @@ Object.assign(EV, {
     const M = EV.M, S = EV.s, e = EV.e, sel = S.sel || {}, st = id => M.recStep[id] ?? 0, cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
     const row = (depth, o) => `<div class="tr${o.sel ? ' sel' : ''}${o.warn ? ' warn' : ''}" data-step="${o.step}" style="padding-left:${6 + depth * 18}px">${o.fold ? `<a class="tw" data-act="tfold" data-id="${e(o.fold)}" title="${o.open ? 'Fold' : 'Unfold'}">${o.open ? '▾' : '▸'}</a>` : '<span class="tw"></span>'}
       <a class="tl" data-act="open" data-t="${o.t}" data-id="${e(o.id)}"${o.test ? ` data-test="${e(o.test)}"` : ''}>${o.icon} <b>${e(o.name)}</b> <span class="sm">${o.words}</span></a><span class="ts">${o.state || ''}</span></div>`;
-    const span = (k, html) => `<span data-step="${k}">${html}</span>`, res = c => `<span class="${c.result === 'held' ? 'ok' : 'bad'}">${e(c.result)}</span>`;
-    const simRow = (depth, q, T) => row(depth, { t: 'sim', id: q.id, test: T ? T.id : '', icon: q.same_as ? '○' : EV_ICON.simulation, name: 'simulation ' + q.id, words: e(q.label || '') + (T && q.label === T.control ? ' ◇ control' : '') + (q.same_as ? ` · returned from ${e(q.same_as)}` : ''),
+    const span = (k, html) => `<span data-step="${k}">${html}</span>`, res = c => EV.checkRes(c);
+    const simRow = (depth, q, T) => row(depth, { t: 'sim', id: q.id, test: T ? T.id : '', icon: EV.gkey(q.same_as ? 'sim-returned' : 'sim'), name: 'simulation ' + q.id, words: e(q.label || '') + (T && q.label === T.control ? ' · control' : '') + (q.same_as ? ` · returned from ${e(q.same_as)}` : ''),
       step: st(q.id), sel: sel.t === 'sim' && sel.id === q.id && (!sel.test || !T || sel.test === T.id), state: q.error ? '<span class="bad">no measurements</span>' : '' });
     let out = '';
     M.turns.forEach(t => {
@@ -38,16 +38,16 @@ Object.assign(EV, {
       t.refusals.forEach(m => { out += row(1, { t: 'log', id: t.n, icon: EV_ICON.malformed, name: 'refused part', words: e(m.body.part) + ': ' + e(cut(m.body.reason || m.body.text, 70)), step: st(m.id), warn: true }); });
       if (x) { const ts = M.tests.filter(T => T.exp === x.id), xk = 'exp:' + x.id, xo = EV.treeOpen(xk), held = x.checks.filter(c => c.result === 'held').length, named = new Set(ts.flatMap(T => T.sims.map(q => q.id)));
         out += row(1, { t: 'exp', id: x.id, icon: EV_ICON.experiment, name: 'experiment ' + x.id, words: `${x.sims.length} simulation${x.sims.length === 1 ? '' : 's'} · ${ts.length ? ts.length + (ts.length === 1 ? ' test' : ' tests') : x.by === 'harness' ? 'the baseline' : 'explores: ' + e(cut(x.question, 50))}`,
-          step: st(x.id), fold: xk, open: xo, sel: sel.t === 'exp' && sel.id === x.id, state: x.checks.length ? span(Math.max(...x.checks.map(c => st(c.id))), `<span class="ok">${held} held</span> · <span class="${x.checks.length - held ? 'bad' : 'mut'}">${x.checks.length - held} failed</span>`) : '' });
+          step: st(x.id), fold: xk, open: xo, sel: sel.t === 'exp' && sel.id === x.id, state: x.checks.length ? span(Math.max(...x.checks.map(c => st(c.id))), EV.tally(held, x.checks.length - held)) : '' });
         if (xo) { ts.forEach(T => { const k = 'test:' + T.id, to = EV.treeOpen(k), v = T.verdict, h = M.hypById[T.hyp];
             out += row(2, { t: 'test', id: T.id, icon: EV_ICON.test, name: 'test of ' + T.hyp, words: e(cut(h && h.text, 40)), step: st(x.id), fold: k, open: to, sel: sel.t === 'test' && sel.id === T.id || (sel.t === 'hyp' && sel.id === T.hyp),
-              state: (T.check ? span(st(T.check.id), res(T.check)) : '') + (v ? span(st(v.id), ` · ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}`) : '') });
+              state: (T.check ? span(st(T.check.id), res(T.check)) : '') + (v ? span(st(v.id), ` · ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : '') });
             if (to) T.sims.forEach(q => { out += simRow(3, q, T); }); });
           x.sims.filter(q => !named.has(q.id)).forEach(q => { out += simRow(2, q, null); }); } }
       if (t.report) out += row(1, { t: 'report', id: 'report', icon: EV_ICON.report, name: 'final report', words: `${M.claims.length} claim${M.claims.length === 1 ? '' : 's'}`, step: st(t.report.id), sel: sel.t === 'report' });
     });
     return `<div class="tree">${out || '<p class="sm">No record yet.</p>'}</div>
-      <p class="sm">A ${EV.term('Test', 'test')} lists the simulations its decision rule names; a simulation no rule names sits directly under its ${EV.term('Experiment', 'experiment')}. ○ returned from an earlier simulation, not run again.</p>`;
+      <p class="sm">A ${EV.term('Test', 'test')} lists the simulations its decision rule names; a simulation no rule names sits directly under its ${EV.term('Experiment', 'experiment')}. ${EV.gkey('sim-returned')}a simulation returned from an earlier one, not run again.</p>`;
   },
 });
 EV.act = Object.assign(EV.act || {}, {

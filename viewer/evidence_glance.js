@@ -8,17 +8,6 @@
 // Under each turn's name its header says how many simulations were left at its start ("not recorded" before s008).
 // ======================================================================================================
 Object.assign(EV, {
-  // The marks are drawn, not characters of a font, so that they have one weight and one size everywhere. One small shape
-  // per kind (a path in a 12 by 12 box; with a number: drawn as a line of that width, otherwise filled), in the colour of
-  // its state. A mark's kind is also in its data-m ("hyp", "held", "supported-again", ...), for the page checks.
-  GK: { hyp: 'M6 1 11 6 6 11 1 6Z', dropped: ['M6 1.8 10.2 6 6 10.2 1.8 6ZM2.4 9.6 9.6 2.4', 1.2], rule: ['M6 2.4V9.6', 1.5], sim: 'M6 2.3a3.7 3.7 0 1 0 0 7.4a3.7 3.7 0 1 0 0-7.4Z', 'sim-returned': ['M6 2.9a3.1 3.1 0 1 0 0 6.2a3.1 3.1 0 1 0 0-6.2Z', 1.4],
-        held: ['M2.3 6.4 4.9 9 9.8 3.2', 1.9], failed: ['M3 3 9 9M9 3 3 9', 1.9], 'not-checked': ['M3 6H9', 1.6], supported: 'M6 1.7 10.7 9.9H1.3Z', refuted: 'M6 10.3 10.7 2.1H1.3Z', inconclusive: 'M1.6 4.5H10.4V7.5H1.6Z',
-        report: 'M6 .7 7.6 4.2 11.4 4.6 8.5 7.1 9.4 10.9 6 8.9 2.6 10.9 3.5 7.1 .6 4.6 4.4 4.2Z' },
-  GC: { rule: 'q', held: 'ok', supported: 'ok', failed: 'bad', refuted: 'bad', inconclusive: 'mu', dropped: 'mu', 'not-checked': 'mu' },  // the colour of each kind (none: the neutral one)
-  gk(kind) { const g = EV.GK[kind.replace('-again', '')] || EV.GK.rule, line = Array.isArray(g);
-    return `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="${line ? g[0] : g}" ${line ? `fill="none" stroke="currentColor" stroke-width="${g[1]}" stroke-linecap="round" stroke-linejoin="round"` : 'fill="currentColor"'}/></svg>`; },
-  gkey: (kind, cls) => `<i class="gk ${EV.GC[kind.replace('-again', '')] || ''}${kind.endsWith('-again') ? ' ag' : ''}${cls || ''}">${EV.gk(kind)}</i>`,  // a mark inside a line of text (the key)
-
   // the hypotheses, tests and simulations that belong with an item (the selected one, or the one pointed at)
   glInfo(sel) {
     const M = EV.M, o = { hyps: new Set(), tests: new Set(), sims: new Set() }; if (!sel || !M) return o;
@@ -40,7 +29,7 @@ Object.assign(EV, {
     const xSay = q => (M.tests.some(u => u.exp === q.id) ? pl(M.tests.filter(u => u.exp === q.id).length, 'test') : q.by === 'harness' ? 'the baseline, run by the harness' : 'no tests: it explores “' + e(cut(q.question, 70)) + '”');
     if (T) { const hy = M.hypById[T.hyp], c = T.check && seen(T.check.id) ? T.check : null, v = T.verdict && seen(T.verdict.id) ? T.verdict : null;
       return `<b>Test of ${e(T.hyp)}</b> in experiment ${e(T.exp)}, turn ${T.turn}: ` + [`${K('hyp')}hypothesis “${e(cut(hy && hy.text, 64))}”`, T.rule ? K('rule') + 'its decision rule' : null, `${K('sim')}${pl(T.sims.length, 'simulation')}`,
-        c ? `<span class="gn ${c.result === 'held' ? 'ok' : c.result === 'failed' ? 'bad' : 'mut'}">${K(c.result === 'held' || c.result === 'failed' ? c.result : 'not-checked')}check ${e(c.result)}</span>` : null, v ? `<span class="gn">${K(['supported', 'refuted'].includes(v.result) ? v.result : 'inconclusive')}verdict <b>${e(v.result)}</b></span>, given in turn ${v.turn}` : null].filter(Boolean).join(' → '); }
+        c ? `<span class="gn">${K(EV.ck(c.result))}check ${e(c.result)}</span>` : null, v ? `<span class="gn">${K(EV.vk(v.result))}verdict ${e(v.result)}</span>, given in turn ${v.turn}` : null].filter(Boolean).join(' → '); }
     if (h) { const st = EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open', n = h.tests.filter(q => seen(M.testById[q].exp)).length;
       return `<b>${K('hyp')}Hypothesis ${e(h.id)}</b>, stated in turn ${h.turn}: “${e(cut(h.text, 96))}” · ${e(st)} · ${n ? 'put to ' + pl(n, 'test') : 'not put to a test'}`; }
     if (s) { const names = M.tests.filter(q => q.sims.includes(s)).map(q => q.hyp);

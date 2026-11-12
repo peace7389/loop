@@ -7,7 +7,7 @@
 // policy). Sessions of different briefs are never added together. Neither place is printed.
 // ======================================================================================================
 Object.assign(EV, {
-  VC_ROWS: [['held', '<span class="ok">✓ held</span>', 'every check held'], ['mixed', 'mixed', 'some checks held and some failed'], ['failed', '<span class="bad">✗ failed</span>', 'every check failed'], ['no check', 'no check', 'the hypothesis was judged without a check by the harness']],
+  VC_ROWS: [['held', EV.res('held', 'held'), 'every check held'], ['mixed', 'mixed', 'some checks held and some failed'], ['failed', EV.res('failed', 'failed'), 'every check failed'], ['no check', 'no check', 'the hypothesis was judged without a check by the harness']],
   VC_COLS: [['supported', 'supported'], ['inconclusive', 'inconclusive'], ['refuted', 'refuted'], ['no verdict', 'no verdict']],
   // one session, from its own records; only what is recorded by the replay's step
   vcCount(M) {
@@ -31,12 +31,12 @@ Object.assign(EV, {
   },
   VC_NOTE: 'One count per verdict. The row is the checks of its hypothesis in the last experiment that tested it before the verdict.',
 
-  // ---- the checks of a session in the order they were made: ✓ held, ✗ failed (– not checked), a small gap between
+  // ---- the checks of a session in the order they were made, as drawn marks (held, failed, not checked), a small gap between
   // turns; at most 40 are drawn, then "+ n more". seq: "hhh hf hfh" (control.py's row), null: not recorded
   seqHtml(seq) {
     if (seq == null) return EV.nr; if (!seq) return '<span class="mut">no checks</span>';
     const all = seq.replace(/ /g, ''), n = all.length, held = all.split('h').length - 1, failed = all.split('f').length - 1; let drawn = 0, out = '';
-    for (const ch of seq) { if (ch === ' ') { if (drawn < 40) out += '<i class="sq-gap"></i>'; continue; } if (drawn++ >= 40) break; out += ch === 'h' ? '<span class="ok">✓</span>' : ch === 'f' ? '<span class="bad">✗</span>' : '<span class="mut">–</span>'; }
+    for (const ch of seq) { if (ch === ' ') { if (drawn < 40) out += '<i class="sq-gap"></i>'; continue; } if (drawn++ >= 40) break; out += EV.gkey(ch === 'h' ? 'held' : ch === 'f' ? 'failed' : 'not-checked'); }
     return `<span class="sq" data-n="${n}" title="${n} check${n === 1 ? '' : 's'} in the order they were made: ${held} held, ${failed} failed · a gap between turns">${out}${n > 40 ? `<span class="sm sq-more"> + ${n - 40} more</span>` : ''}</span>`;
   },
   // the same sequence for the open session, from its own records and only those recorded by the replay's step

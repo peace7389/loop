@@ -11,6 +11,7 @@ Object.assign(EV, {
     const conds = (g.conditions || []).map(c => String(c).match(/^\s*(\w+)\s*(<=|>=|<|>|==)\s*([-\d.eE]+)\s*$/)).filter(Boolean).map(([, k, op, v]) => ({ k, op, v: +v }));
     return { target: g.target.measure, max: g.target.direction !== 'min', conds, text: (g.conditions || []).join(' and ') };
   },
+  flowCol: k => (/^udp|band0/.test(k) ? 'var(--series-1)' : /^tcp|band1/.test(k) ? 'var(--series-2)' : 'var(--text-secondary)'),  // the colour of a measure: its flow's
   meets: (m, conds) => conds.every(({ k, op, v }) => { const a = m[k]; return typeof a === 'number' && (op === '<=' ? a <= v : op === '>=' ? a >= v : op === '<' ? a < v : op === '>' ? a > v : a === v); }),
   // the simulations that ran, in order (one returned from an earlier one did not run), each with the target's value,
   // whether it meets the conditions and the best so far; rec: the one run at the recommended settings; last: the one
@@ -52,7 +53,7 @@ Object.assign(EV, {
       s += `<path d="${d}" fill="none" stroke="${q.color}" stroke-width="2" clip-path="url(#ev-bc)"><title>${e(q.name)}: the best so far among simulations that meet the conditions</title></path>`;
       if (!o.dots) ends.push({ x: X(q.d.pts.length) + 4, y: Y(ps[ps.length - 1].best) + 4, q }); });
     EV.spread(ends, 12).forEach(l => { s += `<circle cx="${l.x + 3}" cy="${l.y - 4}" r="3.5" fill="${l.q.color}"/><text x="${l.x + 10}" y="${l.y}" style="font-weight:600;fill:var(--text-primary)">${e(l.q.name)}</text>`; });
-    if (o.dots) { const q = series[0], col = /^udp|band0/.test(g.target) ? 'var(--series-1)' : /^tcp|band1/.test(g.target) ? 'var(--series-2)' : 'var(--text-secondary)';
+    if (o.dots) { const q = series[0], col = EV.flowCol(g.target);
       s += q.d.pts.map(p => `<g data-act="open" data-t="sim" data-id="${e(p.s.id)}" data-step="${EV.M.recStep[p.s.id] ?? 0}" clip-path="url(#ev-bc)"><circle cx="${X(p.n)}" cy="${Y(p.v)}" r="8" fill="transparent"/>
         <circle cx="${X(p.n)}" cy="${Y(p.v)}" r="4" fill="${p.ok ? col : 'var(--surface-1)'}" stroke="${p.ok ? 'var(--surface-1)' : col}" stroke-width="${p.ok ? 1.5 : 1.8}"/><title>${e(`${p.n}: ${p.s.id} · ${p.s.label || ''} · ${fmt(f(p.v))} ${u} · ${p.ok ? 'meets' : 'does not meet'} the brief's conditions`)}</title></g>`).join('');
       if (q.d.rec) { const p = q.d.rec, k = EV.M.repRec ? EV.M.recStep[EV.M.repRec.id] ?? 0 : 0; s += `<g data-step="${k}"><circle cx="${X(p.n)}" cy="${Y(p.v)}" r="9" fill="none" stroke="var(--text-primary)" stroke-width="2"/><text x="${X(p.n) + (p.n > N * 0.8 ? -13 : 13)}" y="${Y(p.v) + 16}" text-anchor="${p.n > N * 0.8 ? 'end' : 'start'}" style="fill:var(--text-primary);font-weight:600">the recommended settings</text></g>`; } }
@@ -68,7 +69,7 @@ Object.assign(EV, {
     const rec = !M.report ? '' : d.rec ? ` The recommended settings were run as ${EV.link(d.rec.s.id)}: <b>${fmt(d.rec.v)}</b>${d.rec.ok ? '' : ', which does not meet the conditions'}.` : ' The recommended settings were not simulated in this session.';
     return `<div class="ev-card" id="s-best"><h2>Best so far <small>${e(d.g.max ? 'largest' : 'smallest')} ${e(d.g.target)}${d.g.text ? ' while ' + e(d.g.text) : ''} · click a dot to open that ${EV.term('Simulation', 'simulation')}</small></h2>
       ${d.pts.length ? EV.bestSvg([{ d, name: M.id, color: 'var(--text-primary)' }], { dots: true, zoom: !!S.zoom, line, seen }) : ''}
-      <p class="sm">● meets the brief's conditions · ○ does not · <b>—</b> the best so far among those that do · ◯ the recommended settings${line ? ' · <span style="color:var(--by-operator)">- -</span> the best row of the sweep (operator column)' : ''}
+      <p class="sm">${EV.dot(1, EV.flowCol(d.g.target))}meets the brief's conditions · ${EV.dot(0, EV.flowCol(d.g.target))}does not · <b>—</b> the best so far among those that do · <i class="gk"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></i>the recommended settings${line ? ' · <span style="color:var(--by-operator)">- -</span> the best row of the sweep (operator column)' : ''}
         · <button data-act="zoom">${S.zoom ? 'show every simulation' : 'zoom on the best-so-far line'}</button></p>
       <p class="sm" data-step="${M.steps.length - 1}">${said}${rec}</p></div>`;
   },

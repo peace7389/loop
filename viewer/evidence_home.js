@@ -34,7 +34,7 @@ Object.assign(EV, {
   homeRows() {
     const e = EV.e, op = EV.s.op, rows = EV.homeList(), body = rows.map(x => `<tr class="pick${x.running ? ' run' : ''}" data-act="pick" data-id="${e(x.id)}"><td><b>${e(x.id)}</b>${x.running ? ' <span class="pill live">running</span>' : ''}</td><td>${e(x.brief || 'before briefs')}</td>
       <td>${e(String(x.started || '').replace('T', ' ').slice(0, 16)) || EV.nr}</td><td>${x.running ? 'running now' : x.how ? e(x.how) : EV.nr}</td><td class="num">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td>
-      <td>${x.held + x.failed ? `<span class="ok">${x.held} held</span> · <span class="${x.failed ? 'bad' : 'mut'}">${x.failed} failed</span>` : '<span class="mut">no checks</span>'}</td><td class="sqc">${x.seq === undefined ? EV.nr : EV.seqHtml(x.seq)}</td>${['returned', 'unnamed'].map(k => `<td class="num" data-col="${k}">${x[k] ? `<b>${x[k][0]}</b> of ${x[k][1]}` : EV.nr}</td>`).join('')}<td data-col="review">${EV.reviewCell(x)}</td>
+      <td>${x.held + x.failed ? EV.tally(x.held, x.failed) : '<span class="mut">no checks</span>'}</td><td class="sqc">${x.seq === undefined ? EV.nr : EV.seqHtml(x.seq)}</td>${['returned', 'unnamed'].map(k => `<td class="num" data-col="${k}">${x[k] ? `<b>${x[k][0]}</b> of ${x[k][1]}` : EV.nr}</td>`).join('')}<td data-col="review">${EV.reviewCell(x)}</td>
       ${op ? `<td data-col="policy">${x.policy_hidden ? '<span class="mut">hidden until the session is scored</span>' : e(x.policy || '') || EV.nr}</td><td class="num">${EV.gapText(x) || '<span class="mut">not scored</span>'}</td>` : ''}</tr>`).join('');
     const el = document.getElementById('home-rows'), n = document.getElementById('home-n');
     if (el) { el.innerHTML = body; if (n) n.textContent = `${rows.length} of ${EV.st.sessions.length}`; }
@@ -42,7 +42,7 @@ Object.assign(EV, {
   },
   homeView() {
     const e = EV.e, S = EV.s, st = EV.st, h = S.home, all = st.sessions, briefs = [...new Set(all.map(x => x.brief || ''))];
-    const th = ([k, t, c, tip]) => `<th${c ? ` class="${c}"` : ''}><a data-act="sort" data-id="${k}" title="${tip ? e(tip) + ' ' : ''}Sort by this column">${t}${h.sort === k ? (h.dir > 0 ? ' ▲' : ' ▼') : ''}</a></th>`;
+    const th = ([k, t, c, tip]) => `<th${c ? ` class="${c}"` : ''}><a data-act="sort" data-id="${k}" title="${tip ? e(tip) + ' ' : ''}Sort by this column">${t}${h.sort === k ? (h.dir > 0 ? ' ↑' : ' ↓') : ''}</a></th>`;
     const running = all.filter(x => x.running).length;
     // one title line with the page's one action, beside the title where the eye starts (not at the far right). Opening a session (a row below, or the top bar's list) and comparing
     // (the top bar) each have one place, so they are not repeated here

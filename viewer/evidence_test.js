@@ -9,7 +9,7 @@ Object.assign(EV, {
     const simK = Math.max(M.recStep[x.id] ?? 0, ...T.sims.map(s => M.recStep[s.id] ?? 0)), kc = T.check ? M.recStep[T.check.id] ?? simK : simK, v = T.verdict, kv = v ? M.recStep[v.id] ?? kc : kc;
     const vary = EV.varying(T.sims), same = [...new Set(T.sims.flatMap(s => Object.keys(s.params)))].filter(k => !vary.includes(k)), ms = EV.measuresOf(T.rule);
     const show = (k, val) => { const [u, f] = EV.unit(k); return typeof val !== 'number' ? '–' : (+f(val).toPrecision(7)).toLocaleString('en-US') + (u ? ' ' + u : ''); };
-    const table = !T.sims.length ? `<p class="sm">the simulations this rule names: ${EV.nr}</p>` : `<table><thead><tr><th></th>${T.sims.map(s => `<th class="num"><a data-act="open" data-t="sim" data-id="${e(s.id)}" data-test="${e(T.id)}">${s.same_as ? '○' : EV_ICON.simulation} ${e(s.id)}</a><br>${e(s.label)}${s.label === T.control ? '<br>◇ control' : ''}</th>`).join('')}</tr></thead><tbody>
+    const table = !T.sims.length ? `<p class="sm">the simulations this rule names: ${EV.nr}</p>` : `<table><thead><tr><th></th>${T.sims.map(s => `<th class="num"><a data-act="open" data-t="sim" data-id="${e(s.id)}" data-test="${e(T.id)}">${EV.gkey(s.same_as ? 'sim-returned' : 'sim')}${e(s.id)}</a><br>${e(s.label)}${s.label === T.control ? '<br>control' : ''}</th>`).join('')}</tr></thead><tbody>
         ${vary.map(k => `<tr class="diff"><td>${e(TH_DATA.KNOB[k] || k)} <span class="warnc">≠</span></td>${T.sims.map(s => `<td class="num">${e(s.params[k] ?? '–')}</td>`).join('')}</tr>`).join('')}
         ${ms.map(k => `<tr><td>${e(TH_DATA.PLAIN[k] || k)}</td>${T.sims.map(s => `<td class="num">${show(k, (s.metrics || {})[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>
         <p class="sm">${vary.length ? 'In bold: the settings that differ between them. ' : T.sims.length > 1 ? 'These simulations were given the same settings. ' : ''}The same in all: ${e(same.map(k => `${k} ${T.sims[0].params[k]}`).join(' · ') || 'nothing')}.</p>`;
@@ -20,8 +20,8 @@ Object.assign(EV, {
         <div data-step="${simK}"><h3>the simulations this rule names</h3>${table}</div></div>
       <h3>the ${EV.term('Decision rule', 'decision rule')}, in full</h3><p>${T.rule ? `<code>${e(T.rule)}</code>` : EV.nr}</p>
       ${T.rival ? `<p class="sm">${EV.term('Rival', 'rival')}: ${e(T.rival)} · under the rival the rule would have ${e(T.rival_predicts || 'not recorded')}</p>` : ''}
-      <p class="sm" data-step="${kc}">${EV.term('Check', 'check')} by the harness: ${T.check ? `${EV_ICON.check} ${e(T.check.id)} · ${e(T.check.numbers)} → <b class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</b>` : EV.nr}</p>
-      ${v ? `<div data-step="${kv}"><h3>${EV.term('Verdict', 'verdict')} ${e(v.id)}: ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc">⚠ disagrees with its check</span>' : ''}</h3><p>${e(v.because || '')}</p>${EV.numCheck(v.because, x.sims)}<p class="sm"><b>next</b> ${e(v.next || 'not recorded')}</p></div>` : ''}`;
+      <p class="sm" data-step="${kc}">${EV.term('Check', 'check')} by the harness: ${T.check ? `${EV_ICON.check} ${e(T.check.id)} · ${e(T.check.numbers)} → ${EV.checkRes(T.check)}` : EV.nr}</p>
+      ${v ? `<div data-step="${kv}"><h3>${EV.term('Verdict', 'verdict')} ${e(v.id)}: ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('disagrees with its check') : ''}</h3><p>${e(v.because || '')}</p>${EV.numCheck(v.because, x.sims)}<p class="sm"><b>next</b> ${e(v.next || 'not recorded')}</p></div>` : ''}`;
   },
 
   testPanel(id) {

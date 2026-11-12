@@ -60,8 +60,8 @@ Object.assign(EV, {
       if (a) prev = { ...a, y: ay }; y = ay + (a && a.cat ? 36 : 24);
     });
     const begun = t => (t.steps[0] ? t.steps[0].k : 0) <= (S.step == null ? Infinity : S.step), none = M.turns.filter(t => t.n > 0 && begun(t) && !rows.some(c => c.t === t)).map(t => t.n);
-    const key = [g ? `<span>● meets the brief's conditions${g.text ? ' (' + e(g.text) + ')' : ''}</span><span>○ does not</span>` : '<span>● a simulation · not applicable: the goal is chosen by the model, so no dot is marked as meeting it</span>',
-      anyRet ? '<span><b style="font-size:9px;vertical-align:super">○</b> beside a dot: returned from an earlier one, not run again</span>' : '', rows.length > 1 ? '<span>the lines join each axis to the part of the previous axis it covers</span>' : '',
+    const key = [g ? `<span>${EV.dot(1, col)}meets the brief's conditions${g.text ? ' (' + e(g.text) + ')' : ''}</span><span>${EV.dot(0, col)}does not</span>` : '<span>' + EV.dot(1, col) + 'a simulation · not applicable: the goal is chosen by the model, so no dot is marked as meeting it</span>',
+      anyRet ? `<span>${EV.gkey('sim-returned')}beside a dot: returned from an earlier one, not run again</span>` : '', rows.length > 1 ? '<span>the lines join each axis to the part of the previous axis it covers</span>' : '',
       best != null ? '<span><span style="color:var(--by-operator)">- -</span> the best row of the sweep (operator column)</span>' : '', none.length ? `<span>no simulations in turn${none.length === 1 ? '' : 's'} ${none.join(', ')}</span>` : ''].join('');
     return `<div class="ev-card noprint" id="s-knob">${head}
       <p><label>Knob <select data-ch="knob">${K.names.map(k => `<option value="${e(k)}"${k === knob ? ' selected' : ''}>${e(k)} · varied in ${plural(K.varies(k), 'experiment')}</option>`).join('')}</select></label> <span class="sm">shown at first: the knob that most ${EV.term('Experiment', 'experiments')} vary</span></p>

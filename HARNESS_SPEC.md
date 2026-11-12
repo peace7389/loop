@@ -908,7 +908,7 @@ line at the foot of every view.
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session and shows its checks in order, how many of its simulations were returned from an earlier one, and how many no decision rule names |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
-| A session | Header strip (always visible); "The system"; "What this session is made of"; overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
+| A session | Header strip (always visible); "The system"; "What this session is made of"; overview from the final report with its claims as rows of full sentences; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
 | Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score, the checklist; "Run one simulation" and "Run a sweep" |
@@ -973,6 +973,17 @@ test's check and its margin from the step of the check; its verdict from the
 step of the verdict. "no verdict" and "not checked" can be read only at the
 last step, because only then is it known. A row that is not recorded yet stays
 as a grey bar with nothing to read in it.
+
+**The claims of the final report** are rows of full sentences. A claim has no
+stripe coloured by held or failed, because a claim can rest on a refutation
+(s011, claim 5, cites the failed check C5 as its evidence). It shows the checks
+it cites itself as marks, in the order cited ("held C4, failed C7, held C8"); a
+claim that cites only evidence tables, simulations or verdicts says "no check
+cited" in the ordinary text colour; a claim with no evidence at all says "no
+evidence" in the warning colour. The line under the claims counts the five
+kinds: cite held checks only, cite held and failed checks, cite failed checks
+only, cite no check, with no evidence. Over the 15 sessions with a final
+report: 81 claims; 52, 11, 10, 8 and 0.
 
 The **test** is the unit of evidence: one hypothesis put to one decision rule.
 The experiment is only the batch it was run in. Nothing in `loop.py` records a
@@ -1069,6 +1080,19 @@ Rules of the page:
   scales in one chart, with one exception (**DECISION 2026-11-12**): in "The
   simulations of each turn, along one knob" every turn has its own axis, with
   both ends printed and lines joining it to the previous one.
+- **A sign is a drawn mark, not a character of a font** (`evidence_marks.js`):
+  held, failed, not checked, supported, refuted, inconclusive, a hypothesis, a
+  dropped one, a decision rule, a simulation, one returned from an earlier one,
+  the final report, and a warning. Each has one shape, one weight and one size
+  wherever it stands, and its kind is in `data-m` for the page checks.
+- **The colour of held and failed is on the sign only** (**DECISION
+  2026-11-12**): the green of held and supported and the red of failed and
+  refuted are on the mark; the word beside it is in the ordinary text colour
+  and weight.
+- **A failed check is a result, not a warning.** The warning colour is kept
+  for: a claim with no evidence; a verdict that contradicts its check; a
+  number in the model's text that differs from the measurement; a refused
+  answer or part; a session that ended without a final report.
 - Missing data is shown as "not recorded". Old sessions open as far as their
   records allow.
 - The page reads a ledger without its draft records and never requests
@@ -1089,7 +1113,10 @@ opens the item without moving the page; in the card "The system" every object
 is drawn and opens beside the picture, the values are the brief's or the
 opened simulation's, and the scheduling policy stays operator-only);
 `ev_views.py`: every view of `VIEWS_DECISIONS.md` against a count made from
-the ledgers, against the figures of that sheet, and in the replay).
+the ledgers, against the figures of that sheet, and in the replay;
+`ev_polish.py`: the "Done when" checks of `PAGE_POLISH.md`, and that no sign
+is a character and no result word is green or red). `ev_all.sh` runs every
+check on a fresh scratch copy.
 `ev_replay.py` does not count an id that stands in words the model itself had
 written by that step, such as "next: run X4". It reads the tests list row by
 row (what can be read is exactly what is recorded by the step), and it stops
@@ -1229,16 +1256,17 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 146 | the shell: colours, styles, the list of scripts |
+| `index.html` | 148 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
-| `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
+| `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
+| `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
 | `evidence_home.js` | 58 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 126 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 65 | a session's page, top to bottom |
+| `evidence_glance.js` | 115 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_page.js` | 63 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
-| `evidence_best.js` | 76 | best so far |
+| `evidence_best.js` | 77 | best so far |
 | `evidence_knob.js` | 95 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 56 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
@@ -1277,4 +1305,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-55 files, 8,725 lines in all.
+56 files, 8,757 lines in all.

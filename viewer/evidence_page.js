@@ -8,7 +8,7 @@ Object.assign(EV, {
     const M = EV.M, row = EV.files.row || {}, m = M.meta || {}, e = EV.e, held = M.checks.filter(c => c.result === 'held').length, failed = M.checks.filter(c => c.result === 'failed').length, rec = M.report && M.report.recommendation;
     const bits = [`${EV_ICON.brief} ${EV.term('Brief', 'brief')} <b>${M.brief ? e(M.brief.id) : EV.nr}</b>`, `${EV.term('Session', 'session')} <b>${e(M.id)}</b>`, `model <b>${m.model ? e(m.model) : EV.nr}</b>`,
       row.running ? '<span class="pill live">running</span>' : `<b>${m.how ? e(m.how) : 'ending ' + EV.nr}</b>`, `<b>${m.simulations ?? (M.old ? M.sims.length : row.simulations ?? 0)}${row.allowed ? ' / ' + row.allowed : ''}</b> ${EV.term('Simulation', 'simulations')}`,
-      `${EV.term('Test', 'tests')} <b class="ok">${held} held</b> / <b class="${failed ? 'bad' : ''}">${failed} failed</b>`,
+      `${EV.term('Check', 'checks')} ${EV.tally(held, failed)}`,
       rec && typeof rec === 'object' ? `recommends <b>${e(Object.entries(rec).map(([k, v]) => `${k} ${v}`).join(', '))}</b>` : `<span class="mut">no recommendation${M.ended ? '' : ' yet'}</span>`];
     if (EV.s.op) bits.push(`<span data-by="operator"><i class="sw"></i>${EV.term('Scheduling policy', 'policy')} <b>${EV.policyText(row)}</b> · gap to the best <b>${EV.gapText(row) || '<span class="mut">not scored</span>'}</b></span>`);
     return `<div class="ev-head" id="ev-head">${bits.join(' <span class="mut">·</span> ')}</div>`;
@@ -22,12 +22,10 @@ Object.assign(EV, {
       Each turn it stated what it expected, ran ${EV.term('Simulation', 'simulations')}, and the harness checked whether it was right: ${rules ? `${held} of ${rules} ${EV.term('Decision rule', 'decision rules')} held` : 'the checks were ' + EV.nr}.
       ${rep ? `It ended with this recommendation: ${e(recText)}.` : M.ended ? 'It ended without a final report.' : 'It is still running.'}</p><button data-act="intro">dismiss</button></div>`;
     const txt = v => (Array.isArray(v) ? v.map(q => e(q)).join(' · ') : e(v ?? 'not recorded')), kv = o => (o && typeof o === 'object' ? Object.entries(o).map(([k, v]) => `<span class="pill">${e(TH_DATA.KNOB[k] || TH_DATA.PLAIN[k] || k)} <b>${e(EV.val(k, v))}</b></span>`).join(' ') : e(o ?? 'not recorded'));
-    const state = { held: 'checks held', failed: 'a check failed', none: 'no evidence cited', unchecked: 'evidence without a check' };
-    const claims = !rep ? '' : !M.claims.length ? '<p class="sm">The report states no claims.</p>' : `<h3>its claims<span class="sm noprint" style="text-transform:none;letter-spacing:0"> · click one to mark its evidence and open its test</span></h3><div class="chips">${M.claims.map(q => {
+    const claims = !rep ? '' : !M.claims.length ? '<p class="sm">The report states no claims.</p>' : `<h3>its claims<span class="sm noprint" style="text-transform:none;letter-spacing:0"> · click one to mark its evidence and open its test</span></h3><div class="claims">${M.claims.map(q => {
         const n = q.evidence.filter(id => (EV.marks['rec:' + id] || {}).tick).length;
-        return `<button class="chip ${q.state}${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" title="${e(q.text)}"><b>claim ${q.n}</b><span class="ct">${e(q.text)}</span><br><span class="sm">${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'} · ${state[q.state]}${n ? ` · ${n} reviewed` : ''}</span></button>`; }).join('')}</div>
-      <p class="sm">${M.claims.length} claims · ${M.claims.filter(q => q.state === 'held').length} backed by held checks · ${M.claims.filter(q => q.state === 'failed').length} backed by a failed check ·
-        <span class="${M.claims.some(q => q.state === 'none') ? 'warnc' : ''}">${M.claims.filter(q => q.state === 'none').length} with no evidence</span>${M.claims.some(q => q.state === 'unchecked') ? ` · ${M.claims.filter(q => q.state === 'unchecked').length} citing evidence that has no check` : ''}
+        return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}"><b>claim ${q.n}</b><span class="ct">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; }).join('')}</div>
+      <p class="sm">${EV.claimCounts(M.claims)}
         ${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
     const body = !rep ? `<p><b>No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>`
       : `<div class="ov" data-step="${M.repRec ? M.recStep[M.repRec.id] ?? 0 : 0}"><div><span>the goal</span>${txt(rep.goal)}</div><div><span>recommended settings</span>${kv(rep.recommendation)}</div><div><span>expected result</span>${kv(rep.expected)}</div>

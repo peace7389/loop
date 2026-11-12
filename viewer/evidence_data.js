@@ -19,8 +19,8 @@ const EV_DEF = {  // the definitions, word for word; shown on hover wherever the
   'Operator': 'The person running the project; operator-only items are never shown to the model.',
   'Scheduling policy': 'How the sender\'s scheduler divides the link between the two flows; chosen by the operator and not told to the model.',
 };
-const EV_ICON = { brief: '▤', hypothesis: '◆', drop: '✂', experiment: '▣', test: '⚗', simulation: '●', evidence: '≡', check: '✓', verdict: '⚖', report: '★',
-                  note: '✎', malformed: '⚠', request: '?', result: '↩', turn: '↻' };  // one fixed symbol per record type
+const EV_ICON = { brief: '▤', hypothesis: '', drop: '✂', experiment: '▣', test: '⚗', simulation: '', evidence: '≡', check: '', verdict: '⚖', report: '',
+                  note: '✎', malformed: '', request: '?', result: '↩', turn: '↻' };  // one fixed symbol per record type; those left empty here are drawn marks, set in evidence_marks.js
 const EV_BY = { hypothesis: 'model', drop: 'model', experiment: 'model', verdict: 'model', report: 'model', request: 'model', simulation: 'simulator',
                 evidence: 'harness', check: 'harness', malformed: 'harness', note: 'harness', result: 'harness', turn: 'harness' };
 
@@ -102,7 +102,11 @@ const EV_DATA = {
         return []; });  // an evidence table or a simulation is evidence without a check of its own
       const hs = [...new Set(ids.map(id => (source(id) || {}).hyp).filter(Boolean))];
       const state = !ids.length ? 'none' : cited.some(q => q.result === 'failed') ? 'failed' : cited.some(q => q.result === 'held') ? 'held' : 'unchecked';
-      return { n: i + 1, text: c.text, evidence: ids, hyps: hs, tests: [...new Set(ids.flatMap(id => tests.filter(t => (t.check && t.check.id === id) || (t.verdict && t.verdict.id === id)).map(t => t.id)))], exps: [...new Set(cited.map(q => q.exp).concat(ids.map(id => { const r = byId[id] || {}; return r.type === 'evidence' ? (r.body.experiment || (expById[r.parent] ? r.parent : (byId[r.parent] || {}).id)) : r.type === 'simulation' ? r.parent : null; }).filter(Boolean)))], state }; });
+      // the checks the claim cites itself, in the order cited, and what kind of claim that makes it. A failed check is a
+      // result, not a fault: a claim can rest on a refutation. Only a claim with no evidence at all is a warning.
+      const cites = ids.filter(id => byId[id] && byId[id].type === 'check').map(id => ({ id, result: byId[id].body.result })), hd = cites.some(q => q.result === 'held'), fl = cites.some(q => q.result === 'failed');
+      const kind = !ids.length ? 'none' : !cites.length ? 'nocheck' : hd && fl ? 'both' : fl ? 'failed' : hd ? 'held' : 'nocheck';
+      return { n: i + 1, text: c.text, evidence: ids, cites, kind, hyps: hs, tests: [...new Set(ids.flatMap(id => tests.filter(t => (t.check && t.check.id === id) || (t.verdict && t.verdict.id === id)).map(t => t.id)))], exps: [...new Set(cited.map(q => q.exp).concat(ids.map(id => { const r = byId[id] || {}; return r.type === 'evidence' ? (r.body.experiment || (expById[r.parent] ? r.parent : (byId[r.parent] || {}).id)) : r.type === 'simulation' ? r.parent : null; }).filter(Boolean)))], state }; });
 
     // ---- the turns, and the steps of the session flow (one box each, in the order they were recorded)
     const turnNos = [...new Set(recs.map(r => r.turn))].sort((a, b) => a - b), steps = [], recStep = {};

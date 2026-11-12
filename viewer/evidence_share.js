@@ -22,7 +22,7 @@ Object.assign(EV, {
       : r.type === 'report' ? { t: 'report', id: 'report' } : { t: 'log', id: r.turn };
   },
   linkTo(sel) { const it = EV.itemOf(sel); return `${location.href.split('?')[0].split('#')[0]}?session=${encodeURIComponent(EV.s.sid)}${it ? '&item=' + encodeURIComponent(it) : ''}`; },
-  copyBtn: sel => `<button class="cl" data-act="copy" data-link="${EV.e(EV.linkTo(sel))}" title="A link that opens this page with ${sel && sel.t !== 'session' ? 'this item selected' : 'this session'}">${EV.s.copied === EV.linkTo(sel) ? '✓ link copied' : 'copy link'}</button>`,
+  copyBtn: sel => `<button class="cl" data-act="copy" data-link="${EV.e(EV.linkTo(sel))}" title="A link that opens this page with ${sel && sel.t !== 'session' ? 'this item selected' : 'this session'}">${EV.s.copied === EV.linkTo(sel) ? 'link copied' : 'copy link'}</button>`,
   reveal() {  // after a link: the selected row of the tree in view inside the tree; the page itself is not moved
     const box = document.querySelector('#s-work .tree'), row = box && box.querySelector('.tr.sel'); if (row) box.scrollTop = Math.max(0, box.scrollTop + row.getBoundingClientRect().top - box.getBoundingClientRect().top - 90);
   },
@@ -34,7 +34,7 @@ Object.assign(EV, {
       ${x.open ? `<div class="who noprint" data-by="operator"><p class="sm">One folder, and a zip of it, holding this page and this session's files. It opens by double-clicking <code>index.html</code>, with no server, and never contains drafts.</p>
         <p><label style="font-weight:400"><input type="checkbox" data-ch="expop"${x.op ? ' checked' : ''}> include operator-only data (scheduling policy, score, review, answer key, sweep table)</label>
           <button data-act="expgo"${x.busy ? ' disabled' : ''}>${x.busy ? 'Exporting…' : 'Export'}</button>${x.msg ? ` <span class="bad">${e(x.msg)}</span>` : ''}</p>
-        ${x.done ? `<p class="sm"><span class="ok">✓ exported</span> ${x.done.files} files, ${(x.done.bytes / 1e6).toFixed(1)} MB, ${x.done.operator ? 'with' : 'without'} operator-only data: <code>${e(x.done.folder)}/</code> ·
+        ${x.done ? `<p class="sm"><span class="rs">${EV.gkey('check')}exported</span> ${x.done.files} files, ${(x.done.bytes / 1e6).toFixed(1)} MB, ${x.done.operator ? 'with' : 'without'} operator-only data: <code>${e(x.done.folder)}/</code> ·
           <a href="../${e(x.done.zip)}" download>download the zip</a> · <a href="../${e(x.done.open)}" target="_blank" rel="noopener">open the exported page</a>${x.done.chart_library ? '' : ' · the chart library could not be fetched, so the exported page has no charts over time'}</p>` : ''}</div>` : ''}`;
   },
 });
