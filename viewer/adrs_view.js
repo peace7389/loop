@@ -336,14 +336,15 @@ const TASK_VIEW = {
   _bg: { id: 'thBg', beforeDraw(c) { const g = c.ctx; g.save(); g.fillStyle = css('--surface-1'); g.fillRect(0, 0, c.width, c.height); g.restore(); } },  // so an exported PNG is not transparent
   _options(title, xTitle, yTitle, more) {
     const ink = css('--text-primary'), sec = css('--text-secondary'), mut = css('--text-muted'), grid = css('--grid');
-    const font = { family: getComputedStyle(TASK_VIEW._last[0]).fontFamily, size: 12 };
+    const px = (n, d) => parseFloat(getComputedStyle(TASK_VIEW._last[0]).getPropertyValue(n)) || d;  // the evidence page names its type sizes (index.html); the other pages keep theirs
+    const font = { family: getComputedStyle(TASK_VIEW._last[0]).fontFamily, size: px('--f-note', 12) };
     const axis = t => ({ title: { display: !!t, text: t, color: sec, font }, ticks: { color: mut, font, maxTicksLimit: 8 }, grid: { color: grid }, border: { color: grid } });
     const o = { animation: false, responsive: true, maintainAspectRatio: false,
-      plugins: { title: { display: true, text: title, align: 'start', color: ink, font: { ...font, size: 14, weight: '600' }, padding: { bottom: 4 } },
+      plugins: { title: { display: true, text: title, align: 'start', color: ink, font: { ...font, size: px('--f-text', 14), weight: '600' }, padding: { bottom: 4 } },
                  legend: { position: 'top', align: 'start', labels: { color: sec, font, usePointStyle: true, boxHeight: 7, padding: 12,
                            generateLabels: c => Chart.defaults.plugins.legend.labels.generateLabels(c).map(l => ({ ...l, lineDash: c.data.datasets[l.datasetIndex].borderDash || [] })) } },
                  tooltip: { backgroundColor: css('--surface-1'), titleColor: ink, bodyColor: ink, footerColor: sec, borderColor: css('--border'), borderWidth: 1,
-                            titleFont: { ...font, size: 13, weight: '700' }, bodyFont: { ...font, size: 12.5 }, footerFont: { ...font, weight: '400' }, padding: 10, boxPadding: 5, usePointStyle: true } },
+                            titleFont: { ...font, size: px('--f-text', 13), weight: '700' }, bodyFont: { ...font, size: px('--f-sec', 12.5) }, footerFont: { ...font, weight: '400' }, padding: 10, boxPadding: 5, usePointStyle: true } },
       scales: { x: axis(xTitle), y: axis(yTitle) } };
     more(o); return o;
   },

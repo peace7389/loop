@@ -14,7 +14,7 @@ Object.assign(EV, {
   structureMap() {
     const M = EV.M, c = M.counts, reused = M.sims.filter(s => s.same_as).length, base = M.exps.filter(x => x.by === 'harness').length, W = 116, H = 58;
     const node = (x, y, term, word, n, by, icon, to, small) => EV.box(x, y, W, H, by,
-      `${icon} ${EV.term(term, word)}<br><b style="font-size:15px">${n}</b>${small ? ` <small>${small}</small>` : ''}`, `data-act="goto" data-id="${to}"`);
+      `${icon} ${EV.term(term, word)}<br><b style="font-size:var(--f-card)">${n}</b>${small ? ` <small>${small}</small>` : ''}`, `data-act="goto" data-id="${to}"`);
     const col = i => 8 + i * 134, a = (x1, y1, x2, y2) => `<path class="edge" d="M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}" marker-end="url(#ev-ah)"/>`;
     const r = (i, y) => [col(i) + W, y + H / 2], l = (i, y) => [col(i) - 2, y + H / 2];
     const Y = { top: 6, mid: 72, bot: 138 };
@@ -28,7 +28,7 @@ Object.assign(EV, {
       ${node(col(2), Y.top, 'Hypothesis', 'hypotheses', c.hypothesis, 'model', EV_ICON.hypothesis, 's-work|map', c.drop ? `${c.drop} dropped` : '')}
       ${node(col(2), Y.mid, 'Experiment', 'experiments', c.experiment, 'model', EV_ICON.experiment, 's-work|tree', base ? `incl. ${base} baseline` : '')}
       ${node(col(2), Y.bot, 'Final report', 'final report', c.report, 'model', EV_ICON.report, 's-overview', '')}
-      ${node(col(3), Y.mid, 'Test', 'tests', c.test, 'model', EV_ICON.test, 's-tests', 'one hypothesis, one rule')}
+      ${node(col(3), Y.mid, 'Test', 'tests', c.test, 'model', EV_ICON.test, 's-tests', 'one rule each')}
       ${node(col(4), Y.top, 'Decision rule', 'decision rules', c.rule, 'model', '⊢', 's-tests', '')}
       ${node(col(4), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-best', reused ? `${reused} returned from earlier` : '')}
       ${node(col(5), Y.mid, 'Check', 'checks', c.check, 'harness', EV_ICON.check, 's-tests', M.old ? EV.nr : `${M.checks.filter(q => q.result === 'held').length} held`)}
@@ -43,7 +43,7 @@ Object.assign(EV, {
     const arc = (d1, d2) => { const [x1, y1] = at(d1 + 16), [x2, y2] = at(d2 - 16); return `<path class="edge" d="M${x1},${y1} A${R},${R} 0 0 1 ${x2},${y2}" marker-end="url(#ev-ah)"/>`; };
     return `<svg viewBox="0 0 260 144" width="260" role="img" aria-label="The turn loop">${EV.arrowDefs()}${pts.map(([d], i) => arc(d, pts[(i + 1) % 4][0] + (i === 3 ? 360 : 0))).join('')}
       ${pts.map(([d, t, by]) => { const [x, y] = at(d); return `<g data-by="${by}"><circle cx="${x}" cy="${y}" r="5" class="stripe"/><text x="${x + (d === 0 ? 9 : d === 180 ? -9 : 0)}" y="${y + (d === -90 ? -9 : d === 90 ? 17 : 4)}" text-anchor="${d === 0 ? 'start' : d === 180 ? 'end' : 'middle'}">${t}</text></g>`; }).join('')}
-      <text x="${cx}" y="${cy - 2}" text-anchor="middle" style="font-size:20px;font-weight:700;fill:var(--text-primary)">${n}</text><text x="${cx}" y="${cy + 14}" text-anchor="middle">${n === 1 ? 'turn' : 'turns'}</text></svg>`;
+      <text x="${cx}" y="${cy - 2}" text-anchor="middle" style="font-size:var(--f-page);font-weight:700;fill:var(--text-primary)">${n}</text><text x="${cx}" y="${cy + 14}" text-anchor="middle">${n === 1 ? 'turn' : 'turns'}</text></svg>`;
   },
 
   // ---- who produced what: one colour per source, with this session's record counts; and the one symbol per record type

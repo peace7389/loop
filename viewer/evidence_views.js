@@ -66,7 +66,7 @@ Object.assign(EV, {
       const lab = x.labels.join(', '), short = lab.length > 24 ? lab.slice(0, 22) + '…' : lab, t = 0.6, bz = (a0, a1, a2, a3) => (1 - t) ** 3 * a0 + 3 * (1 - t) ** 2 * t * a1 + 3 * (1 - t) * t * t * a2 + t ** 3 * a3;
       const lx = bz(x1, x1 + GX / 2, x2 - GX / 2, x2), ly = bz(y1, y1, y2, y2);
       return `<g data-step="${k}"><path class="edge${isHot ? ' hot' : ''}" d="M${x1},${y1} C${x1 + GX / 2},${y1} ${x2 - GX / 2},${y2} ${x2},${y2}" marker-end="url(#${isHot ? 'ev-ahot' : 'ev-ah'})"/>
-        <text x="${lx}" y="${ly - 3}" text-anchor="middle" style="font-size:10px;paint-order:stroke;stroke:var(--surface-1);stroke-width:3px">${e(short)}</text><title>${e(x.to + ' follows from ' + x.ids.join(', ') + ' (' + lab + ')')}</title></g>`; }).join('');
+        <text x="${lx}" y="${ly - 3}" text-anchor="middle" style="font-size:var(--f-note);paint-order:stroke;stroke:var(--surface-1);stroke-width:3px">${e(short)}</text><title>${e(x.to + ' follows from ' + x.ids.join(', ') + ' (' + lab + ')')}</title></g>`; }).join('');
     const brief = EV.box(6, 8, NW, NH, 'operator', `${EV_ICON.brief} <b>${EV.term('Brief', 'brief')}</b><br><small>and the baseline the harness ran</small>`, 'data-act="open" data-t="brief" data-id="brief"', onPath.has('brief') ? 'hit' : '');
     const nodes = M.hyps.map(h => { const p = pos[h.id], s = st ? st[h.id] || 'open' : h.state, short = h.text.length > 54 ? h.text.slice(0, 52) + '…' : h.text;
       const cls = `${EV.stCls(s)}${info.hyps.has(h.id) ? ' sel' : ''}${claimH.has(h.id) || onPath.has(h.id) ? ' hit' : ''}`, T = h.tests.filter(q => EV.seen(M.testById[q].exp)).pop();  // a node opens the test of its hypothesis

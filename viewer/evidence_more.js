@@ -13,7 +13,7 @@ Object.assign(EV, {
     const kv = [['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], ...(EV.s.op ? [[EV.term('Scheduling policy', 'scheduling policy') + ' (operator column)', EV.policyText(EV.files.row)]] : []),
       ['started', m.started ? m.started.replace('T', ' ') : M.recs[0] && M.recs[0].ts ? M.recs[0].ts.replace('T', ' ') : EV.nr], ...(live ? [['duration', mins], [EV.term('Turn', 'turns'), `${m.turns ?? c.turn}${unusable ? ` · ${unusable} unusable` : ''}`], ['model calls', m.calls ?? EV.nr], ['replies cut off', m.cut_off ?? EV.nr]]
         : [[EV.term('Turn', 'turns') + ' by this step', String(EV.glCounts().turn)]])];
-    return `<div class="kv" id="sum-kv">${kv.map(([k, v]) => `<div><span>${k}</span><b style="font-size:13.5px">${String(v).startsWith('<') ? v : e(v)}</b></div>`).join('')}</div>
+    return `<div class="kv" id="sum-kv">${kv.map(([k, v]) => `<div><span>${k}</span><b>${String(v).startsWith('<') ? v : e(v)}</b></div>`).join('')}</div>
       <p class="sm" style="margin-top:6px">${EV.term('Hypothesis', 'hypotheses')} by state: ${EV.STATES.filter(s => st[s]).map(s => `${st[s]} ${s}`).join(' · ') || 'none'} · ${EV.term('Experiment', 'experiments')} by kind: ${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(' · ') || 'none'}</p>`;
   },
 
@@ -50,11 +50,11 @@ Object.assign(EV, {
     const txt = v => (Array.isArray(v) ? `<ul style="margin:0;padding-left:18px">${v.map(q => `<li>${e(q)}</li>`).join('')}</ul>` : `<p>${e(v ?? 'not recorded')}</p>`);
     const all = [rep.explanation, rep.holds_when, rep.breaks_when, ...(rep.claims || []).map(c => c.text)].flat().filter(Boolean).join('\n');
     return `<h2>${EV_ICON.report} ${EV.term('Final report', 'Final report')} <small>turn ${M.repRec ? M.repRec.turn : EV.nr} · ${EV.link((M.repRec || {}).id || '')}</small></h2>
-      <div class="ev-top"><div><h3>recommendation</h3>${kv(rep.recommendation)}</div><div><h3>expected performance</h3>${kv(rep.expected)}</div></div>
-      <h3>goal, as it states it</h3>${txt(rep.goal)}<h3>explanation</h3>${txt(rep.explanation)}<h3>holds when</h3>${txt(rep.holds_when)}<h3>breaks when</h3>${txt(rep.breaks_when)}
-      ${rep.open_questions ? `<h3>open questions</h3>${txt(rep.open_questions)}` : ''}
-      <h3>the report's numbers against the measurements</h3>${EV.numCheck(all, M.sims) || '<p class="sm">no number in the report names or equals a measurement</p>'}
-      <h3>claims and their evidence</h3>${M.claims.map(c => `<div class="who" data-by="model"><p><b>claim ${c.n}</b> ${e(c.text)} <span class="sm">${EV.claimMarks(c, EV.seen)}</span></p>
+      <div class="ev-top"><div><h3>Recommendation</h3>${kv(rep.recommendation)}</div><div><h3>Expected performance</h3>${kv(rep.expected)}</div></div>
+      <h3>Goal, as it states it</h3>${txt(rep.goal)}<h3>Explanation</h3>${txt(rep.explanation)}<h3>Holds when</h3>${txt(rep.holds_when)}<h3>Breaks when</h3>${txt(rep.breaks_when)}
+      ${rep.open_questions ? `<h3>Open questions</h3>${txt(rep.open_questions)}` : ''}
+      <h3>The report's numbers against the measurements</h3>${EV.numCheck(all, M.sims) || '<p class="sm">no number in the report names or equals a measurement</p>'}
+      <h3>Claims and their evidence</h3>${M.claims.map(c => `<div class="who" data-by="model"><p><b>claim ${c.n}</b> ${e(c.text)} <span class="sm">${EV.claimMarks(c, EV.seen)}</span></p>
         ${c.evidence.map(id => `<div class="sm" style="margin:3px 0 0 8px">${EV.link(id)} ${EV.evLine(id)}${EV.reviewBox('rec:' + id)}</div>`).join('') || '<p class="sm warnc">cites no evidence</p>'}
         <p class="sm"><button data-act="print" data-id="${c.n}">print the evidence sheet for claim ${c.n}</button></p></div>`).join('') || '<p class="sm">The report states no claims.</p>'}`;
   },

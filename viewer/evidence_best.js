@@ -45,7 +45,7 @@ Object.assign(EV, {
     for (let n = 1; n <= N; n += Math.max(1, Math.ceil(N / 10))) s += `<text x="${X(n)}" y="${H - B + 14}" text-anchor="middle">${n}</text>`;
     s += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle">simulations, in the order they ran</text><text x="12" y="${T - 8}">${e(TH_DATA.PLAIN[g.target] || g.target)}${u ? ', ' + u : ''}</text>`;
     if (o.dots) { let turn = null; series[0].d.pts.forEach(p => { if (p.turn !== turn) { turn = p.turn; const x = X(p.n) - (p.n > 1 ? (X(2) - X(1)) / 2 : 0);
-      s += `<g data-step="${EV.M.recStep[p.s.id] ?? 0}"><line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" stroke="var(--border)" stroke-dasharray="2 3"/>${turn ? `<text x="${x + 3}" y="${T + 9}" style="font-size:9.5px">turn ${turn}</text>` : ''}</g>`; } }); }
+      s += `<g data-step="${EV.M.recStep[p.s.id] ?? 0}"><line x1="${x}" x2="${x}" y1="${T}" y2="${H - B}" stroke="var(--border)" stroke-dasharray="2 3"/>${turn ? `<text x="${x + 3}" y="${T + 9}" style="font-size:var(--f-note)">turn ${turn}</text>` : ''}</g>`; } }); }
     if (o.line) s += `<line x1="${L}" x2="${W - R}" y1="${Y(o.line[0])}" y2="${Y(o.line[0])}" stroke="var(--by-operator)" stroke-width="1.5" stroke-dasharray="6 4" clip-path="url(#ev-bc)"/><text x="${W - R - 4}" y="${Y(o.line[0]) - 4}" text-anchor="end" style="fill:var(--text-primary)">${e(o.line[1])}: ${fmt(f(o.line[0]))}</text>`;
     const ends = [];
     series.forEach(q => { const ps = q.d.pts.filter(p => p.best != null && seen(p.s.id)); if (!ps.length) return;

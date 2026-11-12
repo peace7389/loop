@@ -68,9 +68,9 @@ Object.assign(EV, {
   // ---- how to read this page: open on a reader's first visit, closed afterwards
   howTo() {
     return `<details class="ev-card" id="s-how"${EV.s.how ? ' open' : ''}><summary><b>How to read this page</b> <span class="sm">how a session is built, the turn loop, who produced what, and the words used</span></summary>
-      <div class="ev-top" style="margin-top:10px"><div><h3>how a session is built<span class="sm" style="text-transform:none;letter-spacing:0"> · this session's counts; click a box to go to that part</span></h3>${EV.structureMap()}</div>
-        <div><h3>who produced it</h3>${EV.legend()}<h3>the turn loop</h3>${EV.turnLoop()}</div></div>
-      <h3>the words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
+      <div class="ev-top" style="margin-top:10px"><div><h3>How a session is built<span class="sm"> · this session's counts; click a box to go to that part</span></h3>${EV.structureMap()}</div>
+        <div><h3>Who produced it</h3>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
+      <h3>The words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
       <p class="sm">“Work log”: the sequence of the model's steps and its stated reasons. “Operator columns”: anything operator-only, shown when the switch at the top is on.</p></details>`;
   },
 

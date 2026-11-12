@@ -1148,6 +1148,17 @@ Rules of the page:
   for: a claim with no evidence; a verdict that contradicts its check; a
   number in the model's text that differs from the measurement; a refused
   answer or part; a session that ended without a final report.
+- **Five type sizes**, named once in `index.html` (`--f-note` 11 px: notes,
+  chart axes, labels inside pictures; `--f-sec` 12 px: secondary text;
+  `--f-text` 13 px: the text; `--f-card` 15 px: a card's title; `--f-page`
+  20 px: the page's title, and the recommended value in the overview). No
+  other size is set anywhere, in a style or in a script, and no text is smaller
+  than 11 px, a picture's text included: where a picture has no room for a
+  label at 11 px the label is shortened, not shrunk. The canvas charts take
+  their sizes from the same names.
+- **Labels are in sentence case**, small and muted. No style sets capitals or
+  letter spacing.
+- Numbers stand in tabular figures everywhere on the page.
 - Missing data is shown as "not recorded". Old sessions open as far as their
   records allow.
 - The page reads a ledger without its draft records and never requests
@@ -1311,7 +1322,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 157 | the shell: colours, styles, the list of scripts |
+| `index.html` | 159 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -1346,7 +1357,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `adrs_view.js` | 801 | the run page and the drawing of one simulation; also loaded by the evidence page and by the ADRS main viewer |
+| `adrs_view.js` | 802 | the run page and the drawing of one simulation; also loaded by the evidence page and by the ADRS main viewer |
 | `adrs_view.py` | 526 | the project as a task of the ADRS main viewer |
 | `index_runs.html` | 114 | shell of the run page |
 | `index_full.html` | 516 | the six-page viewer |
@@ -1360,4 +1371,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-56 files, 8,801 lines in all.
+56 files, 8,804 lines in all.

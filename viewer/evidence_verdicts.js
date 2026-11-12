@@ -61,7 +61,7 @@ Object.assign(EV, {
     let split = '';
     if (S.op) {  // operator columns: one table per scheduling policy; a policy the harness chose stays out until the session is scored
       const known = have.filter(x => x.policy && !x.policy_hidden), pols = [...new Set(known.map(x => x.policy))].sort().reverse(), hidden = have.filter(x => x.policy_hidden).length, none = have.length - known.length - hidden;
-      split = `<h3 style="margin-top:14px"><span data-by="operator"><i class="sw"></i></span> by ${EV.term('Scheduling policy', 'scheduling policy')} (operator columns)</h3><div class="vc-row">${pols.map(p => part('policy ' + e(p), known.filter(x => x.policy === p), 'policy-' + p)).join('')}</div>
+      split = `<h3 style="margin-top:14px"><span data-by="operator"><i class="sw"></i></span> By ${EV.term('Scheduling policy', 'scheduling policy')} (operator columns)</h3><div class="vc-row">${pols.map(p => part('policy ' + e(p), known.filter(x => x.policy === p), 'policy-' + p)).join('')}</div>
         ${hidden || none ? `<p class="sm">${[hidden ? `${n(hidden)} whose policy is hidden until scored` : '', none ? `${n(none)} whose policy is not recorded` : ''].filter(Boolean).join(' and ')}: counted in the table of all sessions only.</p>` : ''}`;
     }
     return `<div class="ev-card noprint" id="cmp-vc"><h2>Verdicts against checks <small>the ${n(have.length)} of ${EV.term('Brief', 'brief')} ${e(name)} · sessions of different briefs are never added together</small></h2>

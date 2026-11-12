@@ -17,11 +17,11 @@ Object.assign(EV, {
       <p class="sm">run in ${EV.link(x.id)} (turn ${x.turn})${others.length ? ' together with tests of ' + others.map(q => EV.tlink(q, e(q.hyp))).join(', ') : ', the only test in it'}</p>
       <div data-step="${simK}" style="margin-top:6px">${T.sims.length ? EV.canvas('test', T.id, wide) : ''}
           <p class="sm"><button data-act="wide" data-id="${e(T.id)}">${wide ? `back to the ${T.sims.length} simulation${T.sims.length === 1 ? '' : 's'} this rule names` : `the same chart over all ${x.sims.length} simulations of ${e(x.id)}`}</button></p></div>
-        <div data-step="${simK}" style="margin-top:12px"><h3>the simulations this rule names</h3>${table}</div>
-      <h3>the ${EV.term('Decision rule', 'decision rule')}, in full</h3><p>${T.rule ? `<code>${e(T.rule)}</code>` : EV.nr}</p>
+        <div data-step="${simK}" style="margin-top:12px"><h3>The simulations this rule names</h3>${table}</div>
+      <h3>The ${EV.term('Decision rule', 'decision rule')}, in full</h3><p>${T.rule ? `<code>${e(T.rule)}</code>` : EV.nr}</p>
       ${T.rival ? `<p class="sm">${EV.term('Rival', 'rival')}: ${e(T.rival)} · under the rival the rule would have ${e(T.rival_predicts || 'not recorded')}</p>` : ''}
       <p class="sm" data-step="${kc}">${EV.term('Check', 'check')} by the harness: ${T.check ? `${EV_ICON.check} ${e(T.check.id)} · ${e(T.check.numbers)} → ${EV.checkRes(T.check)}` : EV.nr}</p>
-      ${v ? `<div data-step="${kv}"><h3>${EV.term('Verdict', 'verdict')} ${e(v.id)}: ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('disagrees with its check') : ''}</h3><p>${e(v.because || '')}</p>${EV.numCheck(v.because, x.sims)}<p class="sm"><b>next</b> ${e(v.next || 'not recorded')}</p></div>` : ''}`;
+      ${v ? `<div data-step="${kv}"><h3>${EV.term('Verdict', 'Verdict')} ${e(v.id)}: ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('disagrees with its check') : ''}</h3><p>${e(v.because || '')}</p>${EV.numCheck(v.because, x.sims)}<p class="sm"><b>next</b> ${e(v.next || 'not recorded')}</p></div>` : ''}`;
   },
 
   testPanel(id) {
@@ -38,6 +38,6 @@ Object.assign(EV, {
     const ts = h.tests.map(q => M.testById[q]).filter(T => EV.seen(T.exp));  // during the replay: only the tests planned by then
     return `<h2>${EV_ICON.hypothesis} ${EV.term('Hypothesis', 'Hypothesis')} ${e(h.id)} <small>stated in turn ${h.turn} · ${e(EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open')}</small></h2><p>${e(h.text)}</p>
       <p class="sm">prediction: ${e(h.prediction || 'not recorded')} · follows from: ${h.follows ? h.follows.map(EV.link).join(', ') : EV.nr}${h.drop && EV.seen(h.drop.id) ? ` · dropped in turn ${h.drop.turn}: ${e(h.drop.why || '')}` : ''}</p>
-      ${ts.length ? ts.map(T => `<h3>${EV_ICON.test} its ${EV.term('Test', 'test')} in experiment ${e(T.exp)}, turn ${T.turn}</h3>${EV.testBody(T)}`).join('') : '<p class="sm">This hypothesis was not put to a test.</p>'}`;
+      ${ts.length ? ts.map(T => `<h3>${EV_ICON.test} Its ${EV.term('Test', 'test')} in experiment ${e(T.exp)}, turn ${T.turn}</h3>${EV.testBody(T)}`).join('') : '<p class="sm">This hypothesis was not put to a test.</p>'}`;
   },
 });

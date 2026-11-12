@@ -45,7 +45,7 @@ Object.assign(EV, {
     const queue = (id, x, y, name, col) => obj(id, `<path class="bx" d="M${x},${y} H${x + 104} V${y + 30} H${x}"/>${[0, 1, 2].map(i => `<rect x="${x + 94 - i * 9}" y="${y + 4}" width="6" height="22" rx="1.5" fill="var(${col})" opacity="${0.75 - i * 0.2}"/>`).join('')}
       ${T(x + 5, y + 13, name, 'sn', 'start')}${val(x + 5, y + 25, v.queuePkts == null ? '' : `${v.queuePkts} packets`, 'queuePkts', 'start')}`);
     const pc = (x, w, H) => `<rect class="pc" x="${x}" y="2" width="${w}" height="166" rx="12"/><path class="pi" d="M${x + 14},11 h17 v11 h-17 z M${x + 19},26 h7 M${x + 22.5},22 v4"/>
-      ${T(x + 40, 22, H.title, 'sn st', 'start')}${T(x + 40 + H.title.length * 8.2 + 8, 22, `one computer · ns-3 ${H.node} · ${H.sub}`, 'sc', 'start')}`;
+      ${T(x + 40, 22, H.title, 'sn st', 'start')}${T(x + 40 + H.title.length * 8.2 + 8, 22, `ns-3 ${H.node} · ${H.sub}`, 'sc', 'start')}`;
     const cap = (x, s) => T(x, 50, s, 'sc'), id = EV.sysId, Y = { u: 67, t: 117 }, w = typeof v.weightUdp === 'number' ? Math.min(0.999, Math.max(0.001, v.weightUdp)) : null;
     // the scheduler: a circle divided as the ratio divides the link, the UDP part on the side the UDP queue enters
     const at = d => [432 + 22 * Math.cos(d * Math.PI / 180), 107 + 22 * Math.sin(d * Math.PI / 180)].map(n => n.toFixed(1)).join(','), cut = w == null ? '' : `<path d="M432,107 L${at(-90 - 180 * w)} A22,22 0 ${w > 0.5 ? 1 : 0},1 ${at(-90 + 180 * w)} Z" fill="var(--series-1)"/>`;
@@ -80,7 +80,7 @@ Object.assign(EV, {
       return `<tr><td>${e(k)}</td><td>${kn ? `<b style="color:var(--by-model)">${shown}</b>` : shown}${note ? ` <span class="sm">· ${note}</span>` : ''}</td></tr>`; }).join('');
     const ms = o.measured || [], names = ms.map(k => TH_DATA.PLAIN[k] || k), measured = !ms.length ? '' : sim && sim.metrics ? `<p class="sm" style="margin-top:6px">Measured here in ${EV.link(sim.id)}: ${ms.map((k, i) => `${e(names[i])} <b>${e(EV.val(k, sim.metrics[k]))}</b>`).join(' · ')}</p>`
       : `<p class="sm" style="margin-top:6px">Measured here in every simulation: ${e(names.join(', '))}. Open a simulation and its values appear here.</p>`;
-    return `<p><b style="font-size:15px">${e(o.name)}</b> <span class="sm">ns-3 <code>${e(EV.sysFill(o.cls, V.v))}</code></span></p>
+    return `<p><b style="font-size:var(--f-card)">${e(o.name)}</b> <span class="sm">ns-3 <code>${e(EV.sysFill(o.cls, V.v))}</code></span></p>
       <p class="sm">${e(f.where)} · ${o.flow === 'udp' ? '<i class="sw" style="background:var(--series-1)"></i>handles UDP' : o.flow === 'tcp' ? '<i class="sw" style="background:var(--series-2)"></i>handles TCP' : id === 'link' ? 'carries both flows' : id.startsWith('around') ? 'the same for both flows' : 'shared by both flows'}${f.role ? ' · ' + e(f.role) : ''}</p>
       <table><tbody>${rows}</tbody></table>${measured}`;
   },

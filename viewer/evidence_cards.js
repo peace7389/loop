@@ -95,7 +95,7 @@ Object.assign(EV, {
     if (!b) return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')}</h2><p class="sm">${EV.nr}: this session was made before briefs existed.</p>`;
     const kv = o => `<table><tbody>${Object.entries(o || {}).map(([k, v]) => `<tr><td>${e(k)}</td><td>${e(typeof v === 'object' ? Object.entries(v).map(([a, c]) => `${a}: ${Array.isArray(c) ? c.join(', ') : c}`).join(' · ') : v)}</td></tr>`).join('')}</tbody></table>`;
     return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')} ${e(b.id)} <small>written by the ${EV.term('Operator', 'operator')}</small></h2><p>${e(b.task || '')}</p>
-      <h3>fixed settings</h3>${kv(b.system)}<h3>knobs and ranges</h3>${kv(b.knobs)}<h3>goal</h3><p>${e(EV.goal(b.goal))}</p><h3>limits</h3>${kv(b.limits)}
+      <h3>Fixed settings</h3>${kv(b.system)}<h3>Knobs and ranges</h3>${kv(b.knobs)}<h3>Goal</h3><p>${e(EV.goal(b.goal))}</p><h3>Limits</h3>${kv(b.limits)}
       <p class="sm">the baseline the harness ran before the first turn: ${x0 ? EV.link(x0.id) + ' · ' + x0.sims.map(s => EV.link(s.id)).join(', ') : EV.nr}</p>`;
   },
 });

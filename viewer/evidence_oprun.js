@@ -17,7 +17,7 @@ Object.assign(EV, {
         <div><span>${EV.term('Scheduling policy', 'scheduling policy')}</span><select data-ch="or" data-k="_policy"><option${o.policy === 'share' ? ' selected' : ''}>share</option><option${o.policy === 'cap' ? ' selected' : ''}>cap</option></select></div></div>
       <p style="margin-top:8px"><button data-act="oprun"${o.busy ? ' disabled' : ''}>${o.busy ? 'Running… (about 20 s)' : 'Run'}</button> <span class="sm">a field left empty keeps the brief's default</span>${o.msg ? ` <span class="bad">${e(o.msg)}</span>` : ''}
         ${runs.length ? ` · <label style="font-weight:400">operator runs so far <select data-ch="oropen"><option value="">none opened</option>${runs.slice().reverse().map(r => `<option value="${e(r.id)}"${r.id === o.open ? ' selected' : ''}>${e(`${r.id} · ${r.policy} · ${Object.entries(r.params).filter(([k]) => k in (b.knobs || {})).map(([k, v]) => k + ' ' + v).join(', ')}`)}</option>`).join('')}</select></label>` : ''}</p>
-      ${cur ? `<h3>${EV_ICON.simulation} operator run ${e(cur.id)} · scheduling policy ${e(cur.policy)} · ${e(cur.seconds)} s${Object.keys(cur.clamped || {}).length ? ` · brought into range: ${e(JSON.stringify(cur.clamped))}` : ''}</h3>
+      ${cur ? `<h3>${EV_ICON.simulation} Operator run ${e(cur.id)} · scheduling policy ${e(cur.policy)} · ${e(cur.seconds)} s${Object.keys(cur.clamped || {}).length ? ` · brought into range: ${e(JSON.stringify(cur.clamped))}` : ''}</h3>
         ${EV.resultPanel(EV.opSim(cur), defaults, { ctlHead: 'the brief\'s defaults', ctlName: 'brief\'s default' })}` : ''}</div>`;
   },
   opSim: r => ({ id: r.id, label: 'operator run', run: r.id, src: `../checks/${r.id}/series.csv`, params: r.params, metrics: r.metrics, ts: r.ts }),
