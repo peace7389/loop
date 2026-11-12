@@ -944,9 +944,17 @@ the whole session as one picture.
   row's title gives the number of items.
 - Down a column stand a hypothesis, its decision rule, the simulations of the
   turn's experiment, the check and the verdict: together one test.
+- The marks are drawn shapes, not characters of a font, so that they have one
+  weight and one size everywhere: one small shape per kind (hypothesis,
+  decision rule, simulation, held, failed, supported, refuted, inconclusive,
+  dropped, a simulation returned from an earlier one, the final report), in the
+  colour of its state. A mark's kind is also in its `data-m`, for the page
+  checks.
 - A hypothesis that stands a second time (tested in a later turn, or put to
   another decision rule) and a verdict that stands under a second decision
-  rule are drawn hollow and counted once.
+  rule are drawn small and faint, not hollow, and counted once.
+- The refusals of a turn (refused answers or parts) are a count beside the
+  turn's name.
 - A mark opens its item in the detail pane, and the page does not move.
   Pointing at a mark marks what belongs with it, and a sentence under the
   table says what it is.
@@ -1039,8 +1047,9 @@ printed; nothing is filled in; a click never moves the page.
   no definition, because the number of turns is not known in advance, and the
   count stays flat while a session tests on simulations it already has).
   Instead, in the card "What this session is made of", each turn's header says
-  how many simulations were left at its start ("30 left"); "not recorded"
-  before s008, which have no turn records.
+  how many simulations were left at its start ("30 left"). A session with no
+  turn records (those before s008) says "not recorded" once, in the card's
+  key, and not under every turn.
 - **Two figures on Home**, as two columns of the sessions table, from
   `control.py`'s session row: the simulations returned from an earlier one, of
   all simulations (s014: 91 of 118; s017: 112 of 153); and the simulations that
@@ -1220,13 +1229,13 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 143 | the shell: colours, styles, the list of scripts |
+| `index.html` | 146 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 58 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 114 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_glance.js` | 126 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 76 | best so far |
@@ -1268,4 +1277,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-55 files, 8,710 lines in all.
+55 files, 8,725 lines in all.
