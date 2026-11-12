@@ -4,7 +4,8 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
   GET  any file        the project's files, read-only, exactly as before
   GET  /api/status     what is running, the last lines of the session's output, "briefs" (the ids in briefs/) and
                        "sessions": every session folder (id, brief, records, experiments, first and last time, policy, model, running,
-                       checks held and failed, and from checks/: the score in short and the reviewer's ticks and sign-off)
+                       checks held and failed, the figures of session_figures.py, and from checks/: the score in short and the
+                       reviewer's ticks and sign-off)
   GET  /api/sessions   that list alone
   POST /api/run        {params, policy, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
                        The brief (default two-hosts-open) gives the fixed settings and the ranges.
@@ -50,7 +51,7 @@ Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the 
 Python standard library only."""
 import argparse, csv, http.server, itertools, json, os, random, re, shutil, signal, subprocess, sys, threading, time
 from pathlib import Path
-import export_session, tools
+import export_session, session_figures, tools
 
 ROOT, H, CHECKS = tools.ROOT, tools.HARNESS, tools.ROOT / "checks"
 BIN = tools.NS3 / "build/scratch/two-hosts/ns3.49-two-hosts-optimized"
@@ -122,6 +123,7 @@ def sessions():
         if CACHE.get(d.name, (None,))[0] != sig:
             recs = lines(led)
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
+            shown = [r for r in recs if r["type"] not in ("draft", "scratch")]  # what the figures are counted from
             meta = json.loads((d / "session.json").read_text()) if (d / "session.json").is_file() else {}
             checks = [(r.get("body") or {}).get("result") for r in recs if r["type"] == "check"]
             sc = json.loads(score.read_text()) if score.is_file() else None
@@ -134,6 +136,7 @@ def sessions():
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
                 "has_report": any(r["type"] == "report" for r in recs),
+                "vc": session_figures.verdicts_against_checks(shown),  # verdicts against checks: {row: {column: n}}
                 "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs),
                 # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
                 "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"),

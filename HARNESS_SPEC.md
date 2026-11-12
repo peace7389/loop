@@ -179,6 +179,7 @@ draft's length and token count.
 │   ├── schema.json               the answer format, enforced by the model server
 │   ├── prompt.txt                the system prompt
 │   ├── control.py                the operator's server, port 8600 (section 10)
+│   ├── session_figures.py        figures counted from a session's records, for control.py's session rows (12.1)
 │   ├── score.py                  operator: score a session against a sweep (10.4)
 │   ├── export_session.py         operator: a session as a folder that opens offline (10.6)
 │   ├── make_trace.py             operator: packet-event recordings (10.7)
@@ -710,7 +711,7 @@ only.
 
 | Endpoint | What it does |
 |---|---|
-| `GET /api/status` | what is running, the briefs, the sweeps, and `sessions`: one row per session (brief, counts, checks held and failed, how it ended, policy, running, and from `checks/` the score in short and the review) |
+| `GET /api/status` | what is running, the briefs, the sweeps, and `sessions`: one row per session (brief, counts, checks held and failed, how it ended, policy, running, the figures of `session_figures.py`, and from `checks/` the score in short and the review) |
 | `GET /api/sessions` | that list alone |
 | `POST /api/session` | starts `loop.py` with the chosen flags: a new session, or with `session` a continued one. Up to 6 loops run side by side |
 | `POST /api/stop` | `{session}`: stops a session started here |
@@ -850,6 +851,24 @@ on TCP goodput; at every scored recommendation the brief's condition holds.
 | s018 | two-hosts-open | cap | on | done by the model | 6 | 36 | not scored |
 | s019 | two-hosts-open | cap | on | done by the model | 11 | 30 | not scored |
 
+Verdicts against checks, all 19 sessions (251 verdicts). The row is the checks
+of the verdict's hypothesis in the last experiment that tested it before the
+verdict; "no verdict" is a hypothesis that was checked and never judged.
+
+| Brief | Checks | supported | inconclusive | refuted | no verdict |
+|---|---|---|---|---|---|
+| two-hosts-udp-demand | held | 64 | 0 | 0 | 7 |
+| | failed | 0 | 0 | 39 | 9 |
+| two-hosts-open | held | 59 | 8 | 0 | 3 |
+| | mixed | 0 | 11 | 0 | 0 |
+| | failed | 0 | 63 | 4 | 0 |
+| (s001, before briefs) | no check | 3 | 0 | 0 | 0 |
+
+Every "inconclusive" is in `two-hosts-open`: with a given goal the model called
+a failed check a refutation; with an open goal it called 63 of 67 failed checks
+inconclusive. The two briefs are never added together, because the pooled
+table hides this.
+
 The best row is 671.585 Mbps under share and 671.533 Mbps under cap, so the
 largest gap is 0.11% of the best. These figures say how close the
 recommendation is. They do not say whether the reasoning was sound: every
@@ -952,6 +971,23 @@ simulation after which the best valid result no longer improved; refusals; a
 verdict that contradicts its check or a number in the model's text that
 differs from the measurement; the final report.
 
+**Views counted from the records.** These were decided in the operator's
+`~/VIEWS_DECISIONS.md` (2026-11-12). Rules for all of them: in the replay a
+view shows what the records by the chosen step give and nothing later; none is
+printed; nothing is filled in; a click never moves the page.
+
+- **Verdicts against checks** (`evidence_verdicts.js`): a table of counts, one
+  verdict each. Row: the checks of the verdict's hypothesis in the last
+  experiment that tested it before the verdict: held (all held), failed (all
+  failed), mixed, or no check (the first format). Column: supported,
+  inconclusive, refuted, and "no verdict" for a hypothesis that was checked and
+  never judged. It stands in a session's summary in the detail pane (that
+  session alone, counted by the page from the session's records) and on the
+  Compare tab (the sessions of the chosen brief, from the counts in
+  `control.py`'s session rows; with the operator columns on, also one table per
+  scheduling policy). **Sessions of different briefs are never added
+  together.**
+
 **The model's numbers against the measurements.** Where the model's text names
 a measure with a number, or gives a number that equals a measured value of the
 same experiment, the page shows both and marks agrees or differs.
@@ -981,7 +1017,9 @@ and `ev_glance.py`: in the card "What this session is made of" each number
 equals the marks drawn, the replay shows nothing recorded later, and a click
 opens the item without moving the page; in the card "The system" every object
 is drawn and opens beside the picture, the values are the brief's or the
-opened simulation's, and the scheduling policy stays operator-only).
+opened simulation's, and the scheduling policy stays operator-only);
+`ev_views.py`: every view of `VIEWS_DECISIONS.md` against a count made from
+the ledgers, against the figures of that sheet, and in the replay).
 `ev_replay.py` does not count an id that stands in words the model itself had
 written by that step, such as "next: run X4".
 Anything that starts, stops or writes is tried on a scratch copy of the project
@@ -1073,8 +1111,8 @@ untracked until they say otherwise.
 | 2026-11-12 | Stage 7: this document rewritten as a whole. The top bar made the same in every view. Two cards at the top of a session's page: "The system" and "What this session is made of". `check_objects.py`. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
-`~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (the last two
-are in the repository).
+`~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
+are in the repository), `~/VIEWS_DECISIONS.md`.
 
 ## 17. Source files
 
@@ -1099,7 +1137,8 @@ above all, so the counts understate the size.
 | `schema.json` | 430 | the answer format |
 | `prompt.txt` | 31 | the system prompt |
 | `manifest.json` | 22 | outputs and tools, described |
-| `control.py` | 529 | the operator's server |
+| `control.py` | 532 | the operator's server |
+| `session_figures.py` | 36 | figures counted from a session's records, for control.py's session rows |
 | `score.py` | 126 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
 | `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
@@ -1117,7 +1156,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 134 | the shell: colours, styles, the list of scripts |
+| `index.html` | 136 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 56 | Home |
@@ -1135,10 +1174,11 @@ above all, so the counts understate the size.
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
 | `evidence_more.js` | 69 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
+| `evidence_verdicts.js` | 55 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
 | `evidence_operator.js` | 68 | the Operator tab |
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
-| `evidence_compare.js` | 63 | the Compare tab |
+| `evidence_compare.js` | 64 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 54 | links, export, print |
 | `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
@@ -1162,4 +1202,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 48 | what is where, for a reader of the repository |
 
-51 files, 8,399 lines in all.
+53 files, 8,496 lines in all.

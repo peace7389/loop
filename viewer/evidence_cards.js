@@ -39,7 +39,7 @@ Object.assign(EV, {
 
   detail() {
     const S = EV.s, M = EV.M, sel = S.sel, e = EV.e;
-    if (!sel || sel.t === 'session') return `${sel ? EV.trail(sel) : ''}<h2>${EV.term('Session', 'Session')} ${e(M.id)} <small>click any item on the left to open it here</small></h2>${EV.summaryKV()}`;
+    if (!sel || sel.t === 'session') return `${sel ? EV.trail(sel) : ''}<h2>${EV.term('Session', 'Session')} ${e(M.id)} <small>click any item on the left to open it here</small></h2>${EV.summaryKV()}${EV.vcSession()}`;
     const k = EV.stepOf(sel);
     if (S.step != null && k != null && k > S.step) return `<p class="sm">The item opened here was recorded after step ${S.step + 1}; while the replay is at that step it is not shown.</p>`;
     const body = sel.t === 'log' ? EV.logCard(sel.id) : sel.t === 'hyp' ? EV.hypCard(sel.id) : sel.t === 'test' ? EV.testPanel(sel.id) : sel.t === 'exp' ? EV.expPanel(sel.id) : sel.t === 'sim' ? EV.simPanel(sel.id)

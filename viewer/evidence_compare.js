@@ -28,6 +28,7 @@ Object.assign(EV, {
         <p><label>${EV.term('Brief', 'Brief')} <select data-ch="brief">${briefs.map(b => `<option value="${e(b)}"${b === (S.brief || '') ? ' selected' : ''}>${e(b || 'before briefs')} (${st.sessions.filter(x => (x.brief || '') === b).length})</option>`).join('')}</select></label> <span class="sm">${e(EV.results(S.brief || ''))}</span></p>
         <div class="ev-scroll"><table><thead><tr><th>compare</th><th>session</th><th>started</th><th>how it ended</th><th class="num">simulations used</th><th>tests held / failed</th><th>review progress</th>${S.op ? '<th>scheduling policy</th><th class="num">gap to the best</th>' : ''}</tr></thead>
           <tbody id="cmp-rows">${rows.map(tr).join('')}</tbody></table></div></div>
+      ${EV.vcCompare(rows)}
       ${list.length >= 2 ? EV.compareBody(list) : `<div class="ev-card"><p class="sm">${list.length ? 'One session is ticked: tick another one.' : 'Tick two or more sessions.'}</p></div>`}`;
   },
 
