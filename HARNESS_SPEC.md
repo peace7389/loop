@@ -959,6 +959,13 @@ the whole session as one picture.
 - The card folds like "The system": a "fold" button in its heading, and the
   browser remembers it. It is not printed.
 
+**The tests list follows the replay as the tree does.** A group heading and a
+test's row can be read from the step at which their experiment is recorded; a
+test's check and its margin from the step of the check; its verdict from the
+step of the verdict. "no verdict" and "not checked" can be read only at the
+last step, because only then is it known. A row that is not recorded yet stays
+as a grey bar with nothing to read in it.
+
 The **test** is the unit of evidence: one hypothesis put to one decision rule.
 The experiment is only the batch it was run in. Nothing in `loop.py` records a
 test; `evidence_data.js` derives it: a test's simulations are the labels after
@@ -1075,7 +1082,10 @@ opened simulation's, and the scheduling policy stays operator-only);
 `ev_views.py`: every view of `VIEWS_DECISIONS.md` against a count made from
 the ledgers, against the figures of that sheet, and in the replay).
 `ev_replay.py` does not count an id that stands in words the model itself had
-written by that step, such as "next: run X4".
+written by that step, such as "next: run X4". It reads the tests list row by
+row (what can be read is exactly what is recorded by the step), and it stops
+for a moment every 20 drawings: drawing the page thousands of times without a
+pause made the browser hold 14 GB and stall on the longest session.
 Anything that starts, stops or writes is tried on a scratch copy of the project
 on port 8611, never on the real sessions.
 
@@ -1210,7 +1220,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 141 | the shell: colours, styles, the list of scripts |
+| `index.html` | 143 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 58 | Home |
@@ -1227,7 +1237,7 @@ above all, so the counts understate the size.
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 43 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
-| `evidence_more.js` | 70 | summary, the tests list, the final report in full, the evidence sheet |
+| `evidence_more.js` | 72 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 70 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_margin.js` | 40 | the margin of a check: how far it was from its decision rule; a column of the tests list |
@@ -1258,4 +1268,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-55 files, 8,706 lines in all.
+55 files, 8,710 lines in all.
