@@ -68,5 +68,28 @@ Object.assign(EV, {
       <div class="ev-scroll"><svg class="kn" viewBox="0 0 ${W} ${y}" width="100%" style="max-width:900px" role="img" aria-label="The simulations of each turn along ${e(knob)}">${svg}</svg></div>
       <p class="sm gl-key">${key}</p></div>`;
   },
+
+  // ---- The target measure where one knob alone differs: a table, one row per knob; not bars. A group is a set of
+  // simulations that differ in that knob only (one returned from an earlier one counts once). Per knob: the number of
+  // groups, the values the session used, the largest range of the target measure over its groups, and the same among
+  // the simulations that meet the brief's conditions. Only what is recorded by the replay's step; not printed.
+  ALONE_NOTE: 'A range shows how far the model moved a knob, not how much the knob matters.',
+  aloneCard() {
+    const M = EV.M, e = EV.e, g = EV.goalOf(M.brief), open = M.brief && M.brief.goal && M.brief.goal.kind === 'open', show = v => TASK_VIEW._rate(String(v)).replace(/^Tcp/, '');
+    const head = `<h2>The target measure where one knob alone differs <small>${g ? `${e(TH_DATA.PLAIN[g.target] || g.target)} over the ${EV.term('Simulation', 'simulations')} that differ in that knob only` : 'one row per knob'}</small></h2>`;
+    if (!g) return `<div class="ev-card noprint" id="s-alone">${head}<p class="sm">${open ? 'Not applicable: the goal is chosen by the model.' : M.brief ? `the brief's goal: ${EV.nr}` : `the brief of this session: ${EV.nr}`}</p></div>`;
+    const names = Object.keys(M.brief.knobs || {}), seen = M.sims.filter(q => EV.seen(q.id)), sims = seen.filter(q => !q.same_as && q.metrics && typeof q.metrics[g.target] === 'number'), opts = [...new Set(sims.flatMap(q => Object.keys(q.params || {})))];
+    const [u, f] = EV.unit(g.target), fmt = v => { const x = f(v); return (Math.abs(x) >= 1 ? x.toFixed(1) : String(+x.toPrecision(1))) + (u ? ' ' + u : ''); }, span = qs => Math.max(...qs.map(q => q.metrics[g.target])) - Math.min(...qs.map(q => q.metrics[g.target]));
+    const rows = names.map(k => { const groups = {}, many = qs => new Set(qs.map(q => String(q.params[k]))).size > 1;
+      sims.forEach(q => { const key = opts.filter(o => o !== k).map(o => o + '=' + q.params[o]).join('|'); (groups[key] = groups[key] || []).push(q); });
+      const gs = Object.values(groups).filter(many), ok = gs.map(qs => qs.filter(q => EV.meets(q.metrics, g.conds))).filter(many), vs = [...new Set(seen.filter(q => q.params && q.params[k] != null).map(q => q.params[k]))], ns = vs.map(EV.knNum);
+      const used = !vs.length ? EV.nr : vs.length === 1 ? 'one value, ' + e(show(vs[0])) : ns.every(n => !isNaN(n)) ? `${vs.length} values, ${e(show(vs[ns.indexOf(Math.min(...ns))]))} to ${e(show(vs[ns.indexOf(Math.max(...ns))]))}` : `${vs.length} values: ${e(vs.map(show).join(', '))}`;
+      const all = gs.length ? Math.max(...gs.map(span)) : null, met = ok.length ? Math.max(...ok.map(span)) : null;
+      return `<tr data-knob="${e(k)}" data-groups="${gs.length}" data-all="${all ?? ''}" data-met="${met ?? ''}" data-values="${vs.length}"><td>${k === 'seed' ? '<b>run-to-run variation</b> <span class="sm">(seed)</span>' : `<b>${e(k)}</b>`}</td>
+        ${gs.length ? `<td class="num">${gs.length}</td><td>${used}</td><td class="num">${fmt(all)}</td><td class="num">${met == null ? '<span class="mut" title="No group has two values of this knob among the simulations that meet the conditions">none</span>' : fmt(met)}</td>` : `<td class="mut" colspan="4">not varied alone <span class="sm">· ${used}</span></td>`}</tr>`; }).join('');
+    return `<div class="ev-card noprint" id="s-alone">${head}<div class="ev-scroll"><table class="vc"><thead><tr><th>knob</th><th class="num" title="Sets of simulations that differ in this knob only; a simulation returned from an earlier one counts once">groups</th><th>the values the session used</th>
+      <th class="num">largest range of ${e(g.target)} over its groups</th><th class="num">the same among simulations that meet ${e(g.text || 'the conditions')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="sm" id="alone-note">${EV.ALONE_NOTE}${EV.s.step == null ? '' : ' Counted from the simulations by this step of the replay.'}</p></div>`;
+  },
 });
 EV.chg = Object.assign(EV.chg || {}, { knob(t) { EV.s.knob = t.value; EV.draw(); } });

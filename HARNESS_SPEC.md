@@ -1018,6 +1018,16 @@ printed; nothing is filled in; a click never moves the page.
   the rule was written, so it compares checks of the same kind only; it does
   not say whether a prediction was bold." The tests list is printed without
   this column.
+- **The target measure where one knob alone differs** (in `evidence_knob.js`),
+  on the session page under the chart of the turns: a table, one row per knob.
+  A group is a set of simulations that differ in that knob only (a simulation
+  returned from an earlier one counts once). Columns: the number of groups;
+  the values the session used; the largest range of the target measure over
+  its groups; the same among simulations that meet the brief's conditions. A
+  knob with no group says "not varied alone"; the seed's row is named
+  "run-to-run variation"; with an open goal the table is one line, "not
+  applicable: the goal is chosen by the model". Its note, word for word: "A
+  range shows how far the model moved a knob, not how much the knob matters."
 
 **The model's numbers against the measurements.** Where the model's text names
 a measure with a number, or gives a number that equals a measured value of the
@@ -1199,7 +1209,7 @@ above all, so the counts understate the size.
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 76 | best so far |
-| `evidence_knob.js` | 72 | the simulations of each turn along one knob, one axis per turn |
+| `evidence_knob.js` | 95 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 56 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
 | `evidence_flow.js` | 96 | View 3 (one test as a flow chart) and its chart |
@@ -1237,4 +1247,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 48 | what is where, for a reader of the repository |
 
-55 files, 8,644 lines in all.
+55 files, 8,667 lines in all.
