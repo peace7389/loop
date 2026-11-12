@@ -42,10 +42,10 @@ Object.assign(EV, {
     const e = EV.e, S = EV.s, st = EV.st, h = S.home, all = st.sessions, briefs = [...new Set(all.map(x => x.brief || ''))];
     const th = ([k, t, c]) => `<th${c ? ` class="${c}"` : ''}><a data-act="sort" data-id="${k}" title="Sort by this column">${t}${h.sort === k ? (h.dir > 0 ? ' ▲' : ' ▼') : ''}</a></th>`;
     const running = all.filter(x => x.running).length;
-    // one title line with the page's one action. Opening a session (a row below, or the top bar's list) and comparing
+    // one title line with the page's one action, beside the title where the eye starts (not at the far right). Opening a session (a row below, or the top bar's list) and comparing
     // (the top bar) each have one place, so they are not repeated here
-    return `<div class="ev-title"><div><h1>All sessions</h1><span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${running} running now` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
-        ${EV.newPanel ? `<button class="big primary" data-act="new" title="Write or choose an assignment and start the AI on it">${S.newOpen ? 'Close' : 'New session…'}</button>` : ''}</div>
+    return `<div class="ev-title"><h1>All sessions</h1>${EV.newPanel ? `<button class="big primary" data-act="new" title="Write or choose an assignment and start the AI on it">${S.newOpen ? 'Close' : 'New session…'}</button>` : ''}
+        <span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${running} running now` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
       ${S.newOpen && EV.newPanel ? EV.newPanel() : ''}
       <div class="ev-card"><h2>Results so far<small>one line per ${EV.term('Brief', 'brief')}, counted from the sessions and, where they exist, their scores</small></h2>
         ${briefs.map(b => `<p><b>${e(b || 'before briefs')}</b>: ${e(EV.results(b))}</p>`).join('') || '<p class="sm">No session yet.</p>'}</div>

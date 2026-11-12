@@ -86,7 +86,7 @@
 .ev .heat rect.cell { stroke: var(--surface-1); stroke-width: 1; } .ev details summary { cursor: pointer; color: var(--text-secondary); }
 .ev .hcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; } .ev .hc { border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
 .ev .hc:hover { border-color: var(--text-primary); } .ev code { font-size: 12px; overflow-wrap: anywhere; } .ev a[data-act] { cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted); }
-.ev-title { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin: 2px 2px 12px; } .ev-title h1 { font-size: 20px; margin: 0 10px 0 0; display: inline; }
+.ev-title { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 2px 2px 12px; } .ev-title h1 { font-size: 20px; } .ev-title .primary { min-width: 9.5em; }
 .ev .primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); white-space: nowrap; } .ev .big { font-size: 15px; padding: 8px 16px; font-weight: 600; max-width: 100%; }
 .ev th a { cursor: pointer; } .ev .pill.live { color: var(--good); border-color: var(--good); } .ev tr.run td { background: color-mix(in srgb, var(--good) 7%, transparent); }
 .ev .nw { display: grid; grid-template-columns: 1.2fr 1fr 1.5fr .8fr; gap: 10px 26px; align-items: start; } @media (max-width: 1100px) { .ev .nw { grid-template-columns: 1fr; } }
