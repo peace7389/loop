@@ -9,7 +9,8 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 
 | Path | What it is |
 |---|---|
-| `HARNESS_SPEC.md` | The build specification: purpose, decisions, what was verified against ns-3 |
+| `HARNESS_SPEC.md` | The specification: the system as it is (rewritten as a whole on 2026-11-12), with the results so far, the open items and every source file |
+| `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` | The operator's two plans the viewer was built from: what the evidence page must show, and how one page serves the whole cycle of work |
 | `scratch/two-hosts/` | The ns-3 scenario: `two-hosts.cc` and the scheduler `link-queue-disc.{h,cc}` (a copy; it is built inside an ns-3.49 tree) |
 | `briefs/<id>.json` | A brief: the assignment a person writes before a session. Task, a plain-language description of the system, the fixed settings (`system`), the settings the model may change (`knobs`), the goal (open, or a target with conditions) and the limits |
 | `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, does what its answer asks. A turn may state hypotheses, drop them, give verdicts and design one experiment of several simulations, run at once. `--brief <id>` chooses the brief of a new session, `--session <id>` the session (default: a new id `sNNN`) |
@@ -33,7 +34,7 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `checks/keys/<brief>.json` | The answer key of a brief: which sweep belongs to which scheduling policy, notes, and the checklist a session is judged by |
 | `checks/scores/<session>.json` | The score of a finished session, written by `harness/score.py`: best row of the sweep for the goal, the model's recommendation against it, simulations used, the checklist with the operator's judgements |
 | `trace/` | Short packet-level event recordings made by the operator |
-| `viewer/` | The viewer: `index.html` + `adrs_view.js` (one page); `index_full.html` + `adrs_view_full.js` is the earlier six-page version, whose Control page holds the operator's forms, including the brief editor (`brief_editor.js`) |
+| `viewer/` | The viewer: `index.html` + the `evidence_*.js` files are the evidence page, one page for the whole cycle (Home, new session, a session's page, compare, review, export). Earlier pages, kept working: `index_runs.html` + `adrs_view.js` (the run page), `index_full.html` + `adrs_view_full.js` (six pages, with the system diagram and the packet events), `index_old.html` |
 
 ## Not in the repository
 
