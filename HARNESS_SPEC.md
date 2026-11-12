@@ -906,7 +906,7 @@ line at the foot of every view.
 
 | Place | What is there |
 |---|---|
-| Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session and shows its checks in order |
+| Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session and shows its checks in order, how many of its simulations were returned from an earlier one, and how many no decision rule names |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
 | A session | Header strip (always visible); "The system"; "What this session is made of"; overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
@@ -1034,6 +1034,11 @@ printed; nothing is filled in; a click never moves the page.
   Instead, in the card "What this session is made of", each turn's header says
   how many simulations were left at its start ("30 left"); "not recorded"
   before s008, which have no turn records.
+- **Two figures on Home**, as two columns of the sessions table, from
+  `control.py`'s session row: the simulations returned from an earlier one, of
+  all simulations (s014: 91 of 118; s017: 112 of 153); and the simulations that
+  no decision rule names, of the simulations of the experiments that test
+  (s011: 14 of 43). The first format says "not recorded".
 
 **The model's numbers against the measurements.** Where the model's text names
 a measure with a number, or gives a number that equals a measured value of the
@@ -1186,8 +1191,8 @@ above all, so the counts understate the size.
 | `schema.json` | 430 | the answer format |
 | `prompt.txt` | 31 | the system prompt |
 | `manifest.json` | 22 | outputs and tools, described |
-| `control.py` | 533 | the operator's server |
-| `session_figures.py` | 51 | figures counted from a session's records, for control.py's session rows |
+| `control.py` | 535 | the operator's server |
+| `session_figures.py` | 82 | figures counted from a session's records, for control.py's session rows |
 | `score.py` | 126 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
 | `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
@@ -1208,7 +1213,7 @@ above all, so the counts understate the size.
 | `index.html` | 141 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
-| `evidence_home.js` | 56 | Home |
+| `evidence_home.js` | 58 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 114 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
@@ -1251,6 +1256,6 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
-| `README.md` | 48 | what is where, for a reader of the repository |
+| `README.md` | 49 | what is where, for a reader of the repository |
 
-55 files, 8,670 lines in all.
+55 files, 8,706 lines in all.

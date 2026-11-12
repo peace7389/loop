@@ -21,10 +21,12 @@ Object.assign(EV, {
     const r = x.review || { ticked: [] }, M = EV.modelOf(x), [a, n] = M ? EV.checked(M, r.ticked) : [r.ticked.length, null];  // the total comes from the session's own records, read in the background
     return (r.signed ? `<span class="ok">reviewed by ${EV.e(r.signed.name || 'not recorded')} on ${EV.e(String(r.signed.at || '').slice(0, 10))}</span> · ` : '') + (a || r.signed ? `checked ${a}${n == null ? '' : ' of ' + n}` : `<span class="mut">not started${n ? ' · ' + n + ' to check' : ''}</span>`);
   },
-  HOME: [['id', 'session'], ['brief', 'brief'], ['started', 'started'], ['how', 'how it ended'], ['simulations', 'simulations used', 'num'], ['held', 'tests held / failed'], ['seq', 'checks, in order'], ['review', 'review progress']],
+  HOME: [['id', 'session'], ['brief', 'brief'], ['started', 'started'], ['how', 'how it ended'], ['simulations', 'simulations used', 'num'], ['held', 'tests held / failed'], ['seq', 'checks, in order'],
+    ['returned', 'simulations returned from an earlier one', 'num', 'Simulations with the same settings and seed as an earlier one of the session: the earlier result was returned and nothing was run. Of all the simulations of the session.'],
+    ['unnamed', 'simulations no decision rule names', 'num', 'Simulations that no decision rule of their experiment names, of the simulations of the experiments that test hypotheses.'], ['review', 'review progress']],
   HOME_OP: [['policy', 'scheduling policy'], ['gap', 'gap to the best', 'num']],
   homeList() {  // the rows after the filter, a running session first, then by the chosen column
-    const h = EV.s.home, f = h.filter.trim().toLowerCase(), key = { how: x => EV.ended(x), review: x => (x.review ? x.review.ticked.length + (x.review.signed ? 1000 : 0) : 0), seq: x => (x.seq == null ? null : x.seq.replace(/ /g, '').length), gap: x => (x.score ? x.score.gap : null), brief: x => x.brief || '' }[h.sort] || (x => x[h.sort]);
+    const h = EV.s.home, f = h.filter.trim().toLowerCase(), key = { how: x => EV.ended(x), review: x => (x.review ? x.review.ticked.length + (x.review.signed ? 1000 : 0) : 0), seq: x => (x.seq == null ? null : x.seq.replace(/ /g, '').length), returned: x => (x.returned ? x.returned[0] : null), unnamed: x => (x.unnamed ? x.unnamed[0] : null), gap: x => (x.score ? x.score.gap : null), brief: x => x.brief || '' }[h.sort] || (x => x[h.sort]);
     const text = x => [x.id, x.brief || 'before briefs', x.started, EV.ended(x), EV.s.op ? x.policy : '', x.review && x.review.signed ? x.review.signed.name : ''].join(' ').toLowerCase();
     const cmp = (a, b) => { const p = key(a), q = key(b); return p == null ? (q == null ? 0 : 1) : q == null ? -1 : (typeof p === 'number' && typeof q === 'number' ? p - q : String(p).localeCompare(String(q))) * h.dir; };
     return EV.st.sessions.filter(x => !f || f.split(/\s+/).every(w => text(x).includes(w))).sort((a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || cmp(a, b) || a.id.localeCompare(b.id));
@@ -32,7 +34,7 @@ Object.assign(EV, {
   homeRows() {
     const e = EV.e, op = EV.s.op, rows = EV.homeList(), body = rows.map(x => `<tr class="pick${x.running ? ' run' : ''}" data-act="pick" data-id="${e(x.id)}"><td><b>${e(x.id)}</b>${x.running ? ' <span class="pill live">running</span>' : ''}</td><td>${e(x.brief || 'before briefs')}</td>
       <td>${e(String(x.started || '').replace('T', ' ').slice(0, 16)) || EV.nr}</td><td>${x.running ? 'running now' : x.how ? e(x.how) : EV.nr}</td><td class="num">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td>
-      <td>${x.held + x.failed ? `<span class="ok">${x.held} held</span> · <span class="${x.failed ? 'bad' : 'mut'}">${x.failed} failed</span>` : '<span class="mut">no checks</span>'}</td><td class="sqc">${x.seq === undefined ? EV.nr : EV.seqHtml(x.seq)}</td><td data-col="review">${EV.reviewCell(x)}</td>
+      <td>${x.held + x.failed ? `<span class="ok">${x.held} held</span> · <span class="${x.failed ? 'bad' : 'mut'}">${x.failed} failed</span>` : '<span class="mut">no checks</span>'}</td><td class="sqc">${x.seq === undefined ? EV.nr : EV.seqHtml(x.seq)}</td>${['returned', 'unnamed'].map(k => `<td class="num" data-col="${k}">${x[k] ? `<b>${x[k][0]}</b> of ${x[k][1]}` : EV.nr}</td>`).join('')}<td data-col="review">${EV.reviewCell(x)}</td>
       ${op ? `<td data-col="policy">${x.policy_hidden ? '<span class="mut">hidden until the session is scored</span>' : e(x.policy || '') || EV.nr}</td><td class="num">${EV.gapText(x) || '<span class="mut">not scored</span>'}</td>` : ''}</tr>`).join('');
     const el = document.getElementById('home-rows'), n = document.getElementById('home-n');
     if (el) { el.innerHTML = body; if (n) n.textContent = `${rows.length} of ${EV.st.sessions.length}`; }
@@ -40,7 +42,7 @@ Object.assign(EV, {
   },
   homeView() {
     const e = EV.e, S = EV.s, st = EV.st, h = S.home, all = st.sessions, briefs = [...new Set(all.map(x => x.brief || ''))];
-    const th = ([k, t, c]) => `<th${c ? ` class="${c}"` : ''}><a data-act="sort" data-id="${k}" title="Sort by this column">${t}${h.sort === k ? (h.dir > 0 ? ' ▲' : ' ▼') : ''}</a></th>`;
+    const th = ([k, t, c, tip]) => `<th${c ? ` class="${c}"` : ''}><a data-act="sort" data-id="${k}" title="${tip ? e(tip) + ' ' : ''}Sort by this column">${t}${h.sort === k ? (h.dir > 0 ? ' ▲' : ' ▼') : ''}</a></th>`;
     const running = all.filter(x => x.running).length;
     // one title line with the page's one action, beside the title where the eye starts (not at the far right). Opening a session (a row below, or the top bar's list) and comparing
     // (the top bar) each have one place, so they are not repeated here

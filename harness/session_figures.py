@@ -49,3 +49,34 @@ def checks_in_order(recs):
             out.append({"held": "h", "failed": "f"}.get((r.get("body") or {}).get("result"), "n"))
             last = r.get("turn")
     return "".join(out)
+
+
+def returned_simulations(recs):
+    """[simulations returned from an earlier one (same settings and seed, not run again), all simulations]; None for the
+    first format, which has no simulation records."""
+    sims = [r for r in recs if r["type"] == "simulation"]
+    if not sims:
+        return None if any(r["type"] == "evidence" for r in recs) else [0, 0]
+    return [sum(1 for r in sims if (r.get("body") or {}).get("same_as")), len(sims)]
+
+
+def unnamed_simulations(recs):
+    """[simulations that no decision rule names, the simulations of the experiments that test]; None for the first
+    format. A decision rule names a simulation by its label after @; in an experiment of one simulation a rule names it
+    without a label."""
+    import re
+    sims = [r for r in recs if r["type"] == "simulation"]
+    if not sims:
+        return None if any(r["type"] == "evidence" for r in recs) else [0, 0]
+    exps = {r["id"]: r.get("body") or {} for r in recs if r["type"] == "experiment"}
+    unnamed = testing = 0
+    for r in sims:
+        x = exps.get(r.get("parent")) or {}
+        if x.get("kind") != "test":
+            continue
+        testing += 1
+        rules = x.get("decision_rules") or x.get("rules") or []
+        text = " ".join(str(d.get("decision_rule") or d.get("rule") or "") for d in rules)
+        named = (r.get("body") or {}).get("label") in set(re.findall(r"@([A-Za-z0-9_]+)", text)) or (len(x.get("runs") or []) == 1 and bool(rules))
+        unnamed += not named
+    return [unnamed, testing]
