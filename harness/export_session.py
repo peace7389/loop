@@ -15,7 +15,7 @@ CHECKS = tools.ROOT / "checks"
 LEFT_OUT = ("evidence_run.js", "evidence_oprun.js")  # the New session panel and the operator's runs: they need the server
 CHART = "https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
 ROW = ("id", "brief", "records", "runs", "experiments", "simulations", "allowed", "turns", "held", "failed", "started", "last", "model", "how", "report",
-       "left_open", "has_report", "done", "vc")  # what a session's line of the list may say without the operator's data
+       "left_open", "has_report", "done", "vc", "seq")  # what a session's line of the list may say without the operator's data
 
 
 def make(sid, operator, row):

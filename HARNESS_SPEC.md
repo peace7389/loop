@@ -906,7 +906,7 @@ line at the foot of every view.
 
 | Place | What is there |
 |---|---|
-| Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session |
+| Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session and shows its checks in order |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
 | A session | Header strip (always visible); "The system"; "What this session is made of"; overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
@@ -1000,6 +1000,12 @@ printed; nothing is filled in; a click never moves the page.
   its dot. The knob shown at first is the one that most experiments vary. With
   the operator columns on, a line marks the value of the best row of the
   sweep. A click on a dot opens that simulation.
+- **The checks of each session, in order**: on Home, in each session's row,
+  the session's checks in the order they were made, as ✓ and ✗, with a small
+  gap between turns. At most 40 are drawn, then "+ n more"; a session in the
+  first format says "not recorded". The sequence comes from `control.py`'s
+  session row. The open session's summary shows the same sequence, counted
+  from its own records, so an exported copy shows it too.
 
 **The model's numbers against the measurements.** Where the model's text names
 a measure with a number, or gives a number that equals a measured value of the
@@ -1152,8 +1158,8 @@ above all, so the counts understate the size.
 | `schema.json` | 430 | the answer format |
 | `prompt.txt` | 31 | the system prompt |
 | `manifest.json` | 22 | outputs and tools, described |
-| `control.py` | 532 | the operator's server |
-| `session_figures.py` | 36 | figures counted from a session's records, for control.py's session rows |
+| `control.py` | 533 | the operator's server |
+| `session_figures.py` | 51 | figures counted from a session's records, for control.py's session rows |
 | `score.py` | 126 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
 | `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
@@ -1171,7 +1177,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 138 | the shell: colours, styles, the list of scripts |
+| `index.html` | 139 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 56 | Home |
@@ -1190,7 +1196,7 @@ above all, so the counts understate the size.
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
 | `evidence_more.js` | 69 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
-| `evidence_verdicts.js` | 55 | verdicts against checks: the table of counts, in a session's summary and on Compare |
+| `evidence_verdicts.js` | 70 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
 | `evidence_operator.js` | 68 | the Operator tab |
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
@@ -1218,4 +1224,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 48 | what is where, for a reader of the repository |
 
-54 files, 8,570 lines in all.
+54 files, 8,602 lines in all.

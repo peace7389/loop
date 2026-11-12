@@ -137,6 +137,7 @@ def sessions():
                 "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
                 "has_report": any(r["type"] == "report" for r in recs),
                 "vc": session_figures.verdicts_against_checks(shown),  # verdicts against checks: {row: {column: n}}
+                "seq": session_figures.checks_in_order(shown),         # the checks in order: "hhh hf ..." (None: not recorded)
                 "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs),
                 # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
                 "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"),

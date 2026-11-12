@@ -34,3 +34,18 @@ def verdicts_against_checks(recs):
         if h not in judged:
             add(row(h, len(recs)), "no verdict")
     return out
+
+
+def checks_in_order(recs):
+    """The session's checks in the order they were made, one letter each (h = held, f = failed, n = not checked), with
+    a space between turns: "hhh hf hfh hhhh". None for a session in the first format, which has no checks by the harness."""
+    if not any(r["type"] in ("check", "simulation") for r in recs):
+        return None if any(r["type"] == "evidence" for r in recs) else ""
+    out, last = [], None
+    for r in recs:
+        if r["type"] == "check":
+            if last is not None and r.get("turn") != last:
+                out.append(" ")
+            out.append({"held": "h", "failed": "f"}.get((r.get("body") or {}).get("result"), "n"))
+            last = r.get("turn")
+    return "".join(out)

@@ -21,10 +21,10 @@ Object.assign(EV, {
     const r = x.review || { ticked: [] }, M = EV.modelOf(x), [a, n] = M ? EV.checked(M, r.ticked) : [r.ticked.length, null];  // the total comes from the session's own records, read in the background
     return (r.signed ? `<span class="ok">reviewed by ${EV.e(r.signed.name || 'not recorded')} on ${EV.e(String(r.signed.at || '').slice(0, 10))}</span> · ` : '') + (a || r.signed ? `checked ${a}${n == null ? '' : ' of ' + n}` : `<span class="mut">not started${n ? ' · ' + n + ' to check' : ''}</span>`);
   },
-  HOME: [['id', 'session'], ['brief', 'brief'], ['started', 'started'], ['how', 'how it ended'], ['simulations', 'simulations used', 'num'], ['held', 'tests held / failed'], ['review', 'review progress']],
+  HOME: [['id', 'session'], ['brief', 'brief'], ['started', 'started'], ['how', 'how it ended'], ['simulations', 'simulations used', 'num'], ['held', 'tests held / failed'], ['seq', 'checks, in order'], ['review', 'review progress']],
   HOME_OP: [['policy', 'scheduling policy'], ['gap', 'gap to the best', 'num']],
   homeList() {  // the rows after the filter, a running session first, then by the chosen column
-    const h = EV.s.home, f = h.filter.trim().toLowerCase(), key = { how: x => EV.ended(x), review: x => (x.review ? x.review.ticked.length + (x.review.signed ? 1000 : 0) : 0), gap: x => (x.score ? x.score.gap : null), brief: x => x.brief || '' }[h.sort] || (x => x[h.sort]);
+    const h = EV.s.home, f = h.filter.trim().toLowerCase(), key = { how: x => EV.ended(x), review: x => (x.review ? x.review.ticked.length + (x.review.signed ? 1000 : 0) : 0), seq: x => (x.seq == null ? null : x.seq.replace(/ /g, '').length), gap: x => (x.score ? x.score.gap : null), brief: x => x.brief || '' }[h.sort] || (x => x[h.sort]);
     const text = x => [x.id, x.brief || 'before briefs', x.started, EV.ended(x), EV.s.op ? x.policy : '', x.review && x.review.signed ? x.review.signed.name : ''].join(' ').toLowerCase();
     const cmp = (a, b) => { const p = key(a), q = key(b); return p == null ? (q == null ? 0 : 1) : q == null ? -1 : (typeof p === 'number' && typeof q === 'number' ? p - q : String(p).localeCompare(String(q))) * h.dir; };
     return EV.st.sessions.filter(x => !f || f.split(/\s+/).every(w => text(x).includes(w))).sort((a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || cmp(a, b) || a.id.localeCompare(b.id));
@@ -32,8 +32,8 @@ Object.assign(EV, {
   homeRows() {
     const e = EV.e, op = EV.s.op, rows = EV.homeList(), body = rows.map(x => `<tr class="pick${x.running ? ' run' : ''}" data-act="pick" data-id="${e(x.id)}"><td><b>${e(x.id)}</b>${x.running ? ' <span class="pill live">running</span>' : ''}</td><td>${e(x.brief || 'before briefs')}</td>
       <td>${e(String(x.started || '').replace('T', ' ').slice(0, 16)) || EV.nr}</td><td>${x.running ? 'running now' : x.how ? e(x.how) : EV.nr}</td><td class="num">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td>
-      <td>${x.held + x.failed ? `<span class="ok">${x.held} held</span> · <span class="${x.failed ? 'bad' : 'mut'}">${x.failed} failed</span>` : '<span class="mut">no checks</span>'}</td><td>${EV.reviewCell(x)}</td>
-      ${op ? `<td>${x.policy_hidden ? '<span class="mut">hidden until the session is scored</span>' : e(x.policy || '') || EV.nr}</td><td class="num">${EV.gapText(x) || '<span class="mut">not scored</span>'}</td>` : ''}</tr>`).join('');
+      <td>${x.held + x.failed ? `<span class="ok">${x.held} held</span> · <span class="${x.failed ? 'bad' : 'mut'}">${x.failed} failed</span>` : '<span class="mut">no checks</span>'}</td><td class="sqc">${x.seq === undefined ? EV.nr : EV.seqHtml(x.seq)}</td><td data-col="review">${EV.reviewCell(x)}</td>
+      ${op ? `<td data-col="policy">${x.policy_hidden ? '<span class="mut">hidden until the session is scored</span>' : e(x.policy || '') || EV.nr}</td><td class="num">${EV.gapText(x) || '<span class="mut">not scored</span>'}</td>` : ''}</tr>`).join('');
     const el = document.getElementById('home-rows'), n = document.getElementById('home-n');
     if (el) { el.innerHTML = body; if (n) n.textContent = `${rows.length} of ${EV.st.sessions.length}`; }
     return body;

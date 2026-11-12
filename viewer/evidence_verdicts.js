@@ -31,10 +31,25 @@ Object.assign(EV, {
   },
   VC_NOTE: 'One count per verdict. The row is the checks of its hypothesis in the last experiment that tested it before the verdict.',
 
+  // ---- the checks of a session in the order they were made: ✓ held, ✗ failed (– not checked), a small gap between
+  // turns; at most 40 are drawn, then "+ n more". seq: "hhh hf hfh" (control.py's row), null: not recorded
+  seqHtml(seq) {
+    if (seq == null) return EV.nr; if (!seq) return '<span class="mut">no checks</span>';
+    const all = seq.replace(/ /g, ''), n = all.length, held = all.split('h').length - 1, failed = all.split('f').length - 1; let drawn = 0, out = '';
+    for (const ch of seq) { if (ch === ' ') { if (drawn < 40) out += '<i class="sq-gap"></i>'; continue; } if (drawn++ >= 40) break; out += ch === 'h' ? '<span class="ok">✓</span>' : ch === 'f' ? '<span class="bad">✗</span>' : '<span class="mut">–</span>'; }
+    return `<span class="sq" data-n="${n}" title="${n} check${n === 1 ? '' : 's'} in the order they were made: ${held} held, ${failed} failed · a gap between turns">${out}${n > 40 ? `<span class="sm sq-more"> + ${n - 40} more</span>` : ''}</span>`;
+  },
+  // the same sequence for the open session, from its own records and only those recorded by the replay's step
+  seqOf(M) {
+    if (M.old) return null; let last = null, out = '';
+    M.recs.forEach(r => { if (r.type !== 'check' || !EV.seen(r.id)) return; if (last !== null && r.turn !== last) out += ' '; out += { held: 'h', failed: 'f' }[r.body.result] || 'n'; last = r.turn; });
+    return out;
+  },
+
   // ---- in a session's summary (the detail pane)
   vcSession() {
     const c = EV.vcCount(EV.M), n = EV.vcTotal(c);
-    return `<div id="vc-session"><h3 style="margin-top:14px">${EV.term('Verdict', 'Verdicts')} against ${EV.term('Check', 'checks')}</h3>${EV.vcTable(c, 'session')}<p class="sm">${EV.VC_NOTE} ${n} verdict${n === 1 ? '' : 's'}${EV.s.step == null ? '' : ' by this step of the replay'}.</p></div>`;
+    return `<div id="vc-session"><h3 style="margin-top:14px">The ${EV.term('Check', 'checks')}, in the order they were made</h3><p id="vc-seq">${EV.seqHtml(EV.seqOf(EV.M))}</p><h3 style="margin-top:14px">${EV.term('Verdict', 'Verdicts')} against ${EV.term('Check', 'checks')}</h3>${EV.vcTable(c, 'session')}<p class="sm">${EV.VC_NOTE} ${n} verdict${n === 1 ? '' : 's'}${EV.s.step == null ? '' : ' by this step of the replay'}.</p></div>`;
   },
 
   // ---- on the Compare tab: the sessions of the chosen brief, never two briefs in one table
