@@ -908,15 +908,48 @@ line at the foot of every view.
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session and shows its checks in order, how many of its simulations were returned from an earlier one, and how many no decision rule names |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
-| A session | Header strip (always visible); "The system"; "What this session is made of"; overview from the final report with its claims as rows of full sentences; highlights; best so far; the work; the tests list; "How to read this page" |
+| A session | Header strip (always visible, labelled fields on one line); the overview from the final report, first and at full width, with its claims as rows of full sentences; "The system"; "What this session is made of"; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
 | Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score, the checklist; "Run one simulation" and "Run a sweep" |
 | Compare tab | Sessions of one brief with a tick each; two or more ticked are shown side by side: their best-so-far lines, a table, the first test that held; with operator columns on, the sweep as a parallel-coordinates chart with each recommendation as a bold line |
 | Share | "Copy link" on every item; export; print (overview, highlights, best so far, tests list; or the evidence sheet of one claim) |
 
-**"The system"** (`evidence_system.js`) is the first card of a session's page,
-under the header strip: the two computers of the brief, each an outline that
+**The top of a session's page** (`evidence_page.js`; **DECISIONS 2026-11-12**:
+the overview first, and the comparison with the brief's defaults).
+
+- **The header strip** stays in view: labelled fields on one line, each a
+  small label above its value: Brief, Session, How it ended, Simulations (used
+  of allowed), Checks (held and failed, as marks with their counts), Model,
+  Recommends; with the operator columns on, also the scheduling policy and the
+  gap to the best.
+- **The overview comes first, at full width**, so that a reader meets the
+  conclusion before the system and the work. Two columns: on the left the
+  goal, the recommended settings and the explanation (six lines, then "more");
+  on the right the expected result as a list, an output's name on the left and
+  its value on the right. Outputs that only repeat a setting (`link_rate_bps`,
+  `weight_udp`) are left out of that list; the full final report shows them.
+  Beside an output that a condition of the brief names stands the condition
+  ("the brief allows udp_loss_frac <= 0.01"). Below, side by side: when it
+  holds, when it breaks; then the claims.
+- **The recommendation against the brief's defaults.** Both are recorded; the
+  comparison is the page's. The knobs that differ are set large; the others
+  follow in one line, "at the brief's default: …"; a knob of the brief that the
+  report does not name is listed as "not named in the report". The strip's
+  "Recommends" names only the knobs that differ. The recommendation is stated
+  in these two places and nowhere else on the first screen.
+- A session without a final report says "No final report" and how it ended.
+- In the replay the report is absent before its step, not greyed: the overview
+  says "No final report by this step", the strip "no recommendation yet", and
+  the strip counts only the records by that step.
+- **The session's summary** in the detail pane keeps the flags, the start, the
+  duration, the turns, the model calls, the checks in order and the verdicts
+  against checks. It does not repeat the strip (model, simulations used, how
+  it ended). In the replay it shows only what is recorded by the step; the
+  figures written at the session's end are absent.
+
+**"The system"** (`evidence_system.js`) is the card under the overview: the
+two computers of the brief, each an outline that
 holds its ns-3 objects in the order a packet passes them (applications,
 internet stack, traffic control, net device), and the link between them.
 
@@ -932,11 +965,12 @@ internet stack, traffic control, net device), and the link between them.
   not the session's selection: the item open in the detail pane stays open, and
   the page does not move.
 - The scheduling policy is shown only with the operator columns on.
-- The card folds, and the browser remembers it. It is not printed. During the
-  replay it shows nothing recorded after the chosen step.
+- The card folds, and the browser remembers it; folded, its heading still says
+  which settings it shows. It is not printed. During the replay it shows
+  nothing recorded after the chosen step.
 
-**"What this session is made of"** (`evidence_glance.js`) is the second card:
-the whole session as one picture.
+**"What this session is made of"** (`evidence_glance.js`) is the card after
+it: the whole session as one picture.
 
 - A column per turn (and "start" for the harness's baseline); a row per kind
   of item: hypotheses, decision rules, simulations (under the name of their
@@ -965,7 +999,9 @@ the whole session as one picture.
   with no text, state or title; the key and the sentence under the table name
   only what is recorded by then.
 - The card folds like "The system": a "fold" button in its heading, and the
-  browser remembers it. It is not printed.
+  browser remembers it. Folded, its line carries its content: the counts from
+  the records by the replay's step ("5 turns · 12 hypotheses · 12 checks, 10
+  held and 2 failed as marks · 44 simulations"). It is not printed.
 
 **The tests list follows the replay as the tree does.** A group heading and a
 test's row can be read from the step at which their experiment is recorded; a
@@ -1256,15 +1292,15 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 148 | the shell: colours, styles, the list of scripts |
+| `index.html` | 155 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
 | `evidence_home.js` | 58 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 115 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 63 | a session's page, top to bottom |
+| `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_page.js` | 83 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 77 | best so far |
 | `evidence_knob.js` | 95 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
@@ -1274,7 +1310,7 @@ above all, so the counts understate the size.
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 43 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
-| `evidence_more.js` | 72 | summary, the tests list, the final report in full, the evidence sheet |
+| `evidence_more.js` | 73 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 70 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_margin.js` | 40 | the margin of a check: how far it was from its decision rule; a column of the tests list |
@@ -1305,4 +1341,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-56 files, 8,757 lines in all.
+56 files, 8,791 lines in all.

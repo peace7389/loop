@@ -5,14 +5,15 @@ Object.assign(EV, {
   summaryKV() {
     const M = EV.M, m = M.meta || {}, f = m.flags || null, row = EV.files.row || {}, e = EV.e, c = M.counts;
     const mins = m.started && m.ended ? Math.round((new Date(m.ended) - new Date(m.started)) / 6e4) + ' min' : row.running ? 'running now' : EV.nr;
-    const allowed = M.brief && M.brief.limits ? M.brief.limits.simulations : f ? f.budget : null, unusable = M.steps.filter(s => s.kind === 'answer' && s.warn).length;
-    const kinds = {}; M.exps.forEach(x => { const k = x.by === 'harness' ? 'baseline' : x.kind || 'not recorded'; kinds[k] = (kinds[k] || 0) + 1; });
-    const st = {}; M.hyps.forEach(h => { st[h.state] = (st[h.state] || 0) + 1; });
-    const kv = [['model', m.model || EV.nr], ['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], ...(EV.s.op ? [[EV.term('Scheduling policy', 'scheduling policy') + ' (operator column)', EV.policyText(EV.files.row)]] : []),
-      ['started', m.started ? m.started.replace('T', ' ') : M.recs[0] && M.recs[0].ts ? M.recs[0].ts.replace('T', ' ') : EV.nr], ['duration', mins],
-      [EV.term('Simulation', 'simulations') + ' used / allowed', `${m.simulations ?? row.simulations ?? EV.nr} / ${allowed ?? EV.nr}`], [EV.term('Turn', 'turns'), `${m.turns ?? c.turn}${unusable ? ` · ${unusable} unusable` : ''}`],
-      ['model calls', m.calls ?? EV.nr], ['replies cut off', m.cut_off ?? EV.nr], ['how it ended', row.running ? 'running now' : m.how || EV.nr]];
-    return `<div class="kv">${kv.map(([k, v]) => `<div><span>${k}</span><b style="font-size:13.5px">${String(v).startsWith('<') ? v : e(v)}</b></div>`).join('')}</div>
+    const unusable = M.steps.filter(s => s.kind === 'answer' && s.warn).length;  // the model, the simulations used and how it ended stand in the header strip, not here again
+    // in the replay only what is recorded by its step: the figures written at the session's end (duration, calls, replies cut off) are absent
+    const live = EV.s.step == null, seen = EV.seen, at = live ? null : EV_DATA.stateAt(M, EV.s.step);
+    const kinds = {}; M.exps.filter(x => seen(x.id)).forEach(x => { const k = x.by === 'harness' ? 'baseline' : x.kind || 'not recorded'; kinds[k] = (kinds[k] || 0) + 1; });
+    const st = {}; M.hyps.filter(h => seen(h.id)).forEach(h => { const s = at ? at[h.id] || 'open' : h.state; st[s] = (st[s] || 0) + 1; });
+    const kv = [['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], ...(EV.s.op ? [[EV.term('Scheduling policy', 'scheduling policy') + ' (operator column)', EV.policyText(EV.files.row)]] : []),
+      ['started', m.started ? m.started.replace('T', ' ') : M.recs[0] && M.recs[0].ts ? M.recs[0].ts.replace('T', ' ') : EV.nr], ...(live ? [['duration', mins], [EV.term('Turn', 'turns'), `${m.turns ?? c.turn}${unusable ? ` · ${unusable} unusable` : ''}`], ['model calls', m.calls ?? EV.nr], ['replies cut off', m.cut_off ?? EV.nr]]
+        : [[EV.term('Turn', 'turns') + ' by this step', String(EV.glCounts().turn)]])];
+    return `<div class="kv" id="sum-kv">${kv.map(([k, v]) => `<div><span>${k}</span><b style="font-size:13.5px">${String(v).startsWith('<') ? v : e(v)}</b></div>`).join('')}</div>
       <p class="sm" style="margin-top:6px">${EV.term('Hypothesis', 'hypotheses')} by state: ${EV.STATES.filter(s => st[s]).map(s => `${st[s]} ${s}`).join(' · ') || 'none'} · ${EV.term('Experiment', 'experiments')} by kind: ${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(' · ') || 'none'}</p>`;
   },
 

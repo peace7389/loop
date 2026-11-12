@@ -44,9 +44,17 @@ Object.assign(EV, {
     return 'Point at a mark to read what it is. A hypothesis, its decision rule, the simulations that rule names, its check and its verdict stand in one line down a column: together they are one test.';
   },
 
+  // how many of each kind the records hold by the replay's step
+  glCounts() {
+    const M = EV.M, S = EV.s, seen = EV.seen, ck = r => M.checks.filter(q => q.result === r && seen(q.id)).length;
+    return { turn: M.turns.filter(t => t.n > 0 && (S.step == null || (t.steps[0] ? t.steps[0].k : 0) <= S.step)).length, hyp: M.hyps.filter(h => seen(h.id)).length, rule: M.tests.filter(T => T.rule && seen(T.exp)).length, sim: M.sims.filter(q => seen(q.id)).length,
+      exp: M.exps.filter(x => seen(x.id)).length, check: M.checks.filter(q => seen(q.id)).length, held: ck('held'), failed: ck('failed'), verdict: M.recs.filter(r => r.type === 'verdict' && seen(r.id)).length, report: M.repRec && seen(M.repRec.id) ? 1 : 0 };
+  },
+
   glance() {
-    const fold = EV.store('ev-made') === '1', foldBtn = `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`;
-    if (fold) return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item, a column per ${EV.term('Turn', 'turn')} · folded</small> ${foldBtn}</h2></div>`;
+    const fold = EV.store('ev-made') === '1', foldBtn = `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`, n = EV.glCounts(), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
+    // folded, its line carries its content: the counts, from the records
+    if (fold) return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, live = S.step == null, sel = S.sel || {}, info = EV.glInfo(S.sel), st = live ? null : EV_DATA.stateAt(M, S.step);
     const claim = S.claim ? M.claims[S.claim - 1] : null, hitT = new Set(claim ? claim.tests : []), hitH = new Set(claim ? claim.hyps : []);
     const gap = '<i class="gm"></i>';   // an empty place
@@ -77,8 +85,6 @@ Object.assign(EV, {
         return v ? mark(kind + (again ? '-again' : ''), 'test', T.id, v.id, `${v.id} · ${v.result}, given in turn ${v.turn}${again ? ' · the same verdict: one hypothesis, several decision rules' : ''}${odd ? ' · disagrees with its check' : ''}`, odd ? 'odd' : '') : gap; }).join(''),
       report: c => (c.t.report ? mark('report', 'report', 'report', c.t.report.id, 'the final report') : ''),
     };
-    const n = { turn: cols.filter(c => c.t.n > 0).length, hyp: M.hyps.filter(h => seen(h.id)).length, rule: M.tests.filter(T => T.rule && seen(T.exp)).length, sim: M.sims.filter(q => seen(q.id)).length, exp: M.exps.filter(x => seen(x.id)).length,
-                check: M.checks.filter(q => seen(q.id)).length, verdict: M.recs.filter(r => r.type === 'verdict' && seen(r.id)).length, report: M.repRec && seen(M.repRec.id) ? 1 : 0 };
     const row = (by, icon, term, word, count, note, k) => `<tr data-by="${by}"><th><span class="gi">${EV.gk(icon)}</span>${EV.term(term, word)} <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}</th>${cols.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
     const head = cols.map(c => { const r = c.t.malformed.concat(c.t.refusals).filter(q => seen(q.id)).length;
       return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="open" data-t="log" data-id="${c.t.n}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? `<span class="grf warnc" data-refused="${r}" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">${r}</span>` : ''}${
