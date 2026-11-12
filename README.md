@@ -34,7 +34,7 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `checks/build2/`, `checks/build3/` | Operator checks of the revised simulator, with the command of each and `results.json` (checks 1 to 11 in `build3`) |
 | `checks/sweeps/<id>/` | A sweep: every combination of a grid of knob values for one brief and one scheduling policy, run by the control server (`POST /api/sweep`). `table.csv` has one row per simulation, `status.json` the progress |
 | `checks/keys/<brief>.json` | The answer key of a brief: which sweep belongs to which scheduling policy, notes, and the checklist a session is judged by |
-| `checks/scores/<session>.json` | The score of a finished session, written by `harness/score.py`: best row of the sweep for the goal, the model's recommendation against it, simulations used, the checklist with the operator's judgements |
+| `checks/scores/<session>.json` | The score of a finished session, written by `harness/score.py`: best row of the sweep for the goal, the model's recommendation against it, simulations used, the checklist with the operator's judgements and notes (made with `score.py --judge` or on the Operator tab) |
 | `trace/` | Short packet-level event recordings made by the operator |
 | `viewer/` | The viewer: `index.html` + the `evidence_*.js` files are the evidence page, one page for the whole cycle (Home, new session, a session's page, compare, review, export). Earlier pages, kept working: `index_runs.html` + `adrs_view.js` (the run page), `index_full.html` + `adrs_view_full.js` (six pages, with the system diagram and the packet events), `index_old.html` |
 

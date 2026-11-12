@@ -717,6 +717,7 @@ only.
 | `POST /api/stop` | `{session}`: stops a session started here |
 | `POST /api/run` | `{params, policy, brief}`: one operator simulation into `checks/op-<time>/`, listed in `checks/control.jsonl` |
 | `POST /api/sweep`, `GET /api/sweep/<id>`, `POST /api/sweep/<id>/stop` | 10.2 |
+| `POST /api/judge` | 10.4 |
 | `POST /api/review` | 10.5 |
 | `POST /api/export` | 10.6 |
 | `POST /api/brief` | saves a new brief after `tools.check_brief`; an existing id is refused |
@@ -790,8 +791,12 @@ sweep's table, and writes `checks/scores/<session>.json`:
   recommendation is better than every row of the sweep), and whether the
   conditions hold at the recommendation;
 - simulations used, and the size of the sweep;
-- the checklist, each item `yes`, `no` or `unjudged`. The operator judges
-  (`--judge 2=yes`); judgements are kept when the score is written again.
+- the checklist, each item `yes`, `no` or `unjudged`, with a note where the
+  operator wrote one. The operator judges on the command line (`--judge
+  2=yes`) or on the Operator tab, which sends `POST /api/judge {session, n,
+  judgement, note}`: `control.py` writes the judgement and the note into the
+  same file, only for a session that has a score. Judgements and notes are
+  kept when the score is written again.
 
 For a brief with an open goal the operator enters the goal the report states
 (`--target`, `--direction`, `--condition`). There is no answer key or sweep for
@@ -911,7 +916,7 @@ line at the foot of every view.
 | A session | Header strip (always visible, labelled fields on one line); the overview from the final report, first and at full width, with its claims as rows of full sentences; "The system"; "What this session is made of"; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
-| Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score, the checklist; "Run one simulation" and "Run a sweep" |
+| Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score with the knobs that differ from the sweep's best row marked, the checklist with the operator's judgement and note for each item; "Run one simulation" and "Run a sweep" |
 | Compare tab | Sessions of one brief with a tick each; two or more ticked are shown side by side: their best-so-far lines, a table, the first test that held; with operator columns on, the sweep as a parallel-coordinates chart with each recommendation as a bold line |
 | Share | "Copy link" on every item; export; print (overview, highlights, best so far, tests list; or the evidence sheet of one claim) |
 
@@ -966,6 +971,29 @@ nothing in it scrolls sideways.
   one column per setting that differs between them (in bold) and per measure
   the rule judges, so it grows downward, not sideways. It stands under the
   chart of the judged measure, at the pane's width.
+
+**The sweep on the Operator tab** (`evidence_heat.js`): a heat map over two
+chosen knobs; each cell holds the best value of the target among the sweep's
+rows that meet the conditions.
+
+- **One colour scale at a time**, chosen by a switch above the map: over all
+  cells, or "within 1% of the best", where the scale runs from 99% of the best
+  value to the best and every cell below that is drawn in the palest step; the
+  key says so and gives their number. The darkest step is the best.
+- **Across**, the values stand in the order of size. Where the step between
+  neighbours changes there is a small gap and the value is printed; under the
+  axis each stretch is bracketed, and a sentence names every stretch with its
+  step, worked out from the values ("0.05 to 0.25 by 0.05 · to 0.3 by 0.01 ·
+  to 0.31 by 0.0002 · …").
+- **Marks**: the session's simulations are numbered circles, in their order.
+  Circles that would overlap are one dark mark with their count; a click on it
+  lists them under the map, and each line opens that simulation in the
+  session. The label of the best cell stands above the map, joined to its cell
+  by a line, so it covers no number.
+- **The score**: in the two tables (the sweep's best row; the recommendation,
+  simulated) a knob whose values differ is in bold with "≠".
+- **The checklist**: each item has yes, no or unjudged and a note; a change is
+  saved at once (10.4) and the row is brought up to date in place.
 
 **"The system"** (`evidence_system.js`) is the card under the overview: the
 two computers of the brief, each an outline that
@@ -1310,9 +1338,9 @@ above all, so the counts understate the size.
 | `schema.json` | 430 | the answer format |
 | `prompt.txt` | 31 | the system prompt |
 | `manifest.json` | 22 | outputs and tools, described |
-| `control.py` | 535 | the operator's server |
+| `control.py` | 564 | the operator's server |
 | `session_figures.py` | 82 | figures counted from a session's records, for control.py's session rows |
-| `score.py` | 126 | operator: score a session |
+| `score.py` | 127 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
 | `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
 | `make_trace.py` | 38 | operator: packet-event recordings |
@@ -1330,14 +1358,14 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `index.html` | 163 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
+| `evidence.js` | 164 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
 | `evidence_home.js` | 58 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 90 | a session's page, top to bottom |
+| `evidence_page.js` | 91 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 77 | best so far |
 | `evidence_knob.js` | 95 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
@@ -1352,7 +1380,8 @@ above all, so the counts understate the size.
 | `evidence_verdicts.js` | 70 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_margin.js` | 40 | the margin of a check: how far it was from its decision rule; a column of the tests list |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
-| `evidence_operator.js` | 68 | the Operator tab |
+| `evidence_operator.js` | 52 | the Operator tab: the score, the checklist and its judgements |
+| `evidence_heat.js` | 64 | the sweep as a heat map: the colour range, the stretches of the axis, the session's simulations as marks |
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
 | `evidence_compare.js` | 64 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
@@ -1378,4 +1407,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-56 files, 8,815 lines in all.
+57 files, 8,895 lines in all.

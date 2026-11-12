@@ -22,6 +22,8 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
                        status.json (progress). One sweep at a time. Returns the sweep's status, with its id.
   GET  /api/sweep/<id> that sweep's status.json
   POST /api/sweep/<id>/stop   stops it; the rows finished so far stay in the table
+  POST /api/judge      {session, n, judgement, note}: the operator's judgement (yes | no | unjudged) and note for item n of the
+                       checklist of a scored session -> checks/scores/<session>.json, as score.py --judge writes it
   POST /api/review     {session, item, tick, note}: the reviewer's tick and note for one item of a session's page
                        -> checks/reviews/<session>.json (read back by the page as a file)
   POST /api/export     {session, operator}: that session as a folder that opens without a server (export_session.py) ->
@@ -386,6 +388,33 @@ def save_review(body):
     return {"session": sid, "items": len(marks)}
 
 
+def save_judgement(body):
+    """The operator's judgement of one checklist item of a scored session (yes, no or unjudged) and a note: written into
+    checks/scores/<session>.json, where score.py --judge writes it. score.py keeps both when the session is scored again."""
+    sid, n, judgement, note = body.get("session"), body.get("n"), body.get("judgement"), body.get("note", "")
+    if not (isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid) and (tools.SESSIONS / sid).is_dir()):
+        raise Refused(400, "session must be the id of an existing session")
+    if type(n) is not int or judgement not in ("yes", "no", "unjudged") or not isinstance(note, str) or len(note) > 2000:
+        raise Refused(400, "a judgement needs n (the number of the checklist item), judgement (yes, no or unjudged) and note (a text of at most 2000 characters)")
+    path = CHECKS / "scores" / f"{sid}.json"
+    with LOCK:
+        if not path.is_file():
+            raise Refused(400, f"{sid} has no score yet (harness/score.py {sid} writes it): only a scored session is judged")
+        score = json.loads(path.read_text())
+        item = next((c for c in score.get("checklist") or [] if c.get("n") == n), None)
+        if item is None:
+            raise Refused(400, f"the checklist of {sid} has no item {n}")
+        item["judgement"] = judgement
+        if note.strip():
+            item["note"] = note
+        else:
+            item.pop("note", None)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(score, indent=1) + "\n")
+        tmp.replace(path)
+    return {"session": sid, "n": n, "judgement": judgement, "note": item.get("note", "")}
+
+
 def export(body):
     """One session as a folder (and a zip) that opens without a server; operator-only data only when asked for."""
     sid = body.get("session")
@@ -508,7 +537,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": lambda: stop_session(body), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body), "/api/export": lambda: export(body)}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": lambda: stop_session(body), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body), "/api/judge": lambda: save_judgement(body), "/api/export": lambda: export(body)}.get(self.path)
             m = re.fullmatch(r"/api/sweep/([^/]+)/stop", self.path)
             if m:
                 do = lambda: stop_sweep(m.group(1))

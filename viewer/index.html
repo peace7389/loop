@@ -12,7 +12,7 @@
      evidence_views.js View 1 (session flow) and View 2 (hypothesis map); evidence_flow.js View 3 (one test) and
      the chart; evidence_cards.js the trail, the work-log card, the brief; evidence_test.js a test and a hypothesis;
      evidence_panels.js the experiment panel and a simulation's result panel; evidence_more.js the sections below (brief,
-     summary, hypotheses, tests grouped under their experiments, final report) and the evidence sheet; evidence_operator.js the Operator tab; evidence_compare.js and evidence_parallel.js the Compare tab;
+     summary, hypotheses, tests grouped under their experiments, final report) and the evidence sheet; evidence_operator.js the Operator tab (score, checklist); evidence_heat.js its sweep as a heat map; evidence_compare.js and evidence_parallel.js the Compare tab;
      evidence_review.js the review queue and the sign-off; evidence_verdicts.js the table of verdicts against checks and the checks in order; evidence_margin.js the margin of each check; evidence_share.js the links, the export and printing. The page writes nothing
      except the reviewer's ticks and notes, through POST /api/review. The earlier pages: index_runs.html (runs compared,
      any setting against any measure), index_full.html (system objects, packet events, run control and the brief editor). -->
@@ -100,7 +100,7 @@
 .ev .cv { position: relative; height: 170px; } .ev .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; } .ev .exp { font-size: var(--f-note); color: var(--text-muted); text-align: right; }
 .ev .exp button { font-size: var(--f-note); padding: 0 7px; } .ev .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; }
 .ev .kv div span { display: block; font-size: var(--f-note); color: var(--text-muted); } .ev .kv div b { font-size: var(--f-text); }
-.ev .heat rect.cell { stroke: var(--surface-1); stroke-width: 1; } .ev details summary { cursor: pointer; color: var(--text-secondary); }
+.ev .heat rect.cell { stroke: var(--surface-1); stroke-width: 1; } .ev .heat .hm.on circle { stroke: var(--series-1); stroke-width: 3; } .ev .heat .hm:hover circle { stroke: var(--text-primary); } .ev .jm .gk { margin-right: 6px; } .ev details summary { cursor: pointer; color: var(--text-secondary); }
 .ev .hcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; } .ev .hc { border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
 .ev .hc:hover { border-color: var(--text-primary); } .ev code { font-size: var(--f-sec); overflow-wrap: anywhere; } .ev a[data-act] { cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted); }
 .ev-title { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 2px 2px 12px; } .ev-title h1 { font-size: var(--f-page); } .ev-title .primary { min-width: 9.5em; }
@@ -156,7 +156,7 @@
 <div class="ev" id="ev"><div class="ev-card">Loading the session list…</div></div>
 <script>
 const css = n => getComputedStyle(document.getElementById('ev')).getPropertyValue(n).trim();  // also used by adrs_view.js
-['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_marks.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_page.js', 'evidence_system.js', 'evidence_glance.js', 'evidence_high.js', 'evidence_best.js', 'evidence_knob.js', 'evidence_tree.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_margin.js', 'evidence_verdicts.js', 'evidence_operator.js', 'evidence_compare.js', 'evidence_parallel.js', 'evidence_review.js', 'evidence_share.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
+['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_marks.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_page.js', 'evidence_system.js', 'evidence_glance.js', 'evidence_high.js', 'evidence_best.js', 'evidence_knob.js', 'evidence_tree.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_margin.js', 'evidence_verdicts.js', 'evidence_operator.js', 'evidence_heat.js', 'evidence_compare.js', 'evidence_parallel.js', 'evidence_review.js', 'evidence_share.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
   const s = document.createElement('script'); s.src = name + '?t=' + Date.now(); s.onload = ok; s.onerror = () => no(name); document.head.appendChild(s); })), Promise.resolve())
   .then(() => EV.start()).catch(name => { document.getElementById('ev').innerHTML = '<div class="ev-card">Cannot load ' + name + '.</div>'; });
 </script>

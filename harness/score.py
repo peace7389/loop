@@ -86,8 +86,9 @@ def main():
 
     out_file = CHECKS / "scores" / f"{a.session}.json"
     old = json.loads(out_file.read_text()) if out_file.is_file() else {}
-    judged = {c["item"]: c["judgement"] for c in old.get("checklist", [])}
-    checklist = [{"n": i + 1, "item": item, "judgement": judged.get(item, "unjudged")} for i, item in enumerate(key.get("checklist", []))]
+    judged = {c["item"]: c for c in old.get("checklist", [])}  # the operator's judgements and notes are kept when a session is scored again
+    checklist = [{"n": i + 1, "item": item, "judgement": judged.get(item, {}).get("judgement", "unjudged"), **({"note": judged[item]["note"]} if judged.get(item, {}).get("note") else {})}
+                 for i, item in enumerate(key.get("checklist", []))]
     for j in a.judge:
         n, _, v = j.partition("=")
         if not n.isdigit() or not 1 <= int(n) <= len(checklist) or v not in ("yes", "no", "unjudged"):
