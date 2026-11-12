@@ -20,14 +20,15 @@ Object.assign(EV, {
     const M = EV.M, e = EV.e;
     // the main list: one row per test, grouped under a light heading per experiment; an exploration is a heading with its question
     const list = M.exps.map(x => { const ts = M.tests.filter(T => T.exp === x.id), n = x.sims.length;
-      const head = `<tr class="grp pick" data-act="open" data-t="exp" data-id="${x.id}"><td colspan="4">${EV_ICON.experiment} experiment ${x.id} · ${x.turn ? 'turn ' + x.turn : 'before the first turn'} · ${n} simulation${n === 1 ? '' : 's'} · ${
+      const head = `<tr class="grp pick" data-act="open" data-t="exp" data-id="${x.id}"><td colspan="5">${EV_ICON.experiment} experiment ${x.id} · ${x.turn ? 'turn ' + x.turn : 'before the first turn'} · ${n} simulation${n === 1 ? '' : 's'} · ${
         ts.length ? ts.length + (ts.length === 1 ? ' test' : ' tests') : x.by === 'harness' ? 'the baseline, no tests' : 'no tests: it explores “' + e(x.question || 'not recorded') + '”'}</td></tr>`;
       return head + ts.map(T => { const h = M.hypById[T.hyp], v = T.verdict, txt = h ? h.text : '';
         return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b> <span class="sm">${e(txt.length > 90 ? txt.slice(0, 88) + '…' : txt)}</span></td><td class="sm">${e(EV.compared(T))}</td>
-          <td>${T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? '<span class="mut">not checked</span>' : '–'}</td>
+          <td>${T.check ? `<span class="${T.check.result === 'held' ? 'ok' : 'bad'}">${e(T.check.result)}</span>` : T.rule ? '<span class="mut">not checked</span>' : '–'}</td><td class="noprint mgc">${EV.marginCell(T.check)}</td>
           <td>${v ? `${v.id} ${e(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' <span class="warnc" title="the verdict disagrees with its check">⚠</span>' : ''}` : '<span class="mut">no verdict</span>'}</td></tr>`; }).join(''); }).join('');
     return `<div class="ev-card" id="s-tests"><h2>${EV.term('Test', 'Tests')} <small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in · click a row to open it on the right</small></h2>
-        ${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${list}</tbody></table></div>` : '<p class="sm">none</p>'}</div>`;
+        ${M.exps.length ? `<div class="ev-scroll"><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th class="noprint" title="${e(EV.MARGIN_NOTE)}">margin</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${list}</tbody></table></div>
+        <p class="sm noprint" id="mg-note"><b>margin</b>: ${e(EV.MARGIN_NOTE)} The bar is cut at ±100%.</p>` : '<p class="sm">none</p>'}</div>`;
   },
 
   // one line that says what an evidence item is

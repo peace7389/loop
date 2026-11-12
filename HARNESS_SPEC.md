@@ -1006,6 +1006,18 @@ printed; nothing is filled in; a click never moves the page.
   first format says "not recorded". The sequence comes from `control.py`'s
   session row. The open session's summary shows the same sequence, counted
   from its own records, so an exported copy shows it too.
+- **How far each check was from its decision rule** (`evidence_margin.js`): a
+  column "margin" in the tests list. It is read from the check's rule with its
+  numbers written in: for `a > b` or `a >= b` it is (a - b) / |b|; for `a < b`
+  or `a <= b` it is (b - a) / |b|; comparisons joined by AND give the
+  smallest, by OR the largest. A right side of 0, or `==`, has no margin: "not
+  applicable" (none of the 337 checks so far). Held or failed is taken from
+  the check, never from the sign. It is shown as a number with a short bar,
+  cut at ±100% and marked when cut. The column's note, word for word: "By how
+  much of the rule's right side the measured side cleared it. It depends on how
+  the rule was written, so it compares checks of the same kind only; it does
+  not say whether a prediction was bold." The tests list is printed without
+  this column.
 
 **The model's numbers against the measurements.** Where the model's text names
 a measure with a number, or gives a number that equals a measured value of the
@@ -1177,7 +1189,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 139 | the shell: colours, styles, the list of scripts |
+| `index.html` | 140 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 56 | Home |
@@ -1194,9 +1206,10 @@ above all, so the counts understate the size.
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 43 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
-| `evidence_more.js` | 69 | summary, the tests list, the final report in full, the evidence sheet |
+| `evidence_more.js` | 70 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 70 | verdicts against checks: the table of counts, in a session's summary and on Compare |
+| `evidence_margin.js` | 40 | the margin of a check: how far it was from its decision rule; a column of the tests list |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
 | `evidence_operator.js` | 68 | the Operator tab |
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
@@ -1224,4 +1237,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 48 | what is where, for a reader of the repository |
 
-54 files, 8,602 lines in all.
+55 files, 8,644 lines in all.
