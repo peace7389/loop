@@ -27,10 +27,11 @@ const EV = {
   store: (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (x) { return null; } },
 
   // ---- the address decides the view: /viewer/ is Home; ?session=<id> that session's page (&tab=operator its operator
-  // tab); ?tab=compare the comparison of the sessions of one brief
+  // tab); ?tab=compare the comparison of the sessions of one brief. The top bar is the same in every view.
   route() {
     const q = new URLSearchParams(location.search), S = EV.s, tab = q.get('tab');
-    S.sid = q.get('session') || (EV.off ? EV_EXPORT.session : null); S.brief = q.get('brief') || S.brief; S.view = tab === 'compare' ? 'compare' : !S.sid ? 'home' : tab === 'operator' ? 'operator' : 'session';
+    const named = q.get('session') || (EV.off ? EV_EXPORT.session : null); if (named) S.sid = named;  // Home and Compare name none: the session chosen earlier stays chosen
+    S.brief = q.get('brief') || S.brief; S.view = tab === 'compare' ? 'compare' : !named ? 'home' : tab === 'operator' ? 'operator' : 'session';
     S.item = q.get('item') || '';  // the item a link names: selected once the session is read
   },
   address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : S.sel && EV.M && EV.M.id === S.sid && EV.itemOf(S.sel) ? '&item=' + encodeURIComponent(EV.itemOf(S.sel)) : ''}`; },
@@ -78,17 +79,19 @@ const EV = {
   draw() {
     const S = EV.s, e = EV.e, st = EV.st, y = window.scrollY, on = v => (S.view === v ? 'on' : '');
     Object.values(EV.charts).forEach(c => c.destroy()); EV.charts = {};
+    const need = st.sessions.some(x => x.id === S.sid) ? '' : ' disabled title="Choose a session first"';  // the two pages of one session
     const label = x => `${x.id} · ${x.brief || 'before briefs'} · ${String(x.started || '').replace('T', ' ').slice(0, 16) || 'no record yet'} · ${x.simulations || 0} simulations · ${x.running ? 'running now' : x.how || 'ending not recorded'}`;
     const bar = EV.off ? `<div class="ev-bar"><b>Two hosts, one link: session ${e(S.sid)}</b><span><button data-act="view" data-id="session" class="${on('session')}">Session</button>${EV_EXPORT.operator ? ` <button data-act="view" data-id="operator" class="${on('operator')}">Operator</button>` : ''}</span>${EV_EXPORT.operator ? `<label style="font-weight:400"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label>` : ''}<span class="end">an exported copy · it opens without a server</span></div>`
-      : `<div class="ev-bar"><button data-act="view" data-id="home" class="${on('home')}">Home</button>
-      <label>${EV.term('Session', 'Session')} <select data-ch="session"><option value="">choose a session…</option>${st.sessions.slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select></label>
-      <span>${S.sid ? `<button data-act="view" data-id="session" class="${on('session')}">Session</button> <button data-act="view" data-id="operator" class="${on('operator')}">${EV.term('Operator', 'Operator')}</button> ` : ''}<button data-act="view" data-id="compare" class="${on('compare')}">Compare sessions</button></span>
-      <label style="font-weight:400" title="Operator-only items: the scheduling policy, the gap to the best row of the sweep"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label>
-      <span class="end">other pages: <a href="index_runs.html${S.sid ? '?session=' + e(S.sid) : ''}">runs compared</a> · <a href="index_full.html${S.sid ? '?session=' + e(S.sid) : ''}">system, packet events, older control page</a></span></div>`;
+      : `<div class="ev-bar ev-nav"><span class="grp"><span class="cap">All sessions</span><button data-act="view" data-id="home" class="${on('home')}">Home</button><button data-act="view" data-id="compare" class="${on('compare')}">Compare sessions</button></span>
+      <span class="grp"><span class="cap" title="${e(EV_DEF.Session)}">One session</span><select data-ch="session"><option value="">choose a session…</option>${st.sessions.slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select>
+      <button data-act="view" data-id="session" class="${on('session')}"${need}>Session</button><button data-act="view" data-id="operator" class="${on('operator')}"${need || ` title="${e(EV_DEF.Operator)}"`}>Operator</button></span>
+      <label class="end" style="font-weight:400" title="Operator-only items: the scheduling policy, the gap to the best row of the sweep"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label></div>`;
+    // the earlier pages are not part of this page's structure: one quiet line at the foot of every view
+    const foot = EV.off ? '' : `<div class="ev-foot noprint">earlier pages: <a href="index_runs.html${S.sid ? '?session=' + e(S.sid) : ''}">runs compared</a> · <a href="index_full.html${S.sid ? '?session=' + e(S.sid) : ''}">system, packet events, older control page</a></div>`;
     if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
     const body = S.view === 'home' ? EV.homeView() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
     const root = document.getElementById('ev'), inner = ['.tree', '.ev-lanes', '.ev-map', '.ev-side', '.qlist'].map(q => { const el = root.querySelector(q); return el && [q, el.scrollTop, el.scrollLeft]; }).filter(Boolean);
-    root.innerHTML = bar + body + '<div id="ev-print"></div>';
+    root.innerHTML = bar + body + foot + '<div id="ev-print"></div>';
     inner.forEach(([q, top, left]) => { const el = root.querySelector(q); if (el) { el.scrollTop = top; el.scrollLeft = left; } });  // the lists that scroll inside the page stay where the reader left them
     if (S.view === 'session' && EV.M && !EV.off) history.replaceState(null, '', EV.address());  // the address follows the selection: it is always the link to what is open
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
@@ -99,7 +102,7 @@ const EV = {
   // ---- clicks: every clickable thing carries data-act (and data-id); nothing here moves the page
   click(ev) {
     const t = ev.target.closest('[data-act]'); if (!t) return; const S = EV.s, a = t.dataset.act, id = t.dataset.id;
-    if (a === 'view') return EV.go(id === 'home' ? { view: 'home', sid: null } : { view: id });
+    if (a === 'view') return EV.go({ view: id });  // the chosen session stays chosen, wherever the reader goes
     if (a === 'pick') return EV.go({ view: 'session', sid: id });
     if (a === 'sort') { const h = S.home; h.dir = h.sort === id ? -h.dir : 1; h.sort = id; return EV.draw(); }
     if (a === 'open') { S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id, test: t.dataset.test || undefined };  // test: the test a simulation was opened from

@@ -1,5 +1,6 @@
-// Home: shown when no session is selected. Three actions (new session, open a session, compare sessions), the results
-// so far per brief, and the table of every session: sortable, filterable, a running session marked and listed first.
+// Home: all sessions. A title line with the one action that belongs here (new session), the results so far per brief,
+// and the table of every session: sortable, filterable, a running session marked and listed first; a row opens its
+// session. Nothing the top bar already offers (the list of sessions, Compare sessions) is repeated as a button here.
 // Everything comes from control.py's session list (the sessions' own files and, for the score and the review, checks/).
 // ======================================================================================================
 Object.assign(EV, {
@@ -40,11 +41,11 @@ Object.assign(EV, {
   homeView() {
     const e = EV.e, S = EV.s, st = EV.st, h = S.home, all = st.sessions, briefs = [...new Set(all.map(x => x.brief || ''))];
     const th = ([k, t, c]) => `<th${c ? ` class="${c}"` : ''}><a data-act="sort" data-id="${k}" title="Sort by this column">${t}${h.sort === k ? (h.dir > 0 ? ' ▲' : ' ▼') : ''}</a></th>`;
-    return `<div class="ev-acts"${EV.off ? ' style="display:none"' : ''}>
-        <div class="ev-card"><h2>New session</h2><p class="sm">Write or choose an assignment and start the AI on it.</p><p>${EV.newPanel ? `<button class="big" data-act="new">${S.newOpen ? 'Close' : 'New session…'}</button>` : '<a href="index_full.html#control">the older control page starts one</a>'}</p></div>
-        <div class="ev-card"><h2>Open a session</h2><p class="sm">See what the AI did and check it against the measurements.</p>
-          <p><select data-ch="session" class="big"><option value="">choose a session…</option>${all.slice().reverse().map(x => `<option value="${e(x.id)}">${e(`${x.id} · ${x.brief || 'before briefs'} · ${EV.ended(x)}`)}</option>`).join('')}</select></p></div>
-        <div class="ev-card"><h2>Compare sessions</h2><p class="sm">Across the sessions of one brief: how often and how well.</p><p><button class="big" data-act="view" data-id="compare">Compare sessions…</button></p></div></div>
+    const running = all.filter(x => x.running).length;
+    // one title line with the page's one action. Opening a session (a row below, or the top bar's list) and comparing
+    // (the top bar) each have one place, so they are not repeated here
+    return `<div class="ev-title"><div><h1>All sessions</h1><span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${running} running now` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
+        ${EV.newPanel ? `<button class="big primary" data-act="new" title="Write or choose an assignment and start the AI on it">${S.newOpen ? 'Close' : 'New session…'}</button>` : ''}</div>
       ${S.newOpen && EV.newPanel ? EV.newPanel() : ''}
       <div class="ev-card"><h2>Results so far<small>one line per ${EV.term('Brief', 'brief')}, counted from the sessions and, where they exist, their scores</small></h2>
         ${briefs.map(b => `<p><b>${e(b || 'before briefs')}</b>: ${e(EV.results(b))}</p>`).join('') || '<p class="sm">No session yet.</p>'}</div>

@@ -33,7 +33,11 @@
 .ev button.on { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
 .ev abbr { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
 .ev-bar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-bottom: 10px; font-size: 13px; }
-.ev-bar label { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; } .ev-bar .end { margin-left: auto; color: var(--text-secondary); font-weight: 400; }
+.ev-bar label { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
+/* the top bar never changes: two groups, always all of their items, each at its own place (the buttons have one weight, so the one switched on is no wider) */
+.ev-nav .grp { display: inline-flex; gap: 6px; align-items: center; padding-right: 14px; border-right: 1px solid var(--border); }
+.ev-nav .cap { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); margin-right: 2px; }
+.ev-nav select { width: 27em; max-width: 38vw; text-overflow: ellipsis; } .ev-nav button { font-weight: 600; } .ev-foot { margin-top: 18px; font-size: 12px; color: var(--text-muted); text-align: right; } .ev-bar .end { margin-left: auto; color: var(--text-secondary); font-weight: 400; }
 .ev-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; }
 .ev-card h2 { font-size: 16px; margin-bottom: 6px; } .ev-card h2 small { font-size: 12.5px; font-weight: 400; color: var(--text-secondary); margin-left: 8px; }
 .ev h3 { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin: 12px 0 4px; } .ev h3:first-child { margin-top: 0; }
@@ -82,8 +86,8 @@
 .ev .heat rect.cell { stroke: var(--surface-1); stroke-width: 1; } .ev details summary { cursor: pointer; color: var(--text-secondary); }
 .ev .hcs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; } .ev .hc { border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
 .ev .hc:hover { border-color: var(--text-primary); } .ev code { font-size: 12px; overflow-wrap: anywhere; } .ev a[data-act] { cursor: pointer; text-decoration: underline; text-decoration-color: var(--text-muted); }
-.ev-acts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; } .ev .big { font-size: 15px; padding: 8px 16px; font-weight: 600; max-width: 100%; }
-@media (max-width: 900px) { .ev-acts { grid-template-columns: 1fr; } }
+.ev-title { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin: 2px 2px 12px; } .ev-title h1 { font-size: 20px; margin: 0 10px 0 0; display: inline; }
+.ev .primary { background: var(--text-primary); color: var(--surface-1); border-color: var(--text-primary); white-space: nowrap; } .ev .big { font-size: 15px; padding: 8px 16px; font-weight: 600; max-width: 100%; }
 .ev th a { cursor: pointer; } .ev .pill.live { color: var(--good); border-color: var(--good); } .ev tr.run td { background: color-mix(in srgb, var(--good) 7%, transparent); }
 .ev .nw { display: grid; grid-template-columns: 1.2fr 1fr 1.5fr .8fr; gap: 10px 26px; align-items: start; } @media (max-width: 1100px) { .ev .nw { grid-template-columns: 1fr; } }
 .ev .kv input, .ev .kv select { width: 100%; } .ev .kv input[type=checkbox] { width: auto; } .ev-run { border-color: var(--good); }

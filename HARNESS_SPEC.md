@@ -859,9 +859,23 @@ Address: `?session=<id>` opens a session; `&tab=session|operator|compare`;
 `&item=<record id>` opens the page with that item selected. Without a session
 it is Home.
 
+**The top bar is the same in every view** (**DECISION 2026-11-12**, after the
+operator found that it changed when a session was chosen and repeated what
+Home offered). It has two groups, always with all of their items, each at its
+own place:
+
+- **All sessions**: Home, Compare sessions.
+- **One session**: the list of sessions, then that session's two pages,
+  Session and Operator. The two wait, greyed, until a session is chosen.
+
+On the right is the switch "show operator columns". A chosen session stays
+chosen on Home and on Compare. Every destination has one place: nothing the
+bar offers is repeated as a button in a page. The earlier pages are one quiet
+line at the foot of every view.
+
 | Place | What is there |
 |---|---|
-| Home | Three actions (new session, open a session, compare sessions); the results so far, one line per brief; the table of every session, sortable and filterable, a running one first; a switch "show operator columns" |
+| Home | A title line with the one action that belongs there, New session; the results so far, one line per brief; the table of every session, sortable and filterable, a running one first, where a row opens its session |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
 | A session | Header strip (always visible); overview from the final report with its claims as chips; highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
@@ -905,7 +919,8 @@ Rules of the page:
 
 The page's checks are kept outside the repository, in
 `~/research/tools/evidence_checks/` (`ev.sh` and Playwright scripts: click
-everything, the "Done when" checks of both plans, the replay leak test).
+everything, the "Done when" checks of both plans, the replay leak test, and
+`ev_bar.py`: the top bar has the same items at the same places in every view).
 Anything that starts, stops or writes is tried on a scratch copy of the project
 on port 8611, never on the real sessions.
 
@@ -1035,10 +1050,10 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 110 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 160 | the address, loading, the top bar, clicks, replay, review marks |
+| `index.html` | 114 | the shell: colours, styles, the list of scripts |
+| `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
-| `evidence_home.js` | 55 | Home |
+| `evidence_home.js` | 56 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
@@ -1078,4 +1093,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 46 | what is where, for a reader of the repository |
 
-48 files, 7,975 lines in all.
+48 files, 7,983 lines in all.
