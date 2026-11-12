@@ -5,6 +5,7 @@
 // is drawn here at all: a later item is an empty dot, with no text, state or title; the key and the sentence under the
 // table name only what is recorded by then. The card is not printed (the page prints four parts, and this is not one).
 // It folds like the card "The system": a "fold" button in its heading, and the browser remembers it.
+// Under each turn's name its header says how many simulations were left at its start ("not recorded" before s008).
 // ======================================================================================================
 Object.assign(EV, {
   // the hypotheses, tests and simulations that belong with an item (the selected one, or the one pointed at)
@@ -60,7 +61,7 @@ Object.assign(EV, {
     // with which every turn fits the width of the page; with none, the smallest, and the table scrolls sideways. A column
     // with more tests than fit in one line wraps, the same way in every row, so a test still stands in one line downwards.
     const room = document.getElementById('ev').clientWidth - 76, places = (c, cap, per) => Math.max(Math.min(c.ts.length + c.own.length, cap), Math.min(c.x ? c.x.sims.length : 0, per), 1);
-    const fit = [[17, 8, 6, 1], [15, 8, 6, 1], [13, 6, 5, 1], [13, 6, 4, 0], [11, 5, 4, 0]].find(([w, cap, per, notes]) => (notes ? 320 : 170) + cols.reduce((a, c) => a + Math.max(52, places(c, cap, per) * w) + 19, 0) <= room), fits = !!fit;
+    const fit = [[17, 8, 6, 1], [15, 8, 6, 1], [13, 6, 5, 1], [13, 6, 4, 0], [11, 5, 4, 0]].find(([w, cap, per, notes]) => (notes ? 320 : 170) + cols.reduce((a, c) => a + Math.max(c.t.n && c.t.left == null ? 66 : 52, places(c, cap, per) * w) + 19, 0) <= room), fits = !!fit;  // 66: room for "not recorded" under the turn's name
     const [W, cap, per, notes] = fit || [11, 5, 4, 0]; cols.forEach(c => { c.w = W * places(c, cap, per); });
     const hm = (h, first, c) => { const s = st ? st[h.id] || 'open' : h.state;  // a hypothesis is drawn filled once, where it was stated; hollow wherever it stands again
       return mark(first ? I.hypothesis : '◇', 'hyp', h.id, first ? h.id : c.x.id, first ? `${h.id} · ${s}` : `${h.id}, ${h.turn === c.t.n ? 'put to another decision rule' : `stated in turn ${h.turn} and tested here`}`, s === 'dropped' ? 'dr' : ''); };
@@ -79,7 +80,8 @@ Object.assign(EV, {
                 check: M.checks.filter(q => seen(q.id)).length, verdict: M.recs.filter(r => r.type === 'verdict' && seen(r.id)).length, report: M.repRec && seen(M.repRec.id) ? 1 : 0 };
     const row = (by, icon, term, word, count, note, k) => `<tr data-by="${by}"><th><span class="gi">${icon}</span>${EV.term(term, word)} <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}</th>${cols.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
     const head = cols.map(c => { const r = c.t.malformed.concat(c.t.refusals).filter(q => seen(q.id)).length;
-      return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="open" data-t="log" data-id="${c.t.n}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? ` <span class="warnc" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">⚠${r > 1 ? r : ''}</span>` : ''}</td>`; }).join('');
+      return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="open" data-t="log" data-id="${c.t.n}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? ` <span class="warnc" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">⚠${r > 1 ? r : ''}</span>` : ''}${
+        c.t.n ? `<div class="gleft" data-left="${c.t.left ?? ''}" title="${c.t.left == null ? 'How many simulations were left at the start of this turn is not recorded (sessions before s008)' : `${c.t.left} simulation${c.t.left === 1 ? ' was' : 's were'} left at the start of turn ${c.t.n}`}">${c.t.left == null ? EV.nr : c.t.left + ' left'}</div>` : ''}</td>`; }).join('');
     const has = f => cols.some(f), res = k => M.checks.some(q => q.result === k && seen(q.id)), vd = k => M.recs.some(r => r.type === 'verdict' && r.body.result === k && seen(r.id));  // the key names a sign only once one is drawn
     const key = [['<span class="ok">✓</span> held', res('held')], ['<span class="bad">✗</span> failed', res('failed')], ['<span class="ok">▲</span> supported', vd('supported')], ['<span class="bad">▼</span> refuted', vd('refuted')], ['■ inconclusive', vd('inconclusive')],
       ['◇ a hypothesis drawn before: stated in an earlier turn, or put to another decision rule', has(c => c.ts.some((T, i) => { const h = M.hypById[T.hyp]; return h && (h.turn !== c.t.n || c.ts.findIndex(q => q.hyp === T.hyp) !== i); }))],

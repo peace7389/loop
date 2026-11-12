@@ -1028,6 +1028,12 @@ printed; nothing is filled in; a click never moves the page.
   "run-to-run variation"; with an open goal the table is one line, "not
   applicable: the goal is chosen by the model". Its note, word for word: "A
   range shows how far the model moved a knob, not how much the knob matters."
+- **Simulations left at each turn**: no chart (**DECISION**: "an even pace" has
+  no definition, because the number of turns is not known in advance, and the
+  count stays flat while a session tests on simulations it already has).
+  Instead, in the card "What this session is made of", each turn's header says
+  how many simulations were left at its start ("30 left"); "not recorded"
+  before s008, which have no turn records.
 
 **The model's numbers against the measurements.** Where the model's text names
 a measure with a number, or gives a number that equals a measured value of the
@@ -1199,13 +1205,13 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 140 | the shell: colours, styles, the list of scripts |
+| `index.html` | 141 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 162 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_home.js` | 56 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 112 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_glance.js` | 114 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 65 | a session's page, top to bottom |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 76 | best so far |
@@ -1247,4 +1253,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 48 | what is where, for a reader of the repository |
 
-55 files, 8,667 lines in all.
+55 files, 8,670 lines in all.
