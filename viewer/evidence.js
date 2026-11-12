@@ -94,8 +94,9 @@ const EV = {
     root.innerHTML = bar + body + foot + '<div id="ev-print"></div>';
     inner.forEach(([q, top, left]) => { const el = root.querySelector(q); if (el) { el.scrollTop = top; el.scrollLeft = left; } });  // the lists that scroll inside the page stay where the reader left them
     if (S.view === 'session' && EV.M && !EV.off) history.replaceState(null, '', EV.address());  // the address follows the selection: it is always the link to what is open
+    // flowFit (below): a test's flow chart is drawn to the width it has, once the HTML is in place
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
-    if (S.view === 'session') { EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'home' && EV.afterHome) EV.afterHome();
+    if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'home' && EV.afterHome) EV.afterHome();
     if (window.scrollY !== y) window.scrollTo(0, y);
   },
 

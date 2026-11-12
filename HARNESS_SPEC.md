@@ -948,6 +948,25 @@ the overview first, and the comparison with the brief's defaults).
   it ended). In the replay it shows only what is recorded by the step; the
   figures written at the session's end are absent.
 
+**The detail pane fits its width.** Nothing in it is wider than the pane, and
+nothing in it scrolls sideways.
+
+- The flow chart of one test (`evidence_flow.js`) is drawn to the width it
+  has, after the page is in place: hypothesis, decision rule, the simulations
+  the rule names, "did the rule hold?", verdict, next, and the hypotheses that
+  followed. In a pane of 700 px or more the first five share one row and the
+  last two stand on a second; in a pane wide enough all seven stand in one
+  row; in a narrower one the chart continues over as many rows as it needs,
+  with an arrow from the end of a row to the start of the next. No box is cut
+  off.
+- The hypothesis box shows the id and the state; the hypothesis's text stands
+  above the chart. The decision-rule box shows two lines of the rule; the rule
+  in full stays below. A longer text in a box ends after its lines with "…".
+- The table "the simulations this rule names" has one row per simulation and
+  one column per setting that differs between them (in bold) and per measure
+  the rule judges, so it grows downward, not sideways. It stands under the
+  chart of the judged measure, at the pane's width.
+
 **"The system"** (`evidence_system.js`) is the card under the overview: the
 two computers of the brief, each an outline that
 holds its ns-3 objects in the order a packet passes them (applications,
@@ -1292,7 +1311,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 155 | the shell: colours, styles, the list of scripts |
+| `index.html` | 157 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 163 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -1306,7 +1325,7 @@ above all, so the counts understate the size.
 | `evidence_knob.js` | 95 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 56 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
-| `evidence_flow.js` | 96 | View 3 (one test as a flow chart) and its chart |
+| `evidence_flow.js` | 104 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 43 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
@@ -1341,4 +1360,4 @@ above all, so the counts understate the size.
 | `snapshot.sh` | 13 | refresh the copies and stage everything |
 | `README.md` | 49 | what is where, for a reader of the repository |
 
-56 files, 8,791 lines in all.
+56 files, 8,801 lines in all.

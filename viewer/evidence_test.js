@@ -9,15 +9,15 @@ Object.assign(EV, {
     const simK = Math.max(M.recStep[x.id] ?? 0, ...T.sims.map(s => M.recStep[s.id] ?? 0)), kc = T.check ? M.recStep[T.check.id] ?? simK : simK, v = T.verdict, kv = v ? M.recStep[v.id] ?? kc : kc;
     const vary = EV.varying(T.sims), same = [...new Set(T.sims.flatMap(s => Object.keys(s.params)))].filter(k => !vary.includes(k)), ms = EV.measuresOf(T.rule);
     const show = (k, val) => { const [u, f] = EV.unit(k); return typeof val !== 'number' ? '–' : (+f(val).toPrecision(7)).toLocaleString('en-US') + (u ? ' ' + u : ''); };
-    const table = !T.sims.length ? `<p class="sm">the simulations this rule names: ${EV.nr}</p>` : `<table><thead><tr><th></th>${T.sims.map(s => `<th class="num"><a data-act="open" data-t="sim" data-id="${e(s.id)}" data-test="${e(T.id)}">${EV.gkey(s.same_as ? 'sim-returned' : 'sim')}${e(s.id)}</a><br>${e(s.label)}${s.label === T.control ? '<br>control' : ''}</th>`).join('')}</tr></thead><tbody>
-        ${vary.map(k => `<tr class="diff"><td>${e(TH_DATA.KNOB[k] || k)} <span class="warnc">≠</span></td>${T.sims.map(s => `<td class="num">${e(s.params[k] ?? '–')}</td>`).join('')}</tr>`).join('')}
-        ${ms.map(k => `<tr><td>${e(TH_DATA.PLAIN[k] || k)}</td>${T.sims.map(s => `<td class="num">${show(k, (s.metrics || {})[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>
+    // one row per simulation; one column per setting that differs and per measure the rule judges: the table grows downward, not sideways
+    const table = !T.sims.length ? `<p class="sm">the simulations this rule names: ${EV.nr}</p>` : `<table class="tt" id="tt-${e(T.id)}"><thead><tr><th>simulation</th>${vary.map(k => `<th class="num">${e(TH_DATA.KNOB[k] || k)} <span class="warnc" title="differs between these simulations">≠</span></th>`).join('')}${ms.map(k => `<th class="num">${e(TH_DATA.PLAIN[k] || k)}</th>`).join('')}</tr></thead><tbody>
+        ${T.sims.map(s => `<tr data-sim="${e(s.id)}"><td><a data-act="open" data-t="sim" data-id="${e(s.id)}" data-test="${e(T.id)}">${EV.gkey(s.same_as ? 'sim-returned' : 'sim')}${e(s.id)}</a> ${e(s.label)}${s.label === T.control ? ' <span class="mut">· control</span>' : ''}</td>${vary.map(k => `<td class="num dv">${e(s.params[k] ?? '–')}</td>`).join('')}${ms.map(k => `<td class="num">${show(k, (s.metrics || {})[k])}</td>`).join('')}</tr>`).join('')}</tbody></table>
         <p class="sm">${vary.length ? 'In bold: the settings that differ between them. ' : T.sims.length > 1 ? 'These simulations were given the same settings. ' : ''}The same in all: ${e(same.map(k => `${k} ${T.sims[0].params[k]}`).join(' · ') || 'nothing')}.</p>`;
     return `${EV.viewTest(T)}
       <p class="sm">run in ${EV.link(x.id)} (turn ${x.turn})${others.length ? ' together with tests of ' + others.map(q => EV.tlink(q, e(q.hyp))).join(', ') : ', the only test in it'}</p>
-      <div class="ev-top" style="margin-top:6px"><div data-step="${simK}">${T.sims.length ? EV.canvas('test', T.id, wide) : ''}
+      <div data-step="${simK}" style="margin-top:6px">${T.sims.length ? EV.canvas('test', T.id, wide) : ''}
           <p class="sm"><button data-act="wide" data-id="${e(T.id)}">${wide ? `back to the ${T.sims.length} simulation${T.sims.length === 1 ? '' : 's'} this rule names` : `the same chart over all ${x.sims.length} simulations of ${e(x.id)}`}</button></p></div>
-        <div data-step="${simK}"><h3>the simulations this rule names</h3>${table}</div></div>
+        <div data-step="${simK}" style="margin-top:12px"><h3>the simulations this rule names</h3>${table}</div>
       <h3>the ${EV.term('Decision rule', 'decision rule')}, in full</h3><p>${T.rule ? `<code>${e(T.rule)}</code>` : EV.nr}</p>
       ${T.rival ? `<p class="sm">${EV.term('Rival', 'rival')}: ${e(T.rival)} · under the rival the rule would have ${e(T.rival_predicts || 'not recorded')}</p>` : ''}
       <p class="sm" data-step="${kc}">${EV.term('Check', 'check')} by the harness: ${T.check ? `${EV_ICON.check} ${e(T.check.id)} · ${e(T.check.numbers)} → ${EV.checkRes(T.check)}` : EV.nr}</p>

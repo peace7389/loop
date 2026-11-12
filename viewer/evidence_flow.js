@@ -1,5 +1,6 @@
-// View 3: one test as a flow chart, left to right: hypothesis → decision rule (with its rival) → the simulations this
-// rule names → did the rule hold? → verdict → next → the hypothesis that followed. A test is one hypothesis put to one
+// View 3: one test as a flow chart, left to right: hypothesis (its id and state; its text stands above the chart) →
+// decision rule (two lines; in full below) → the simulations this rule names → did the rule hold? → verdict → next →
+// the hypothesis that followed. A test is one hypothesis put to one
 // decision rule; EV_DATA derives it from the records. Below: the chart of the judged measure (Chart.js), one point per
 // simulation, the control marked, the rule's threshold drawn; for a test or, on request, for a whole experiment.
 // ======================================================================================================
@@ -22,41 +23,47 @@ Object.assign(EV, {
   },
   tlink: (T, text) => `<a data-act="open" data-t="test" data-id="${EV.e(T.id)}" title="test ${EV.e(T.id)}">${EV_ICON.test} ${text || 'test of ' + EV.e(T.hyp)}</a>`,
 
-  viewTest(T) {
-    const M = EV.M, e = EV.e, S = EV.s, x = M.expById[T.exp], h = M.hypById[T.hyp], C = [0, 152, 326, 492, 616, 770, 924], CW = [130, 152, 144, 100, 132, 132, 112];
-    const BH = 84, top = 22, n = T.sims.length, simH = Math.max(BH, 50 + 15 * n + (T.missing.length ? 15 : 0)), H = top + Math.max(BH + 70, simH + 8), y = top, mid = y + BH / 2, ks = M.recStep[x.id] ?? 0;
+  // The chart is drawn to the width of the place it stands in (flowFit, once the HTML is there): its boxes share that
+  // width, and where they do not fit in one row the chart continues on the next. Nothing is cut off, nothing scrolls sideways.
+  viewTest(T) { return `<div class="t-flow" data-test="${EV.e(T.id)}"></div>`; },
+  flowFit() {
+    document.querySelectorAll('#ev .t-flow').forEach(el => { const T = EV.M.testById[el.dataset.test];
+      for (let i = 0; T && i < 2 && Number(el.dataset.w) !== el.clientWidth; i++) { el.dataset.w = el.clientWidth; el.innerHTML = EV.flowSvg(T, el.clientWidth); } });  // twice: the chart's height can bring the pane a scroll bar
+  },
+  flowSvg(T, W) {
+    const M = EV.M, e = EV.e, S = EV.s, x = M.expById[T.exp], h = M.hypById[T.hyp], BH = 84, G = 15, n = T.sims.length, simH = Math.max(BH, 50 + 15 * n + (T.missing.length ? 15 : 0)), ks = M.recStep[x.id] ?? 0;
     const simEnd = T.sims.reduce((a, s) => (s.ts > a ? s.ts : a), ''), first = T.ts && simEnd && T.ts <= simEnd, simK = Math.max(ks, ...T.sims.map(s => M.recStep[s.id] ?? 0));
-    const a = (x1, y1, x2, y2, k) => `<path class="edge" data-step="${k}" d="M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2 - 2},${y2}" marker-end="url(#ev-ah)"/>`;
-    const fo = (xx, yy, w, hh, html, k) => `<foreignObject data-step="${k}" x="${xx}" y="${yy}" width="${w}" height="${hh}"><div xmlns="http://www.w3.org/1999/xhtml" class="bt sm" style="padding:2px 0">${html}</div></foreignObject>`;
-    const cut = (s, m) => { s = String(s || ''); return s.length > m ? s.slice(0, m - 1) + '…' : s; };
+    const cut = (s, m) => { s = String(s || ''); return s.length > m ? s.slice(0, Math.max(1, m - 1)) + '…' : s; };
     const atK = S.step == null ? null : EV_DATA.stateAt(M, S.step), st = h ? (atK ? atK[h.id] || 'open' : h.state) : 'not recorded';  // during the replay: the state at that step
     const cs = T.check ? [T.check] : [], v = T.verdict, bad = EV.contradicts(v, cs), kc = T.check ? M.recStep[T.check.id] ?? simK : simK, kv = v ? M.recStep[v.id] ?? kc : kc;
-    const res = T.check ? T.check.result : T.rule ? 'not checked' : 'no rule', dx = C[3] + CW[3] / 2;
-    let svg = EV.box(C[0], y, CW[0], BH, 'model', `${EV_ICON.hypothesis} <b>${e(T.hyp)}</b> · ${e(st)}<br><small>${e(cut(h && h.text, 80))}</small>`, `data-act="open" data-t="hyp" data-id="${e(T.hyp)}" data-step="${M.recStep[T.hyp] ?? 0}"`, h ? EV.stCls(st) : '');
-    svg += a(C[0] + CW[0], mid, C[1], mid, ks);
-    svg += EV.box(C[1], y, CW[1], BH, 'model', T.rule ? `⊢ <b>${EV.term('Decision rule', 'decision rule')}</b><br><small>${e(cut(T.rule, 64))}</small>${T.rival ? `<br><small>${EV.term('Rival', 'rival')} would give: ${e(T.rival_predicts || 'not recorded')}</small>` : ''}`
-      : `⊢ <b>no decision rule</b><br><small>${EV.nr}</small>`, `data-step="${ks}"`, T.rule ? '' : 'warn');
-    if (T.rule) svg += fo(C[1], y + BH + 2, CW[1] + 20, 64, `written ${EV.time(T.ts)} · simulations finished ${EV.time(simEnd)} ${first ? `<span class="rs">${EV.gkey('check')}written first</span>` : EV.warn('not written first')}`, ks);
-    svg += a(C[1] + CW[1], mid, C[2], mid, simK);
-    const rows = T.sims.map((q, i) => { const cy = y + 46 + i * 15;
-      return `<g data-act="open" data-t="sim" data-id="${e(q.id)}" data-test="${e(T.id)}"><rect x="${C[2] + 6}" y="${cy - 8}" width="${CW[2] - 10}" height="15" fill="transparent"/><circle cx="${C[2] + 14}" cy="${cy}" r="3.6" class="${q.same_as ? '' : 'stripe'}" style="${q.same_as ? 'fill:none;stroke:var(--by-simulator);stroke-width:1.4' : ''}"/>
-        <text x="${C[2] + 23}" y="${cy + 4}" style="fill:var(--text-primary)${q.label === T.control ? ';font-weight:700' : ''}">${e(cut(q.id + ' ' + q.label, 17))}</text><title>${e(`${q.id} · ${q.label}${q.label === T.control ? ' · the control' : ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`)}</title></g>`; }).join('');
-    svg += `<g data-step="${simK}" data-by="simulator">${EV.box(C[2], y, CW[2], simH, 'simulator', `${EV_ICON.simulation} <b>${n}</b> ${EV.term('Simulation', n === 1 ? 'simulation' : 'simulations')} <small>this rule names</small>`)}${rows}
-      ${T.missing.length ? `<text x="${C[2] + 10}" y="${y + simH - 8}" style="fill:var(--warning)">${e(cut('not found: ' + T.missing.join(', '), 24))}</text>` : ''}</g>`;
-    svg += a(C[2] + CW[2], mid, C[3] + 8, mid, kc);
-    svg += `<g data-step="${kc}"><polygon points="${dx},${mid - 42} ${dx + 48},${mid} ${dx},${mid + 42} ${dx - 48},${mid}" class="bx"/>
-      <text x="${dx}" y="${mid - 6}" text-anchor="middle">did the rule hold?</text>${T.check ? EV.gks(EV.ck(res), dx - res.length * 3.2 - 9, mid + 2, 12) : ''}<text x="${dx + (T.check ? 7 : 0)}" y="${mid + 12}" text-anchor="middle" style="fill:var(--text-primary)">${e(res)}</text><title>${e(T.check ? `${T.check.id}: ${T.check.rule} → ${T.check.numbers} → ${T.check.result}` : 'no check')}</title></g>`;
-    svg += fo(C[3] - 20, y + BH + 2, CW[3] + 52, 64, T.check ? `with the numbers: ${e(cut(T.check.numbers, 90))}` : T.rule ? `the harness's check: ${EV.nr}` : '', kc);
-    svg += a(C[3] + CW[3] - 2, mid, C[4], mid, kv);
-    svg += EV.box(C[4], y, CW[4], BH, 'model', v ? `${EV_ICON.verdict} <b>${v.id}</b> · ${EV.verdictRes(v.result)}${bad ? ' ' + EV.warn('disagrees with its check') : ''}<br><small>${e(cut(v.because, 70))}</small>`
-      : `${EV_ICON.verdict} <b>no verdict</b><br><small>${h && h.verdict ? 'the hypothesis was tested again first' : M.ended ? 'the session ended without one' : 'not given yet'}</small>`, v ? `data-act="open" data-t="log" data-id="${v.turn}" data-step="${kv}"` : `data-step="${kv}"`, bad ? 'warn' : '');
-    svg += a(C[4] + CW[4], mid, C[5], mid, kv);
-    svg += EV.box(C[5], y, CW[5], BH, 'model', `<b>next</b><br><small>${!v ? 'no verdict, so no next step' : v.next ? e(cut(v.next, 96)) : EV.nr}</small>`, `data-step="${kv}"`);
-    const fol = EV.followers(T), fk = Math.max(kv, ...fol.ids.map(id => M.recStep[id] ?? 0));
-    svg += a(C[5] + CW[5], mid, C[6], mid, fk);
-    svg += EV.box(C[6], y, CW[6], BH, 'model', fol.ids.length ? `followed by<br>${fol.ids.map(id => `<b>${EV_ICON.hypothesis} ${id}</b>`).join(', ')}${fol.via ? `<br><small>through the table ${e(fol.via)}</small>` : ''}` : '<small>no hypothesis followed from it</small>',
-      fol.ids.length ? `data-act="open" data-t="hyp" data-id="${fol.ids[0]}" data-step="${fk}"` : `data-step="${fk}"`);
-    return `<div class="ev-scroll"><svg width="${C[6] + CW[6] + 4}" height="${H}" role="img" aria-label="Test ${e(T.id)} as a flow chart">${EV.arrowDefs()}<text x="0" y="12" class="sm">${EV_ICON.test} test of ${e(T.hyp)} · in experiment ${e(x.id)} · turn ${x.turn}${x.old ? ' · first format: no check by the harness' : ''}</text>${svg}</svg></div>`;
+    const res = T.check ? T.check.result : T.rule ? 'not checked' : 'no rule', fol = EV.followers(T), fk = Math.max(kv, ...fol.ids.map(id => M.recStep[id] ?? 0));
+    // the boxes in order: name, smallest width, share of the room left over, height, the step from which it can be read
+    const B = [['hyp', 92, 0, BH, M.recStep[T.hyp] ?? 0], ['rule', 142, 2, BH, ks], ['sims', 128, 1, simH, simK], ['check', 96, 0, BH, kc], ['verdict', 134, 2, BH, kv], ['next', 138, 3, BH, kv], ['fol', 108, 1, BH, fk]].map(([k, w, g, hh, step]) => ({ k, w, g, h: hh, step }));
+    const rows = [[]]; B.forEach(b => { const r = rows[rows.length - 1]; if (r.length && r.reduce((a, q) => a + q.w + G, 0) + b.w > W - 12) rows.push([b]); else r.push(b); });
+    let y = 22; rows.forEach(r => { const spare = W - (rows.length > 1 ? 12 : 2) - r.reduce((a, q) => a + q.w, 0) - G * (r.length - 1), gs = r.reduce((a, q) => a + q.g, 0); let xx = 0;
+      r.forEach(b => { b.w += gs ? Math.floor(spare * b.g / gs) : 0; b.x = xx; b.y = y; xx += b.w + G; }); r.y = y; r.h = Math.max(...r.map(b => b.h), BH + (r.some(b => (b.k === 'rule' && T.rule) || b.k === 'check') ? 62 : 0)); y += r.h + 24; });
+    const fo = (xx, yy, w, html, k) => `<foreignObject data-step="${k}" x="${xx}" y="${yy}" width="${w}" height="60"><div xmlns="http://www.w3.org/1999/xhtml" class="bt sm lc3" style="padding:2px 0;height:auto">${html}</div></foreignObject>`;
+    const draw = { hyp: b => EV.box(b.x, b.y, b.w, BH, 'model', `${EV_ICON.hypothesis} <b>${e(T.hyp)}</b><br>${e(st)}`, `data-act="open" data-t="hyp" data-id="${e(T.hyp)}" data-step="${b.step}"`, h ? EV.stCls(st) : ''),
+      rule: b => EV.box(b.x, b.y, b.w, BH, 'model', T.rule ? `⊢ <b>${EV.term('Decision rule', 'decision rule')}</b><br><small class="lc2">${e(T.rule)}</small>` : `⊢ <b>no decision rule</b><br><small>${EV.nr}</small>`, `data-step="${ks}"`, T.rule ? '' : 'warn')
+        + (T.rule ? fo(b.x, b.y + BH + 2, b.w, `written ${EV.time(T.ts)} · simulations finished ${EV.time(simEnd)} ${first ? `<span class="rs">${EV.gkey('check')}written first</span>` : EV.warn('not written first')}`, ks) : ''),
+      sims: b => `<g data-step="${simK}" data-by="simulator">${EV.box(b.x, b.y, b.w, simH, 'simulator', `${EV_ICON.simulation} <b>${n}</b> ${EV.term('Simulation', n === 1 ? 'simulation' : 'simulations')} <small>this rule names</small>`)}${T.sims.map((q, i) => { const cy = b.y + 46 + i * 15;
+          return `<g data-act="open" data-t="sim" data-id="${e(q.id)}" data-test="${e(T.id)}"><rect x="${b.x + 6}" y="${cy - 8}" width="${b.w - 10}" height="15" fill="transparent"/>${EV.gks(q.same_as ? 'sim-returned' : 'sim', b.x + 8, cy - 6, 12, ' style="color:var(--by-simulator)"')}
+            <text x="${b.x + 23}" y="${cy + 4}" style="fill:var(--text-primary)${q.label === T.control ? ';font-weight:700' : ''}">${e(cut(q.id + ' ' + q.label, Math.floor((b.w - 28) / 6.3)))}</text><title>${e(`${q.id} · ${q.label}${q.label === T.control ? ' · the control' : ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`)}</title></g>`; }).join('')}
+        ${T.missing.length ? `<text x="${b.x + 10}" y="${b.y + simH - 8}" style="fill:var(--warning)">${e(cut('not found: ' + T.missing.join(', '), Math.floor((b.w - 14) / 6)))}</text>` : ''}</g>`,
+      check: b => { const dx = b.x + b.w / 2, mid = b.y + BH / 2, nx = Math.max(0, b.x - 12), nw = Math.min(b.w + 58, W - nx);
+        return `<g data-step="${kc}"><polygon points="${dx},${mid - 42} ${dx + 48},${mid} ${dx},${mid + 42} ${dx - 48},${mid}" class="bx"/>
+          <text x="${dx}" y="${mid - 6}" text-anchor="middle">did the rule hold?</text>${T.check ? EV.gks(EV.ck(res), dx - res.length * 3.2 - 9, mid + 2, 12) : ''}<text x="${dx + (T.check ? 7 : 0)}" y="${mid + 12}" text-anchor="middle" style="fill:var(--text-primary)">${e(res)}</text><title>${e(T.check ? `${T.check.id}: ${T.check.rule} → ${T.check.numbers} → ${T.check.result}` : 'no check')}</title></g>`
+          + fo(nx, b.y + BH + 2, nw, T.check ? `with the numbers: ${e(T.check.numbers)}` : T.rule ? `the harness's check: ${EV.nr}` : '', kc); },
+      verdict: b => EV.box(b.x, b.y, b.w, BH, 'model', v ? `${EV_ICON.verdict} <b>${v.id}</b> · ${EV.verdictRes(v.result)}${bad ? ' ' + EV.warn('disagrees with its check') : ''}<br><small class="${bad ? 'lc2' : 'lc3'}">${e(v.because)}</small>`
+        : `${EV_ICON.verdict} <b>no verdict</b><br><small>${h && h.verdict ? 'the hypothesis was tested again first' : M.ended ? 'the session ended without one' : 'not given yet'}</small>`, v ? `data-act="open" data-t="log" data-id="${v.turn}" data-step="${kv}"` : `data-step="${kv}"`, bad ? 'warn' : ''),
+      next: b => EV.box(b.x, b.y, b.w, BH, 'model', `<b>next</b><br><small class="lc4">${!v ? 'no verdict, so no next step' : v.next ? e(v.next) : EV.nr}</small>`, `data-step="${kv}"`),
+      fol: b => EV.box(b.x, b.y, b.w, BH, 'model', fol.ids.length ? `followed by<br>${fol.ids.map(id => `<b>${EV_ICON.hypothesis} ${id}</b>`).join(', ')}${fol.via ? `<br><small>through the table ${e(fol.via)}</small>` : ''}` : '<small>no hypothesis followed from it</small>',
+        fol.ids.length ? `data-act="open" data-t="hyp" data-id="${fol.ids[0]}" data-step="${fk}"` : `data-step="${fk}"`) };
+    // the arrows: along a row; from the end of a row round to the start of the next
+    const edge = (d, k) => `<path class="edge" data-step="${k}" d="${d}" marker-end="url(#ev-ah)"/>`;
+    const svg = rows.map((r, i) => r.map((b, j) => { const mid = b.y + BH / 2, p = j ? r[j - 1] : i ? rows[i - 1][rows[i - 1].length - 1] : null, inset = q => (q.k === 'check' ? q.w / 2 - 48 : 0);
+      return (!p ? '' : j ? edge(`M${p.x + p.w - inset(p)},${mid} H${b.x + inset(b) - 2}`, b.step) : edge(`M${p.x + p.w - inset(p)},${p.y + BH / 2} h${8 + inset(p)} V${b.y - 12} H${b.x + b.w / 2} V${b.y - 2}`, b.step)) + draw[b.k](b); }).join('')).join('');
+    return `<svg width="${W}" height="${y - 16}" role="img" aria-label="Test ${e(T.id)} as a flow chart">${EV.arrowDefs()}<text x="0" y="12" class="sm">${EV_ICON.test} test of ${e(T.hyp)} · in experiment ${e(x.id)} · turn ${x.turn}${x.old ? ' · first format: no check by the harness' : ''}</text>${svg}</svg>`;
   },
 
   // ---- the judged measure, one point per simulation, the control marked, the decision rule's threshold as a line
@@ -94,3 +101,4 @@ Object.assign(EV, {
     ch.thFile = `${o.test || x.id}-${k}`; T._charts[cid] = ch;
   },
 });
+window.addEventListener('resize', () => { if (EV.s.view === 'session' && document.querySelector('#ev .t-flow')) { EV.flowFit(); EV.applyReplay(); } });
