@@ -176,10 +176,11 @@ draft's length and token count.
 │   ├── decision_rules.py         reads and checks decision rules (8.4)
 │   ├── tools.py                  all the model can reach, and the brief check (section 9)
 │   ├── manifest.json             what is the same for every brief: outputs, tools
-│   ├── schema.json               the answer format, enforced by the model server
+│   ├── schema.json               the answer format, enforced by the model server; its params object is built from the brief (8.3)
 │   ├── prompt.txt                the system prompt
 │   ├── control.py                the operator's server, port 8600 (section 10)
-│   ├── session_figures.py        figures counted from a session's records, for control.py's session rows (12.1)
+│   ├── session_figures.py        figures counted from a session's records, for control.py's session rows (12.1); finds the void checks
+│   ├── audit.py                  operator: what a session's records are worth as tests (10.8)
 │   ├── score.py                  operator: score a session against a sweep (10.4)
 │   ├── export_session.py         operator: a session as a folder that opens offline (10.6)
 │   ├── make_trace.py             operator: packet-event recordings (10.7)
@@ -189,6 +190,7 @@ draft's length and token count.
 │   ├── session.json              what it was given, the flags, how it ended (8.8)
 │   ├── ledger.jsonl              the record, append-only, written only by loop.py (8.7)
 │   ├── drafts.jsonl              the text of each draft; never opened
+│   ├── answers.jsonl             each turn's accepted answer as it was received (8.3); no tool reads it
 │   ├── report.json               the final report as accepted
 │   └── runs/
 │       ├── index.json            this session's simulations: {id, params, metrics}, one per line
@@ -202,6 +204,7 @@ draft's length and token count.
 │   ├── keys/<brief>.json         answer key (10.3)
 │   ├── scores/<session>.json     score; <session>.recommendation/ holds its one simulation (10.4)
 │   ├── reviews/<session>.json    the reviewer's ticks, notes and sign-off (10.5)
+│   ├── audit/<session>.json      the audit of a session's checks, verdicts, experiments and designs (10.8)
 │   ├── random.json               sessions whose policy the server chose (10.1)
 │   └── exports/                  exported sessions (not in the repository)
 ├── trace/                        packet-event recordings, operator-only (10.7)
@@ -471,8 +474,8 @@ briefs) cannot be continued either.
 3. The model is asked once. System message: `prompt.txt`. User message: the
    brief as JSON (with the descriptions of the outputs and the tools), the
    budget line, the ledger text, and the results of the tools it asked for in
-   its previous answer. `schema.json` is passed as `response_format`
-   (`json_schema`), so the reply is one JSON object of the answer format.
+   its previous answer. The answer format (8.3) is passed as `response_format`
+   (`json_schema`), so the reply is one JSON object of that format.
 4. If the reply is empty, cut off (`finish_reason` "length"), not JSON, or
    holds nothing usable, the model is asked a second time. Each attempt's draft
    is recorded.
@@ -486,10 +489,10 @@ may be null or empty):
 
 ```
 { "observations":   text
-  "hypotheses":     [ {text, prediction, follows_from: [ids | "brief"]} ]
+  "hypotheses":     [ {text, question, prediction, follows_from: [ids | "brief"]} ]
   "drop":           [ {id, why} ]
   "experiment":     { kind: "test"|"explore", tests: [H ids], question, varied: [knobs], control: label|null,
-                      runs: [ {label, params: {knob: value}} ],
+                      runs: [ {label, params: {every knob of the brief: value}} ],
                       decision_rules: [ {for, decision_rule, rival, rival_predicts: "held"|"failed"} ] } | null
   "verdicts":       [ {for, result: "supported"|"refuted"|"inconclusive", because, next} ]
   "report":         { ... 8.6 ... } | null
@@ -498,6 +501,37 @@ may be null or empty):
   "done":           true | false }
 ```
 
+**The params object comes from the brief; every design states every knob**
+(**DECISION 2026-11-13**, the operator's `FORMAT_FIX.md`, Part 1). At the start
+of a session `loop.answer_format` puts into `schema.json` what depends on the
+brief: `params` gets one property per knob, in the brief's order, **all
+required**, each with its type (`tools.KNOB_TYPES`) and, for a knob with
+choices, its `enum`; a setting the brief fixes is not a property. `varied`
+lists the same knobs, and `runs` holds at most the brief's simulations per
+experiment. For `two-hosts-udp-demand` the format has no `udpRate`.
+
+Why: the model server enforces the **order** of a schema's properties. Until
+2026-11-13 `params` was one fixed object with every key optional and
+`weightUdp` first, so a design that began with another key could no longer
+state `weightUdp` at all, and it ran at the default 0.5. Confirmed with two
+requests to the server on 2026-11-13 ("Give one design with udpRate 400Mbps
+and weightUdp 0.8, stating udpRate first"): under that order the answers
+began `{"udpRate": "400Mbps", ...` and none of three stated `weightUdp`; with
+the properties listed in the opposite order all three were
+`{"udpRate": "400Mbps", "weightUdp": 0.8}`. With every knob required the same
+request gives all six knobs, `weightUdp` 0.8 among them. What this did to the
+earlier sessions is in section 11 and in section 15, item 9.
+
+**A hypothesis is also put as a question** (`question`, required): the
+hypothesis as one plain question, for a reader who is not a specialist. The
+harness requires only that it is not empty; "at most 20 words" is guidance in
+the prompt and in the format's description.
+
+**Each turn's accepted answer is kept as it was received**, before any part
+was refused or cut, in `sessions/<id>/answers.jsonl` (`{turn, answer}`, one
+line per turn that had something usable), so that what was asked can be
+compared with what was run. No tool reads the file.
+
 `loop.sort_out` accepts or refuses each part on its own, in this order, and
 the parts accepted earlier count for the later ones:
 
@@ -505,8 +539,8 @@ the parts accepted earlier count for the later ones:
 |---|---|
 | verdict | the hypothesis is open and one of its decision rules has been checked; it has a result and a because. It closes the hypothesis. |
 | drop | the hypothesis is open, none of its decision rules has been checked, and there is a reason. A tested hypothesis cannot be dropped: it needs a verdict. |
-| new hypothesis | it has a text and `follows_from`: ids of verdicts, checks, evidence tables or simulations that are in the ledger (a verdict accepted from this same answer counts, by the id it is about to get), or the word `brief`. It gets the next id `H<n>`, usable in the same answer. |
-| experiment | see 8.5. At most one per turn. |
+| new hypothesis | it has a text, a question (not empty) and `follows_from`: ids of verdicts, checks, evidence tables or simulations that are in the ledger (a verdict accepted from this same answer counts, by the id it is about to get), or the word `brief`. It gets the next id `H<n>`, usable in the same answer. |
+| experiment | see 8.5. At most one per turn. It is itself taken part by part: a design or a decision rule can be refused and the rest run. |
 | budget request | a whole number of at least 1 and a reason. Granted up to the brief's limit, before this turn's experiment is counted. |
 | report | see 8.6. Only together with `done`, and `done` only with a report. |
 
@@ -546,16 +580,38 @@ the rival too and cannot tell the two explanations apart.
 
 ### 8.5 An experiment
 
-Accepted (`loop.experiment_problem`) when:
+Readable as it was sent (`loop.experiment_problem`) when:
 
 - it has 1 to `simulations_per_experiment` simulations, each with its own
   label (letters, digits and `_`, at most 20 characters);
 - every `params` key is a setting of the brief;
-- the new simulations it needs fit in the budget left;
 - `control` is one of the labels or null, and `varied` names knobs;
 - kind `test`: `tests` lists open hypotheses, with at least one decision rule
   for each and none for any other; every rule is readable and has its rival;
 - kind `explore`: a question, no tests and no decision rules.
+
+**A plan that cannot test anything is cut back before anything is run**
+(`loop.trim`; **DECISION 2026-11-13**, `FORMAT_FIX.md`, Parts 1 and 2). Each cut
+is a refused part with its own note, and the rest of the answer is kept:
+
+| What | Refused | The note says |
+|---|---|---|
+| a design that does not state every knob (the guard behind the answer format: `tools.clamp(design=label)`) | that design | "design `<label>` does not state `<knob>`" |
+| a knob listed in `varied` that has one value in every design | the whole experiment | "`<knob>` is listed as varied but has the single value `<v>` in every design" |
+| a decision rule that names two or more labels of which two are the same simulation (same settings and seed, also when both are returned from the same earlier simulation) | that decision rule | "this decision rule compares `<a>` with `<b>`, which are the same simulation (same settings and seed), so it cannot hold or fail for a reason; change the designs or the rule" |
+| two designs of one experiment with the same settings and seed | the later design | "design `<b>` has the same settings and seed as `<a>`; give it different settings or remove it" |
+| a decision rule that names a refused design | that decision rule | "this decision rule names `<b>`, a design that was refused; change the designs or the rule" |
+| a design that only refused decision rules name | that design: nothing is run for a refused rule's hypothesis | "design `<a>` is named only by a decision rule that was refused, so it is not run" |
+
+A tested hypothesis left without a decision rule is no longer tested by the
+experiment; when no decision rule or no design is left, the experiment is
+refused. None of these notes says anything about the system: each speaks only
+of the model's own plan. What is left is then counted against the budget: the
+new simulations it needs must fit in what is left.
+
+In s002 to s019, recorded before this, the same rules would have refused 198
+repeated designs in 32 experiments, 107 decision rules, and 29 experiments for
+a varied knob of one value.
 
 What the harness then does (`loop.experiment`):
 
@@ -573,11 +629,12 @@ What the harness then does (`loop.experiment`):
    rule, the rule with the measured numbers written in, and `held`, `failed`,
    or `not checked` (a simulation it names gave no value).
 
-**A simulation is not run twice.** One with the same settings and seed as an
-earlier one of the session (compared on every program option, rates by value),
-or as another of the same experiment, is not run again: its record carries the
-earlier result and `same_as`, a note says so, and it is not counted against the
-budget.
+**A simulation is not run twice.** One with the same settings and seed as a
+simulation of an earlier experiment of the session (compared on every program
+option, rates by value) is not run again: its record carries the earlier
+result and `same_as`, a note says so, and it is not counted against the
+budget. Within one experiment a repeated design is refused (above); sessions
+before s020 hold such repeats, returned under `same_as` as well.
 
 The budget counts simulations actually run.
 
@@ -612,9 +669,9 @@ model's answer.
 
 | Type | Id | By | Body | In the prompt |
 |---|---|---|---|---|
-| hypothesis | H | model | text, prediction, follows_from | yes, with its current state |
+| hypothesis | H | model | text, question, prediction, follows_from | yes, with its current state (the question is not shown) |
 | drop | W | model | for, why | yes |
-| experiment | X | model (X0: harness) | kind, tests, question, varied, control, runs [{label, params, clamped}], decision_rules | yes |
+| experiment | X | model (X0: harness) | kind, tests, question, varied, control, runs [{label, params, clamped}], decision_rules: what is left after `loop.trim`; `params` holds every knob of the brief (X0's is empty) | yes |
 | simulation | S | simulator | label, run_id, params, metrics or error, same_as | no (the evidence has its line) |
 | evidence | E | harness | experiment, lines | yes |
 | check | C | harness | for, experiment, decision_rule, rival, rival_predicts, with_numbers, result | yes |
@@ -633,7 +690,9 @@ policy are theirs, and they are not ledger records.
 Old formats, read but not written: `s001` has one simulation per experiment,
 `pass_if` instead of decision rules, `scratch` records and no `by`; `s002` and
 `s003` say `rules` / `rule`; sessions before `s008` have no `follows_from`, no
-`turn` records and no structured refusals.
+`turn` records and no structured refusals; sessions before `s020` have no
+`question`, no `answers.jsonl`, and designs whose `params` hold only the knobs
+the model stated (the others ran at the brief's default).
 
 ### 8.8 How a session ends, and `session.json`
 
@@ -670,8 +729,16 @@ parts of the answer one by one, with the rules of 8.3 to 8.6 in the model's
 terms; that a refused part is left out and named in a note; "Be concrete and
 quantitative. Prefer experiments that distinguish between explanations."
 
+Since 2026-11-13 it also says that every design states a value for every knob
+of the brief (a knob left as it was is stated with the value it had), and that
+each new hypothesis is also given as one plain question of at most 20 words,
+for a reader who is not a specialist.
+
 It must not describe the scheduling policy, how the scheduler works, TCP
-backoff, or any expected result.
+backoff, or any expected result. For that reason the prompt and the format
+give no example of a question about this system: the example of the
+operator's sheet ("Does the scheduler pass UDP's unused part of the link to
+TCP?") names the very behaviour the model is to find out (section 1).
 
 ## 9. What the model can reach: `tools.py`
 
@@ -693,7 +760,9 @@ was removed after s001, where the model read the policy's name in the scenario
 file and never had to test for it).
 
 Simulations are run only by the harness, for an accepted experiment:
-`run_many` forces each setting into the brief's ranges (`clamp`), starts the
+`run_many` forces each setting into the brief's ranges (`clamp`; with
+`design=<label>` it also refuses a design that does not state every knob,
+8.5), starts the
 built program with every option explicit (`options`: the fixed settings, the
 knobs' defaults, then the chosen values) and `TWOHOSTS_SCHED` in its
 environment, waits up to 600 s, and appends `{id, params, metrics}` to the
@@ -711,7 +780,7 @@ only.
 
 | Endpoint | What it does |
 |---|---|
-| `GET /api/status` | what is running, the briefs, the sweeps, and `sessions`: one row per session (brief, counts, checks held and failed, how it ended, policy, running, the figures of `session_figures.py`, and from `checks/` the score in short and the review) |
+| `GET /api/status` | what is running, the briefs, the sweeps, and `sessions`: one row per session (brief, counts, checks held and failed, how it ended, policy, running, the figures of `session_figures.py` (held and failed are counted without the void checks; `void` is [void checks, all checks]), and from `checks/` the score in short and the review) |
 | `GET /api/sessions` | that list alone |
 | `POST /api/session` | starts `loop.py` with the chosen flags: a new session, or with `session` a continued one. Up to 6 loops run side by side |
 | `POST /api/stop` | `{session}`: stops a session started here |
@@ -828,6 +897,30 @@ runs the built program with `--events` into `trace/NAME/` and lists it in
 `queue4`, `share-udp200m`, `cap-udp200m`); the earlier six-page viewer shows
 them. After a simulator change they must be made again.
 
+### 10.8 Audit: `audit.py`
+
+`audit.py <session> [...]` writes `checks/audit/<session>.json` from the
+session's ledger and `session.json` alone (**DECISION 2026-11-13**,
+`FORMAT_FIX.md`, Part 3). Existing sessions are not rewritten; the audit says
+what their records are worth as tests:
+
+- **checks**: for each check, the labels its decision rule names and the run
+  behind each. `void`: the rule names two or more labels and at least two are
+  the same simulation (the same run in that experiment), so it compared a
+  simulation with itself. `one_simulation`: the stricter case, every label it
+  names is one simulation.
+- **verdicts**: the checks of the verdict's hypothesis in the last experiment
+  that tested it before the verdict, and whether it rests only on void checks.
+- **experiments**: the knobs listed as varied that have one value in all the
+  experiment's simulations.
+- **designs**: the knobs of the brief a design does not state, and whether
+  its label names a weight (`w` and a digit) while it states no `weightUdp`.
+- the counts of each.
+
+The page marks the same void checks from the ledger itself (12.1), so an
+exported session shows them without `checks/`; `session_figures.void_checks`
+is the one definition both `audit.py` and `control.py`'s rows use.
+
 ## 11. Results so far
 
 19 sessions, all with the same model. `s001` is from 2026-11-09; the others are
@@ -856,23 +949,49 @@ on TCP goodput; at every scored recommendation the brief's condition holds.
 | s018 | two-hosts-open | cap | on | done by the model | 6 | 36 | not scored |
 | s019 | two-hosts-open | cap | on | done by the model | 11 | 30 | not scored |
 
-Verdicts against checks, all 19 sessions (251 verdicts). The row is the checks
+Verdicts against checks, s001 to s019 (251 verdicts). The row is the checks
 of the verdict's hypothesis in the last experiment that tested it before the
-verdict; "no verdict" is a hypothesis that was checked and never judged.
+verdict; "no verdict" is a hypothesis that was checked and never judged. A
+**void** check is one whose decision rule compared a simulation with itself
+(10.8); it is left out of a row, and a verdict whose checks were all void
+stands in the row "void".
 
 | Brief | Checks | supported | inconclusive | refuted | no verdict |
 |---|---|---|---|---|---|
-| two-hosts-udp-demand | held | 64 | 0 | 0 | 7 |
+| two-hosts-udp-demand | held | 63 | 0 | 0 | 7 |
 | | failed | 0 | 0 | 39 | 9 |
-| two-hosts-open | held | 59 | 8 | 0 | 3 |
-| | mixed | 0 | 11 | 0 | 0 |
-| | failed | 0 | 63 | 4 | 0 |
+| | void | 1 | 0 | 0 | 0 |
+| two-hosts-open | held | 59 | 5 | 0 | 3 |
+| | mixed | 0 | 7 | 0 | 0 |
+| | failed | 0 | 3 | 4 | 0 |
+| | void | 0 | 67 | 0 | 0 |
 | (s001, before briefs) | no check | 3 | 0 | 0 | 0 |
 
-Every "inconclusive" is in `two-hosts-open`: with a given goal the model called
-a failed check a refutation; with an open goal it called 63 of 67 failed checks
-inconclusive. The two briefs are never added together, because the pooled
-table hides this.
+**107 of the 337 checks of s002 to s019 are void**: 106 in `two-hosts-open`
+(s014: 44 of 91, s017: 34 of 49, s019: 15 of 28, s016: 13 of 24) and 1 in
+`two-hosts-udp-demand` (s004, C6); 96 of them name one simulation only. The
+cause is in 8.3: in s014 (97 designs) and s017 (107), simulations whose label
+names a weight, such as `u400_w80`, state no `weightUdp`, ran at the default
+0.5, and were therefore one simulation under several labels.
+
+This replaces what this section said before ("with an open goal it called 63
+of 67 failed checks inconclusive"). Split by void and distinct checks, the 82
+"inconclusive" verdicts of `two-hosts-open` are: 67 on checks that were all
+void, 7 on mixed checks, 5 on held checks and 3 on failed ones. On distinct
+checks the model called 4 of 7 failures a refutation; what it called
+inconclusive was, almost always, a comparison of a simulation with itself,
+and in s014 its own answer of turn 5 says so ("the simulations omitted the
+weightUdp parameter"). The two briefs are still never added together.
+
+**Whose conclusions are affected.** s014, s016, s017 and s019: 67 of their
+122 verdicts rest only on void checks, and most of their budget went to
+simulations that were returned, not run (s014: 91 of 118; s017: 112 of 153).
+No claim of their final reports cites a void check, but what they could
+conclude about a setting other than the weight at its default rests on few
+distinct simulations. They are kept as records of the defect, not as results
+(section 15, item 9). s004: one verdict ("supported", on C6) rests on a void
+check; its recommendation and score are not affected. s015 and s018, and
+every other session of `two-hosts-udp-demand`, have no void check.
 
 The best row is 671.585 Mbps under share and 671.533 Mbps under cap, so the
 largest gap is 0.11% of the best. These figures say how close the
@@ -1082,8 +1201,53 @@ it: the whole session as one picture.
   the records by the replay's step ("5 turns · 12 hypotheses · 12 checks, 10
   held and 2 failed as marks · 44 simulations"). It is not printed.
 
+**A hypothesis's question** (`EV.hshort`, `EV.question` in
+`evidence_marks.js`). Where a hypothesis stands in short, the page shows its
+question when the session recorded one: the first line of a test in the tests
+list (its first 30 words, then "more" and "less"; the click moves nothing), a
+line above the hypothesis text in the test's panel and the hypothesis's card,
+the tree's row, the hypothesis map's node, the work-log card ("its
+question: ..."), the highlights and the hover texts. A session that recorded
+no question (before s020) shows the hypothesis text in its place.
+
+**Void checks** (**DECISION 2026-11-13**, `FORMAT_FIX.md`, Part 3).
+`EV_DATA.build` finds them from the ledger as `audit.py` does (10.8) and gives
+such a check the result "void", keeping what the harness recorded as
+`recorded`. A void check counts neither as held nor as failed in any count or
+chart of the page, and it is marked wherever a check is shown, with the drawn
+sign of a struck circle and the words "void: this decision rule compared a
+simulation with itself":
+
+- the header strip counts held, failed and void; the introduction says
+  "33 of 47 decision rules held; 44 more were void (each compared a simulation
+  with itself)";
+- the tests list: "check void", the sentence in place of the margin (a void
+  check has none), on a row that may wrap;
+- the test's panel: the diamond of the flow chart says "void", the sentence
+  stands under it, and a note below names the labels that are one simulation,
+  their run, and what the harness had recorded;
+- the tree's rows and each experiment's counts; "What this session is made
+  of" (its own sign, named in the key); the session flow's box of checks;
+- the session's summary: the checks in order with the void ones, a line
+  "44 void: ...", and in "Verdicts against checks" the row "void";
+- Home: the checks in order, held and failed without the void ones, and the
+  column **void checks** ("44 of 91", sortable); Compare the same.
+
+**A verdict that rests only on void checks** (the checks of its hypothesis in
+the last experiment that tested it before the verdict were all void) is
+marked "rests on void checks": in the tests list, the flow chart, the test's
+panel, the work-log card, and as the sign alone in the tree. A verdict cannot
+"disagree" with a void check. A claim of the final report that cites a void
+check shows it with the void sign; the five kinds of claims are counted from
+the checks that are not void.
+
+In the replay all of this appears at the step of the check, or of the
+verdict, never before. s006 and s011 have no void check and their pages are
+as before.
+
 **The tests list** (`evidence_more.js`) gives each test two lines: first the
-hypothesis's id and text, across the card's width, cut after two lines; under
+hypothesis's id and its question (or, without one, its text cut after two
+lines), across the card's width; under
 it what was compared (ended with "…" where it is long, in full on hover), the
 check, the margin and the verdict. The margin's bar has a tick at zero, and a
 bar that is not zero is at least 2 px wide.
@@ -1361,6 +1525,18 @@ untracked until they say otherwise.
    drawing width (1,000 and about 940 px); in a window narrower than about
    1,340 px (and wider than 1,100, where the page becomes one column) they are
    scaled to fit, and their text is then smaller than 11 px.
+9. **Designs that lost a setting, and decision rules that compared a
+   simulation with itself** (found 2026-11-13). Until s019 the answer format
+   let a design leave knobs out, and the model server's enforcement of the
+   order of the format's properties meant a design that began with another
+   key could not state `weightUdp` (8.3, confirmed by two requests to the
+   server). 107 of 337 checks are void for it (section 11). The format, the
+   harness (8.5) and the page (12.1) are repaired; **s014, s016, s017 and s019
+   are kept as records of the defect, not as results**, and one verdict of
+   s004 rests on a void check. The recommendation object of the final report
+   still has every knob optional in a fixed order (weightUdp first): a report
+   that names another knob first cannot name `weightUdp`. The records cannot
+   show whether a report lost a knob this way; it is left as it is.
 
 ## 16. History in short
 
@@ -1370,10 +1546,13 @@ untracked until they say otherwise.
 | 2026-11-10 | Simulator revised (build 2) after a review found TCP segments split in two and the seed without effect. Operator checks 1 to 4. The viewer grew to six pages; the control server replaced the plain file server; the project became a task of the ADRS main viewer. |
 | 2026-11-11 | Scheduler renamed and the policy moved to an environment variable (build 3), after s001 showed the model reading the policy's name in the source. `RESTRUCTURE_PLAN.md` stages 1 to 5: sessions in their own folders; briefs; experiments of several simulations with decision rules checked by the harness; the final report; sweep, answer key and score. `CHECKS_AND_REPAIRS.md`: checks 5 to 11, and repairs B1 (loss cannot be negative, build 4), B2 (a tested hypothesis needs a verdict), B3 (draft text in its own file). Terms fixed: decision rule, scheduling policy. Rivals; simulations not run twice; answers taken part by part. `EVIDENCE_VIEW.md` and `PAGE_REDESIGN.md`: the evidence page (replacing stage 6). Sessions s002 to s019. The project became a public git repository. |
 | 2026-11-12 | Stage 7: this document rewritten as a whole. The top bar made the same in every view. Two cards at the top of a session's page: "The system" and "What this session is made of". `check_objects.py`. |
+| 2026-11-13 | `OVERVIEW_REDESIGN.md`: the Overview as one band, the model's own words as the card "The final report". `FORMAT_FIX.md`: the cause of designs without `weightUdp` confirmed at the model server; the params object built from the brief with every knob required; a question with each hypothesis; `answers.jsonl`; a plan that cannot test anything is refused part by part; `audit.py` and the void marks on the page; six new sessions on `two-hosts-open` (s020 to s025). |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
-are in the repository), `~/VIEWS_DECISIONS.md`.
+are in the repository), `~/VIEWS_DECISIONS.md`, `~/PAGE_POLISH.md`,
+`OVERVIEW_REDESIGN.md`, `FORMAT_FIX.md` (the last two beside this file in
+`~/project`, not in the repository).
 
 ## 17. Source files
 
@@ -1392,14 +1571,15 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `loop.py` | 516 | the loop: one session |
-| `tools.py` | 219 | all the model can reach; the brief check; running simulations |
-| `decision_rules.py` | 148 | reads and checks decision rules |
-| `schema.json` | 430 | the answer format |
+| `loop.py` | 602 | the loop: one session; the answer format from the brief; `trim` |
+| `tools.py` | 228 | all the model can reach; the brief check; running simulations |
+| `decision_rules.py` | 163 | reads and checks decision rules |
+| `schema.json` | 408 | the answer format (its params object is put in by loop.py) |
 | `prompt.txt` | 31 | the system prompt |
 | `manifest.json` | 22 | outputs and tools, described |
-| `control.py` | 564 | the operator's server |
-| `session_figures.py` | 82 | figures counted from a session's records, for control.py's session rows |
+| `control.py` | 565 | the operator's server |
+| `session_figures.py` | 123 | figures counted from a session's records, for control.py's session rows; the void checks |
+| `audit.py` | 88 | operator: the audit of a session's checks, verdicts, experiments and designs |
 | `score.py` | 127 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
 | `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
@@ -1417,11 +1597,11 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 173 | the shell: colours, styles, the list of scripts |
+| `index.html` | 175 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 164 | the address, loading, the top bar, clicks, replay, review marks |
-| `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
-| `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
-| `evidence_home.js` | 69 | Home |
+| `evidence_data.js` | 174 | a session's files read into what the page draws; the definitions; derives the tests |
+| `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
+| `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
@@ -1431,13 +1611,13 @@ above all, so the counts understate the size.
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 56 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
-| `evidence_flow.js` | 108 | View 3 (one test as a flow chart) and its chart |
+| `evidence_flow.js` | 109 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
-| `evidence_test.js` | 43 | the test panel |
+| `evidence_test.js` | 44 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
-| `evidence_more.js` | 75 | summary, the tests list, the final report in full, the evidence sheet |
+| `evidence_more.js` | 76 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
-| `evidence_verdicts.js` | 70 | verdicts against checks: the table of counts, in a session's summary and on Compare |
+| `evidence_verdicts.js` | 71 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_margin.js` | 39 | the margin of a check: how far it was from its decision rule; a part of each test's line in the tests list |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
 | `evidence_operator.js` | 52 | the Operator tab: the score, the checklist and its judgements |
