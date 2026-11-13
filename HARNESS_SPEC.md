@@ -913,40 +913,70 @@ line at the foot of every view.
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far as a table, one row per brief (sessions, with a final report, meet the brief's conditions, largest gap to the best, not scored; a cell with nothing to count says "not scored"); the table of every session, sortable and filterable, a running one first, where a row opens its session and shows, on one line, its checks in order followed by the counts of held and failed, how many of its simulations were returned from an earlier one ("returned"), and how many no decision rule names ("not named by a rule") |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
-| A session | Header strip (always visible, labelled fields on one line); the overview from the final report, first and at full width, with its claims as rows of full sentences; "The system"; "What this session is made of"; highlights; best so far; the work; the tests list; "How to read this page" |
+| A session | Header strip (always visible, labelled fields on one line); the Overview, first and at full width, one band that holds only the answer; "The system"; "What this session is made of"; then, in the left column beside the detail pane, "The final report" (the model's own words: its claims as rows of full sentences, its explanation); highlights; best so far; the work; the tests list; "How to read this page" |
 | The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
 | Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score with the knobs that differ from the sweep's best row marked, the checklist with the operator's judgement and note for each item; "Run one simulation" and "Run a sweep" |
 | Compare tab | Sessions of one brief with a tick each; two or more ticked are shown side by side: their best-so-far lines, a table, the first test that held; with operator columns on, the sweep as a parallel-coordinates chart with each recommendation as a bold line |
-| Share | "Copy link" on every item; export; print (overview, highlights, best so far, tests list; or the evidence sheet of one claim) |
+| Share | "Copy link" on every item; export; print (overview, the final report, highlights, best so far, tests list; or the evidence sheet of one claim) |
 
 **The top of a session's page** (`evidence_page.js`; **DECISIONS 2026-11-12**:
-the overview first, and the comparison with the brief's defaults).
+the overview first, and the comparison with the brief's defaults; **DECISION
+2026-11-13**, the operator's `OVERVIEW_REDESIGN.md`: the Overview is one band,
+and the model's own words are a card beside the detail pane).
 
 - **The header strip** stays in view: labelled fields on one line, each a
   small label above its value: Brief, Session, How it ended, Simulations (used
   of allowed), Checks (held and failed, as marks with their counts), Model,
   Recommends; with the operator columns on, also the scheduling policy and the
   gap to the best.
-- **The overview comes first, at full width**, so that a reader meets the
-  conclusion before the system and the work. Two columns: on the left the
-  goal, the recommended settings and the explanation (six lines, then "more");
-  on the right the expected result as a list, an output's name on the left and
-  its value on the right. Outputs that only repeat a setting (`link_rate_bps`,
-  `weight_udp`) are left out of that list; the full final report shows them.
-  Beside an output that a condition of the brief names stands the condition
-  ("the brief allows udp_loss_frac <= 0.01"). Below, side by side: when it
-  holds, when it breaks; then the claims.
+- **The Overview comes first, at full width, and is one band** that holds
+  only the answer, so that a reader meets the conclusion first and "The
+  system" and the top of "What this session is made of" are still on the
+  first screen (measured on s012 in a 1500 by 1000 px window: 291 px tall;
+  before, 955). The introduction with its "dismiss" button, then four columns
+  side by side (two by two in a window under 900 px):
+  1. the goal, cut to four lines when longer (an open-goal session states a
+     long one);
+  2. the recommended settings, as described below;
+  3. the expected result in short (`ov-exp-top`): the row of the goal's
+     target measure and the rows of the measures the brief's conditions name,
+     each with its condition ("the brief allows udp_loss_frac <= 0.01");
+     where the brief gives no goal, the first three rows the report lists;
+     then "n more in the final report" when rows are left out;
+  4. its claims, in numbers only (`ov-claims`), one count per line (claims;
+     cite held checks only; held and failed; failed only; no check; no
+     evidence), and under them, as plain text, where the claims are.
+  Then the share bar.
+- **"The final report"** (`s-report`) is the first card of the left column,
+  before the highlights, so that it stands beside the detail pane: a click on
+  a claim opens the claim's test in the pane, in view, and the page does not
+  move. It holds the model's own words and has the model's colour on its left
+  edge: its claims as rows of full sentences with the checks each cites, the
+  counts line and "print evidence sheet"; the explanation (six lines, then
+  "more" and "less"); the expected result as the full table (`ov-exp`), an
+  output's name on the left and its value on the right, without the outputs
+  that only repeat a setting (`link_rate_bps`, `weight_udp`; the full final
+  report in the detail pane shows them); when it holds; when it breaks; and
+  the line that opens the full final report, the brief and the session's
+  summary on the right.
+- A selected claim keeps its dark ground while the pointer is on it, so its
+  text can be read right after the click (contrast 19.17; before, 1.07).
 - **The recommendation against the brief's defaults.** Both are recorded; the
   comparison is the page's. The knobs that differ are set large; the others
   follow in one line, "at the brief's default: …"; a knob of the brief that the
   report does not name is listed as "not named in the report". The strip's
   "Recommends" names only the knobs that differ. The recommendation is stated
   in these two places and nowhere else on the first screen.
-- A session without a final report says "No final report" and how it ended.
-- In the replay the report is absent before its step, not greyed: the overview
-  says "No final report by this step", the strip "no recommendation yet", and
-  the strip counts only the records by that step.
+- A session without a final report says "No final report" and how it ended,
+  and has no card "The final report"; the line that opens the brief and the
+  session's summary then stays in the Overview.
+- In the replay the report is absent before its step, not greyed: the Overview
+  says "No final report by this step" and shows no goal, setting, expected
+  value or count of claims, the card "The final report" is not there, the
+  strip says "no recommendation yet" and counts only the records by that step.
+- Print: the Overview and "The final report" are both printed, with the goal
+  and the explanation in full.
 - **The session's summary** in the detail pane keeps the flags, the start, the
   duration, the turns, the model calls, the checks in order and the verdicts
   against checks. It does not repeat the strip (model, simulations used, how
@@ -1387,7 +1417,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 168 | the shell: colours, styles, the list of scripts |
+| `index.html` | 173 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 164 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 166 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 38 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -1395,7 +1425,7 @@ above all, so the counts understate the size.
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 91 | a session's page, top to bottom |
+| `evidence_page.js` | 119 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 57 | highlights |
 | `evidence_best.js` | 79 | best so far |
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
