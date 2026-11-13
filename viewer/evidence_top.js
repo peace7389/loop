@@ -31,7 +31,7 @@ Object.assign(EV, {
       ${node(col(3), Y.mid, 'Test', 'tests', c.test, 'model', EV_ICON.test, 's-tests', 'one rule each')}
       ${node(col(4), Y.top, 'Decision rule', 'decision rules', c.rule, 'model', '⊢', 's-tests', '')}
       ${node(col(4), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-best', reused ? `${reused} returned from earlier` : '')}
-      ${node(col(5), Y.mid, 'Check', 'checks', c.check, 'harness', EV_ICON.check, 's-tests', M.old ? EV.nr : `${M.checks.filter(q => q.result === 'held').length} held`)}
+      ${node(col(5), Y.mid, 'Check', 'checks', c.check, 'harness', EV_ICON.check, 's-tests', M.old ? EV.nr : `${M.checks.filter(q => q.result === 'held').length} held${M.voidIds.size ? ' · ' + M.voidIds.size + ' void' : ''}`)}
       ${node(col(6), Y.mid, 'Verdict', 'verdicts', c.verdict, 'model', EV_ICON.verdict, 's-work|map', '')}
       <text x="${(col(2) + col(6) + W) / 2}" y="-24" text-anchor="middle">a verdict judges a hypothesis</text></svg>`;
   },

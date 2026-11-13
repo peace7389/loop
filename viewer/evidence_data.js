@@ -31,6 +31,7 @@ const EV_DATA = {
   },
   by(r) { const b = r.body || {}; return r.by || (r.type === 'note' ? (b.requests || b.text === 'model declared done' ? 'model' : 'harness') : EV_BY[r.type] || 'model'); },
   num(o) { return Object.fromEntries(Object.entries(o || {}).filter(([, v]) => typeof v === 'number')); },
+  labels(rule) { return [...new Set([...String(rule || '').matchAll(/[A-Za-z_][A-Za-z0-9_]*@([A-Za-z0-9_]+)/g)].map(m => m[1]))]; },  // the labels a decision rule names, each once
 
   build(f) {
     const D = EV_DATA, recs = f.ledger || [], byId = Object.fromEntries(recs.map(r => [r.id, r])), pos = Object.fromEntries(recs.map((r, i) => [r.id, i]));
@@ -48,8 +49,13 @@ const EV_DATA = {
         return { id: r.id, turn: r.turn, ts: r.ts, by: D.by(r), kind: b.kind, tests: b.tests || [], question: b.question || '', varied: b.varied || [], control: b.control || null,
                  runs: b.runs || [], rules: (b.decision_rules || b.rules || []).map(q => ({ for: q.for, rule: q.decision_rule || q.rule, rival: q.rival || null, rival_predicts: q.rival_predicts || null })),
                  sims: own, evidence: recs.find(e => e.type === 'evidence' && e.parent === r.id) || null,
-                 checks: recs.filter(c => c.type === 'check' && c.parent === r.id).map(c => ({ id: c.id, for: c.body.for, rule: c.body.decision_rule || c.body.rule, numbers: c.body.with_numbers,
-                   result: c.body.result, rival: c.body.rival || null, rival_predicts: c.body.rival_predicts || null, ts: c.ts })) }; });
+                 // a void check: its decision rule names two or more labels of which at least two are the same simulation (the same run), so
+                 // it compared a simulation with itself. Its result here is "void" (what the harness recorded stays in "recorded"): it
+                 // counts neither as held nor as failed anywhere on the page. harness/session_figures.py counts the same for Home.
+                 checks: recs.filter(c => c.type === 'check' && c.parent === r.id).map(c => { const rule = c.body.decision_rule || c.body.rule, ls = D.labels(rule), runs = ls.map(l => (own.find(s => s.label === l) || {}).run).filter(Boolean),
+                   isVoid = ls.length >= 2 && new Set(runs).size < runs.length, same = isVoid ? ls.filter(l => { const q = (own.find(s => s.label === l) || {}).run; return q && runs.indexOf(q) !== runs.lastIndexOf(q); }) : [];
+                   return { id: c.id, for: c.body.for, rule, numbers: c.body.with_numbers, result: isVoid ? 'void' : c.body.result, recorded: c.body.result, void: isVoid, same,
+                            rival: c.body.rival || null, rival_predicts: c.body.rival_predicts || null, ts: c.ts }; }) }; });
     } else {  // the first format: one simulation per experiment, the measurement in the evidence record, no check by the harness
       of('evidence').forEach((e, i) => { const x = byId[e.parent] || null, xb = (x && x.body) || {}, h = x && byId[x.parent] && byId[x.parent].type === 'hypothesis' ? x.parent : null;
         const s = { id: e.id, label: 'run', run: e.body.run_id, params: xb.params || {}, metrics: e.body.error ? null : D.num(e.body), error: e.body.error || null, same_as: null, exp: x ? x.id : 'X0', ts: e.ts, turn: e.turn };
@@ -68,14 +74,15 @@ const EV_DATA = {
       return { id: r.id, turn: r.turn, ts: r.ts, text: String(r.body.text || '').replace(/^\s*H\d+\s*:\s*/, ''), prediction: r.body.prediction || null,
                question: typeof r.body.question === 'string' && r.body.question.trim() ? r.body.question.trim() : null,  // the hypothesis as one plain question; null: not recorded (sessions before this field)
                follows: Array.isArray(r.body.follows_from) ? r.body.follows_from : null,  // null: not recorded (sessions before this field)
-               state, verdict: v && { id: v.id, turn: v.turn, ts: v.ts, result: v.body.result, because: v.body.because, next: v.body.next, observations: v.body.observations || null },
+               state, verdict: v && { id: v.id, turn: v.turn, ts: v.ts, result: v.body.result, because: v.body.because, next: v.body.next, observations: v.body.observations || null,
+                                      voidOnly: (() => { const cs = own.filter(c => pos[c.id] < pos[v.id]), last = cs.filter(c => c.exp === (cs[cs.length - 1] || {}).exp); return last.length > 0 && last.every(c => c.void); })() },
                drop: d && { id: d.id, turn: d.turn, why: d.body.why }, checks: own, exps: tested }; });
     const hypById = Object.fromEntries(hyps.map(h => [h.id, h]));
     // ---- the tests: one hypothesis put to one decision rule. Nothing records a test as such: its simulations are the
     // labels after @ in its decision rule (one simulation in the experiment: that one), its check is the harness's check
     // of that rule, its verdict the hypothesis's verdict when no later test of the same hypothesis came before it.
     const tests = exps.flatMap(x => { const nth = {};
-      const made = x.rules.map(r => { const labels = [...new Set([...String(r.rule || '').matchAll(/[A-Za-z_][A-Za-z0-9_]*@([A-Za-z0-9_]+)/g)].map(m => m[1]))];
+      const made = x.rules.map(r => { const labels = D.labels(r.rule);
         const n = nth[r.for] = (nth[r.for] || 0) + 1, same = x.checks.filter(c => c.for === r.for);
         return { id: `${x.id}.${r.for}${n > 1 ? '.' + n : ''}`, exp: x.id, turn: x.turn, ts: x.ts, hyp: r.for, rule: r.rule, rival: r.rival, rival_predicts: r.rival_predicts, labels,
                  sims: labels.length ? labels.map(l => x.sims.find(s => s.label === l)).filter(Boolean) : x.sims.length === 1 ? x.sims.slice() : [],
@@ -105,7 +112,7 @@ const EV_DATA = {
       const state = !ids.length ? 'none' : cited.some(q => q.result === 'failed') ? 'failed' : cited.some(q => q.result === 'held') ? 'held' : 'unchecked';
       // the checks the claim cites itself, in the order cited, and what kind of claim that makes it. A failed check is a
       // result, not a fault: a claim can rest on a refutation. Only a claim with no evidence at all is a warning.
-      const cites = ids.filter(id => byId[id] && byId[id].type === 'check').map(id => ({ id, result: byId[id].body.result })), hd = cites.some(q => q.result === 'held'), fl = cites.some(q => q.result === 'failed');
+      const cites = ids.filter(id => byId[id] && byId[id].type === 'check').map(id => ({ id, result: (checks.find(q => q.id === id) || { result: byId[id].body.result }).result })), hd = cites.some(q => q.result === 'held'), fl = cites.some(q => q.result === 'failed');
       const kind = !ids.length ? 'none' : !cites.length ? 'nocheck' : hd && fl ? 'both' : fl ? 'failed' : hd ? 'held' : 'nocheck';
       return { n: i + 1, text: c.text, evidence: ids, cites, kind, hyps: hs, tests: [...new Set(ids.flatMap(id => tests.filter(t => (t.check && t.check.id === id) || (t.verdict && t.verdict.id === id)).map(t => t.id)))], exps: [...new Set(cited.map(q => q.exp).concat(ids.map(id => { const r = byId[id] || {}; return r.type === 'evidence' ? (r.body.experiment || (expById[r.parent] ? r.parent : (byId[r.parent] || {}).id)) : r.type === 'simulation' ? r.parent : null; }).filter(Boolean)))], state }; });
 
@@ -142,7 +149,7 @@ const EV_DATA = {
         if (t.exp) {
           push({ turn: n, lane: 'harness', kind: 'accepted', label: 'plan accepted', open: { t: 'exp', id: t.exp.id } }, t.notes.map(r => r.id));
           push({ turn: n, lane: 'simulator', kind: 'sims', exp: t.exp.id, label: `${t.exp.sims.length} simulation${t.exp.sims.length === 1 ? '' : 's'}`, sims: t.exp.sims, open: { t: 'exp', id: t.exp.id } }, t.exp.sims.map(q => q.id).concat(t.exp.evidence ? [t.exp.evidence.id] : []));
-          if (t.exp.checks.length) push({ turn: n, lane: 'harness', kind: 'checks', exp: t.exp.id, label: `${t.exp.checks.length} check${t.exp.checks.length === 1 ? '' : 's'}: ${t.exp.checks.filter(c => c.result === 'held').length} held, ${t.exp.checks.filter(c => c.result === 'failed').length} failed`,
+          if (t.exp.checks.length) push({ turn: n, lane: 'harness', kind: 'checks', exp: t.exp.id, label: `${t.exp.checks.length} check${t.exp.checks.length === 1 ? '' : 's'}: ${t.exp.checks.filter(c => c.result === 'held').length} held, ${t.exp.checks.filter(c => c.result === 'failed').length} failed${t.exp.checks.some(c => c.void) ? `, ${t.exp.checks.filter(c => c.void).length} void` : ''}`,
                                          open: { t: 'exp', id: t.exp.id } }, t.exp.checks.map(c => c.id));
         }
         if (t.report) push({ turn: n, lane: 'harness', kind: 'report', label: 'report accepted', open: { t: 'report' } }, [t.report.id]);
@@ -151,7 +158,7 @@ const EV_DATA = {
       t.steps = steps.slice(first); return t; });
 
     const count = t => of(t).length;
-    return { id: f.id, meta, brief, old: !multi, ended, recs, byId, pos, recStep, sims, simById, exps, expById, tests, testById, checks, hyps, hypById, source, report, repRec, claims, turns, steps,
+    return { id: f.id, meta, brief, old: !multi, ended, recs, byId, pos, recStep, voidIds: new Set(checks.filter(c => c.void).map(c => c.id)), sims, simById, exps, expById, tests, testById, checks, hyps, hypById, source, report, repRec, claims, turns, steps,
              counts: { hypothesis: count('hypothesis'), experiment: multi ? count('experiment') : exps.length, simulation: multi ? count('simulation') : sims.length,
                        rule: exps.reduce((a, x) => a + x.rules.length, 0), test: tests.length, check: count('check'), verdict: count('verdict'), report: count('report'), turn: turns.filter(t => t.n > 0).length,
                        drop: count('drop'), refused: count('malformed') + recs.filter(r => r.type === 'note' && r.body.part).length },

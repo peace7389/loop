@@ -29,7 +29,7 @@ Object.assign(EV, {
   marginText: m => (m < 0 ? '−' : '+') + (Math.abs(100 * m) >= 1000 ? Math.abs(100 * m).toFixed(0) : Math.abs(100 * m).toFixed(1)) + '%',
   // the cell of one test's check: the number, and a bar from the middle, to the right when the measured side cleared the rule
   marginCell(c) {
-    if (!c || !EV.seen(c.id)) return '';  // no check was made, or it is recorded after the replay's step
+    if (!c || !EV.seen(c.id) || c.void) return '';  // no check was made, or it is recorded after the replay's step, or it is void (a simulation compared with itself has no margin)
     const m = EV.margin(c.numbers), col = c.result === 'held' ? 'var(--good)' : c.result === 'failed' ? 'var(--critical)' : 'var(--text-muted)';
     if (m === undefined) return `<span class="mut" title="The rule with its numbers written in could not be read">${c.numbers == null ? 'not recorded' : 'not read'}</span>`;
     if (m === null) return '<span class="mut" data-margin="na" title="The rule compares with ==, or its right side is 0: there is no margin">not applicable</span>';

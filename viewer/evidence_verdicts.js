@@ -7,15 +7,15 @@
 // policy). Sessions of different briefs are never added together. Neither place is printed.
 // ======================================================================================================
 Object.assign(EV, {
-  VC_ROWS: [['held', EV.res('held', 'held'), 'every check held'], ['mixed', 'mixed', 'some checks held and some failed'], ['failed', EV.res('failed', 'failed'), 'every check failed'], ['no check', 'no check', 'the hypothesis was judged without a check by the harness']],
+  VC_ROWS: [['held', EV.res('held', 'held'), 'every check held'], ['mixed', 'mixed', 'some checks held and some failed'], ['failed', EV.res('failed', 'failed'), 'every check failed'], ['void', EV.res('void', 'void'), 'every check was void (its decision rule compared a simulation with itself): the verdict rests on void checks'], ['no check', 'no check', 'the hypothesis was judged without a check by the harness']],
   VC_COLS: [['supported', 'supported'], ['inconclusive', 'inconclusive'], ['refuted', 'refuted'], ['no verdict', 'no verdict']],
   // one session, from its own records; only what is recorded by the replay's step
   vcCount(M) {
     const seen = EV.seen, made = {}, judged = new Set(), out = {}, add = (r, c) => { out[r] = out[r] || {}; out[r][c] = (out[r][c] || 0) + 1; };
     const row = (h, before) => { const cs = (made[h] || []).filter(c => c.i < before); if (!cs.length) return 'no check';
-      const res = cs.filter(c => c.x === cs[cs.length - 1].x).map(c => c.r); return res.every(r => r === 'held') ? 'held' : res.every(r => r === 'failed') ? 'failed' : 'mixed'; };
+      const res = cs.filter(c => c.x === cs[cs.length - 1].x).map(c => c.r).filter(r => r !== 'void'); return !res.length ? 'void' : res.every(r => r === 'held') ? 'held' : res.every(r => r === 'failed') ? 'failed' : 'mixed'; };
     M.recs.forEach((r, i) => { if (!seen(r.id)) return; const b = r.body || {};
-      if (r.type === 'check' && (b.result === 'held' || b.result === 'failed')) (made[b.for] = made[b.for] || []).push({ i, x: b.experiment || r.parent, r: b.result });
+      if (r.type === 'check' && (b.result === 'held' || b.result === 'failed')) (made[b.for] = made[b.for] || []).push({ i, x: b.experiment || r.parent, r: M.voidIds.has(r.id) ? 'void' : b.result });
       else if (r.type === 'verdict') { add(row(b.for, i), b.result); judged.add(b.for); } });
     Object.keys(made).forEach(h => { if (!judged.has(h)) add(row(h, Infinity), 'no verdict'); });
     return out;
@@ -30,26 +30,27 @@ Object.assign(EV, {
       <tbody>${rows.map(([r, label, tip]) => `<tr><td title="${tip}">${label}</td>${EV.VC_COLS.map(([k]) => cell(r, k)).join('')}</tr>`).join('')}</tbody></table>`;
   },
   VC_NOTE: 'One count per verdict. The row is the checks of its hypothesis in the last experiment that tested it before the verdict.',
+  VC_VOID: 'A void check (its decision rule compared a simulation with itself) is left out of a row; a verdict whose checks were all void stands in the row “void”: it rests on void checks.',
 
   // ---- the checks of a session in the order they were made, as drawn marks (held, failed, not checked), a small gap between
   // turns; at most 40 are drawn, then "+ n more". seq: "hhh hf hfh" (control.py's row), null: not recorded
   seqHtml(seq) {
     if (seq == null) return EV.nr; if (!seq) return '<span class="mut">no checks</span>';
-    const all = seq.replace(/ /g, ''), n = all.length, held = all.split('h').length - 1, failed = all.split('f').length - 1; let drawn = 0, out = '';
-    for (const ch of seq) { if (ch === ' ') { if (drawn < 40) out += '<i class="sq-gap"></i>'; continue; } if (drawn++ >= 40) break; out += EV.gkey(ch === 'h' ? 'held' : ch === 'f' ? 'failed' : 'not-checked'); }
-    return `<span class="sq" data-n="${n}" title="${n} check${n === 1 ? '' : 's'} in the order they were made: ${held} held, ${failed} failed · a gap between turns">${out}${n > 40 ? `<span class="sm sq-more"> + ${n - 40} more</span>` : ''}</span>`;
+    const all = seq.replace(/ /g, ''), n = all.length, held = all.split('h').length - 1, failed = all.split('f').length - 1, voids = all.split('v').length - 1; let drawn = 0, out = '';
+    for (const ch of seq) { if (ch === ' ') { if (drawn < 40) out += '<i class="sq-gap"></i>'; continue; } if (drawn++ >= 40) break; out += EV.gkey(ch === 'h' ? 'held' : ch === 'f' ? 'failed' : ch === 'v' ? 'void' : 'not-checked'); }
+    return `<span class="sq" data-n="${n}" title="${n} check${n === 1 ? '' : 's'} in the order they were made: ${held} held, ${failed} failed${voids ? `, ${voids} void` : ''} · a gap between turns" data-void="${voids}">${out}${n > 40 ? `<span class="sm sq-more"> + ${n - 40} more</span>` : ''}</span>`;
   },
   // the same sequence for the open session, from its own records and only those recorded by the replay's step
   seqOf(M) {
     if (M.old) return null; let last = null, out = '';
-    M.recs.forEach(r => { if (r.type !== 'check' || !EV.seen(r.id)) return; if (last !== null && r.turn !== last) out += ' '; out += { held: 'h', failed: 'f' }[r.body.result] || 'n'; last = r.turn; });
+    M.recs.forEach(r => { if (r.type !== 'check' || !EV.seen(r.id)) return; if (last !== null && r.turn !== last) out += ' '; out += M.voidIds.has(r.id) ? 'v' : { held: 'h', failed: 'f' }[r.body.result] || 'n'; last = r.turn; });
     return out;
   },
 
   // ---- in a session's summary (the detail pane)
   vcSession() {
-    const c = EV.vcCount(EV.M), n = EV.vcTotal(c);
-    return `<div id="vc-session"><h3 style="margin-top:14px">The ${EV.term('Check', 'checks')}, in the order they were made</h3><p id="vc-seq">${EV.seqHtml(EV.seqOf(EV.M))}</p><h3 style="margin-top:14px">${EV.term('Verdict', 'Verdicts')} against ${EV.term('Check', 'checks')}</h3>${EV.vcTable(c, 'session')}<p class="sm">${EV.VC_NOTE} ${n} verdict${n === 1 ? '' : 's'}${EV.s.step == null ? '' : ' by this step of the replay'}.</p></div>`;
+    const c = EV.vcCount(EV.M), n = EV.vcTotal(c), nv = EV.M.checks.filter(q => q.void && EV.seen(q.id)).length;
+    return `<div id="vc-session"><h3 style="margin-top:14px">The ${EV.term('Check', 'checks')}, in the order they were made</h3><p id="vc-seq">${EV.seqHtml(EV.seqOf(EV.M))}</p>${nv ? `<p class="sm" id="vc-void" data-void="${nv}">${EV.gkey('void')}${nv} ${EV.VOID}. ${nv === 1 ? 'It counts' : 'They count'} neither as held nor as failed.</p>` : ''}<h3 style="margin-top:14px">${EV.term('Verdict', 'Verdicts')} against ${EV.term('Check', 'checks')}</h3>${EV.vcTable(c, 'session')}<p class="sm">${EV.VC_NOTE}${c.void ? ' ' + EV.VC_VOID : ''} ${n} verdict${n === 1 ? '' : 's'}${EV.s.step == null ? '' : ' by this step of the replay'}.</p></div>`;
   },
 
   // ---- on the Compare tab: the sessions of the chosen brief, never two briefs in one table
@@ -65,6 +66,6 @@ Object.assign(EV, {
         ${hidden || none ? `<p class="sm">${[hidden ? `${n(hidden)} whose policy is hidden until scored` : '', none ? `${n(none)} whose policy is not recorded` : ''].filter(Boolean).join(' and ')}: counted in the table of all sessions only.</p>` : ''}`;
     }
     return `<div class="ev-card noprint" id="cmp-vc"><h2>Verdicts against checks <small>the ${n(have.length)} of ${EV.term('Brief', 'brief')} ${e(name)} · sessions of different briefs are never added together</small></h2>
-      <div class="vc-row">${part('all sessions of this brief', have, 'brief')}</div><p class="sm">${EV.VC_NOTE}${have.length < rows.length ? ` ${n(rows.length - have.length)} without counts: ${EV.nr}.` : ''}</p>${split}</div>`;
+      <div class="vc-row">${part('all sessions of this brief', have, 'brief')}</div><p class="sm">${EV.VC_NOTE}${all.void ? ' ' + EV.VC_VOID : ''}${have.length < rows.length ? ` ${n(rows.length - have.length)} without counts: ${EV.nr}.` : ''}</p>${split}</div>`;
   },
 });

@@ -48,13 +48,13 @@ Object.assign(EV, {
   glCounts() {
     const M = EV.M, S = EV.s, seen = EV.seen, ck = r => M.checks.filter(q => q.result === r && seen(q.id)).length;
     return { turn: M.turns.filter(t => t.n > 0 && (S.step == null || (t.steps[0] ? t.steps[0].k : 0) <= S.step)).length, hyp: M.hyps.filter(h => seen(h.id)).length, rule: M.tests.filter(T => T.rule && seen(T.exp)).length, sim: M.sims.filter(q => seen(q.id)).length,
-      exp: M.exps.filter(x => seen(x.id)).length, check: M.checks.filter(q => seen(q.id)).length, held: ck('held'), failed: ck('failed'), verdict: M.recs.filter(r => r.type === 'verdict' && seen(r.id)).length, report: M.repRec && seen(M.repRec.id) ? 1 : 0 };
+      exp: M.exps.filter(x => seen(x.id)).length, check: M.checks.filter(q => seen(q.id)).length, held: ck('held'), failed: ck('failed'), void: ck('void'), verdict: M.recs.filter(r => r.type === 'verdict' && seen(r.id)).length, report: M.repRec && seen(M.repRec.id) ? 1 : 0 };
   },
 
   glance() {
     const fold = EV.store('ev-made') === '1', foldBtn = `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`, n = EV.glCounts(), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
     // folded, its line carries its content: the counts, from the records
-    if (fold) return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
+    if (fold) return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed, n.void)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, live = S.step == null, sel = S.sel || {}, info = EV.glInfo(S.sel), st = live ? null : EV_DATA.stateAt(M, S.step);
     const claim = S.claim ? M.claims[S.claim - 1] : null, hitT = new Set(claim ? claim.tests : []), hitH = new Set(claim ? claim.hyps : []);
     const gap = '<i class="gm"></i>';   // an empty place
@@ -79,10 +79,10 @@ Object.assign(EV, {
       rule: c => c.ts.map(T => (T.rule ? mark('rule', 'test', T.id, T.exp, `the decision rule for ${T.hyp}`) : gap)).join(''),
       sim: c => (!c.x ? '' : `<a class="gx${sel.t === 'exp' && sel.id === c.x.id ? ' on' : ''}" data-act="open" data-t="exp" data-id="${e(c.x.id)}" title="experiment ${e(c.x.id)}">${e(c.x.id)}</a>`
         + c.x.sims.map(q => mark(q.same_as ? 'sim-returned' : 'sim', 'sim', q.id, q.id, `${q.id} · ${q.label || ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`, q.error ? 'bad' : '')).join('')),
-      check: c => c.ts.map(T => { const k = T.check; return k ? mark(k.result === 'held' || k.result === 'failed' ? k.result : 'not-checked', 'test', T.id, k.id, `${k.id} · ${k.result}`) : gap; }).join(''),
+      check: c => c.ts.map(T => { const k = T.check; return k ? mark(k.result === 'held' || k.result === 'failed' || k.result === 'void' ? k.result : 'not-checked', 'test', T.id, k.id, k.void ? `${k.id} · ${EV.VOID}` : `${k.id} · ${k.result}`) : gap; }).join(''),
       verdict: c => c.ts.map((T, i) => { const v = T.verdict, odd = v && EV.contradicts(v, T.check ? [T.check] : []), kind = v && ['supported', 'refuted'].includes(v.result) ? v.result : 'inconclusive';
         const again = v && c.ts.findIndex(q => q.verdict === v) !== i;  // one verdict for a hypothesis put to several decision rules: in full once, small and faint under the others
-        return v ? mark(kind + (again ? '-again' : ''), 'test', T.id, v.id, `${v.id} · ${v.result}, given in turn ${v.turn}${again ? ' · the same verdict: one hypothesis, several decision rules' : ''}${odd ? ' · disagrees with its check' : ''}`, odd ? 'odd' : '') : gap; }).join(''),
+        return v ? mark(kind + (again ? '-again' : ''), 'test', T.id, v.id, `${v.id} · ${v.result}, given in turn ${v.turn}${again ? ' · the same verdict: one hypothesis, several decision rules' : ''}${v.voidOnly ? ' · ' + EV.RESTS : ''}${odd ? ' · disagrees with its check' : ''}`, odd ? 'odd' : '') : gap; }).join(''),
       report: c => (c.t.report ? mark('report', 'report', 'report', c.t.report.id, 'the final report') : ''),
     };
     const row = (by, icon, term, word, count, note, k) => `<tr data-by="${by}"><th><span class="gi">${EV.gk(icon)}</span>${EV.term(term, word)} <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}</th>${cols.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
@@ -90,7 +90,7 @@ Object.assign(EV, {
       return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="open" data-t="log" data-id="${c.t.n}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? `<span class="grf warnc" data-refused="${r}" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">${r}</span>` : ''}${
         c.t.n && anyLeft ? `<div class="gleft" data-left="${c.t.left ?? ''}" title="${c.t.left == null ? 'How many simulations were left at the start of this turn is not recorded (sessions before s008)' : `${c.t.left} simulation${c.t.left === 1 ? ' was' : 's were'} left at the start of turn ${c.t.n}`}">${c.t.left == null ? EV.nr : c.t.left + ' left'}</div>` : ''}</td>`; }).join('');
     const has = f => cols.some(f), res = k => M.checks.some(q => q.result === k && seen(q.id)), vd = k => M.recs.some(r => r.type === 'verdict' && r.body.result === k && seen(r.id));  // the key names a sign only once one is drawn
-    const K = EV.gkey, key = [[K('held') + 'held', res('held')], [K('failed') + 'failed', res('failed')], [K('supported') + 'supported', vd('supported')], [K('refuted') + 'refuted', vd('refuted')], [K('inconclusive') + 'inconclusive', vd('inconclusive')],
+    const K = EV.gkey, key = [[K('held') + 'held', res('held')], [K('failed') + 'failed', res('failed')], [K('void') + EV.VOID, res('void')], [K('supported') + 'supported', vd('supported')], [K('refuted') + 'refuted', vd('refuted')], [K('inconclusive') + 'inconclusive', vd('inconclusive')],
       [K('hyp-again') + 'small and faint: the same hypothesis or verdict again (stated in an earlier turn, or put to another decision rule)', has(c => c.ts.some((T, i) => { const h = M.hypById[T.hyp]; return (h && (h.turn !== c.t.n || c.ts.findIndex(q => q.hyp === T.hyp) !== i)) || (T.verdict && seen(T.verdict.id) && c.ts.findIndex(q => q.verdict === T.verdict) !== i); }))],
       [K('sim-returned') + 'a simulation returned from an earlier one, not run again', M.sims.some(q => q.same_as && seen(q.id))], ['X0: the harness\'s baseline, outside the budget', M.exps.some(x => x.by === 'harness' && seen(x.id))],
       [K('dropped') + 'dropped', M.hyps.some(h => h.drop && seen(h.drop.id))], ['<span class="grf warnc">n</span> refused answers or parts in that turn', cols.some(c => c.t.malformed.concat(c.t.refusals).some(q => seen(q.id)))],

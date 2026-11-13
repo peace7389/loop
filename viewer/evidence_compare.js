@@ -48,7 +48,7 @@ Object.assign(EV, {
       <div class="ev-card" id="cmp-table"><h2>How they went</h2><div class="ev-scroll"><table><thead><tr><th></th>${list.map(head).join('')}</tr></thead><tbody>
         ${row('how it ended', q => (q.x.running ? 'running now' : e(q.x.how || 'not recorded')))}${row(EV.term('Simulation', 'simulations') + ' used', q => `${q.x.simulations ?? 0}${q.x.allowed ? ' / ' + q.x.allowed : ''}`)}
         ${row(EV.term('Turn', 'turns'), q => q.M.counts.turn)}${row(EV.term('Hypothesis', 'hypotheses'), q => `${q.M.hyps.length}<span class="sm"> · ${EV.STATES.filter(s => q.M.hyps.some(h => h.state === s)).map(s => `${q.M.hyps.filter(h => h.state === s).length} ${s}`).join(' · ')}</span>`)}
-        ${row(EV.term('Test', 'tests') + ' held / failed', q => EV.tally(q.x.held, q.x.failed))}${row('refused answers or parts', q => q.M.counts.refused)}
+        ${row(EV.term('Test', 'tests') + ' held / failed', q => EV.tally(q.x.held, q.x.failed, q.x.void ? q.x.void[0] : 0))}${row('refused answers or parts', q => q.M.counts.refused)}
         ${recRows || row('recommendation', q => '<span class="mut">no final report</span>')}
         ${S.op ? row(EV.term('Scheduling policy', 'scheduling policy'), q => EV.policyText(q.x)) + row('gap to the best', q => EV.gapText(q.x) || '<span class="mut">not scored</span>') : ''}</tbody></table></div>
         <p class="sm">≠ the ticked sessions recommend different values; the cells that differ from the most common value are marked.</p></div>

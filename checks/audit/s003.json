@@ -1,0 +1,215 @@
+{
+ "session": "s003",
+ "brief": "two-hosts-udp-demand",
+ "made": "2026-11-13T22:52:41",
+ "counts": {
+  "checks": 4,
+  "void": 0,
+  "one_simulation": 0,
+  "verdicts": 0,
+  "verdicts_resting_only_on_void_checks": 0,
+  "experiments": 1,
+  "experiments_with_a_varied_knob_of_one_value": 0,
+  "designs": 12,
+  "designs_stating_every_knob": 0,
+  "designs_whose_label_names_a_weight_without_weightUdp": 0
+ },
+ "checks": [
+  {
+   "id": "C1",
+   "turn": 1,
+   "experiment": "X1",
+   "for": "H1",
+   "decision_rule": "udp_loss_frac@w029_cubic > 0.01 AND udp_loss_frac@w031_cubic <= 0.01",
+   "result": "held",
+   "runs": {
+    "w029_cubic": "r002",
+    "w031_cubic": "r008"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C2",
+   "turn": 1,
+   "experiment": "X1",
+   "for": "H2",
+   "decision_rule": "tcp_goodput_bps@w029_cubic > tcp_goodput_bps@w031_cubic",
+   "result": "held",
+   "runs": {
+    "w029_cubic": "r002",
+    "w031_cubic": "r008"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C3",
+   "turn": 1,
+   "experiment": "X1",
+   "for": "H3",
+   "decision_rule": "tcp_goodput_bps@w031_bbr >= tcp_goodput_bps@w031_cubic",
+   "result": "failed",
+   "runs": {
+    "w031_bbr": "r011",
+    "w031_cubic": "r008"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C4",
+   "turn": 1,
+   "experiment": "X1",
+   "for": "H4",
+   "decision_rule": "tcp_goodput_bps@w031_vegas < tcp_goodput_bps@w031_cubic",
+   "result": "held",
+   "runs": {
+    "w031_vegas": "r012",
+    "w031_cubic": "r008"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  }
+ ],
+ "verdicts": [],
+ "experiments": [
+  {
+   "id": "X1",
+   "turn": 1,
+   "kind": "test",
+   "simulations": 12,
+   "varied": [
+    "weightUdp",
+    "tcpVariant"
+   ],
+   "varied_but_one_value": {}
+  }
+ ],
+ "designs": [
+  {
+   "experiment": "X1",
+   "label": "w029_cubic",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w029_newreno",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w029_linuxreno",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w029_bbr",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w029_vegas",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w029_bic",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w031_cubic",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w031_newreno",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w031_linuxreno",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w031_bbr",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w031_vegas",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w031_bic",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  }
+ ]
+}

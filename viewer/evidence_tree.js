@@ -36,12 +36,12 @@ Object.assign(EV, {
       if (!open) return;
       t.malformed.forEach(m => { out += row(1, { t: 'log', id: t.n, icon: EV_ICON.malformed, name: 'refused', words: 'the whole answer: ' + e(cut((m.body.refused || []).map(q => q.reason).join(' | ') || m.body.error, 70)), step: st(m.id), warn: true }); });
       t.refusals.forEach(m => { out += row(1, { t: 'log', id: t.n, icon: EV_ICON.malformed, name: 'refused part', words: e(m.body.part) + ': ' + e(cut(m.body.reason || m.body.text, 70)), step: st(m.id), warn: true }); });
-      if (x) { const ts = M.tests.filter(T => T.exp === x.id), xk = 'exp:' + x.id, xo = EV.treeOpen(xk), held = x.checks.filter(c => c.result === 'held').length, named = new Set(ts.flatMap(T => T.sims.map(q => q.id)));
+      if (x) { const ts = M.tests.filter(T => T.exp === x.id), xk = 'exp:' + x.id, xo = EV.treeOpen(xk), held = x.checks.filter(c => c.result === 'held').length, failed = x.checks.filter(c => c.result === 'failed').length, voids = x.checks.filter(c => c.void).length, named = new Set(ts.flatMap(T => T.sims.map(q => q.id)));
         out += row(1, { t: 'exp', id: x.id, icon: EV_ICON.experiment, name: 'experiment ' + x.id, words: `${x.sims.length} simulation${x.sims.length === 1 ? '' : 's'} · ${ts.length ? ts.length + (ts.length === 1 ? ' test' : ' tests') : x.by === 'harness' ? 'the baseline' : 'explores: ' + e(cut(x.question, 50))}`,
-          step: st(x.id), fold: xk, open: xo, sel: sel.t === 'exp' && sel.id === x.id, state: x.checks.length ? span(Math.max(...x.checks.map(c => st(c.id))), EV.tally(held, x.checks.length - held)) : '' });
+          step: st(x.id), fold: xk, open: xo, sel: sel.t === 'exp' && sel.id === x.id, state: x.checks.length ? span(Math.max(...x.checks.map(c => st(c.id))), EV.tally(held, failed, voids)) : '' });
         if (xo) { ts.forEach(T => { const k = 'test:' + T.id, to = EV.treeOpen(k), v = T.verdict, h = M.hypById[T.hyp];
             out += row(2, { t: 'test', id: T.id, icon: EV_ICON.test, name: 'test of ' + T.hyp, words: e(cut(EV.hshort(h), 40)), step: st(x.id), fold: k, open: to, sel: sel.t === 'test' && sel.id === T.id || (sel.t === 'hyp' && sel.id === T.hyp),
-              state: (T.check ? span(st(T.check.id), res(T.check)) : '') + (v ? span(st(v.id), ` · ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : '') });
+              state: (T.check ? span(st(T.check.id), res(T.check)) : '') + (v ? span(st(v.id), ` · ${EV.verdictRes(v.result)}${EV.rests(v, true)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : '') });
             if (to) T.sims.forEach(q => { out += simRow(3, q, T); }); });
           x.sims.filter(q => !named.has(q.id)).forEach(q => { out += simRow(2, q, null); }); } }
       if (t.report) out += row(1, { t: 'report', id: 'report', icon: EV_ICON.report, name: 'final report', words: `${M.claims.length} claim${M.claims.length === 1 ? '' : 's'}`, step: st(t.report.id), sel: sel.t === 'report' });

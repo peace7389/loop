@@ -21,7 +21,8 @@ Object.assign(EV, {
       <h3>The ${EV.term('Decision rule', 'decision rule')}, in full</h3><p>${T.rule ? `<code>${e(T.rule)}</code>` : EV.nr}</p>
       ${T.rival ? `<p class="sm">${EV.term('Rival', 'rival')}: ${e(T.rival)} · under the rival the rule would have ${e(T.rival_predicts || 'not recorded')}</p>` : ''}
       <p class="sm" data-step="${kc}">${EV.term('Check', 'check')} by the harness: ${T.check ? `${EV_ICON.check} ${e(T.check.id)} · ${e(T.check.numbers)} → ${EV.checkRes(T.check)}` : EV.nr}</p>
-      ${v ? `<div data-step="${kv}"><h3>${EV.term('Verdict', 'Verdict')} ${e(v.id)}: ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('disagrees with its check') : ''}</h3><p>${e(v.because || '')}</p>${EV.numCheck(v.because, x.sims)}<p class="sm"><b>next</b> ${e(v.next || 'not recorded')}</p></div>` : ''}`;
+      ${T.check && T.check.void ? `<p class="void-note" data-step="${kc}" data-void="${e(T.check.id)}">${EV.gkey('void')}<b>${EV.VOID}.</b> ${e(T.check.same.join(', '))} are one simulation (run ${e((T.sims.find(s => s.label === T.check.same[0]) || {}).run || 'not recorded')}): the same settings and seed under ${T.check.same.length} labels. The harness recorded “${e(T.check.recorded)}”; the page counts this check neither as held nor as failed.</p>` : ''}
+      ${v ? `<div data-step="${kv}"><h3>${EV.term('Verdict', 'Verdict')} ${e(v.id)}: ${EV.verdictRes(v.result)}${EV.rests(v)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('disagrees with its check') : ''}</h3><p>${e(v.because || '')}</p>${EV.numCheck(v.because, x.sims)}<p class="sm"><b>next</b> ${e(v.next || 'not recorded')}</p></div>` : ''}`;
   },
 
   testPanel(id) {

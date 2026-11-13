@@ -127,14 +127,14 @@ def sessions():
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
             shown = [r for r in recs if r["type"] not in ("draft", "scratch")]  # what the figures are counted from
             meta = json.loads((d / "session.json").read_text()) if (d / "session.json").is_file() else {}
-            checks = [(r.get("body") or {}).get("result") for r in recs if r["type"] == "check"]
+            held, failed = session_figures.held_failed(shown)  # without the void checks (a decision rule that compared a simulation with itself)
             sc = json.loads(score.read_text()) if score.is_file() else None
             marks = json.loads(review.read_text()) if review.is_file() else {}
             CACHE[d.name] = (sig, {"id": d.name, "brief": meta.get("brief"), "records": len(recs), "runs": len(lines(idx)),
                 "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs),
                 "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" and not (r.get("body") or {}).get("same_as") for r in recs),  # run, as the budget counts them
                 "allowed": ((meta.get("given") or {}).get("limits") or {}).get("simulations") or (meta.get("flags") or {}).get("budget"),
-                "turns": max([r["turn"] for r in recs], default=0), "held": checks.count("held"), "failed": checks.count("failed"),
+                "turns": max([r["turn"] for r in recs], default=0), "held": held, "failed": failed,
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
                 "has_report": any(r["type"] == "report" for r in recs),
@@ -142,6 +142,7 @@ def sessions():
                 "seq": session_figures.checks_in_order(shown),         # the checks in order: "hhh hf ..." (None: not recorded)
                 "returned": session_figures.returned_simulations(shown),  # [returned from an earlier one, all simulations]
                 "unnamed": session_figures.unnamed_simulations(shown),    # [named by no decision rule, simulations of the experiments that test]
+                "void": session_figures.void_count(shown),                # [void checks, all checks]
                 "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs),
                 # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
                 "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"),

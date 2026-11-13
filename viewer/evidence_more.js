@@ -29,9 +29,9 @@ Object.assign(EV, {
       // under it what was compared, the check, the margin and the verdict
       return head + ts.map(T => { const h = M.hypById[T.hyp], v = T.verdict, mc = EV.marginCell(T.check), cmp = EV.compared(T);
         return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}" data-step="${st(x.id)}"><td><div class="tt-h${h && h.question ? '' : ' lc2'}">${EV_ICON.test} <b>${e(T.hyp)}</b> ${h && h.question ? EV.question(h) : e(h ? h.text : '')}</div>
-          <div class="tt-m sm"><span class="tt-c" title="${e(cmp)}">${e(cmp)}</span><span class="tt-k">${T.check ? at(st(T.check.id), '<span class="tt-l">check</span> ' + EV.checkRes(T.check)) : at(end, T.rule ? '<span class="mut">not checked</span>' : '<span class="mut">no decision rule</span>')}</span>
-            <span class="mgc noprint">${mc ? `<span class="tt-l" title="${e(EV.MARGIN_NOTE)}">margin</span> ${mc}` : ''}</span>
-            <span class="tt-v">${v ? at(st(v.id), `<span class="tt-l">verdict</span> ${v.id} ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : at(end, '<span class="mut">no verdict</span>')}</span></div></td></tr>`; }).join(''); }).join('');
+          <div class="tt-m sm${T.check && T.check.void ? ' vd' : ''}"><span class="tt-c" title="${e(cmp)}">${e(cmp)}</span><span class="tt-k">${T.check ? at(st(T.check.id), '<span class="tt-l">check</span> ' + EV.checkRes(T.check)) : at(end, T.rule ? '<span class="mut">not checked</span>' : '<span class="mut">no decision rule</span>')}</span>
+            <span class="mgc noprint">${mc ? `<span class="tt-l" title="${e(EV.MARGIN_NOTE)}">margin</span> ${mc}` : T.check && T.check.void && EV.seen(T.check.id) ? '<span class="vd-note">this decision rule compared a simulation with itself</span>' : ''}</span>
+            <span class="tt-v">${v ? at(st(v.id), `<span class="tt-l">verdict</span> ${v.id} ${EV.verdictRes(v.result)}${EV.rests(v)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : at(end, '<span class="mut">no verdict</span>')}</span></div></td></tr>`; }).join(''); }).join('');
     return `<div class="ev-card" id="s-tests"><h2>${EV.term('Test', 'Tests')} <small>one hypothesis put to one decision rule; grouped under the ${EV.term('Experiment', 'experiment')} they were run in</small></h2>
         ${M.exps.length ? `<div class="ev-scroll"><table style="table-layout:fixed"><tbody>${list}</tbody></table></div>
         <p class="sm noprint" id="mg-note"><b>margin</b>: ${e(EV.MARGIN_NOTE)} The bar is cut at ±100%.</p>` : '<p class="sm">none</p>'}</div>`;
@@ -40,7 +40,7 @@ Object.assign(EV, {
   // one line that says what an evidence item is
   evLine(id) {
     const M = EV.M, r = M.byId[id], e = EV.e, b = r && r.body || {}; if (!r) return `<span class="bad">${e(id)} is not in the ledger</span>`;
-    if (r.type === 'check') return `${e(b.for)}: <code>${e(b.decision_rule || b.rule)}</code> → ${e(b.with_numbers)} → ${EV.res(EV.ck(b.result), b.result)}`;
+    if (r.type === 'check') return `${e(b.for)}: <code>${e(b.decision_rule || b.rule)}</code> → ${e(b.with_numbers)} → ${EV.checkRes(M.checks.find(q => q.id === id) || { result: b.result })}`;
     if (r.type === 'verdict') return `on ${e(b.for)}: ${EV.verdictRes(b.result)} · ${e(String(b.because || '').slice(0, 160))}`;
     if (r.type === 'evidence') return `the table of ${e(b.experiment || r.parent)}: ${(b.lines || []).length} simulation line${(b.lines || []).length === 1 ? '' : 's'}`;
     if (r.type === 'simulation') return `“${e(b.label)}” ${e(Object.entries(b.params || {}).map(([k, v]) => k + ' ' + v).join(', ').slice(0, 140))}`;

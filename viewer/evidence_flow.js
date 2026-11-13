@@ -6,7 +6,8 @@
 // ======================================================================================================
 Object.assign(EV, {
   // the verdict disagrees with its check: supported although a check failed, or refuted although every check held
-  contradicts(v, cs) { if (!v || !cs.length) return false; const all = cs.every(c => c.result === 'held'); return (v.result === 'supported' && !all) || (v.result === 'refuted' && all); },
+  // (a void check says nothing a verdict could disagree with)
+  contradicts(v, cs) { cs = (cs || []).filter(c => !c.void); if (!v || !cs.length) return false; const all = cs.every(c => c.result === 'held'); return (v.result === 'supported' && !all) || (v.result === 'refuted' && all); },
   // the hypotheses that followed a test: those that name its check, its verdict or its simulations in what they follow
   // from; if none does, those that name the table of the experiment it was run in
   followers(T, M = EV.M) {
@@ -53,8 +54,8 @@ Object.assign(EV, {
       check: b => { const dx = b.x + b.w / 2, mid = b.y + BH / 2, nx = Math.max(0, b.x - 12), nw = Math.min(b.w + 58, W - nx);
         return `<g data-step="${kc}"><polygon points="${dx},${mid - 42} ${dx + 48},${mid} ${dx},${mid + 42} ${dx - 48},${mid}" class="bx"/>
           <text x="${dx}" y="${mid - 6}" text-anchor="middle">did the rule hold?</text>${T.check ? EV.gks(EV.ck(res), dx - res.length * 3.2 - 9, mid + 2, 12) : ''}<text x="${dx + (T.check ? 7 : 0)}" y="${mid + 12}" text-anchor="middle" style="fill:var(--text-primary)">${e(res)}</text><title>${e(T.check ? `${T.check.id}: ${T.check.rule} → ${T.check.numbers} → ${T.check.result}` : 'no check')}</title></g>`
-          + fo(nx, b.y + BH + 2, nw, T.check ? `with the numbers: ${e(T.check.numbers)}` : T.rule ? `the harness's check: ${EV.nr}` : '', kc); },
-      verdict: b => EV.box(b.x, b.y, b.w, BH, 'model', v ? `${EV_ICON.verdict} <b>${v.id}</b> · ${EV.verdictRes(v.result)}${bad ? ' ' + EV.warn('disagrees with its check') : ''}<br><small class="${bad ? 'lc2' : 'lc3'}">${e(v.because)}</small>`
+          + fo(nx, b.y + BH + 2, nw, T.check ? (T.check.void ? `<span data-void="1">${EV.VOID}</span>` : `with the numbers: ${e(T.check.numbers)}`) : T.rule ? `the harness's check: ${EV.nr}` : '', kc); },
+      verdict: b => EV.box(b.x, b.y, b.w, BH, 'model', v ? `${EV_ICON.verdict} <b>${v.id}</b> · ${EV.verdictRes(v.result)}${EV.rests(v)}${bad ? ' ' + EV.warn('disagrees with its check') : ''}<br><small class="${bad ? 'lc2' : 'lc3'}">${e(v.because)}</small>`
         : `${EV_ICON.verdict} <b>no verdict</b><br><small>${h && h.verdict ? 'the hypothesis was tested again first' : M.ended ? 'the session ended without one' : 'not given yet'}</small>`, v ? `data-act="open" data-t="log" data-id="${v.turn}" data-step="${kv}"` : `data-step="${kv}"`, bad ? 'warn' : ''),
       next: b => EV.box(b.x, b.y, b.w, BH, 'model', `<b>next</b><br><small class="lc4">${!v ? 'no verdict, so no next step' : v.next ? e(v.next) : EV.nr}</small>`, `data-step="${kv}"`),
       fol: b => EV.box(b.x, b.y, b.w, BH, 'model', fol.ids.length ? `followed by<br>${fol.ids.map(id => `<b>${EV_ICON.hypothesis} ${id}</b>`).join(', ')}${fol.via ? `<br><small>through the table ${e(fol.via)}</small>` : ''}` : '<small>no hypothesis followed from it</small>',

@@ -1,0 +1,355 @@
+{
+ "session": "s007",
+ "brief": "two-hosts-udp-demand",
+ "made": "2026-11-13T22:52:41",
+ "counts": {
+  "checks": 4,
+  "void": 0,
+  "one_simulation": 0,
+  "verdicts": 0,
+  "verdicts_resting_only_on_void_checks": 0,
+  "experiments": 3,
+  "experiments_with_a_varied_knob_of_one_value": 0,
+  "designs": 23,
+  "designs_stating_every_knob": 0,
+  "designs_whose_label_names_a_weight_without_weightUdp": 0
+ },
+ "checks": [
+  {
+   "id": "C1",
+   "turn": 2,
+   "experiment": "X2",
+   "for": "H1",
+   "decision_rule": "tcp_goodput_bps@w40_q1000 - tcp_goodput_bps@w40_q100 < 10000000",
+   "result": "held",
+   "runs": {
+    "w40_q1000": "r013",
+    "w40_q100": "r006"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C2",
+   "turn": 2,
+   "experiment": "X2",
+   "for": "H2",
+   "decision_rule": "udp_loss_frac@w35_q100 > 0.01",
+   "result": "failed",
+   "runs": {
+    "w35_q100": "r014"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C3",
+   "turn": 4,
+   "experiment": "X3",
+   "for": "H3",
+   "decision_rule": "udp_loss_frac@w33_cubic > 0.01",
+   "result": "failed",
+   "runs": {
+    "w33_cubic": "r017"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C4",
+   "turn": 4,
+   "experiment": "X3",
+   "for": "H4",
+   "decision_rule": "tcp_goodput_bps@w35_bbr > tcp_goodput_bps@w35_cubic * 1.05",
+   "result": "failed",
+   "runs": {
+    "w35_bbr": "r019",
+    "w35_cubic": "r014"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  }
+ ],
+ "verdicts": [],
+ "experiments": [
+  {
+   "id": "X1",
+   "turn": 1,
+   "kind": "explore",
+   "simulations": 11,
+   "varied": [
+    "weightUdp"
+   ],
+   "varied_but_one_value": {}
+  },
+  {
+   "id": "X2",
+   "turn": 2,
+   "kind": "test",
+   "simulations": 6,
+   "varied": [
+    "weightUdp",
+    "queuePkts"
+   ],
+   "varied_but_one_value": {}
+  },
+  {
+   "id": "X3",
+   "turn": 4,
+   "kind": "test",
+   "simulations": 6,
+   "varied": [
+    "weightUdp",
+    "tcpVariant"
+   ],
+   "varied_but_one_value": {}
+  }
+ ],
+ "designs": [
+  {
+   "experiment": "X1",
+   "label": "w05",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w10",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w20",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w30",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w40",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w50",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w60",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w70",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w80",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w90",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w95",
+   "does_not_state": [
+    "queuePkts",
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w40_q100",
+   "does_not_state": [
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w40_q10",
+   "does_not_state": [
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w40_q1000",
+   "does_not_state": [
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w35_q100",
+   "does_not_state": [
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w38_q100",
+   "does_not_state": [
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w42_q100",
+   "does_not_state": [
+    "tcpVariant",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w35_cubic",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w33_cubic",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w32_cubic",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w35_bbr",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w35_reno",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w35_vegas",
+   "does_not_state": [
+    "queuePkts",
+    "duration",
+    "seed"
+   ],
+   "label_names_a_weight_without_weightUdp": false
+  }
+ ]
+}

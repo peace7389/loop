@@ -19,12 +19,12 @@ Object.assign(EV, {
   // ---- the header strip: labelled fields on one line, each a small label above its value; only what is recorded by the replay's step
   headStrip() {
     const M = EV.M, S = EV.s, row = EV.files.row || {}, m = M.meta || {}, e = EV.e, seen = EV.seen, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts();
-    const held = M.checks.filter(c => c.result === 'held' && seen(c.id)).length, failed = M.checks.filter(c => c.result === 'failed' && seen(c.id)).length, used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;
+    const held = M.checks.filter(c => c.result === 'held' && seen(c.id)).length, failed = M.checks.filter(c => c.result === 'failed' && seen(c.id)).length, voids = M.checks.filter(c => c.void && seen(c.id)).length, used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;
     const kv = ([k, v]) => `${e(k)} ${e(TASK_VIEW._rate(String(v)))}`, rec = !R ? null : R.text ? e(R.text) : R.differ.length ? R.differ.map(kv).join(', ') : R.known ? "every knob at the brief's default" : EV.nr;
     const f = (id, label, value, title) => `<div class="hf" data-f="${id}"${title ? ` title="${e(title)}"` : ''}><span>${label}</span><b>${value}</b></div>`;
     const ended = row.running ? '<span class="pill live">running</span>' : !live ? `<span class="mut">at step ${S.step + 1} of ${M.steps.length}</span>` : m.how ? e(m.how) : `ending ${EV.nr}`;
     return `<div class="ev-head" id="ev-head">${f('brief', EV.term('Brief', 'Brief'), M.brief ? e(M.brief.id) : EV.nr)}${f('session', EV.term('Session', 'Session'), e(M.id))}${f('how', 'How it ended', ended, live ? m.how : '')}
-      ${f('sims', EV.term('Simulation', 'Simulations'), `${live ? m.simulations ?? (M.old ? M.sims.length : row.simulations ?? used) : used}${row.allowed ? ' of ' + row.allowed : ''}`)}${f('checks', EV.term('Check', 'Checks'), M.old ? EV.nr : EV.tally(held, failed))}
+      ${f('sims', EV.term('Simulation', 'Simulations'), `${live ? m.simulations ?? (M.old ? M.sims.length : row.simulations ?? used) : used}${row.allowed ? ' of ' + row.allowed : ''}`)}${f('checks', EV.term('Check', 'Checks'), M.old ? EV.nr : EV.tally(held, failed, voids))}
       ${f('model', 'Model', m.model ? e(m.model) : EV.nr)}${f('rec', 'Recommends', rec == null ? `<span class="mut">no recommendation${M.ended && live ? '' : ' yet'}</span>` : rec, R && R.known && R.differ.length ? "The knobs of the recommendation that differ from the brief's defaults" : '')}
       ${S.op ? `<span data-by="operator" class="hf-op">${f('policy', '<i class="sw"></i>' + EV.term('Scheduling policy', 'Scheduling policy'), EV.policyText(row))}${f('gap', 'Gap to the best', EV.gapText(row) || '<span class="mut">not scored</span>')}</span>` : ''}</div>`;
   },
@@ -46,9 +46,9 @@ Object.assign(EV, {
   // and the full expected result are in the card "The final report", which stands beside the detail pane.
   overview() {
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, rep = EV.repNow(), m = M.meta || {}, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts(), X = EV.expRows(rep);
-    const held = M.checks.filter(q => q.result === 'held' && seen(q.id)).length, rules = M.checks.filter(q => seen(q.id)).length, turns = M.turns.filter(t => t.n > 0 && (t.steps[0] ? t.steps[0].k : 0) <= (S.step ?? Infinity)).length;
+    const held = M.checks.filter(q => q.result === 'held' && seen(q.id)).length, voids = M.checks.filter(q => q.void && seen(q.id)).length, rules = M.checks.filter(q => seen(q.id)).length - voids, turns = M.turns.filter(t => t.n > 0 && (t.steps[0] ? t.steps[0].k : 0) <= (S.step ?? Infinity)).length;
     const intro = !S.intro ? '' : `<div class="ev-intro"><p>A person wrote an assignment (the ${EV.term('Brief', 'brief', 1)}${M.brief ? ' “' + e(M.brief.id) + '”' : ''}). The AI made one attempt, in ${turns} ${EV.term('Turn', turns === 1 ? 'turn' : 'turns', 1)}${live ? '' : ' so far'}.
-      Each turn it stated what it expected, ran ${EV.term('Simulation', 'simulations', 1)}, and the harness checked whether it was right: ${M.old ? 'the checks were ' + EV.nr : `${held} of ${rules} ${EV.term('Decision rule', 'decision rules', 1)} held`}.
+      Each turn it stated what it expected, ran ${EV.term('Simulation', 'simulations', 1)}, and the harness checked whether it was right: ${M.old ? 'the checks were ' + EV.nr : `${held} of ${rules} ${EV.term('Decision rule', 'decision rules', 1)} held${voids ? `; ${voids} more ${voids === 1 ? 'was' : 'were'} void (${voids === 1 ? 'it' : 'each'} compared a simulation with itself)` : ''}`}.
       ${M.report || !live ? '' : M.ended ? 'It ended without a final report.' : 'It is still running.'}</p><button data-act="intro">dismiss</button></div>`;
     const name = k => e(TH_DATA.KNOB[k] || k), val = (k, v) => e(TASK_VIEW._rate(String(EV.val(k, v)))).replace(/^Tcp/, '');
     const recHtml = !R ? EV.nr : R.text ? e(R.text) : `<div class="rec" id="ov-rec">${R.differ.map(([k, v]) => `<span class="rk" data-knob="${e(k)}"><span>${name(k)}</span><b>${val(k, v)}</b></span>`).join('') || (R.known ? '<span class="sm">no knob differs from the brief’s default</span>' : EV.nr)}</div>
