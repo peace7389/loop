@@ -1271,6 +1271,45 @@ The exact text is on hover, and the test's panel keeps the exact rule and the
 exact check. The grammar read is the harness's (8.4); a text that cannot be
 read is shown as it is.
 
+**Best so far, against choosing at random** (`evidence_random.js`; operator
+columns only, and only for a brief with a given goal whose session is scored;
+**DECISION 2026-11-13**, `NOTEBOOK_VIEW.md`, Part 2). Behind the session's line
+the best-so-far chart draws a grey band and a dashed line: what a method
+without any reasoning gives.
+
+- **The random method.** N draws, N = the simulations the session used. Each
+  draw takes every knob evenly, and apart from the others, from the values of
+  the sweep's **first grid** (`status.json`, `grid`), not from the rows added
+  later around the best point, which would favour it; its result is the sweep
+  row with those values. After k draws the method's result is the best value
+  of the target among the draws that meet the brief's conditions; before any
+  draw meets them it has no value. Repeated 2,000 times with a fixed seed
+  (mulberry32, seed 20261113).
+- **On the chart**: the band is the 10th to the 90th percentile of those
+  results at each k (a repetition without a value counts as the worst), the
+  dashed line the median. The first draw stands at the session's first own
+  simulation, after the harness's baseline. The sweep's best row stays as the
+  horizontal line.
+- **One sentence under the chart**, computed: "Within 0.5% of the sweep's best
+  (…): this session after k simulations; random choice after m in the median
+  (never within N in p% of repetitions)", with "not reached" where it applies,
+  and "at the harness's baseline" when the default settings are already
+  within.
+- The legend says what the band is and from which rows it is drawn. Compare
+  draws one band for each scheduling policy among the ticked sessions.
+- `~/research/tools/evidence_checks/random_recount.py` counts the same from
+  the sweep table with its own code; the page's band and the sentence's
+  numbers equal it draw by draw.
+
+What it shows for the two sweeps of `two-hosts-udp-demand` (40 draws): under
+**cap** random choice never comes within 0.5% of the best (median after 40
+draws 658.8 Mbps against a best of 671.5), while s006 was within after 2
+simulations and s012 after 10; under **share** the harness's baseline is
+already within (668.6 against 671.6 Mbps: once UDP loses nothing the weight
+no longer matters), and random choice is within after 2 draws in the median.
+The first grid is itself not evenly spaced: 11 of its 24 values of weightUdp
+lie between 0.26 and 0.36, so even this band favours random choice somewhat.
+
 **A hypothesis's question** (`EV.hshort`, `EV.question` in
 `evidence_marks.js`). Where a hypothesis stands in short, the page shows its
 question when the session recorded one: the first line of a test in the tests
@@ -1667,7 +1706,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 185 | the shell: colours, styles, the list of scripts |
+| `index.html` | 188 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 165 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 174 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -1679,7 +1718,8 @@ above all, so the counts understate the size.
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 119 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 57 | highlights |
-| `evidence_best.js` | 79 | best so far |
+| `evidence_best.js` | 82 | best so far |
+| `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 56 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
@@ -1695,7 +1735,7 @@ above all, so the counts understate the size.
 | `evidence_operator.js` | 52 | the Operator tab: the score, the checklist and its judgements |
 | `evidence_heat.js` | 64 | the sweep as a heat map: the colour range, the stretches of the axis, the session's simulations as marks |
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
-| `evidence_compare.js` | 64 | the Compare tab |
+| `evidence_compare.js` | 66 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 54 | links, export, print |
 | `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
