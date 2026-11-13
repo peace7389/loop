@@ -1054,8 +1054,8 @@ line at the foot of every view.
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far as a table, one row per brief (sessions, with a final report, meet the brief's conditions, largest gap to the best, not scored; a cell with nothing to count says "not scored"); the table of every session, sortable and filterable, a running one first, where a row opens its session and shows, on one line, its checks in order followed by the counts of held and failed, how many of its simulations were returned from an earlier one ("returned"), and how many no decision rule names ("not named by a rule") |
 | New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
-| A session | Header strip (always visible, labelled fields on one line); the Overview, first and at full width, one band that holds only the answer; "The system"; "What this session is made of"; then, in the left column beside the detail pane, "The final report" (the model's own words: its claims as rows of full sentences, its explanation); highlights; best so far; the work; the tests list; "How to read this page" |
-| The work | The left side switches between Tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2"), Session flow (three lanes: model, harness, simulator) and Hypothesis map (arrows from `follows_from`). One selection is shared by all three. Replay greys everything after the chosen step in all three |
+| A session | Header strip (always visible, labelled fields on one line); the Overview, first and at full width, one band that holds only the answer; "The system"; "What this session is made of"; then, in the left column beside the detail pane, "The final report" (the model's own words: its claims as rows of full sentences, its explanation); the notebook, one card per test, and under it, closed by default, the same tests as a list or as a tree; highlights; best so far; the work; "How to read this page" |
+| The work | Session flow (three lanes: model, harness, simulator) or Hypothesis map (arrows from `follows_from`). The tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2") is behind the notebook's switch. One selection is shared by the notebook, the tree, the flow and the map. Replay greys everything after the chosen step in all of them |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
 | Operator tab | From `checks/` only: the policy, the sweep as a heat map with the session's simulations on it, the score with the knobs that differ from the sweep's best row marked, the checklist with the operator's judgement and note for each item; "Run one simulation" and "Run a sweep" |
 | Compare tab | Sessions of one brief with a tick each; two or more ticked are shown side by side: their best-so-far lines, a table, the first test that held; with operator columns on, the sweep as a parallel-coordinates chart with each recommendation as a bold line |
@@ -1222,6 +1222,54 @@ it: the whole session as one picture.
   browser remembers it. Folded, its line carries its content: the counts from
   the records by the replay's step ("5 turns · 12 hypotheses · 12 checks, 10
   held and 2 failed as marks · 44 simulations"). It is not printed.
+
+**The notebook is the main view of a session's work** (`evidence_notebook.js`;
+**DECISION 2026-11-13**, the operator's `NOTEBOOK_VIEW.md`, Part 1). It is the
+first thing in the left column under "The final report". One card per test,
+under a light heading per turn ("Turn 2 · 28 simulations left", with what the
+turn did); an exploration is a heading with its question and its simulations,
+without a card; the harness's baseline is the heading "Start". Every card has
+the same six lines, always in this order, each a recorded text or a measured
+number, with the small colour of who produced it:
+
+| Line | Taken from | Produced by |
+|---|---|---|
+| Question | the hypothesis's `question`; a session that recorded none: the hypothesis text | model |
+| Plan | what differs between the simulations the decision rule names, in words built from their settings ("2 simulations: UDP share of the link 0.2, 0.8 at Measured time 5"), then what they share that is not the brief's default | model's design |
+| Expected | the decision rule for reading, and its rival in one line | model |
+| Result | the same rule with the measured numbers, and held or failed; a number opens its simulation | simulator and harness |
+| Conclusion | the verdict and the first sentence of its "because"; "more" shows the rest | model |
+| So next | the verdict's "next", and a link to each hypothesis that follows from this test | model |
+
+- The left edge says the outcome: expected and found (held, the colour of the
+  held sign), expected and not found (failed, the colour of the failed sign). A
+  failed check is a result, not a warning. A void check reads "void: compared
+  a simulation with itself" in Result and has a neutral edge.
+- "changed course here": the check failed and a later hypothesis follows from
+  the test (it names its check, its verdict or its simulations, or the table
+  of its experiment).
+- A test whose verdict has not come yet shows its last two lines as "not
+  yet"; in a session that ended without one, "no verdict".
+- A click on a card opens the test in the detail pane, as a row of the tests
+  list does. In the replay a card can be read from the step of its experiment,
+  its Result from the step of its check, its last two lines from the step of
+  its verdict.
+- **Under it, one switch, closed by default**: the same tests "as a list" (the
+  tests list) or "as a tree" (the tree); one of the two at a time; the choice
+  is kept over a reload. The notebook is printed; the switch is not.
+
+**Numbers written for reading** (`evidence_read.js`). Wherever a decision rule
+or a check is shown for reading (the notebook, the boxes of a test's flow
+chart, the work-log card, an evidence item, the highlights), the outputs stand
+by their plain names and the numbers in the units of the page:
+`tcp_goodput_bps@low_w50 > 800000000` as "TCP goodput at low_w50 > 800 Mbps",
+its check as "483 Mbps > 800 Mbps: failed". A measured number is the value of
+that output in the simulation the rule names (the harness's check holds the
+same value) and is shown with as many digits as it takes to tell the two
+sides of its comparison apart; a number written in the rule keeps every digit.
+The exact text is on hover, and the test's panel keeps the exact rule and the
+exact check. The grammar read is the harness's (8.4); a text that cannot be
+read is shown as it is.
 
 **A hypothesis's question** (`EV.hshort`, `EV.question` in
 `evidence_marks.js`). Where a hypothesis stands in short, the page shows its
@@ -1573,8 +1621,8 @@ untracked until they say otherwise.
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
 are in the repository), `~/VIEWS_DECISIONS.md`, `~/PAGE_POLISH.md`,
-`OVERVIEW_REDESIGN.md`, `FORMAT_FIX.md` (the last two beside this file in
-`~/project`, not in the repository).
+`OVERVIEW_REDESIGN.md`, `FORMAT_FIX.md`, `NOTEBOOK_VIEW.md` (the last three
+beside this file in `~/project`, not in the repository).
 
 ## 17. Source files
 
@@ -1619,10 +1667,12 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 175 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 164 | the address, loading, the top bar, clicks, replay, review marks |
+| `index.html` | 185 | the shell: colours, styles, the list of scripts |
+| `evidence.js` | 165 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 174 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
+| `evidence_read.js` | 84 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
+| `evidence_notebook.js` | 70 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
@@ -1637,7 +1687,7 @@ above all, so the counts understate the size.
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 44 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
-| `evidence_more.js` | 76 | summary, the tests list, the final report in full, the evidence sheet |
+| `evidence_more.js` | 77 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 57 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 71 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_margin.js` | 39 | the margin of a check: how far it was from its decision rule; a part of each test's line in the tests list |

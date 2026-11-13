@@ -3,8 +3,8 @@
 // columns from the final report: the goal, the recommended settings against the brief's defaults, the expected result in
 // short, the claims in numbers); "The system"; "What this session is made of"; then, in the left column, "The final report"
 // (the model's own words: its claims with the evidence each cites, the explanation, the full expected result, when it holds
-// and breaks); the highlights; best so far; the work (tree | session flow | hypothesis map); the tests list; "How to read
-// this page". The detail of whatever is selected is the right-hand pane: it stays in view beside the left column, so no
+// and breaks); the notebook, one card per test (evidence_notebook.js), and under it, closed by default, the same tests "as a
+// list" or "as a tree"; the highlights; best so far; the work (session flow | hypothesis map); "How to read this page". The detail of whatever is selected is the right-hand pane: it stays in view beside the left column, so no
 // click has to move the page, and a click on a claim shows its test at once.
 // ======================================================================================================
 Object.assign(EV, {
@@ -83,14 +83,14 @@ Object.assign(EV, {
       <p class="sm noprint" style="margin-top:10px">open on the right: <a data-act="open" data-t="report" data-id="report">the full final report</a> · <a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p></div>`;
   },
 
-  // ---- the work: the left side is the tree, the session flow or the hypothesis map; the selection is shared
+  // ---- the work: the session flow or the hypothesis map (the tree is under the notebook, behind its switch); the selection is shared
   workCard() {
-    const S = EV.s, M = EV.M, left = S.left || 'tree', n = M.steps.length, k = S.step == null ? n - 1 : S.step, b = (id, t) => `<button data-act="left" data-id="${id}" class="${left === id ? 'on' : ''}">${t}</button>`;
-    return `<div class="ev-card" id="s-work"><h2>The work <small>${left === 'tree' ? 'each turn with its experiment, the tests in that experiment, and the simulations each test uses' : left === 'lanes' ? 'time runs down, in the lane of whoever did each step' : 'left to right by the turn each hypothesis was stated'}</small></h2>
-      <div class="ev-bar"><span>${b('tree', 'Tree')} ${b('lanes', 'Session flow')} ${b('map', 'Hypothesis map')}</span>${left === 'map' ? `<button data-act="path" class="${S.path ? 'on' : ''}">show the path to the answer</button>` : ''}
+    const S = EV.s, M = EV.M, left = S.left === 'map' ? 'map' : 'lanes', n = M.steps.length, k = S.step == null ? n - 1 : S.step, b = (id, t) => `<button data-act="left" data-id="${id}" class="${left === id ? 'on' : ''}">${t}</button>`;
+    return `<div class="ev-card" id="s-work"><h2>The work <small>${left === 'lanes' ? 'time runs down, in the lane of whoever did each step' : 'left to right by the turn each hypothesis was stated'}</small></h2>
+      <div class="ev-bar"><span>${b('lanes', 'Session flow')} ${b('map', 'Hypothesis map')}</span>${left === 'map' ? `<button data-act="path" class="${S.path ? 'on' : ''}">show the path to the answer</button>` : ''}
         <span class="end"><b>Replay</b> <button data-act="replay" data-id="first">« first</button> <button data-act="replay" data-id="prev">◀</button> <button data-act="replay" data-id="next">▶</button> <button data-act="replay" data-id="last">last »</button>
           <span class="sm">step ${n ? k + 1 : 0} of ${n}${S.step == null ? '' : ': later items are greyed'} · arrow keys</span></span></div>
-      ${left === 'tree' ? EV.viewTree() : left === 'lanes' ? `<div class="ev-scroll ev-lanes">${EV.viewLanes()}</div>` : EV.viewMap()}</div>`;
+      ${left === 'lanes' ? `<div class="ev-scroll ev-lanes">${EV.viewLanes()}</div>` : EV.viewMap()}</div>`;
   },
 
   // ---- how to read this page: open on a reader's first visit, closed afterwards
@@ -112,7 +112,7 @@ Object.assign(EV, {
 
   sessionTab() {
     return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.overview()}${EV.systemCard()}${EV.glance()}
-      <div class="ev-main"><div>${EV.reportCard()}${EV.highCard()}${EV.bestCard()}${EV.knobCard()}${EV.aloneCard()}${EV.workCard()}${EV.testsCard()}</div>
+      <div class="ev-main"><div>${EV.reportCard()}${EV.notebookCard()}${EV.highCard()}${EV.bestCard()}${EV.knobCard()}${EV.aloneCard()}${EV.workCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },
 });

@@ -40,7 +40,8 @@ Object.assign(EV, {
   // one line that says what an evidence item is
   evLine(id) {
     const M = EV.M, r = M.byId[id], e = EV.e, b = r && r.body || {}; if (!r) return `<span class="bad">${e(id)} is not in the ledger</span>`;
-    if (r.type === 'check') return `${e(b.for)}: <code>${e(b.decision_rule || b.rule)}</code> → ${e(b.with_numbers)} → ${EV.checkRes(M.checks.find(q => q.id === id) || { result: b.result })}`;
+    if (r.type === 'check') { const T = M.tests.find(q => q.check && q.check.id === id); if (T) return `${e(b.for)}: ${EV.ruleRead(T)} → ${EV.checkRead(T)}`;
+      return `${e(b.for)}: <code>${e(b.decision_rule || b.rule)}</code> → ${e(b.with_numbers)} → ${EV.checkRes(M.checks.find(q => q.id === id) || { result: b.result })}`; }
     if (r.type === 'verdict') return `on ${e(b.for)}: ${EV.verdictRes(b.result)} · ${e(String(b.because || '').slice(0, 160))}`;
     if (r.type === 'evidence') return `the table of ${e(b.experiment || r.parent)}: ${(b.lines || []).length} simulation line${(b.lines || []).length === 1 ? '' : 's'}`;
     if (r.type === 'simulation') return `“${e(b.label)}” ${e(Object.entries(b.params || {}).map(([k, v]) => k + ' ' + v).join(', ').slice(0, 140))}`;

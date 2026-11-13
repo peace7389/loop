@@ -24,12 +24,12 @@ Object.assign(EV, {
     if (M._hl) return M._hl; const e = EV.e, by = [[], [], [], [], [], [], []], cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }, st = id => M.recStep[id] ?? 0;
     const hyp = t => `${e(t.hyp)} (“${e(cut(EV.hshort(M.hypById[t.hyp]), 90))}”)`, test = t => ({ key: 'test:' + t.id, open: { t: 'test', id: t.id } });
     const first = M.tests.find(t => t.check && t.check.result === 'held');
-    if (first) by[0].push({ ...test(first), step: st(first.check.id), html: `Turn ${first.turn}: the first test that held. ${hyp(first)}: <code>${e(cut(first.check.numbers, 80))}</code> held.` });
+    if (first) by[0].push({ ...test(first), step: st(first.check.id), html: `Turn ${first.turn}: the first test that held. ${hyp(first)}: ${EV.checkNums(first, true)} held.` });
     const failed = {};  // rule 2, one moment per hypothesis and experiment (a hypothesis can have several decision rules in one experiment)
     M.tests.filter(t => t.check && t.check.result === 'failed').forEach(t => { const f = EV.followers(t, M); if (!f.ids.length || f.via) return; const k = t.exp + '.' + t.hyp;
       (failed[k] = failed[k] || { t, n: 0, ids: new Set() }).n++; f.ids.forEach(id => failed[k].ids.add(id)); });
     Object.values(failed).forEach(({ t, n, ids }) => { const fl = [...ids];
-      by[1].push({ ...test(t), at: st(t.check.id), step: Math.max(...fl.map(st)), html: `Turn ${t.turn}: ${n > 1 ? `the ${n} tests` : 'the test'} of ${hyp(t)} failed (<code>${e(cut(t.check.numbers, 70))}</code>${n > 1 ? ', …' : ''}), and ${e(fl.join(', '))} follow${fl.length === 1 ? 's' : ''} from it: this changed the direction.` }); });
+      by[1].push({ ...test(t), at: st(t.check.id), step: Math.max(...fl.map(st)), html: `Turn ${t.turn}: ${n > 1 ? `the ${n} tests` : 'the test'} of ${hyp(t)} failed (${EV.checkNums(t, true)}${n > 1 ? ', …' : ''}), and ${e(fl.join(', '))} follow${fl.length === 1 ? 's' : ''} from it: this changed the direction.` }); });
     const c1 = M.claims[0]; if (c1) c1.tests.forEach(id => { const t = M.testById[id], had = by[0].concat(by[1]).find(q => q.key === 'test:' + id);
       if (had) had.html += ' The report\'s first claim cites this test.';
       else by[2].push({ ...test(t), step: st(M.repRec.id), html: `The report's first claim (“${e(cut(c1.text, 90))}”) cites the test of ${hyp(t)}, which ${t.check ? e(t.check.result) : 'was not checked'}.` }); });

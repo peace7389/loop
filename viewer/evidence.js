@@ -6,7 +6,7 @@
 // ======================================================================================================
 const EV = {
   s: { view: 'home', sid: null, brief: null, sel: null, step: null, claim: null, path: false, collapsed: {}, intro: true, heat: ['weightUdp', 'queuePkts'], wide: {}, xchart: null,
-       left: 'tree', tree: {}, how: false, more: false, zoom: false, op: false, home: { sort: 'started', dir: -1, filter: '' } },   // op: the "operator columns" switch
+       left: 'lanes', alt: '', tree: {}, how: false, more: false, zoom: false, op: false, home: { sort: 'started', dir: -1, filter: '' } },   // op: the "operator columns" switch
   M: null, st: null, files: {}, marks: {}, charts: {}, sig: '',
   e: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   term: (name, text) => `<abbr title="${EV.e(EV_DEF[name] || '')}">${EV.e(text || name.toLowerCase())}</abbr>`,
@@ -37,11 +37,12 @@ const EV = {
   address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : S.sel && EV.M && EV.M.id === S.sid && EV.itemOf(S.sel) ? '&item=' + encodeURIComponent(EV.itemOf(S.sel)) : ''}`; },
   go(o) {  // to another view or session; the browser's Back returns
     const S = EV.s, other = 'sid' in o && o.sid !== S.sid; Object.assign(S, o);
-    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; }
+    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; S.nbmore = {}; }
     history.pushState(null, '', EV.address()); EV.sig = ''; return EV.load();
   },
 
   async start() {
+    EV.s.alt = ['list', 'tree'].includes(EV.store('ev-alt')) ? EV.store('ev-alt') : '';  // the tests again "as a list" or "as a tree": closed unless the reader opened one
     EV.s.op = EV.store('ev-op') === '1'; EV.s.how = EV.store('ev-read') !== '1'; EV.store('ev-read', '1'); EV.route();  // "How to read this page": open on the first visit only
     const root = document.getElementById('ev');
     root.addEventListener('click', EV.click); root.addEventListener('change', EV.change); root.addEventListener('input', EV.input);

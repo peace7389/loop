@@ -24,7 +24,7 @@ Object.assign(EV, {
   linkTo(sel) { const it = EV.itemOf(sel); return `${location.href.split('?')[0].split('#')[0]}?session=${encodeURIComponent(EV.s.sid)}${it ? '&item=' + encodeURIComponent(it) : ''}`; },
   copyBtn: sel => `<button class="cl" data-act="copy" data-link="${EV.e(EV.linkTo(sel))}" title="A link that opens this page with ${sel && sel.t !== 'session' ? 'this item selected' : 'this session'}">${EV.s.copied === EV.linkTo(sel) ? 'link copied' : 'copy link'}</button>`,
   reveal() {  // after a link: the selected row of the tree in view inside the tree; the page itself is not moved
-    const box = document.querySelector('#s-work .tree'), row = box && box.querySelector('.tr.sel'); if (row) box.scrollTop = Math.max(0, box.scrollTop + row.getBoundingClientRect().top - box.getBoundingClientRect().top - 90);
+    const box = document.querySelector('#s-tree .tree'), row = box && box.querySelector('.tr.sel'); if (row) box.scrollTop = Math.max(0, box.scrollTop + row.getBoundingClientRect().top - box.getBoundingClientRect().top - 90);
   },
 
   shareBar() {
