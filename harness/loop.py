@@ -9,8 +9,9 @@ stated before the simulations run, each with a rival explanation under which it 
 decision rule itself from the measured values (decision_rules.py) and records a check. A verdict is accepted only for a
 hypothesis that has a checked decision rule. The budget counts simulations; a simulation with the same settings and seed
 as one of an earlier experiment of the session is not run again.
-The answer format (schema.json) gets its params object from the session's brief: every design states every knob; a
-design that does not is refused before the experiment runs (trim), and the rest of the experiment is kept.
+The answer format (schema.json) gets its params object from the session's brief: every design states every knob. A plan
+that cannot test anything is cut back before it runs (trim): a design that repeats another of the same experiment, a
+decision rule that compares a simulation with itself, a knob listed as varied that does not vary.
 Each turn's accepted answer is kept as received in sessions/<id>/answers.jsonl, which no tool reads.
 A session ends with the model's final report: when the model sets done, or in one last turn after the budget is used
 up. The accepted report goes to the ledger and to report.json; session.json records how the session ended.
@@ -259,9 +260,12 @@ def experiment_problem(ex, brief, ledger, left, st):
     return None
 
 def trim(ex, brief, ledger):
-    """An experiment is cut back before anything is run: (what is left of it, or None when nothing is; [(part, reason), ...]).
-    ex has passed experiment_problem(left=None).
-    A design that does not state every knob is refused (the guard behind the answer format);
+    """A plan that cannot test anything is cut back before anything is run: (what is left of the experiment, or None when
+    nothing is; [(part, reason), ...]). ex has passed experiment_problem(left=None). In this order:
+    a design that does not state every knob is refused (the guard behind the answer format);
+    a knob listed as varied that has one value in every design: the whole experiment is refused;
+    a decision rule that names two labels of one simulation (same settings and seed) is refused;
+    of two designs with the same settings and seed, the later one is refused;
     a decision rule that names a refused design is refused; a design that only refused decision rules name is not run;
     a tested hypothesis left without a decision rule is no longer tested by this experiment.
     No reason says anything about the system: each speaks only of the model's own plan."""
@@ -276,11 +280,26 @@ def trim(ex, brief, ledger):
         runs.append(r)
     if not runs:
         return None, cuts + [("experiment", "no design of this experiment is left, so nothing is run")]
+    for k in ex.get("varied") or []:
+        if len({dict(key[r["label"]])[k] for r in runs}) == 1:
+            return None, cuts + [("experiment", f"`{k}` is listed as varied but has the single value `{clean[runs[0]['label']][k]}` in every design")]
     labels, rules, refused = [r["label"] for r in ex["runs"]], ex.get("decision_rules") or [], set()
     named = [decision_rules.names(d["decision_rule"], tools.MANIFEST["outputs"], labels) for d in rules]
-    kept = list(runs)
     for i, d in enumerate(rules):
-        gone = [l for l in named[i] if l not in key]
+        pair = next(((a, b) for j, a in enumerate(named[i]) for b in named[i][j + 1:] if a in key and b in key and key[a] == key[b]), None)
+        if pair:
+            refused.add(i)
+            cuts.append((f"decision rule for {d['for']}", f"this decision rule compares `{pair[0]}` with `{pair[1]}`, which are the same simulation (same settings and seed), "
+                                                          "so it cannot hold or fail for a reason; change the designs or the rule"))
+    first, kept = {}, []
+    for r in runs:
+        if key[r["label"]] in first:
+            cuts.append((f"design {r['label']}", f"design `{r['label']}` has the same settings and seed as `{first[key[r['label']]]}`; give it different settings or remove it"))
+        else:
+            first[key[r["label"]]] = r["label"]
+            kept.append(r)
+    for i, d in enumerate(rules):
+        gone = [l for l in named[i] if l not in first.values()]
         if i not in refused and gone:
             refused.add(i)
             cuts.append((f"decision rule for {d['for']}", f"this decision rule names `{gone[0]}`, a design that was refused; change the designs or the rule"))
