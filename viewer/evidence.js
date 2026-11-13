@@ -37,7 +37,7 @@ const EV = {
   address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : S.sel && EV.M && EV.M.id === S.sid && EV.itemOf(S.sel) ? '&item=' + encodeURIComponent(EV.itemOf(S.sel)) : ''}`; },
   go(o) {  // to another view or session; the browser's Back returns
     const S = EV.s, other = 'sid' in o && o.sid !== S.sid; Object.assign(S, o);
-    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; }
+    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; }
     history.pushState(null, '', EV.address()); EV.sig = ''; return EV.load();
   },
 

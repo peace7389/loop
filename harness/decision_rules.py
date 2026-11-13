@@ -113,6 +113,21 @@ def parse(text, measures, labels):
         raise DecisionRuleError("comparisons are joined by AND or OR")
     return tree
 
+def names(text, measures, labels):
+    """The labels of the simulations a decision rule names, each once, in the order they stand in it."""
+    out = []
+    def walk(node):
+        if node[0] == "val":
+            if node[2] not in out:
+                out.append(node[2])
+        else:
+            for n in node[1:]:
+                for m in (n if isinstance(n, list) else [n]):
+                    if isinstance(m, tuple):
+                        walk(m)
+    walk(parse(text, measures, labels))
+    return out
+
 def _value(node, values):
     kind = node[0]
     if kind == "num":

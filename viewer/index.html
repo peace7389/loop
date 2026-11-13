@@ -94,6 +94,7 @@
 .ev .claims { display: grid; gap: 4px; margin: 6px 0; } .ev .chip { text-align: left; } .ev .chip b { margin-right: 6px; } .ev .chip.claim { display: grid; grid-template-columns: 4.6em minmax(0, 1fr); gap: 1px 6px; width: 100%; padding: 6px 10px; }
 .ev .chip.claim .ct, .ev .chip.claim .cl-ev { grid-column: 2; } .ev .chip.claim:hover { background: var(--surface-0); }
 /* a selected claim keeps its dark ground under the pointer, so its light text can still be read */
+.ev .hq-line { font-size: var(--f-card); font-weight: 600; margin-bottom: 2px; } .ev .hq a { font-weight: 400; cursor: pointer; }
 .ev .chip.claim.on:hover { background: var(--text-primary); } .ev .chip.claim.on .sm { color: inherit; } .ev .cm .rs + .rs { margin-left: 8px; }
 .ev table { border-collapse: collapse; width: 100%; font-size: var(--f-text); font-variant-numeric: tabular-nums; } .ev th { text-align: left; font-size: var(--f-sec); color: var(--text-muted); font-weight: 600; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--border); }
 .ev td { padding: 5px 10px 5px 0; border-bottom: 1px solid var(--grid); vertical-align: top; } .ev td.num, .ev th.num { text-align: right; } .ev tr.pick { cursor: pointer; } .ev tr.pick:hover td { background: var(--surface-0); }

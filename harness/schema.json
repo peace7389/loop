@@ -14,6 +14,10 @@
      "text": {
       "type": "string"
      },
+     "question": {
+      "type": "string",
+      "description": "the hypothesis put as one plain question of at most 20 words, for a reader who is not a specialist"
+     },
      "prediction": {
       "type": "string",
       "description": "falsifiable: a number, a range or a direction"
@@ -29,6 +33,7 @@
     },
     "required": [
      "text",
+     "question",
      "prediction",
      "follows_from"
     ],
@@ -82,14 +87,7 @@
        "type": "array",
        "items": {
         "type": "string",
-        "enum": [
-         "weightUdp",
-         "udpRate",
-         "queuePkts",
-         "tcpVariant",
-         "duration",
-         "seed"
-        ]
+        "description": "a knob of the brief (loop.py lists the brief's knobs here at the start of a session)"
        },
        "description": "the knobs that differ between the simulations"
       },
@@ -117,27 +115,7 @@
          },
          "params": {
           "type": "object",
-          "properties": {
-           "weightUdp": {
-            "type": "number"
-           },
-           "udpRate": {
-            "type": "string"
-           },
-           "queuePkts": {
-            "type": "integer"
-           },
-           "tcpVariant": {
-            "type": "string"
-           },
-           "duration": {
-            "type": "number"
-           },
-           "seed": {
-            "type": "integer"
-           }
-          },
-          "additionalProperties": false
+          "description": "a value for every knob of the brief. loop.py puts the object in place of this one at the start of a session, built from the session's brief: one property per knob, in the brief's order, all required"
          }
         },
         "required": [

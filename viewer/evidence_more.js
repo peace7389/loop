@@ -25,9 +25,10 @@ Object.assign(EV, {
     const list = M.exps.map(x => { const ts = M.tests.filter(T => T.exp === x.id), n = x.sims.length;
       const head = `<tr class="grp pick" data-act="open" data-t="exp" data-id="${x.id}" data-step="${st(x.id)}"><td>${EV_ICON.experiment} experiment ${x.id} · ${x.turn ? 'turn ' + x.turn : 'before the first turn'} · ${n} simulation${n === 1 ? '' : 's'} · ${
         ts.length ? ts.length + (ts.length === 1 ? ' test' : ' tests') : x.by === 'harness' ? 'the baseline, no tests' : 'no tests: it explores “' + e(x.question || 'not recorded') + '”'}</td></tr>`;
-      // a test is two lines: its hypothesis across the card's width (cut after two lines); under it what was compared, the check, the margin and the verdict
+      // a test is two lines: its hypothesis as its question (the first 30 words, then "more"; a session without questions: the hypothesis text, cut after two lines);
+      // under it what was compared, the check, the margin and the verdict
       return head + ts.map(T => { const h = M.hypById[T.hyp], v = T.verdict, mc = EV.marginCell(T.check), cmp = EV.compared(T);
-        return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}" data-step="${st(x.id)}"><td><div class="tt-h lc2">${EV_ICON.test} <b>${e(T.hyp)}</b> ${e(h ? h.text : '')}</div>
+        return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}" data-step="${st(x.id)}"><td><div class="tt-h${h && h.question ? '' : ' lc2'}">${EV_ICON.test} <b>${e(T.hyp)}</b> ${h && h.question ? EV.question(h) : e(h ? h.text : '')}</div>
           <div class="tt-m sm"><span class="tt-c" title="${e(cmp)}">${e(cmp)}</span><span class="tt-k">${T.check ? at(st(T.check.id), '<span class="tt-l">check</span> ' + EV.checkRes(T.check)) : at(end, T.rule ? '<span class="mut">not checked</span>' : '<span class="mut">no decision rule</span>')}</span>
             <span class="mgc noprint">${mc ? `<span class="tt-l" title="${e(EV.MARGIN_NOTE)}">margin</span> ${mc}` : ''}</span>
             <span class="tt-v">${v ? at(st(v.id), `<span class="tt-l">verdict</span> ${v.id} ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : at(end, '<span class="mut">no verdict</span>')}</span></div></td></tr>`; }).join(''); }).join('');

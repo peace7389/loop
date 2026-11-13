@@ -28,10 +28,10 @@ Object.assign(EV, {
     const t = by(M.turns.find(q => sel && q.n === sel.id && (step == null || (q.steps[0] ? q.steps[0].k : 0) <= step)), 'log');
     const xSay = q => (M.tests.some(u => u.exp === q.id) ? pl(M.tests.filter(u => u.exp === q.id).length, 'test') : q.by === 'harness' ? 'the baseline, run by the harness' : 'no tests: it explores “' + e(cut(q.question, 70)) + '”');
     if (T) { const hy = M.hypById[T.hyp], c = T.check && seen(T.check.id) ? T.check : null, v = T.verdict && seen(T.verdict.id) ? T.verdict : null;
-      return `<b>Test of ${e(T.hyp)}</b> in experiment ${e(T.exp)}, turn ${T.turn}: ` + [`${K('hyp')}hypothesis “${e(cut(hy && hy.text, 64))}”`, T.rule ? K('rule') + 'its decision rule' : null, `${K('sim')}${pl(T.sims.length, 'simulation')}`,
+      return `<b>Test of ${e(T.hyp)}</b> in experiment ${e(T.exp)}, turn ${T.turn}: ` + [`${K('hyp')}hypothesis “${e(cut(EV.hshort(hy), 64))}”`, T.rule ? K('rule') + 'its decision rule' : null, `${K('sim')}${pl(T.sims.length, 'simulation')}`,
         c ? `<span class="gn">${K(EV.ck(c.result))}check ${e(c.result)}</span>` : null, v ? `<span class="gn">${K(EV.vk(v.result))}verdict ${e(v.result)}</span>, given in turn ${v.turn}` : null].filter(Boolean).join(' → '); }
     if (h) { const st = EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open', n = h.tests.filter(q => seen(M.testById[q].exp)).length;
-      return `<b>${K('hyp')}Hypothesis ${e(h.id)}</b>, stated in turn ${h.turn}: “${e(cut(h.text, 96))}” · ${e(st)} · ${n ? 'put to ' + pl(n, 'test') : 'not put to a test'}`; }
+      return `<b>${K('hyp')}Hypothesis ${e(h.id)}</b>, stated in turn ${h.turn}: “${e(cut(EV.hshort(h), 96))}” · ${e(st)} · ${n ? 'put to ' + pl(n, 'test') : 'not put to a test'}`; }
     if (s) { const names = M.tests.filter(q => q.sims.includes(s)).map(q => q.hyp);
       return `<b>${K(s.same_as ? 'sim-returned' : 'sim')}Simulation ${e(s.id)}</b> “${e(s.label || '')}” of experiment ${e(s.exp)}${s.turn ? ', turn ' + s.turn : ''} · ${names.length ? `named by the decision rule${names.length === 1 ? '' : 's'} of ${e(names.join(', '))}` : 'named by no decision rule'}${s.same_as ? ` · returned from ${e(s.same_as)}, not run again` : ''}${s.error ? ' · <span class="bad">no measurements</span>' : ''}`; }
     if (x) return `<b>Experiment ${e(x.id)}</b>${x.turn ? ', turn ' + x.turn : ', before the first turn'}: ${pl(x.sims.length, 'simulation')} · ${xSay(x)}`;

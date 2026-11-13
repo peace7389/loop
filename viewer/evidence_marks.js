@@ -31,8 +31,16 @@ Object.assign(EV, {
   CLAIM_KINDS: [['held', 'cite held checks only'], ['both', 'cite held and failed checks'], ['failed', 'cite failed checks only'], ['nocheck', 'cite no check'], ['none', 'with no evidence']],
   claimCounts(claims) { const n = k => claims.filter(q => q.kind === k).length;
     return `<span id="claim-counts" data-counts="${EV.CLAIM_KINDS.map(([k]) => n(k)).join(',')}">${claims.length} claim${claims.length === 1 ? '' : 's'} · ${EV.CLAIM_KINDS.map(([k, t]) => (k === 'none' && n(k) ? `<span class="warnc">${n(k)} ${t}</span>` : `${n(k)} ${t}`)).join(' · ')}</span>`; },
+  // a hypothesis in short: its question when the session recorded one (the hypothesis put as one plain question, for a
+  // reader who is not a specialist); a session that recorded none: the hypothesis text in its place
+  hshort: h => (h ? h.question || h.text || '' : ''),
+  // the question where there is room for it: its first 30 words, then "more" (and "less"); the click moves nothing
+  QWORDS: 30,
+  question(h) { const e = EV.e, w = h.question.split(/\s+/), open = (EV.s.qmore || {})[h.id];
+    return `<span class="hq" data-q="${e(h.id)}" data-words="${w.length}">${e(open || w.length <= EV.QWORDS ? h.question : w.slice(0, EV.QWORDS).join(' ') + ' …')}${w.length > EV.QWORDS ? ` <a class="noprint sm" data-act="qmore" data-id="${e(h.id)}">${open ? 'less' : 'more'}</a>` : ''}</span>`; },
   // a dot of a chart, for the chart's key: filled or hollow, in a colour
   dot: (filled, col) => `<i class="gk"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="${filled ? col || 'currentColor' : 'var(--surface-1)'}" stroke="${col || 'currentColor'}" stroke-width="${filled ? 0 : 1.8}"/></svg></i>`,
 });
 // the icons of the record types that have a drawn mark
 Object.assign(EV_ICON, { hypothesis: EV.gkey('hyp'), simulation: EV.gkey('sim'), check: EV.gkey('check'), malformed: EV.gkey('warn'), report: EV.gkey('report') });
+EV.act = Object.assign(EV.act || {}, { qmore(id) { const q = EV.s.qmore = EV.s.qmore || {}; q[id] = !q[id]; EV.draw(); } });

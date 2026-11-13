@@ -22,7 +22,7 @@ Object.assign(EV, {
   },
   highlights(M) {
     if (M._hl) return M._hl; const e = EV.e, by = [[], [], [], [], [], [], []], cut = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }, st = id => M.recStep[id] ?? 0;
-    const hyp = t => `${e(t.hyp)} (“${e(cut((M.hypById[t.hyp] || {}).text, 90))}”)`, test = t => ({ key: 'test:' + t.id, open: { t: 'test', id: t.id } });
+    const hyp = t => `${e(t.hyp)} (“${e(cut(EV.hshort(M.hypById[t.hyp]), 90))}”)`, test = t => ({ key: 'test:' + t.id, open: { t: 'test', id: t.id } });
     const first = M.tests.find(t => t.check && t.check.result === 'held');
     if (first) by[0].push({ ...test(first), step: st(first.check.id), html: `Turn ${first.turn}: the first test that held. ${hyp(first)}: <code>${e(cut(first.check.numbers, 80))}</code> held.` });
     const failed = {};  // rule 2, one moment per hypothesis and experiment (a hypothesis can have several decision rules in one experiment)

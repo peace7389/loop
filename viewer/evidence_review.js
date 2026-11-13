@@ -12,8 +12,8 @@ Object.assign(EV, {
     M.tests.filter(t => EV.contradicts(t.verdict, t.check ? [t.check] : [])).forEach(t => add('test:' + t.id, 'verdict contradicts its check', `test of ${t.hyp}: verdict ${t.verdict.id} says ${t.verdict.result}, its check ${t.check.result}`, { t: 'test', id: t.id }));
     EV.mismatches(M).forEach(x => add(x.key, 'numbers differ', `${x.where}: ${x.rows.length} number${x.rows.length === 1 ? '' : 's'} differ from the measurements`, x.open));
     M.turns.forEach(t => { if (t.malformed.length + t.refusals.length) add('log:' + t.n, 'refused', `turn ${t.n}: ${t.malformed.length ? 'the whole answer was refused' : 'part of the answer was refused (' + t.refusals.map(m => m.body.part).join(', ') + ')'}`, { t: 'log', id: t.n }); });
-    M.hyps.filter(h => h.state === 'ended without a verdict').forEach(h => add('hyp:' + h.id, 'ended without a verdict', `${h.id}: ${cut(h.text, 110)}`, { t: 'hyp', id: h.id }));
-    M.tests.forEach(t => add('test:' + t.id, 'test', `test of ${t.hyp} in ${t.exp}: ${t.check ? t.check.result : 'not checked'}${t.verdict ? ', ' + t.verdict.result : ''} · ${cut((M.hypById[t.hyp] || {}).text, 70)}`, { t: 'test', id: t.id }));
+    M.hyps.filter(h => h.state === 'ended without a verdict').forEach(h => add('hyp:' + h.id, 'ended without a verdict', `${h.id}: ${cut(EV.hshort(h), 110)}`, { t: 'hyp', id: h.id }));
+    M.tests.forEach(t => add('test:' + t.id, 'test', `test of ${t.hyp} in ${t.exp}: ${t.check ? t.check.result : 'not checked'}${t.verdict ? ', ' + t.verdict.result : ''} · ${cut(EV.hshort(M.hypById[t.hyp]), 70)}`, { t: 'test', id: t.id }));
     return (M._q = items);
   },
   checked: (M, ticked) => { const keys = new Set(EV.queue(M).map(q => q.key)); return [ticked.filter(k => keys.has(k)).length, keys.size]; },

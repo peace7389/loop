@@ -11,7 +11,8 @@ SESSION = None          # the current session's folder, set by open_session(); n
 BRIEF = None            # what the current session was given: its brief (description filled in) plus MANIFEST
 MANIFEST = json.loads((HARNESS / "manifest.json").read_text())  # the same for every brief: outputs, tools, how an experiment is run
 OPTIONS = ("linkRate", "linkDelay", "mtu", "udpRate", "tcpVariant", "queuePkts", "duration", "seed", "weightUdp")  # program options a brief sets
-KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed")  # those the answer format (schema.json) lets the model set; the others can only be fixed
+KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed")  # those a brief may make knobs (the answer format has a type for each); the others can only be fixed
+KNOB_TYPES = {"weightUdp": "number", "udpRate": "string", "queuePkts": "integer", "tcpVariant": "string", "duration": "number", "seed": "integer"}  # their types in the answer format
 DEFAULT_BRIEF = "two-hosts-open"
 POLICY = "share"        # the scheduling policy (how the scheduler divides the link: share or cap): the operator's choice, set by loop.py. It goes to
                         # the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
@@ -121,10 +122,18 @@ def _rate_bps(s):
         raise ValueError(f"bad rate {s!r}")
     return float(m.group(1)) * {"": 1, "k": 1e3, "M": 1e6, "G": 1e9}[m.group(2)]
 
-def clamp(params, brief=None):
+class Missing(ValueError):
+    """A design of the model's experiment that does not state every knob of the brief."""
+
+def clamp(params, brief=None, design=None):
     """Keep only the brief's knobs and force each into its range. A setting the brief fixes (system) is not the
-    model's to change: the brief's value is used. Returns (clean, {param: [asked, used]})."""
+    model's to change: the brief's value is used. Returns (clean, {param: [asked, used]}).
+    design: the label of a design of the model's experiment. Such a design states every knob of the brief (the answer
+    format requires it; this is the guard): a missing knob raises Missing. Without design, a knob left out keeps the
+    brief's default: the harness's own baseline, the operator's runs and sweeps, the recommendation of a report."""
     b = brief or BRIEF
+    if design is not None and [k for k in b["knobs"] if k not in params]:
+        raise Missing(f"design `{design}` does not state " + ", ".join(f"`{k}`" for k in b["knobs"] if k not in params))
     clean, clamps = {}, {k: [v, b["system"][k]] for k, v in params.items() if k in b["system"] and v != b["system"][k]}
     for k, spec in b["knobs"].items():
         if k not in params:

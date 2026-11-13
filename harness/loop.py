@@ -8,7 +8,10 @@ simulations with one purpose, run at once. An experiment that tests hypotheses c
 stated before the simulations run, each with a rival explanation under which it would fail; the harness evaluates each
 decision rule itself from the measured values (decision_rules.py) and records a check. A verdict is accepted only for a
 hypothesis that has a checked decision rule. The budget counts simulations; a simulation with the same settings and seed
-as an earlier one of the session is not run again.
+as one of an earlier experiment of the session is not run again.
+The answer format (schema.json) gets its params object from the session's brief: every design states every knob; a
+design that does not is refused before the experiment runs (trim), and the rest of the experiment is kept.
+Each turn's accepted answer is kept as received in sessions/<id>/answers.jsonl, which no tool reads.
 A session ends with the model's final report: when the model sets done, or in one last turn after the budget is used
 up. The accepted report goes to the ledger and to report.json; session.json records how the session ended.
 Who else may write what: control.py's docstring."""
@@ -58,13 +61,14 @@ def states(ledger):
             st[r["body"]["for"]] = "dropped"
     return st, {r["body"]["for"] for r in ledger if r["type"] == "check" and r["body"]["result"] in ("held", "failed")}
 
-def plan(ledger, runs):
+def plan(ledger, runs, complete=True):
     """Each simulation an experiment asks for: its clamped params, and whether it has to be run. A simulation with the same
     settings and seed as an earlier one of the session ("prior": that simulation record), or as an earlier one of the same
-    experiment ("twin": that one's label), is not run again."""
+    experiment ("twin": that one's label), is not run again. complete: each design must state every knob of the brief
+    (tools.Missing otherwise); only the harness's own baseline, whose design is empty, is planned without that."""
     out = []
     for r in runs:
-        clean, clamps = tools.clamp(r.get("params") or {})
+        clean, clamps = tools.clamp(r.get("params") or {}, design=r["label"] if complete else None)
         key = tools.same(tools.options(clean))
         prior = next((q for q in ledger if q["type"] == "simulation" and "metrics" in q["body"] and not q["body"].get("same_as") and tools.same(q["body"]["params"]) == key), None)
         out.append({"label": r["label"], "params": clean, "clamped": clamps, "key": key, "prior": prior, "twin": None if prior else next((q["label"] for q in out if q["key"] == key), None)})
@@ -75,7 +79,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
     simulations that have not been run before in this session (one simulation record each, a note for each one reused);
     one evidence record, a line per simulation; then one check record per decision rule. Returns how many were run."""
     brief = tools.describe_system()
-    runs, stated = plan(ledger, ex["runs"]), ex.get("decision_rules") or []
+    runs, stated = plan(ledger, ex["runs"], complete=not zero), ex.get("decision_rules") or []
     xid = append(ledger, turn, "experiment", parent, {"kind": ex["kind"], "tests": ex.get("tests") or [], "question": ex.get("question") or "", "varied": ex.get("varied") or [],
                                                       "control": ex.get("control") or None, "runs": [{k: r[k] for k in ("label", "params", "clamped")} for r in runs], "decision_rules": stated,
                                                       **({"observations": ex["observations"]} if ex.get("observations") else {})},
@@ -213,7 +217,8 @@ def check_report(rep, brief, ids):
 
 def experiment_problem(ex, brief, ledger, left, st):
     """None if the experiment can be run as designed; otherwise what is wrong with it. st: the hypotheses' states with the
-    accepted parts of the same answer already applied."""
+    accepted parts of the same answer already applied. left None: the experiment as it was sent, before trim() (how many
+    simulations it needs is counted afterwards, on what trim leaves)."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
     runs, per = ex.get("runs") or [], brief["limits"]["simulations_per_experiment"]
     labels = [r.get("label") for r in runs]
@@ -224,10 +229,10 @@ def experiment_problem(ex, brief, ledger, left, st):
     if any(set(r.get("params") or {}) - set(brief["knobs"]) - set(brief["system"]) for r in runs):
         return "a simulation's params has keys that are not settings of the brief"
     try:
-        fresh = sum(1 for r in plan(ledger, runs) if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
+        fresh = sum(1 for r in plan(ledger, runs, complete=left is not None) if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
     except (ValueError, TypeError) as e:
         return f"a simulation has a setting that cannot be read: {e}"
-    if fresh > left:
+    if left is not None and fresh > left:
         return f"the experiment needs {fresh} new simulations but only {left} are left in the budget"
     if ex.get("control") not in (None, "", *labels) or set(ex.get("varied") or []) - set(brief["knobs"]):
         return "control must be the label of one of the simulations (or null), and varied must name knobs"
@@ -252,6 +257,47 @@ def experiment_problem(ex, brief, ledger, left, st):
     else:
         return "experiment.kind must be test or explore"
     return None
+
+def trim(ex, brief, ledger):
+    """An experiment is cut back before anything is run: (what is left of it, or None when nothing is; [(part, reason), ...]).
+    ex has passed experiment_problem(left=None).
+    A design that does not state every knob is refused (the guard behind the answer format);
+    a decision rule that names a refused design is refused; a design that only refused decision rules name is not run;
+    a tested hypothesis left without a decision rule is no longer tested by this experiment.
+    No reason says anything about the system: each speaks only of the model's own plan."""
+    cuts, runs, key, clean = [], [], {}, {}
+    for r in ex["runs"]:
+        try:
+            clean[r["label"]] = tools.clamp(r.get("params") or {}, design=r["label"])[0]
+        except tools.Missing as e:
+            cuts.append((f"design {r['label']}", str(e)))
+            continue
+        key[r["label"]] = tools.same(tools.options(clean[r["label"]]))
+        runs.append(r)
+    if not runs:
+        return None, cuts + [("experiment", "no design of this experiment is left, so nothing is run")]
+    labels, rules, refused = [r["label"] for r in ex["runs"]], ex.get("decision_rules") or [], set()
+    named = [decision_rules.names(d["decision_rule"], tools.MANIFEST["outputs"], labels) for d in rules]
+    kept = list(runs)
+    for i, d in enumerate(rules):
+        gone = [l for l in named[i] if l not in key]
+        if i not in refused and gone:
+            refused.add(i)
+            cuts.append((f"decision rule for {d['for']}", f"this decision rule names `{gone[0]}`, a design that was refused; change the designs or the rule"))
+    if not cuts:
+        return ex, []
+    still = {l for i in range(len(rules)) if i not in refused for l in named[i]}
+    for r in list(kept):  # nothing is run for a refused decision rule's hypothesis
+        if r["label"] not in still and any(r["label"] in named[i] for i in refused):
+            kept.remove(r)
+            cuts.append((f"design {r['label']}", f"design `{r['label']}` is named only by a decision rule that was refused, so it is not run"))
+    rules = [d for i, d in enumerate(rules) if i not in refused]
+    tests = [h for h in ex.get("tests") or [] if any(d["for"] == h for d in rules)]
+    if not kept:
+        return None, cuts + [("experiment", "no design of this experiment is left, so nothing is run")]
+    if ex.get("kind") == "test" and not tests:
+        return None, cuts + [("experiment", "no decision rule of this experiment is left, so nothing is run")]
+    return {**ex, "runs": kept, "decision_rules": rules, "tests": tests, "control": ex.get("control") if ex.get("control") in [r["label"] for r in kept] else None}, cuts
 
 def sort_out(t, brief, ledger, left, mode=None, insist=True):
     """The parts of an answer that can be used, and the parts that cannot, each with the reason: (ok, refused).
@@ -294,6 +340,8 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
             no.append(("new hypothesis", only))
         elif not text(h.get("text")):
             no.append(("new hypothesis", "a hypothesis needs a text"))
+        elif not text(h.get("question")):
+            no.append(("new hypothesis", "a hypothesis needs a question: the hypothesis put as one plain question"))
         elif not isinstance(h.get("follows_from"), list) or not h["follows_from"] or any(f != "brief" and kinds.get(f) not in ("verdict", "check", "evidence", "simulation") for f in h["follows_from"]):
             bad = [f for f in h.get("follows_from") or [] if f != "brief" and f not in kinds] if isinstance(h.get("follows_from"), list) else []
             no.append(("new hypothesis", (f"follows_from names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
@@ -303,8 +351,14 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
             st[f"H{known + len(ok['hypotheses'])}"] = "open"  # the id it is about to get
     ex = t.get("experiment")
     if ex is not None:
-        why = only if mode == "report" else "the simulation budget is used up: no experiment is accepted in the last turn" if mode == "budget" else experiment_problem(ex, brief, ledger, left, st)
-        if why:
+        why = only if mode == "report" else "the simulation budget is used up: no experiment is accepted in the last turn" if mode == "budget" else experiment_problem(ex, brief, ledger, None, st)
+        if not why:  # readable as sent: now cut back what cannot test anything, then count what is left against the budget
+            ex, cuts = trim(ex, brief, ledger)
+            no.extend(cuts)
+            why = experiment_problem(ex, brief, ledger, left, st) if ex is not None else None
+        if ex is None:
+            pass
+        elif why:
             no.append(("experiment", why))
         else:
             ok["experiment"] = ex
@@ -332,6 +386,17 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
         else:
             ok["report"] = report
     return ok, no
+
+def answer_format(schema, brief):
+    """The answer format of a session: schema.json with the parts that depend on the brief put in. params: one property
+    per knob of the brief, in the brief's order, all required, so that every design states every knob (a setting the
+    brief fixes is not a property); varied: the brief's knobs; runs: at most the brief's simulations per experiment."""
+    ex = schema["properties"]["experiment"]["anyOf"][0]["properties"]
+    props = {k: {"type": "string", "enum": list(s["choices"])} if "choices" in s else {"type": tools.KNOB_TYPES[k]} for k, s in brief["knobs"].items()}
+    ex["runs"]["items"]["properties"]["params"] = {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
+    ex["runs"]["maxItems"] = brief["limits"]["simulations_per_experiment"]
+    ex["varied"]["items"] = {"type": "string", "enum": list(props)}
+    return schema
 
 def call(q):
     fn = tools.TOOLS.get(q.get("tool"))
@@ -363,7 +428,7 @@ def main():
         ap.error(str(e))
     brief = tools.describe_system()  # the brief, with the descriptions of the outputs and the tools
     per = brief["limits"]["simulations_per_experiment"]
-    schema["properties"]["experiment"]["anyOf"][0]["properties"]["runs"]["maxItems"] = per
+    schema = answer_format(schema, brief)
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget
     a.max_tokens = a.max_tokens or (32000 if a.draft == "on" else 3000)
     limit = brief["limits"]["simulations"]  # the most simulations the session can ever be granted
@@ -467,6 +532,8 @@ def main():
                         append(ledger, turn, "note", ledger[-1]["id"], {"text": f"{UNUSABLE} turns in a row gave no usable answer: the harness ends the session after one last turn, in which only the final report is accepted"})
                 continue
             unusable = 0
+            with (tools.SESSION / "answers.jsonl").open("a") as f:  # the accepted answer as it was received, before any part was refused or cut: what was asked, to compare with what was run. No tool reads it
+                f.write(json.dumps({"turn": turn, "answer": parsed}) + "\n")
             for part, why in no:  # each refused part: a note, shown to the model in the next turn; the rest of the answer was accepted
                 append(ledger, turn, "note", last, {"text": f"refused part of the answer: {part}. Reason: {why.rstrip('.')}. The other parts of that answer were accepted.", "part": part, "reason": why})
             br = ok["budget_request"]
@@ -494,7 +561,7 @@ def main():
             for d in ok["drop"]:
                 append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
             for h in ok["hypotheses"]:
-                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "prediction": h.get("prediction"), "follows_from": h["follows_from"]} | obs())
+                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "question": h["question"], "prediction": h.get("prediction"), "follows_from": h["follows_from"]} | obs())
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
             if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over
