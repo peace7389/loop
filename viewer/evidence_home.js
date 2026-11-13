@@ -8,7 +8,7 @@ Object.assign(EV, {
   ended: x => (x.running ? 'running now' : x.how || 'not recorded'),
   // the scheduling policy as the page may show it: a policy the harness chose stays hidden until the session is scored
   policyText: x => (x && x.policy_hidden ? '<span class="mut">chosen by the harness: shown once the session is scored</span>' : x && x.policy ? EV.e(x.policy) : EV.nr),
-  gapText: x => (!x.score || typeof x.score.gap !== 'number' ? null : (/_bps$/.test(x.score.target) ? (x.score.gap / 1e6).toFixed(3) + ' Mbps' : String(+x.score.gap.toPrecision(4))) + ` (${(100 * x.score.part).toFixed(2)}%)`),
+  gapText: x => (!x.score || typeof x.score.gap !== 'number' ? null : (/_bps$/.test(x.score.target) ? (x.score.gap / 1e6).toFixed(3) + ' Mbps' : String(+x.score.gap.toPrecision(4))) + ` (${(100 * x.score.part).toFixed(2)}%)` + (x.score.against ? ` · ${x.score.against}` : '')),
   // "N sessions · R with a final report · C meet the brief's conditions · largest gap to the best G%", from the list
   results(brief) {
     const rows = EV.st.sessions.filter(x => (x.brief || '') === brief), scored = rows.filter(x => x.score), meet = scored.filter(x => x.score.holds).length, parts = scored.map(x => x.score.part).filter(v => typeof v === 'number');

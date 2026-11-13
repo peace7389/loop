@@ -11,8 +11,10 @@ SESSION = None          # the current session's folder, set by open_session(); n
 BRIEF = None            # what the current session was given: its brief (description filled in) plus MANIFEST
 MANIFEST = json.loads((HARNESS / "manifest.json").read_text())  # the same for every brief: outputs, tools, how an experiment is run
 OPTIONS = ("linkRate", "linkDelay", "mtu", "udpRate", "tcpVariant", "queuePkts", "duration", "seed", "weightUdp")  # program options a brief sets
-KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed")  # those a brief may make knobs (the answer format has a type for each); the others can only be fixed
-KNOB_TYPES = {"weightUdp": "number", "udpRate": "string", "queuePkts": "integer", "tcpVariant": "string", "duration": "number", "seed": "integer"}  # their types in the answer format
+KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed", "linkRate", "linkDelay", "mtu")  # those a brief may make knobs: every option of the program (the answer format has a type for each)
+KNOB_TYPES = {"weightUdp": "number", "udpRate": "string", "queuePkts": "integer", "tcpVariant": "string", "duration": "number", "seed": "integer",
+              "linkRate": "string", "linkDelay": "string", "mtu": "integer"}  # their types in the answer format
+RATES, STEPPED = ("udpRate", "linkRate"), ("weightUdp", "queuePkts", "duration", "seed", "mtu")  # knobs given as a rate ("400Mbps"); numeric knobs, which may have a step
 DEFAULT_BRIEF = "two-hosts-open"
 POLICY = "share"        # the scheduling policy (how the scheduler divides the link: share or cap): the operator's choice, set by loop.py. It goes to
                         # the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
@@ -40,7 +42,7 @@ def check_brief(b, brief_id):
     """Every reason a brief cannot be used, or none; returns it with the {placeholders} of its description filled
     from its own system settings. The one check for a brief: loop.py (through open_session) and control.py both use it."""
     knobs, system, goal, limits = (b.get(k) if isinstance(b.get(k), dict) else {} for k in ("knobs", "system", "goal", "limits"))
-    num = lambda k, v: _rate_bps(v) if k == "udpRate" else v
+    num = lambda k, v: _rate_bps(v) if k in RATES else _seconds(v) if k == "linkDelay" else v
     bad = [] if b.get("id") == brief_id and re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) else ["id must equal the file name (letters, digits, - and _)"]
     bad += [f"'{k}' must be a text" for k in ("task", "description") if not isinstance(b.get(k), str) or not b[k].strip()]
     bad += [f"'{k}' is not a setting of the program" for k in list(knobs) + list(system) if k not in OPTIONS + ("udpPacketBytes",)]
@@ -53,6 +55,8 @@ def check_brief(b, brief_id):
             continue
         if not isinstance(s.get("meaning"), str) or not s["meaning"].strip():
             bad.append(f"knob '{k}' needs a meaning (one line the model reads)")
+        if "step" in s and ("choices" in s or k not in STEPPED):
+            bad.append(f"knob '{k}': a step is for a numeric knob (not for one with choices, a rate or a time)")
         if "choices" in s:
             if not isinstance(s["choices"], list) or not s["choices"] or not all(_ok(k, c) for c in s["choices"]) or s.get("default") not in s["choices"]:
                 bad.append(f"knob '{k}' needs a list of acceptable choices and a default that is one of them")
@@ -60,6 +64,10 @@ def check_brief(b, brief_id):
             bad.append(f"knob '{k}' needs min, max and default, each a value the program accepts (or a list of choices)")
         elif not num(k, s["min"]) <= num(k, s["default"]) <= num(k, s["max"]) or num(k, s["min"]) == num(k, s["max"]):
             bad.append(f"knob '{k}' needs min < max and a default between them")
+        elif "step" in s:  # optional: the model's values are rounded to it, counted from the knob's min
+            whole = type(s["min"]) is int and type(s["max"]) is int
+            if k not in STEPPED or type(s["step"]) not in (int, float) or not 0 < s["step"] <= s["max"] - s["min"] or (whole and type(s["step"]) is not int):
+                bad.append(f"knob '{k}': a step is a number above 0 and at most max - min, for a numeric knob (a whole number where the knob is one)")
     if goal.get("kind") == "given":
         t = goal.get("target") if isinstance(goal.get("target"), dict) else {}
         c = goal.get("conditions")
@@ -67,6 +75,8 @@ def check_brief(b, brief_id):
             bad.append("a given goal needs a target: a measure that is one of the outputs, and a direction max or min")
         if not isinstance(c, list) or not all(isinstance(x, str) and x.strip() for x in c):
             bad.append("a given goal needs a list of conditions, each a text (the list may be empty)")
+        if "tolerance" in goal and (type(goal["tolerance"]) not in (int, float) or not 0 < goal["tolerance"] < 100):
+            bad.append("goal.tolerance is a number of per cent above 0 and below 100: two results closer than this count as equal")
     elif goal.get("kind") != "open":
         bad.append("goal.kind must be open or given")
     bad += [f"limits.{k} must be a whole number of at least 1" for k in ("simulations", "simulations_per_experiment") if type(limits.get(k)) is not int or limits[k] < 1]
@@ -141,18 +151,33 @@ def clamp(params, brief=None, design=None):
         v = params[k]
         if "choices" in spec:
             nv = v if v in spec["choices"] else spec["default"]
-        elif k == "udpRate":
+        elif k in RATES:
             bps = min(max(_rate_bps(v), _rate_bps(spec["min"])), _rate_bps(spec["max"]))
             nv = f"{int(round(bps / 1e6))}Mbps"
             if abs(bps - _rate_bps(v)) < 1:
                 nv = str(v).strip()
+        elif k == "linkDelay":  # a time with its unit: inside the range it is kept as written, outside it the range's end is used
+            sec = _seconds(v)
+            nv = spec["min"] if sec < _seconds(spec["min"]) else spec["max"] if sec > _seconds(spec["max"]) else str(v).strip()
         else:
             nv = min(max(float(v), spec["min"]), spec["max"])
+            if spec.get("step"):  # rounded to the knob's step, counted from its min; never past its max
+                n = round((nv - spec["min"]) / spec["step"])
+                while spec["min"] + n * spec["step"] > spec["max"] + 1e-12:
+                    n -= 1
+                nv = round(spec["min"] + n * spec["step"], 10)
             nv = int(round(nv)) if isinstance(spec["min"], int) else nv
         if nv != v:
             clamps[k] = [v, nv]
         clean[k] = nv
     return clean, clamps
+
+def _seconds(s):
+    m = re.fullmatch(r"\s*([0-9.]+)\s*(ns|us|ms|s)\s*", str(s))
+    if not m:
+        raise ValueError(f"bad time {s!r}")
+    return float(m.group(1)) * {"ns": 1e-9, "us": 1e-6, "ms": 1e-3, "s": 1.0}[m.group(2)]
+
 
 def options(clean, brief=None):
     """Every option the program is started with: the brief's fixed settings, its knobs' defaults, then the chosen values."""
@@ -161,7 +186,7 @@ def options(clean, brief=None):
 
 def same(opts):
     """The settings and the seed of a simulation in a form that is equal exactly when the simulation would be the same."""
-    return tuple((k, _rate_bps(opts[k]) if k in ("linkRate", "udpRate") else float(opts[k]) if type(opts[k]) in (int, float) else str(opts[k])) for k in OPTIONS)
+    return tuple((k, _rate_bps(opts[k]) if k in RATES else _seconds(opts[k]) if k == "linkDelay" else float(opts[k]) if type(opts[k]) in (int, float) else str(opts[k])) for k in OPTIONS)
 
 def run_many(param_sets):
     """Several simulations at once, each in its own runs/<id>/ of the session: clamp, start the built program for all

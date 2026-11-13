@@ -145,7 +145,7 @@ def sessions():
                 "void": session_figures.void_count(shown),                # [void checks, all checks]
                 "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs),
                 # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
-                "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"),
+                "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"), "against": sc.get("against_the_best"),
                                  "holds": all((sc.get("conditions_hold_at_the_recommendation") or {}).values())},
                 "review": {"n": len(marks), "ticked": sorted(k for k, m in marks.items() if m.get("tick") and k != "signoff"),
                            "signed": {"name": marks["signoff"].get("note"), "at": marks["signoff"].get("at")} if "signoff" in marks else None}})
@@ -225,7 +225,7 @@ def save_brief(body):
         raise Refused(409, f"a brief named {bid} already exists. A brief is never overwritten: choose another id")
     knobs = b.get("knobs") if isinstance(b.get("knobs"), dict) else {}
     b = {**{k: b.get(k) for k in ("id", "task", "description", "system")},   # only the fields a brief has, in the usual order
-         "knobs": {k: {x: s[x] for x in ("min", "max", "choices", "default", "meaning") if x in s} if isinstance(s, dict) else s for k, s in knobs.items()},
+         "knobs": {k: {x: s[x] for x in ("min", "max", "choices", "default", "step", "meaning") if x in s} if isinstance(s, dict) else s for k, s in knobs.items()},
          "goal": b.get("goal"), "limits": b.get("limits")}
     try:
         tools.check_brief(b, bid)

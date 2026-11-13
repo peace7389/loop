@@ -10,7 +10,7 @@ Object.assign(EV, {
   goalOf(brief) {
     const g = brief && brief.goal; if (!g || !g.target || !g.target.measure) return null;
     const conds = (g.conditions || []).map(c => String(c).match(/^\s*(\w+)\s*(<=|>=|<|>|==)\s*([-\d.eE]+)\s*$/)).filter(Boolean).map(([, k, op, v]) => ({ k, op, v: +v }));
-    return { target: g.target.measure, max: g.target.direction !== 'min', conds, text: (g.conditions || []).join(' and ') };
+    return { target: g.target.measure, max: g.target.direction !== 'min', conds, text: (g.conditions || []).join(' and '), tolerance: typeof g.tolerance === 'number' ? g.tolerance : null };
   },
   flowCol: k => (/^udp|band0/.test(k) ? 'var(--series-1)' : /^tcp|band1/.test(k) ? 'var(--series-2)' : 'var(--text-secondary)'),  // the colour of a measure: its flow's
   meets: (m, conds) => conds.every(({ k, op, v }) => { const a = m[k]; return typeof a === 'number' && (op === '<=' ? a <= v : op === '>=' ? a >= v : op === '<' ? a < v : op === '>' ? a > v : a === v); }),
@@ -72,7 +72,7 @@ Object.assign(EV, {
     const rnd = line ? EV.randomOf(M) : null, bands = rnd && rnd.band ? [{ B: rnd.band, offset: rnd.offset }] : [];  // the random method: only with the operator columns on and a scored session
     const said = !d.pts.length ? 'No simulation has run yet.' : d.best == null ? 'No simulation meets the brief\'s conditions.' : `Best result that meets the conditions: <b>${fmt(d.best)}</b>, first reached by ${EV.link(d.last.s.id)} (simulation ${d.last.n} of ${n}).`;
     const rec = !M.report ? '' : d.rec ? ` The recommended settings were run as ${EV.link(d.rec.s.id)}: <b>${fmt(d.rec.v)}</b>${d.rec.ok ? '' : ', which does not meet the conditions'}.` : ' The recommended settings were not simulated in this session.';
-    return `<div class="ev-card" id="s-best"><h2>Best so far <small>${e(d.g.max ? 'largest' : 'smallest')} ${e(d.g.target)}${d.g.text ? ' while ' + e(d.g.text) : ''} · one dot per ${EV.term('Simulation', 'simulation')}</small></h2>
+    return `<div class="ev-card" id="s-best"><h2>Best so far <small>${e(d.g.max ? 'largest' : 'smallest')} ${e(d.g.target)}${d.g.text ? ' while ' + e(d.g.text) : ''}${d.g.tolerance != null ? ` · tolerance ${d.g.tolerance}%: two results closer than this count as equal` : ''} · one dot per ${EV.term('Simulation', 'simulation')}</small></h2>
       ${d.pts.length ? EV.bestSvg([{ d, name: M.id, color: 'var(--text-primary)' }], { dots: true, zoom: !!S.zoom, line, seen, bands }) : ''}
       <p class="sm">${EV.dot(1, EV.flowCol(d.g.target))}meets the brief's conditions · ${EV.dot(0, EV.flowCol(d.g.target))}does not · <b>—</b> the best so far among those that do · <i class="gk"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></i>the recommended settings${line ? ' · <span style="color:var(--by-operator)">- -</span> the best row of the sweep (operator column)' : ''}${bands.length ? EV.randomLegend(rnd) : ''}
         · <button data-act="zoom">${S.zoom ? 'show every simulation' : 'zoom on the best-so-far line'}</button></p>

@@ -33,6 +33,7 @@ Object.assign(EV, {
       <div class="ev-top"><div class="ev-card"><h2>Score</h2>${!sc ? `<p class="sm">score: ${EV.nr} (harness/score.py ${e(M.id)} writes it once the session has ended)</p>` : `
           <div class="kv"><div><span>gap to the best row, on ${e(sc.goal.target)}</span><b>${e(EV.gap(sc))}</b></div><div><span>as part of the best</span><b>${(100 * sc.gap_as_part_of_best).toFixed(3)}%</b></div>
             <div><span>conditions hold at the recommendation</span><b>${Object.values(sc.conditions_hold_at_the_recommendation || {}).every(Boolean) ? EV.res('held', 'yes') : EV.res('failed', 'no')}</b></div><div><span>simulations used / allowed</span><b>${sc.simulations_used} / ${sc.simulations_allowed}</b></div></div>
+          ${sc.against_the_best ? `<p id="op-tol"><b>${e(sc.against_the_best)}</b> <span class="sm">· tolerance ${e(sc.tolerance_per_cent)}% (${e(sc.tolerance_from)}): two results closer than this count as equal</span></p>` : ''}
           <p class="sm">A negative gap means the recommendation, simulated by the operator, did better than every row of the sweep.</p>
           <div class="ev-top" id="op-score"><div><h3>The sweep's best row</h3>${kv(sc.best_row)}</div><div><h3>The recommendation, simulated</h3>${kv(sc.recommendation)}${kv(sc.at_the_recommendation)}</div></div>
           <p class="sm">${differ.length ? `In bold with ≠: ${differ.length === 1 ? 'the knob whose value differs' : 'the knobs whose values differ'} between the two (${e(differ.join(', '))}).` : 'No knob differs between the two.'}</p>`}</div>

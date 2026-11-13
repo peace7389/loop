@@ -4,7 +4,7 @@
 // ======================================================================================================
 Object.assign(EV, {
   series: {},  // "session/run" -> the columns of series.csv, or 'none'
-  goal: g => (!g ? 'not recorded' : typeof g !== 'object' ? String(g) : g.target ? `${g.target.direction === 'min' ? 'smallest' : 'largest'} ${g.target.measure}${(g.conditions || []).length ? ' while ' + g.conditions.join(' and ') : ''}` : JSON.stringify(g)),
+  goal: g => (!g ? 'not recorded' : typeof g !== 'object' ? String(g) : g.target ? `${g.target.direction === 'min' ? 'smallest' : 'largest'} ${g.target.measure}${(g.conditions || []).length ? ' while ' + g.conditions.join(' and ') : ''}${g.tolerance != null ? ` · tolerance ${g.tolerance}%: two results closer than this count as equal` : ''}` : JSON.stringify(g)),
   expBtns: id => `<div class="exp">save <button data-act="export" data-id="${id}" data-x="png">PNG</button> <button data-act="export" data-id="${id}" data-x="csv">CSV</button></div>`,
   chartJs() {  // Chart.js from the CDN, once; the page is drawn again when it arrives
     if (window.Chart) return true; if (EV.cj) return false; EV.cj = 'loading';

@@ -396,9 +396,9 @@ account of the system.
   "task":        the task text
   "description": the system in plain words; {name} is filled from "system"
   "system":      { setting: value }                      fixed for this brief
-  "knobs":       { setting: {min, max, default, meaning} | {choices, default, meaning} }
+  "knobs":       { setting: {min, max, default, step?, meaning} | {choices, default, meaning} }
   "goal":        {"kind": "open"}
-               | {"kind": "given", "target": {"measure", "direction": "max"|"min"}, "conditions": ["udp_loss_frac <= 0.01", ...]}
+               | {"kind": "given", "target": {"measure", "direction": "max"|"min"}, "conditions": ["udp_loss_frac <= 0.01", ...], "tolerance"?: per cent}
   "limits":      {"simulations": 40, "simulations_per_experiment": 12} }
 ```
 
@@ -406,12 +406,24 @@ account of the system.
 
 - every program option of the first nine rows of 6.1 is either fixed or a
   knob, never both;
-- only `weightUdp`, `udpRate`, `queuePkts`, `tcpVariant`, `duration`, `seed`
-  can be knobs (the answer format has no field for the others);
+- any of the nine can be a knob (**DECISION 2026-11-13**, `NOTEBOOK_VIEW.md`,
+  Part 3, Step B: since the answer format is built from the brief, link rate,
+  link delay and MTU can be opened to the model too; no brief in the
+  repository does so yet);
 - values the program accepts; `min < max` with the default between; a meaning
   for every knob;
+- **a step** (optional, for a numeric knob: weightUdp, queuePkts, duration,
+  seed, mtu; a whole number where the knob is one; above 0 and at most
+  `max - min`): the model's values are rounded to it, counted from the knob's
+  `min`, and the rounding is recorded as a clamp (asked, used). The model
+  reads it in the brief with the knob's range. Two designs that round to the
+  same value are one simulation (8.5);
 - a given goal needs a target that is one of the outputs and a list of
   conditions (it may be empty);
+- **a tolerance** (optional, in a given goal: a number of per cent above 0
+  and below 100): two results closer than this count as equal. The model
+  reads it in the brief; `score.py` uses it (10.4); the page states it beside
+  the goal;
 - a `{name}` in the description must be one of the brief's fixed settings;
 - `udpPacketBytes` may be stated under `system` but only as 1400 (the scenario
   fixes it).
@@ -431,6 +443,18 @@ allows is not described and is part of the work.
 
 A brief is never overwritten: the page's editor saves under a new id only
 (`POST /api/brief`).
+
+**The brief editor** (`viewer/brief_editor.js`, in the New session panel)
+reads and sets the settings **on the picture of the system** (12.1): a click
+on a part opens its settings, each with a switch "fixed / the model may
+change it", a value or a range, a default, and for a numeric knob an optional
+step; the picture draws each value in the colour of its state as the form
+changes. The same rows for every setting stay reachable as "all settings as a
+list". A given goal has a field for the tolerance. Three ready-made
+**variations** of the opened brief fill the form with one change and propose a
+new id: "no loss allowed" (the condition on UDP loss becomes
+`udp_loss_frac <= 0`), "coarse ratio (steps of 0.01)", "small budget (15
+simulations)".
 
 ## 8. The session: `loop.py`
 
@@ -732,7 +756,9 @@ quantitative. Prefer experiments that distinguish between explanations."
 Since 2026-11-13 it also says that every design states a value for every knob
 of the brief (a knob left as it was is stated with the value it had), and that
 each new hypothesis is also given as one plain question of at most 20 words,
-for a reader who is not a specialist.
+for a reader who is not a specialist; that a knob which has a step in the
+brief is rounded to it; and that a goal's tolerance makes two results closer
+than that many per cent count as equal.
 
 It must not describe the scheduling policy, how the scheduler works, TCP
 backoff, or any expected result. For that reason the prompt and the format
@@ -870,6 +896,16 @@ sweep's table, and writes `checks/scores/<session>.json`:
 For a brief with an open goal the operator enters the goal the report states
 (`--target`, `--direction`, `--condition`). There is no answer key or sweep for
 `two-hosts-open` yet, so its sessions cannot be scored.
+
+**The tolerance** (**DECISION 2026-11-13**). When the goal of the session's
+brief gives a tolerance, or the operator enters one (`--tolerance PER_CENT`),
+the score also says whether the recommendation is "at the best, within the
+tolerance": the conditions hold at it and the gap is at most that many per
+cent of the best row's value (a recommendation better than every row always
+is). The score file gets `tolerance_per_cent`, `tolerance_from` ("the brief"
+or "entered by the operator"), `within_the_tolerance` and `against_the_best`;
+the Operator tab and the gap in the header strip show it. With a tolerance of
+1%, s006 is at the best, within the tolerance.
 
 ### 10.5 Review
 
@@ -1176,9 +1212,14 @@ internet stack, traffic control, net device), and the link between them.
   the scenario source, 6.4). The values come from the session: its brief's
   fixed settings and each knob's default, or the settings of the simulation
   the reader opened last; "show the brief's defaults" brings the defaults back.
-- A setting the model may change is written in the model's colour.
+- **Two colours, one legend**: a setting the brief opens to the model is
+  written in the model's colour, a setting the brief fixes in the operator's;
+  the legend under the picture names both. The same picture (`EV.sysSvg`) is
+  the form of the brief editor (section 7).
 - A click on an object shows it beside the picture, inside the card: its
-  settings; for a knob, its range and the values this session tried; and what
+  settings, each with its value and its label, "the model may change it" (with
+  its range, its step where it has one, and the values this session tried) or
+  "fixed by the operator"; and what
   is measured there, with the opened simulation's values. The object chosen is
   not the session's selection: the item open in the detail pane stays open, and
   the page does not move.
@@ -1681,7 +1722,7 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `loop.py` | 602 | the loop: one session; the answer format from the brief; `trim` |
-| `tools.py` | 228 | all the model can reach; the brief check; running simulations |
+| `tools.py` | 253 | all the model can reach; the brief check; running simulations |
 | `decision_rules.py` | 163 | reads and checks decision rules |
 | `schema.json` | 408 | the answer format (its params object is put in by loop.py) |
 | `prompt.txt` | 31 | the system prompt |
@@ -1689,7 +1730,7 @@ above all, so the counts understate the size.
 | `control.py` | 565 | the operator's server |
 | `session_figures.py` | 123 | figures counted from a session's records, for control.py's session rows; the void checks |
 | `audit.py` | 88 | operator: the audit of a session's checks, verdicts, experiments and designs |
-| `score.py` | 127 | operator: score a session |
+| `score.py` | 137 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
 | `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
 | `make_trace.py` | 38 | operator: packet-event recordings |
@@ -1714,7 +1755,7 @@ above all, so the counts understate the size.
 | `evidence_notebook.js` | 70 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
-| `evidence_system.js` | 92 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
+| `evidence_system.js` | 103 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 119 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 57 | highlights |
@@ -1732,14 +1773,14 @@ above all, so the counts understate the size.
 | `evidence_verdicts.js` | 71 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_margin.js` | 39 | the margin of a check: how far it was from its decision rule; a part of each test's line in the tests list |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
-| `evidence_operator.js` | 52 | the Operator tab: the score, the checklist and its judgements |
+| `evidence_operator.js` | 53 | the Operator tab: the score, the checklist and its judgements |
 | `evidence_heat.js` | 64 | the sweep as a heat map: the colour range, the stretches of the axis, the session's simulations as marks |
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
 | `evidence_compare.js` | 66 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 54 | links, export, print |
 | `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
-| `brief_editor.js` | 182 | the brief editor |
+| `brief_editor.js` | 230 | the brief editor |
 
 **Earlier pages and the ADRS adapter (`viewer/`)**
 

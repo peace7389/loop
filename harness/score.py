@@ -31,6 +31,7 @@ def main():
     ap.add_argument("--target", help="open goal only: the measure the report's goal optimises")
     ap.add_argument("--direction", choices=["max", "min"], help="open goal only")
     ap.add_argument("--condition", action="append", default=[], help="open goal only: a condition of the report's goal, e.g. \"udp_loss_frac <= 0.01\" (repeatable)")
+    ap.add_argument("--tolerance", type=float, metavar="PER_CENT", help="two results closer than this count as equal; default: the goal's tolerance in the session's brief, if it gives one")
     ap.add_argument("--judge", action="append", default=[], metavar="N=yes|no|unjudged", help="the operator's judgement of checklist item N (repeatable)")
     a = ap.parse_args()
     D = tools.SESSIONS / a.session
@@ -83,6 +84,11 @@ def main():
     at = json.loads((d / "metrics.json").read_text())
     gap = None if best is None else (best["_m"][target] - at[target]) * (1 if direction == "max" else -1)
     ties = [r for r in allowed if best is not None and r["_m"][target] == best["_m"][target]]
+    # the tolerance (per cent of the best): two results closer than this count as equal. The brief's goal may give one; the operator may enter one
+    tol = a.tolerance if a.tolerance is not None else goal.get("tolerance")
+    if tol is not None and not 0 < tol < 100:
+        ap.error("--tolerance is a number of per cent above 0 and below 100")
+    within = None if tol is None or gap is None else bool(all(holds(at)) and gap <= abs(best["_m"][target]) * tol / 100)
 
     out_file = CHECKS / "scores" / f"{a.session}.json"
     old = json.loads(out_file.read_text()) if out_file.is_file() else {}
@@ -101,6 +107,8 @@ def main():
              "at_the_recommendation": {k: at[k] for k in ("udp_goodput_bps", "tcp_goodput_bps", "udp_loss_frac", "link_util")},
              "conditions_hold_at_the_recommendation": dict(zip(conditions, holds(at))),
              "gap_on_target": gap, "gap_as_part_of_best": None if gap is None or not best["_m"][target] else gap / best["_m"][target],
+             **({"tolerance_per_cent": tol, "tolerance_from": "entered by the operator" if a.tolerance is not None else "the brief", "within_the_tolerance": within,
+                 "against_the_best": "at the best, within the tolerance" if within else "not at the best: further from it than the tolerance" if within is False else None} if tol is not None else {}),
              "expected_by_the_model": report.get("expected"), "simulations_used": meta.get("simulations"), "simulations_allowed": brief["limits"]["simulations"],
              "how_the_session_ended": meta.get("how"), "left_open": meta.get("left_open"), "checklist": checklist}
     out_file.parent.mkdir(parents=True, exist_ok=True)
@@ -119,6 +127,8 @@ def main():
     if gap is not None:
         print(f"GAP on {target}, best row of the sweep minus the recommendation: {unit(gap)} ({100 * gap / best['_m'][target]:.3f}% of the best)"
               + ("  [the recommendation is better than every row of the sweep that meets the conditions]" if gap < 0 else ""))
+    if tol is not None and within is not None:
+        print(f"TOLERANCE {tol:g}% ({'entered by the operator' if a.tolerance is not None else 'the brief'}): " + ("at the best, within the tolerance" if within else "not at the best: further from it than the tolerance"))
     print(f"SIMULATIONS: the session used {meta.get('simulations')} of {brief['limits']['simulations']} allowed; the sweep has {len(rows)}")
     print("checklist (the operator's judgement): " + "; ".join(f"{c['n']}. {c['judgement']}" for c in checklist))
     print(f"written: {out_file}")

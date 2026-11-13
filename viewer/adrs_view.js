@@ -598,7 +598,7 @@ const TASK_VIEW = {
 const TH_DATA = {
   PLAIN: { udp_goodput_bps: 'UDP goodput', tcp_goodput_bps: 'TCP goodput', udp_loss_frac: 'UDP loss', drops_band0: 'Drops from the UDP queue',
            drops_band1: 'Drops from the TCP queue', tcp_retrans: 'TCP retransmissions', link_util: 'Link use', link_rate_bps: 'Link rate', weight_udp: 'UDP share' },
-  KNOB: { weightUdp: 'UDP share of the link', udpRate: 'UDP offered rate', queuePkts: 'Queue length', tcpVariant: 'TCP congestion control', duration: 'Measured time', seed: 'Random seed' },
+  KNOB: { weightUdp: 'UDP share of the link', udpRate: 'UDP offered rate', queuePkts: 'Queue length', tcpVariant: 'TCP congestion control', duration: 'Measured time', seed: 'Random seed', linkRate: 'Link rate', linkDelay: 'Link delay, one way', mtu: 'Largest packet' },
   UNIT: { queuePkts: ' packets', duration: ' s' },
   knob(k, v) { return v == null ? '–' : String(v) + (TH_DATA.UNIT[k] || ''); },
   // the scheduling policy of a run (how the scheduler divides the link), from the operator's line of it; lines written before 2026-11-11 call it "mode"
