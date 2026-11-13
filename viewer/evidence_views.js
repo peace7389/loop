@@ -21,14 +21,14 @@ Object.assign(EV, {
         <text x="${W - 8}" y="${y + 14}" text-anchor="end">${e(left)}${shut ? ` · ${t.steps.length} steps folded` : ''}</text><title>${shut ? 'Show' : 'Fold'} this turn</title></g>`);
       y += 28; if (shut) { prev = null; return; }
       t.steps.forEach(s => {
-        const [x, w] = L[s.lane], cpl = Math.floor((w - 16) / 6.6), text = (icon[s.kind] || '') + ' ' + s.label, short = text.length > 190 ? text.slice(0, 186) + '…' : text;
-        const tl = Math.max(1, Math.ceil(short.length / cpl) + (short.match(/;/g) || []).length * 0.4), per = Math.floor((w - 14) / 10), sims = s.sims || [];
+        const [x, w] = L[s.lane], cpl = Math.floor((w - 16) / 6.6), ic = icon[s.kind] || '', text = s.label, short = text.length > 188 ? text.slice(0, 184) + '…' : text;
+        const tl = Math.max(1, Math.ceil((short.length + 2) / cpl) + (short.match(/;/g) || []).length * 0.4), per = Math.floor((w - 14) / 10), sims = s.sims || [];
         const th = Math.round(10 + 15 * tl), h = th + (sims.length ? Math.ceil(sims.length / per) * 10 + 6 : 0);
         const cls = [s.warn ? 'warn' : '', selSteps.has(s.k) || (info.turn === s.turn && s.kind === 'answer') ? 'sel' : '', hit.has(s.k) ? 'hit' : ''].join(' ');
         const dots = sims.map((q, i) => { const cx = x + 10 + (i % per) * 10, cy = y + th + 4 + Math.floor(i / per) * 10;
           return `<g data-act="open" data-t="sim" data-id="${e(q.id)}"><circle cx="${cx}" cy="${cy}" r="6" fill="transparent"/>${info.sims.has(q.id) ? `<circle cx="${cx}" cy="${cy}" r="5.6" fill="none" stroke="var(--text-primary)" stroke-width="1.6"/>` : ''}<circle cx="${cx}" cy="${cy}" r="3.6" class="${q.same_as ? '' : 'stripe'}" style="${q.same_as ? 'fill:none;stroke:var(--by-simulator);stroke-width:1.4' : ''}${q.error ? ';stroke:var(--critical);stroke-width:2' : ''}"/>
             <title>${e(`${q.id} · ${q.label || ''} · run ${q.run || 'not recorded'}${q.same_as ? ` · returned from ${q.same_as}, not run again` : ''}${q.error ? ' · no measurements: ' + q.error : ''}`)}</title></g>`; }).join('');
-        out.push(`<g data-step="${s.k}">${EV.box(x, y, w, h, s.lane, e(short), `data-act="step" data-id="${s.k}"`, cls).replace('</g>', `<title>${e(text)}</title></g>`)}${dots}</g>`);
+        out.push(`<g data-step="${s.k}">${EV.box(x, y, w, h, s.lane, ic + ' ' + e(short), `data-act="step" data-id="${s.k}"`, cls).replace('</g>', `<title>${e(text)}</title></g>`)}${dots}</g>`);
         if (prev) arrows.push(`<path class="edge" data-step="${s.k}" d="M${prev.cx},${prev.y2} C${prev.cx},${(prev.y2 + y) / 2} ${x + w / 2},${(prev.y2 + y) / 2} ${x + w / 2},${y - 2}" marker-end="url(#ev-ah)"/>`);
         prev = { cx: x + w / 2, y2: y + h }; y += h + 14;
       });
