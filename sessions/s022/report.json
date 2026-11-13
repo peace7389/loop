@@ -1,0 +1,80 @@
+{
+ "goal": "Maximize aggregate delivered payload goodput, defined as udp_goodput_bps + tcp_goodput_bps over the measured window, with link utilization as a secondary check and avoidable UDP drops treated only as a tie-breaker.",
+ "recommendation": {
+  "weightUdp": 0.95,
+  "udpRate": "2Gbps",
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 5,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 930072640,
+  "tcp_goodput_bps": 48198707,
+  "udp_loss_frac": 0.534962,
+  "drops_band0": 477645,
+  "drops_band1": 4,
+  "tcp_retrans": 4,
+  "link_util": 1.000001,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.95
+ },
+ "explanation": "The scheduler is work-conserving: when UDP does not use its configured share, TCP uses the unused capacity (E1, C1). When UDP is backlogged at 2Gbps, UDP delivered goodput is approximately proportional to weightUdp (E1, C3). Aggregate payload goodput remains high for every weight, but it is largest at the upper allowed weight: about 978.3 Mbps at weightUdp=0.95, versus about 964.8 Mbps at weightUdp=0.05 (E1, C2). This happens because, under these packet sizes, the UDP flow delivers more payload per transmitted bit than the TCP flow, so shifting scheduler share toward UDP raises total delivered payload while still keeping the link fully utilized. The result is robust to TCP variant, queue size, higher UDP offered rate, and seed (E2, C4-C8). If the UDP source can be rate-limited, setting udpRate to about 930Mbps at weightUdp=0.95 removes UDP drops while preserving essentially the same aggregate delivered payload (E2, C7); however, the best ratio itself remains weightUdp=0.95.",
+ "holds_when": "The link is 1Gbps with the stated packet sizes, the scheduler is the tested work-conserving scheduler, UDP offered load is at least about its configured share (for example the default 2Gbps), and performance is measured as aggregate delivered payload goodput.",
+ "breaks_when": "If performance prioritizes TCP goodput alone, the best weight would be near 0.05; if it prioritizes balanced UDP/TCP goodput, the best weight is near 0.50 (E1 gives UDP 489.5 Mbps and TCP 482.0 Mbps at 0.50); if latency or queueing delay is important, large queues or very high UDP share may be undesirable; if UDP packet overhead or payload efficiency changes, the aggregate-goodput optimum could move.",
+ "claims": [
+  {
+   "text": "The scheduler is work-conserving: TCP uses unused UDP share when UDP is underloaded.",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "With UDP backlogged, UDP delivered goodput is approximately proportional to weightUdp.",
+   "evidence": [
+    "E1",
+    "C3",
+    "V3"
+   ]
+  },
+  {
+   "text": "Aggregate delivered payload goodput is maximized in the tested range at weightUdp=0.95.",
+   "evidence": [
+    "E1",
+    "C2",
+    "V2"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.95, aggregate goodput is robust to TCP variant, queue size, udpRate up to 3Gbps, and seed.",
+   "evidence": [
+    "E2",
+    "C4",
+    "C5",
+    "C6",
+    "C8"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.95, setting udpRate to about 930Mbps eliminates UDP loss while preserving aggregate delivered payload goodput.",
+   "evidence": [
+    "E2",
+    "C7"
+   ]
+  },
+  {
+   "text": "If balanced UDP and TCP goodput were the chosen performance metric, weightUdp near 0.50 would be preferable, but aggregate goodput would be about 0.7 percent lower than at 0.95.",
+   "evidence": [
+    "E1"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact max-min fairness optimum was not finely swept; E1 suggests it is near weightUdp=0.50.",
+  "Queueing delay and latency were not measured directly, so the effect of queuePkts on delay is unresolved.",
+  "Longer-duration runs and many seeds were not exhaustively tested, although the tested seeds and durations were stable.",
+  "The precise packet-overhead mechanism causing UDP to have higher payload efficiency than TCP was inferred from goodput measurements, not directly measured."
+ ]
+}

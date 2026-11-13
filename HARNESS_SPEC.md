@@ -923,8 +923,9 @@ is the one definition both `audit.py` and `control.py`'s rows use.
 
 ## 11. Results so far
 
-19 sessions, all with the same model. `s001` is from 2026-11-09; the others are
-from 2026-11-11. "Gap" is the best row of the sweep minus the recommendation,
+25 sessions, all with the same model. `s001` is from 2026-11-09, `s002` to
+`s019` from 2026-11-11 (the table below), `s020` to `s025` from 2026-11-13
+(after the repair of the answer format; their table is further down). "Gap" is the best row of the sweep minus the recommendation,
 on TCP goodput; at every scored recommendation the brief's condition holds.
 
 | Session | Brief | Policy | Draft | How it ended | Turns | Simulations | Gap (Mbps) |
@@ -992,6 +993,27 @@ distinct simulations. They are kept as records of the defect, not as results
 (section 15, item 9). s004: one verdict ("supported", on C6) rests on a void
 check; its recommendation and score are not affected. s015 and s018, and
 every other session of `two-hosts-udp-demand`, have no void check.
+
+**After the repair: s020 to s025** (2026-11-13; brief `two-hosts-open`, three
+under each scheduling policy, default settings, the brief's own budget; the
+first sessions in which every design states every knob and every hypothesis
+has a question). `audit.py` on each:
+
+| Session | Policy | How it ended | Turns | Simulations | The goal the model chose | Recommendation | Void checks | Designs stating every knob |
+|---|---|---|---|---|---|---|---|---|
+| s020 | share | done by the model | 6 | 39 | largest sum of UDP and TCP goodput | weightUdp 0.95 (udpRate 2Gbps, the rest at the defaults) | 0 of 11 | 44 of 44 |
+| s021 | share | done by the model | 6 | 39 | largest of the smaller of the two goodputs | weightUdp 0.5 | 0 of 16 | 45 of 45 |
+| s022 | share | done by the model | 3 | 23 | largest sum of UDP and TCP goodput | weightUdp 0.95 (duration 5, the rest at the defaults) | 0 of 8 | 24 of 24 |
+| s023 | cap | done by the model | 5 | 22 | largest of the smaller of the two goodputs, UDP offered at 3 Gbps | weightUdp 0.496, udpRate 3Gbps | 0 of 10 | 24 of 24 |
+| s024 | cap | done by the model | 5 | 31 | largest of the smaller of the two goodputs, UDP offered at 2 Gbps | weightUdp 0.497 | 0 of 9 | 36 of 36 |
+| s025 | cap | done by the model | 5 | 38 | largest sum of UDP and TCP goodput, UDP offered at 3 Gbps | weightUdp 0.95, udpRate 3Gbps | 0 of 9 | 42 of 42 |
+
+No check is void, no design lacks a knob, and none of the three new refusals
+of 8.5 was needed. 23 of 221 simulations were returned from an earlier one
+(in s014 to s019: 294 of 500). 57 of the 63 checks held and 6 failed; the 63
+verdicts are 52 supported, 6 refuted and 5 inconclusive (all five in s022,
+on checks that held). These sessions are not scored: `two-hosts-open` has no
+answer key (section 15, item 2).
 
 The best row is 671.585 Mbps under share and 671.533 Mbps under cap, so the
 largest gap is 0.11% of the best. These figures say how close the

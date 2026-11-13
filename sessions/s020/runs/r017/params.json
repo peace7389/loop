@@ -1,0 +1,1 @@
+{"linkRate": "1Gbps", "linkDelay": "50us", "udpRate": "2Gbps", "tcpVariant": "TcpCubic", "mtu": 1500, "queuePkts": 1000, "duration": 2, "seed": 1, "weightUdp": 0.5}

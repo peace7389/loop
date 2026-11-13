@@ -1,0 +1,92 @@
+{
+ "goal": "Maximize balanced delivered payload, defined as min(udp_goodput_bps, tcp_goodput_bps), for the tested saturated-UDP case: udpRate=2Gbps, TcpCubic, queuePkts=100, duration=10s.",
+ "recommendation": {
+  "weightUdp": 0.497,
+  "udpRate": "2Gbps",
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 485916480,
+  "tcp_goodput_bps": 485563053,
+  "udp_loss_frac": 0.757041,
+  "drops_band0": 1351859,
+  "drops_band1": 72,
+  "tcp_retrans": 72,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.497
+ },
+ "explanation": "The scheduler behaves as a non-work-conserving weighted allocator: UDP receives approximately its configured share when it has enough offered traffic, and TCP receives approximately the remaining configured share; unused UDP share is not given to TCP. With saturated UDP and TcpCubic, the two payload goodputs cross near weightUdp=0.497. At that setting the smaller of UDP and TCP goodput is 485563053 bps, higher than at 0.490, 0.496, 0.498, 0.500, and 0.505, and the same ordering holds for seed=2. This maximizes balanced delivered payload among the tested grid. If performance were instead defined as total delivered payload, weightUdp=0.95 would be preferred, but it heavily starves TCP.",
+ "holds_when": "UDP offered rate is high enough to saturate its configured share, approximately udpRate >= 0.5Gbps for this recommendation; TCP has persistent data and uses TcpCubic; queuePkts is around 100; the scheduler remains non-work-conserving; and performance is measured as balanced delivered payload, min(udp_goodput_bps, tcp_goodput_bps).",
+ "breaks_when": "If performance means total delivered payload, weightUdp=0.95 is better. If UDP offered rate is below about 0.5Gbps, UDP cannot fill its share and lower weights or tie-breaking by link utilization may be preferable. If TcpBbr or TcpVegas is used, TCP does not fill its configured share. If queue sizes are extreme, TCP retransmissions and measured goodput can shift. If the scheduler were made work-conserving, the optimum could change because TCP could use unused UDP capacity.",
+ "claims": [
+  {
+   "text": "The scheduler is non-work-conserving: when UDP offers less than its configured share, TCP does not receive the unused UDP share.",
+   "evidence": [
+    "C1",
+    "E1",
+    "C6",
+    "E2",
+    "V1",
+    "V6"
+   ]
+  },
+  {
+   "text": "With saturated UDP, UDP goodput is approximately proportional to weightUdp.",
+   "evidence": [
+    "C2",
+    "E1",
+    "V2"
+   ]
+  },
+  {
+   "text": "For balanced delivered payload, weightUdp=0.497 gives the highest tested min(udp_goodput_bps, tcp_goodput_bps) among 0.490, 0.496, 0.497, 0.498, 0.500, and 0.505.",
+   "evidence": [
+    "C7",
+    "E3",
+    "V7"
+   ]
+  },
+  {
+   "text": "The balanced optimum near 0.497 is robust to changing the seed from 1 to 2.",
+   "evidence": [
+    "C9",
+    "E3",
+    "V9"
+   ]
+  },
+  {
+   "text": "TcpCubic fills its configured scheduler share, while TcpBbr and TcpVegas do not, so TcpCubic is the appropriate variant for the recommendation.",
+   "evidence": [
+    "C3",
+    "E2",
+    "V3"
+   ]
+  },
+  {
+   "text": "queuePkts=100 is a reasonable default: queuePkts=1000 removes TCP retransmissions but slightly lowers measured goodput, while queuePkts=4 increases TCP retransmissions.",
+   "evidence": [
+    "C4",
+    "E2",
+    "V4"
+   ]
+  },
+  {
+   "text": "If performance is defined as total delivered payload rather than balanced payload, weightUdp=0.95 is better than 0.90, 0.50, or 0.49 in the tested saturated-UDP case.",
+   "evidence": [
+    "C8",
+    "E3",
+    "V8"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact continuous optimum between 0.496 and 0.498 was not refined beyond the tested grid.",
+  "The best tie-breaker for low UDP offered rates, where several weights can give the same minimum goodput but different link utilization, was not optimized.",
+  "The effect of queuePkts specifically at weightUdp=0.497 was not directly tested.",
+  "Latency, jitter, and RTT were not measured, so performance definitions involving delay were not evaluated."
+ ]
+}

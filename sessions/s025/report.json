@@ -1,0 +1,68 @@
+{
+ "goal": "Maximize aggregate delivered payload throughput, defined as udp_goodput_bps + tcp_goodput_bps over the measured window, with UDP offered at its maximum rate (3Gbps) and TCP saturated.",
+ "recommendation": {
+  "weightUdp": 0.95,
+  "udpRate": "3Gbps",
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic"
+ },
+ "expected": {
+  "udp_goodput_bps": 930004320,
+  "tcp_goodput_bps": 48267053,
+  "udp_loss_frac": 0.690026,
+  "drops_band0": 1848450,
+  "drops_band1": 8,
+  "tcp_retrans": 8,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.95
+ },
+ "explanation": "The scheduler behaves as a fixed, non-work-conserving partition: TCP does not take idle UDP share (E1, C1). When UDP is overloaded, UDP goodput scales almost linearly with weightUdp, and aggregate payload goodput increases as weightUdp increases. At udpRate=3Gbps, aggregate payload was 964.798Mbps at weightUdp=0.05, 971.525Mbps at 0.5, 975.272Mbps at 0.75, 976.773Mbps at 0.85, and 978.271Mbps at 0.95 (E2, E3, C3, C7). This preference for high weightUdp held for all tested TCP variants (E4, C9). Link utilization is already near 1.0 for many weights under overload, so aggregate delivered payload is the discriminating performance metric. The high UDP loss fraction at weightUdp=0.95 is a consequence of offering UDP at 3Gbps; despite that loss, UDP delivered payload is maximized, and total delivered payload is higher than at lower weights.",
+ "holds_when": "UDP offered rate is high enough to keep the UDP queue persistently backlogged, as observed at 2Gbps and 3Gbps; TCP has persistent data to send; the scheduler remains a fixed non-work-conserving partition; and performance is measured as aggregate delivered payload bits per second.",
+ "breaks_when": "If UDP is underloaded, high weightUdp wastes link capacity because the scheduler does not let TCP use idle UDP share; at udpRate=100Mbps aggregate payload peaked near weightUdp=0.10 (E3, C8). If performance is instead defined as TCP goodput, fairness between UDP and TCP, UDP loss fraction, latency, or queueing delay, a lower or different weightUdp may be preferable.",
+ "claims": [
+  {
+   "text": "The scheduler is not work-conserving: TCP does not use idle UDP share when UDP is underloaded.",
+   "evidence": [
+    "E1",
+    "C1"
+   ]
+  },
+  {
+   "text": "Under UDP overload, aggregate payload goodput increases with weightUdp up to the maximum allowed value 0.95.",
+   "evidence": [
+    "E2",
+    "C3",
+    "E3",
+    "C7"
+   ]
+  },
+  {
+   "text": "At udpRate=3Gbps, weightUdp=0.95 gives higher aggregate payload goodput than weightUdp=0.5 for all tested TCP variants.",
+   "evidence": [
+    "E4",
+    "C9"
+   ]
+  },
+  {
+   "text": "queuePkts has little effect on aggregate payload goodput, changing it by less than 5% in the tested cases.",
+   "evidence": [
+    "E2",
+    "C4"
+   ]
+  },
+  {
+   "text": "When UDP is underloaded at 100Mbps, aggregate payload goodput is maximized near weightUdp=0.10, not at weightUdp=0.95.",
+   "evidence": [
+    "E3",
+    "C8"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact UDP offered-rate threshold between 100Mbps and 2Gbps where weightUdp=0.95 stops being the aggregate-goodput optimum.",
+  "The latency and queueing-delay consequences of different weightUdp and queuePkts values, which were not measured.",
+  "Whether weightUdp=0.90 at 3Gbps is practically indistinguishable from 0.95 for aggregate payload.",
+  "How the optimum changes if UDP and TCP packet overheads or payload sizes differ more strongly than in these runs."
+ ]
+}

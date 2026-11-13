@@ -1,0 +1,565 @@
+{
+ "session": "s025",
+ "brief": "two-hosts-open",
+ "made": "2026-11-13T22:53:21",
+ "counts": {
+  "checks": 9,
+  "void": 0,
+  "one_simulation": 0,
+  "verdicts": 9,
+  "verdicts_resting_only_on_void_checks": 0,
+  "experiments": 4,
+  "experiments_with_a_varied_knob_of_one_value": 0,
+  "designs": 42,
+  "designs_stating_every_knob": 42,
+  "designs_whose_label_names_a_weight_without_weightUdp": 0
+ },
+ "checks": [
+  {
+   "id": "C1",
+   "turn": 1,
+   "experiment": "X1",
+   "for": "H1",
+   "decision_rule": "tcp_goodput_bps@LOW_W50 > 800000000 AND link_util@LOW_W50 > 0.95",
+   "result": "failed",
+   "runs": {
+    "LOW_W50": "r012"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C2",
+   "turn": 1,
+   "experiment": "X1",
+   "for": "H2",
+   "decision_rule": "udp_goodput_bps@HIGH_W95 > 800000000 AND udp_goodput_bps@HIGH_W05 < 150000000",
+   "result": "held",
+   "runs": {
+    "HIGH_W95": "r011",
+    "HIGH_W05": "r002"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C3",
+   "turn": 2,
+   "experiment": "X2",
+   "for": "H3",
+   "decision_rule": "min((udp_goodput_bps@AGG_W95+tcp_goodput_bps@AGG_W95)-(udp_goodput_bps@AGG_W75+tcp_goodput_bps@AGG_W75),(udp_goodput_bps@AGG_W75+tcp_goodput_bps@AGG_W75)-(udp_goodput_bps@AGG_W50+tcp_goodput_bps@AGG_W50),(udp_goodput_bps@AGG_W50+tcp_goodput_bps@AGG_W50)-(udp_goodput_bps@AGG_W25+tcp_goodput_bps@AGG_W25),(udp_goodput_bps@AGG_W25+tcp_goodput_bps@AGG_W25)-(udp_goodput_bps@AGG_W05+tcp_goodput_bps@AGG_W05))>0",
+   "result": "held",
+   "runs": {
+    "AGG_W95": "r017",
+    "AGG_W75": "r016",
+    "AGG_W50": "r001",
+    "AGG_W25": "r015",
+    "AGG_W05": "r014"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C4",
+   "turn": 2,
+   "experiment": "X2",
+   "for": "H4",
+   "decision_rule": "max(abs((udp_goodput_bps@Q_W50_P4+tcp_goodput_bps@Q_W50_P4)-(udp_goodput_bps@AGG_W50+tcp_goodput_bps@AGG_W50)),abs((udp_goodput_bps@Q_W50_P1000+tcp_goodput_bps@Q_W50_P1000)-(udp_goodput_bps@AGG_W50+tcp_goodput_bps@AGG_W50)))<0.05*(udp_goodput_bps@AGG_W50+tcp_goodput_bps@AGG_W50) AND abs((udp_goodput_bps@Q_W95_P1000+tcp_goodput_bps@Q_W95_P1000)-(udp_goodput_bps@AGG_W95+tcp_goodput_bps@AGG_W95))<0.05*(udp_goodput_bps@AGG_W95+tcp_goodput_bps@AGG_W95)",
+   "result": "held",
+   "runs": {
+    "Q_W50_P4": "r018",
+    "AGG_W50": "r001",
+    "Q_W50_P1000": "r019",
+    "Q_W95_P1000": "r020",
+    "AGG_W95": "r017"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C5",
+   "turn": 2,
+   "experiment": "X2",
+   "for": "H5",
+   "decision_rule": "(udp_goodput_bps@VAR_BBR_W95+tcp_goodput_bps@VAR_BBR_W95)>(udp_goodput_bps@VAR_BBR_W50+tcp_goodput_bps@VAR_BBR_W50)",
+   "result": "held",
+   "runs": {
+    "VAR_BBR_W95": "r024",
+    "VAR_BBR_W50": "r023"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C6",
+   "turn": 2,
+   "experiment": "X2",
+   "for": "H6",
+   "decision_rule": "(udp_goodput_bps@RATE3_W95+tcp_goodput_bps@RATE3_W95)>(udp_goodput_bps@RATE3_W50+tcp_goodput_bps@RATE3_W50)",
+   "result": "held",
+   "runs": {
+    "RATE3_W95": "r022",
+    "RATE3_W50": "r021"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C7",
+   "turn": 3,
+   "experiment": "X3",
+   "for": "H7",
+   "decision_rule": "(udp_goodput_bps@R3_W95+tcp_goodput_bps@R3_W95) > (udp_goodput_bps@R3_W85+tcp_goodput_bps@R3_W85) AND (udp_goodput_bps@R3_W85+tcp_goodput_bps@R3_W85) > (udp_goodput_bps@R3_W75+tcp_goodput_bps@R3_W75)",
+   "result": "held",
+   "runs": {
+    "R3_W95": "r022",
+    "R3_W85": "r026",
+    "R3_W75": "r025"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C8",
+   "turn": 3,
+   "experiment": "X3",
+   "for": "H8",
+   "decision_rule": "(udp_goodput_bps@L100_W10+tcp_goodput_bps@L100_W10) > (udp_goodput_bps@L100_W05+tcp_goodput_bps@L100_W05) AND (udp_goodput_bps@L100_W10+tcp_goodput_bps@L100_W10) > (udp_goodput_bps@L100_W20+tcp_goodput_bps@L100_W20)",
+   "result": "held",
+   "runs": {
+    "L100_W10": "r028",
+    "L100_W05": "r027",
+    "L100_W20": "r029"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C9",
+   "turn": 4,
+   "experiment": "X4",
+   "for": "H9",
+   "decision_rule": "min((udp_goodput_bps@CUBIC_W95+tcp_goodput_bps@CUBIC_W95)-(udp_goodput_bps@CUBIC_W50+tcp_goodput_bps@CUBIC_W50),(udp_goodput_bps@RENO_W95+tcp_goodput_bps@RENO_W95)-(udp_goodput_bps@RENO_W50+tcp_goodput_bps@RENO_W50),(udp_goodput_bps@LINUX_W95+tcp_goodput_bps@LINUX_W95)-(udp_goodput_bps@LINUX_W50+tcp_goodput_bps@LINUX_W50),(udp_goodput_bps@BBR_W95+tcp_goodput_bps@BBR_W95)-(udp_goodput_bps@BBR_W50+tcp_goodput_bps@BBR_W50),(udp_goodput_bps@VEGAS_W95+tcp_goodput_bps@VEGAS_W95)-(udp_goodput_bps@VEGAS_W50+tcp_goodput_bps@VEGAS_W50),(udp_goodput_bps@BIC_W95+tcp_goodput_bps@BIC_W95)-(udp_goodput_bps@BIC_W50+tcp_goodput_bps@BIC_W50))>0",
+   "result": "held",
+   "runs": {
+    "CUBIC_W95": "r022",
+    "CUBIC_W50": "r021",
+    "RENO_W95": "r031",
+    "RENO_W50": "r030",
+    "LINUX_W95": "r033",
+    "LINUX_W50": "r032",
+    "BBR_W95": "r035",
+    "BBR_W50": "r034",
+    "VEGAS_W95": "r037",
+    "VEGAS_W50": "r036",
+    "BIC_W95": "r039",
+    "BIC_W50": "r038"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  }
+ ],
+ "verdicts": [
+  {
+   "id": "V1",
+   "turn": 2,
+   "for": "H1",
+   "result": "refuted",
+   "rests_on": [
+    "C1"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V2",
+   "turn": 2,
+   "for": "H2",
+   "result": "supported",
+   "rests_on": [
+    "C2"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V3",
+   "turn": 3,
+   "for": "H3",
+   "result": "supported",
+   "rests_on": [
+    "C3"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V4",
+   "turn": 3,
+   "for": "H4",
+   "result": "supported",
+   "rests_on": [
+    "C4"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V5",
+   "turn": 3,
+   "for": "H5",
+   "result": "supported",
+   "rests_on": [
+    "C5"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V6",
+   "turn": 3,
+   "for": "H6",
+   "result": "supported",
+   "rests_on": [
+    "C6"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V7",
+   "turn": 4,
+   "for": "H7",
+   "result": "supported",
+   "rests_on": [
+    "C7"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V8",
+   "turn": 4,
+   "for": "H8",
+   "result": "supported",
+   "rests_on": [
+    "C8"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V9",
+   "turn": 5,
+   "for": "H9",
+   "result": "supported",
+   "rests_on": [
+    "C9"
+   ],
+   "rests_only_on_void_checks": false
+  }
+ ],
+ "experiments": [
+  {
+   "id": "X1",
+   "turn": 1,
+   "kind": "test",
+   "simulations": 12,
+   "varied": [
+    "weightUdp",
+    "udpRate"
+   ],
+   "varied_but_one_value": {}
+  },
+  {
+   "id": "X2",
+   "turn": 2,
+   "kind": "test",
+   "simulations": 12,
+   "varied": [
+    "weightUdp",
+    "udpRate",
+    "queuePkts",
+    "tcpVariant"
+   ],
+   "varied_but_one_value": {}
+  },
+  {
+   "id": "X3",
+   "turn": 3,
+   "kind": "test",
+   "simulations": 6,
+   "varied": [
+    "weightUdp",
+    "udpRate"
+   ],
+   "varied_but_one_value": {}
+  },
+  {
+   "id": "X4",
+   "turn": 4,
+   "kind": "test",
+   "simulations": 12,
+   "varied": [
+    "weightUdp",
+    "tcpVariant"
+   ],
+   "varied_but_one_value": {}
+  }
+ ],
+ "designs": [
+  {
+   "experiment": "X1",
+   "label": "HIGH_W05",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W20",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W30",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W40",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W60",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W70",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W80",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W90",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "HIGH_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "LOW_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "LOW_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "AGG_W05",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "AGG_W25",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "AGG_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "AGG_W75",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "AGG_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "Q_W50_P4",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "Q_W50_P1000",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "Q_W95_P1000",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "RATE3_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "RATE3_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "VAR_BBR_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "VAR_BBR_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "R3_W75",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "R3_W85",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "R3_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "L100_W05",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "L100_W10",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "L100_W20",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "CUBIC_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "CUBIC_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "RENO_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "RENO_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "LINUX_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "LINUX_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "BBR_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "BBR_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "VEGAS_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "VEGAS_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "BIC_W50",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X4",
+   "label": "BIC_W95",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  }
+ ]
+}

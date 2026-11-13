@@ -1,0 +1,458 @@
+{
+ "session": "s023",
+ "brief": "two-hosts-open",
+ "made": "2026-11-13T22:53:21",
+ "counts": {
+  "checks": 10,
+  "void": 0,
+  "one_simulation": 0,
+  "verdicts": 10,
+  "verdicts_resting_only_on_void_checks": 0,
+  "experiments": 3,
+  "experiments_with_a_varied_knob_of_one_value": 0,
+  "designs": 24,
+  "designs_stating_every_knob": 24,
+  "designs_whose_label_names_a_weight_without_weightUdp": 0
+ },
+ "checks": [
+  {
+   "id": "C1",
+   "turn": 2,
+   "experiment": "X1",
+   "for": "H1",
+   "decision_rule": "link_util@wc400 >= 0.98 AND udp_goodput_bps@wc400 >= 380000000 AND tcp_goodput_bps@wc400 >= 550000000",
+   "result": "failed",
+   "runs": {
+    "wc400": "r002"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C2",
+   "turn": 2,
+   "experiment": "X1",
+   "for": "H2",
+   "decision_rule": "abs((udp_goodput_bps@w01 + tcp_goodput_bps@w01) - (udp_goodput_bps@w05 + tcp_goodput_bps@w05)) <= 50000000 AND abs((udp_goodput_bps@w09 + tcp_goodput_bps@w09) - (udp_goodput_bps@w05 + tcp_goodput_bps@w05)) <= 50000000",
+   "result": "held",
+   "runs": {
+    "w01": "r003",
+    "w05": "r001",
+    "w09": "r006"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C3",
+   "turn": 2,
+   "experiment": "X1",
+   "for": "H3",
+   "decision_rule": "abs(udp_loss_frac@w01 - 0.95) <= 0.03 AND abs(udp_loss_frac@w05 - 0.75) <= 0.03 AND abs(udp_loss_frac@w09 - 0.55) <= 0.03",
+   "result": "held",
+   "runs": {
+    "w01": "r003",
+    "w05": "r001",
+    "w09": "r006"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C4",
+   "turn": 2,
+   "experiment": "X1",
+   "for": "H4",
+   "decision_rule": "min(udp_goodput_bps@w05, tcp_goodput_bps@w05) >= min(udp_goodput_bps@w03, tcp_goodput_bps@w03) + 20000000 AND min(udp_goodput_bps@w05, tcp_goodput_bps@w05) >= min(udp_goodput_bps@w07, tcp_goodput_bps@w07) + 20000000",
+   "result": "held",
+   "runs": {
+    "w05": "r001",
+    "w03": "r004",
+    "w07": "r005"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C5",
+   "turn": 3,
+   "experiment": "X2",
+   "for": "H5",
+   "decision_rule": "(udp_goodput_bps@w095 + tcp_goodput_bps@w095) >= (udp_goodput_bps@w05 + tcp_goodput_bps@w05) + 5000000 AND (udp_goodput_bps@w05 + tcp_goodput_bps@w05) >= (udp_goodput_bps@w005 + tcp_goodput_bps@w005) + 2000000",
+   "result": "held",
+   "runs": {
+    "w095": "r017",
+    "w05": "r001",
+    "w005": "r007"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C6",
+   "turn": 3,
+   "experiment": "X2",
+   "for": "H6",
+   "decision_rule": "min(udp_goodput_bps@w0496, tcp_goodput_bps@w0496) >= min(udp_goodput_bps@w045, tcp_goodput_bps@w045) + 20000000 AND min(udp_goodput_bps@w0496, tcp_goodput_bps@w0496) >= min(udp_goodput_bps@w055, tcp_goodput_bps@w055) + 20000000 AND abs(min(udp_goodput_bps@w0496, tcp_goodput_bps@w0496) - min(udp_goodput_bps@w05, tcp_goodput_bps@w05)) <= 10000000",
+   "result": "held",
+   "runs": {
+    "w0496": "r012",
+    "w045": "r011",
+    "w055": "r013",
+    "w05": "r001"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C7",
+   "turn": 4,
+   "experiment": "X3",
+   "for": "H7",
+   "decision_rule": "(udp_goodput_bps@w095_3g + tcp_goodput_bps@w095_3g) >= (udp_goodput_bps@w05_3g + tcp_goodput_bps@w05_3g) + 5000000 AND udp_goodput_bps@w095_3g >= 900000000 AND tcp_goodput_bps@w095_3g <= 70000000 AND link_util@w095_3g >= 0.98",
+   "result": "held",
+   "runs": {
+    "w095_3g": "r020",
+    "w05_3g": "r018"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C8",
+   "turn": 4,
+   "experiment": "X3",
+   "for": "H8",
+   "decision_rule": "abs(udp_goodput_bps@w095_q4 - udp_goodput_bps@w095_3g) <= 10000000 AND abs(tcp_goodput_bps@w095_q4 - tcp_goodput_bps@w095_3g) <= 10000000 AND abs(udp_goodput_bps@w095_q1000 - udp_goodput_bps@w095_3g) <= 10000000 AND abs(tcp_goodput_bps@w095_q1000 - tcp_goodput_bps@w095_3g) <= 10000000",
+   "result": "held",
+   "runs": {
+    "w095_q4": "r021",
+    "w095_3g": "r020",
+    "w095_q1000": "r022"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C9",
+   "turn": 4,
+   "experiment": "X3",
+   "for": "H9",
+   "decision_rule": "abs(tcp_goodput_bps@w095_bbr - tcp_goodput_bps@w095_3g) <= 10000000 AND abs(udp_goodput_bps@w095_bbr - udp_goodput_bps@w095_3g) <= 10000000",
+   "result": "held",
+   "runs": {
+    "w095_bbr": "r023",
+    "w095_3g": "r020"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  },
+  {
+   "id": "C10",
+   "turn": 4,
+   "experiment": "X3",
+   "for": "H10",
+   "decision_rule": "min(udp_goodput_bps@w0496_3g, tcp_goodput_bps@w0496_3g) >= min(udp_goodput_bps@w05_3g, tcp_goodput_bps@w05_3g) + 1000000",
+   "result": "held",
+   "runs": {
+    "w0496_3g": "r019",
+    "w05_3g": "r018"
+   },
+   "void": false,
+   "one_simulation": false,
+   "same_simulation": []
+  }
+ ],
+ "verdicts": [
+  {
+   "id": "V1",
+   "turn": 3,
+   "for": "H1",
+   "result": "refuted",
+   "rests_on": [
+    "C1"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V2",
+   "turn": 3,
+   "for": "H2",
+   "result": "supported",
+   "rests_on": [
+    "C2"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V3",
+   "turn": 3,
+   "for": "H3",
+   "result": "supported",
+   "rests_on": [
+    "C3"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V4",
+   "turn": 3,
+   "for": "H4",
+   "result": "supported",
+   "rests_on": [
+    "C4"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V5",
+   "turn": 4,
+   "for": "H5",
+   "result": "supported",
+   "rests_on": [
+    "C5"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V6",
+   "turn": 4,
+   "for": "H6",
+   "result": "supported",
+   "rests_on": [
+    "C6"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V7",
+   "turn": 5,
+   "for": "H7",
+   "result": "supported",
+   "rests_on": [
+    "C7"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V8",
+   "turn": 5,
+   "for": "H8",
+   "result": "supported",
+   "rests_on": [
+    "C8"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V9",
+   "turn": 5,
+   "for": "H9",
+   "result": "supported",
+   "rests_on": [
+    "C9"
+   ],
+   "rests_only_on_void_checks": false
+  },
+  {
+   "id": "V10",
+   "turn": 5,
+   "for": "H10",
+   "result": "supported",
+   "rests_on": [
+    "C10"
+   ],
+   "rests_only_on_void_checks": false
+  }
+ ],
+ "experiments": [
+  {
+   "id": "X1",
+   "turn": 2,
+   "kind": "test",
+   "simulations": 6,
+   "varied": [
+    "weightUdp",
+    "udpRate"
+   ],
+   "varied_but_one_value": {}
+  },
+  {
+   "id": "X2",
+   "turn": 3,
+   "kind": "test",
+   "simulations": 12,
+   "varied": [
+    "weightUdp"
+   ],
+   "varied_but_one_value": {}
+  },
+  {
+   "id": "X3",
+   "turn": 4,
+   "kind": "test",
+   "simulations": 6,
+   "varied": [
+    "weightUdp",
+    "queuePkts",
+    "tcpVariant"
+   ],
+   "varied_but_one_value": {}
+  }
+ ],
+ "designs": [
+  {
+   "experiment": "X1",
+   "label": "wc400",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w01",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w03",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w05",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w07",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X1",
+   "label": "w09",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w005",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w015",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w025",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w035",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w045",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w0496",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w05",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w055",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w065",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w075",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w085",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X2",
+   "label": "w095",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w05_3g",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w0496_3g",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w095_3g",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w095_q4",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w095_q1000",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  },
+  {
+   "experiment": "X3",
+   "label": "w095_bbr",
+   "does_not_state": [],
+   "label_names_a_weight_without_weightUdp": false
+  }
+ ]
+}

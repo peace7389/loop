@@ -1,0 +1,79 @@
+{
+ "goal": "Maximize aggregate delivered payload goodput, udp_goodput_bps + tcp_goodput_bps, over the measured window while keeping link utilization near 1. This treats performance as total useful payload delivered by the link, not fairness between UDP and TCP and not TCP-only throughput.",
+ "recommendation": {
+  "weightUdp": 0.95,
+  "udpRate": "2Gbps",
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 930072640,
+  "tcp_goodput_bps": 48199866,
+  "udp_loss_frac": 0.534963,
+  "drops_band0": 955291,
+  "drops_band1": 8,
+  "tcp_retrans": 8,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.95
+ },
+ "explanation": "The scheduler lends idle UDP capacity to TCP: when UDP is offered only 100Mbps and weightUdp=0.95, link_util is 1.0 and TCP fills the unused capacity (C2, E1). Therefore a high UDP share does not waste the link when UDP is underloaded. When UDP is overloaded at the default 2Gbps, total payload goodput rises monotonically with weightUdp over the tested ratios and is highest at the upper bound 0.95: 978.272506 Mbps at 0.95 versus 971.534163 Mbps at 0.5 and 977.976570 Mbps at 0.93 (E1, E5, C10). This advantage is not specific to TcpCubic; it appears for all six TCP variants tested (E3, C7). It also persists across UDP offered rates from 100Mbps to 3Gbps and across seeds 1, 2, and 3 (E4, C8, C9). At udpRate=2Gbps, weightUdp=0.95 also lowers UDP loss relative to weightUdp=0.5 (0.534963 versus 0.755237) and lowers TCP retransmissions relative to the default 0.5 run (8 versus 71) (E1, E2). QueuePkts=100 is kept because it gives the highest total payload goodput tested at weightUdp=0.95 while keeping TCP retransmissions very small; queuePkts=1000 removes TCP retransmissions but reduces total payload goodput by about 0.42 Mbps (E2, C4, C6).",
+ "holds_when": "The link is 1Gbps, MTU is 1500 bytes, UDP sends 1400-byte packets, TCP has 1MB buffers, the scheduler borrows idle capacity from the underused queue, queuePkts is around 100, and the TCP variant is one of those tested. The total-goodput advantage is clearest when UDP offered rate is at least about 1Gbps; at lower UDP offered rates, 0.95 is still not materially worse for total goodput.",
+ "breaks_when": "If performance is defined as TCP throughput, a low weightUdp such as 0.05 is better because TCP can use most of the link (E1). If performance is defined as UDP loss minimization at low UDP offered rate, any ratio that covers the UDP offered rate may be acceptable; at udpRate=100Mbps, weightUdp=0.5 and 0.95 both deliver UDP with zero loss (E1, E4). If the scheduler did not lend idle capacity, high weightUdp could waste link capacity, but that behavior was refuted (C1, C2, E1).",
+ "claims": [
+  {
+   "text": "The scheduler lends unused UDP capacity to TCP, so a high UDP share does not leave the link idle when UDP is underloaded.",
+   "evidence": [
+    "C2",
+    "E1"
+   ]
+  },
+  {
+   "text": "At udpRate=2Gbps, queuePkts=100, TcpCubic, seed=1, duration=10, total payload goodput is highest at weightUdp=0.95 among the tested ratios, including 0.90 and 0.93.",
+   "evidence": [
+    "E1",
+    "E5",
+    "C10"
+   ]
+  },
+  {
+   "text": "The total-goodput advantage of weightUdp=0.95 over lower ratios is robust across all six TCP congestion-control variants tested.",
+   "evidence": [
+    "E3",
+    "C7"
+   ]
+  },
+  {
+   "text": "The total-goodput advantage of weightUdp=0.95 is robust across UDP offered rates from 100Mbps to 3Gbps and across random start-time seeds 1, 2, and 3.",
+   "evidence": [
+    "E4",
+    "C8",
+    "C9"
+   ]
+  },
+  {
+   "text": "At udpRate=2Gbps, weightUdp=0.95 does not increase UDP loss relative to nearby lower ratios and gives lower UDP loss than weightUdp=0.5.",
+   "evidence": [
+    "E1",
+    "E5",
+    "C11"
+   ]
+  },
+  {
+   "text": "Queue length affects TCP reliability: very small queues cause many TCP retransmissions, while queuePkts=100 keeps TCP retransmissions small and preserves the highest tested total payload goodput at weightUdp=0.95.",
+   "evidence": [
+    "E2",
+    "C4",
+    "C6"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact scheduler algorithm for borrowing idle capacity was inferred from behavior, not observed directly.",
+  "The best ratio for other performance definitions, such as TCP-only throughput, weighted fairness, or delay, was not optimized.",
+  "The behavior at UDP offered rates between 500Mbps and 1Gbps was sampled only at 1Gbps, so the exact transition point was not located.",
+  "The queuePkts tradeoff at weightUdp=0.95 was tested only at 4, 100, and 1000 packets; intermediate values were not swept."
+ ]
+}
