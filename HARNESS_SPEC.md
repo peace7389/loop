@@ -469,19 +469,36 @@ allows is not described and is part of the work.
 A brief is never overwritten: the page's editor saves under a new id only
 (`POST /api/brief`).
 
-**The brief editor** (`viewer/brief_editor.js`, in the New session panel)
-reads and sets the settings **on the picture of the system** (12.1): a click
-on a part opens its settings, each with a switch "fixed / the model may
-change it", a value or a range, a default, and for a numeric knob an optional
-step; the picture draws each value in the colour of its state as the form
-changes. A setting a brief may leave out has a third state, "not set", which
-says whose value it then has; a click on a queue opens the common length and
-that queue's own. The same rows for every setting stay reachable as "all settings as a
-list". A given goal has a field for the tolerance. Three ready-made
-**variations** of the opened brief fill the form with one change and propose a
-new id: "no loss allowed" (the condition on UDP loss becomes
-`udp_loss_frac <= 0`), "coarse ratio (steps of 0.01)", "small budget (15
-simulations)".
+**The set-up page, "New session"** (`viewer/brief_editor.js`, address
+`?tab=new`; **DECISION 2026-11-14**, the operator's `READABLE_PAGE.md`, Part 3)
+is where a brief is written and a session started. It has the seven blocks of
+a session's "The setting" (12.1), in the same order, built from the same
+pieces; here each block is a form: the network (the picture of the system; a
+click on a part opens its settings), who decides what (each setting "fixed by
+the operator" with a value, or "the AI may change it" with a range, a default
+and an optional step; a setting a brief may leave out has a third state, "not
+set"), the aim (a ready-made aim, a target with conditions and a tolerance, or
+"open: the AI chooses"), what the AI is told, is not told and can do (the task
+and the description to write, the three lists, which follow the form, and
+"the exact text the AI will be given"), the limits, kept from the AI (the
+scheduling policy: share, cap or random), how the AI runs (the flags, each
+beside its default). Every block says in one sentence what it is for. A value
+that cannot be used is refused as it is typed, with the reason beside it
+(`BRIEF_EDITOR.problems`: the rules of `tools.check_brief` and of
+`control.py`'s start, said first by the page; the server checks again). Above
+Start stands the header strip the session's page will have.
+
+A form that differs from every saved brief is saved under a new name before
+its session starts; a brief is never overwritten. "Start a new session from
+this setup" on a session's page opens the set-up page with every value of that
+session (what it was given, its flags, its policy), each changed value marked;
+saved unchanged it gives a brief equal to the session's, its settings in the
+same order. The roomy form, one row per setting with the line the AI reads
+about it, stays reachable as "all settings as a list". Three ready-made
+**variations** of the opened brief make one change and propose a name: "no
+loss allowed", "coarse ratio (steps of 0.01)", "small budget (15
+simulations)". The editor of the older control page (`index_full.html`) is
+`brief_editor_old.js`.
 
 ## 8. The session: `loop.py`
 
@@ -696,7 +713,7 @@ The budget counts simulations actually run.
   "recommendation": {knob: value}
   "expected":       {output: number}
   "explanation", "holds_when", "breaks_when": texts
-  "claims":         [ {text, evidence: [ledger ids]} ]
+  "claims":         [ {text, role: supports | background | limits, evidence: [ledger ids]} ]
   "open_questions": [texts] }
 ```
 
@@ -711,6 +728,15 @@ the report; the second time it is accepted as it comes.
 
 An accepted report is a `report` record (`R1`) and `sessions/<id>/report.json`,
 and the session is over.
+
+Each claim has a **role** (**DECISION 2026-11-14**, `READABLE_PAGE.md`, Part
+5): `supports` (a reason for the recommendation), `background` (how the system
+behaves) or `limits` (when the recommendation would change). The answer format
+requires it, between the claim's text and its evidence; `prompt.txt` says it
+in one sentence; `check_report` refuses a report in which a claim has no role
+or a word that is not one, as a refused part ("report.claims: claim 1 has no
+role: ..."). The page orders the report by it (12.1). Reports recorded before
+this have no roles and are shown with their claims in one list.
 
 ### 8.7 The ledger
 
@@ -1101,6 +1127,140 @@ Address: `?session=<id>` opens a session; `&tab=session|operator|compare`;
 `&item=<record id>` opens the page with that item selected. Without a session
 it is Home.
 
+**The session page since `READABLE_PAGE.md`** (**DECISION 2026-11-14**, the
+operator's sheet, parts 1 to 8; it replaces the design rules of the earlier
+sheets, and where a paragraph further down describes the Overview band, the
+card "The final report", the card "The system", "Highlights", the New session
+panel or the switch "as a list / as a tree", this block decides: those parts
+are gone or moved as said here, and the paragraphs remain as the record of
+what each kept piece shows and how it follows the replay).
+
+*What the page must achieve.* A person who has never seen it can say, in ten
+minutes: what the network is, what the AI was asked and what it could see;
+which questions it set itself, how it tested each, what it learned; what it
+proposes, on what evidence, and where that stops being true; in what ways its
+work was the work of a researcher; and, with operator columns on, whether it
+was right.
+
+*Three levels of detail.* Level 1, at a glance, open at the top at full
+width: the header strip, the setting, the session at a glance, what it needed
+to find out. Level 2, read, below it in the left column: the notebook, what it
+proposes, how it worked as a researcher. Level 3, inspect: the detail pane,
+opened by a click (a test's flow chart, the exact decision rule and numbers, a
+simulation's settings and charts, the review queue). Nothing of level 3 stands
+at level 1 or 2 except as something to click. The switch **Brief / Full** in
+the header strip opens every folded part; the browser remembers it
+(`ev-full`).
+
+*The sections, in order,* each with its heading and under it the reader's
+question:
+
+| # | Heading | Question | File |
+|---|---|---|---|
+| 0 | (header strip) | | brief, session, how it ended, simulations used, the recommendation in one line; Brief / Full; "Walk me through this session" |
+| | (legend) | | the page's one legend of its three colour meanings (`EV.legendBar`) |
+| 1 | The setting | What is this network, what was the AI asked, and what could it see? | `evidence_setting.js` |
+| 2 | The session at a glance | What happened overall? | `evidence_glance.js` |
+| 3 | What it needed to find out | Which questions did it set itself, and what did it learn? | `evidence_find.js` |
+| 4 | The work, step by step | How did it test each? | `evidence_notebook.js` |
+| 5 | What it proposes | What does it recommend, on what evidence, and where does that stop being true? | `evidence_page.js` |
+| 6 | How it worked as a researcher | Did it work the way a researcher does? | `evidence_research.js` |
+| 7 | Looking closer | How did the search go? | `evidence_closer.js` |
+| 8 | How to read this page | What is a turn, a test, a check? | `evidence_page.js`, `evidence_top.js` |
+
+*1 The setting* has seven blocks; the set-up page (section 7) has the same
+seven as forms. The network (the picture; a click on a part shows its values,
+and no part is chosen until then); who decides what (the settings by who
+decides them, in the two colours); the aim, and who set it; what the AI is
+told, is not told and can do (three lists built from the session's `given`
+and the tools the harness offers, and, folded, the exact text the AI was
+given: what `describe_system()` returns, word for word); the limits and how
+many simulations were used; kept from the AI (the scheduling policy: only
+with the operator columns on; with them off its name stands nowhere on the
+Session tab, and the scheduler in the picture carries the mark "policy not
+told to the AI"); how the AI runs (the model and the flags). Blocks 5 to 7 are
+one line each in Brief.
+
+*2 The session at a glance* is the card "What this session is made of" under
+its new heading, with the tally of the checks. A turn's name opens its work
+log and brings the notebook to that turn. Where the turns do not fit the
+width, the table continues on further bands of the same rows: nothing scrolls
+sideways.
+
+*3 What it needed to find out:* one row per test in the order stated: the
+question (the hypothesis's `question`; else its text, cut to two lines), the
+outcome (the verdict; "void" where the check compared a simulation with
+itself), what was measured (the check's numbers in words: "483 Mbps, not over
+700 Mbps"), what it led to (a mark for each later hypothesis that follows,
+going to that row). A row opens its notebook card and brings it into view.
+Nine rows at most, then "n more". A failed check has no warning colour. The
+replay greys later rows and counts only what is recorded.
+
+*4 The work, step by step* is the notebook; the replay's buttons stand in its
+heading; a refused answer or part is a line under its turn's heading. The key
+moments that were the card "Highlights" are marks on its cards and headings
+(`EV.moments`): first test that held, changed course here, cited by claim 1,
+best result.
+
+*5 What it proposes* reads as one argument: the aim and who set it; the
+proposed adjustment (each recommended setting beside the value the session
+started from, "ratio 0.5 → 0.497", and one line "everything else unchanged");
+the expected result in short; because (the claims whose `role` is `supports`,
+then `background`); but (the claims whose role is `limits`, then "holds when"
+and "breaks when"); the explanation, folded. The role of a claim is required
+by the answer format and checked by the harness (8.6); a report recorded
+without roles shows its claims in one list. The counts of claims are worded
+neutrally ("cite only checks that held", ..., "cite nothing") and none is in
+the warning colour. A session without a final report says "No final report"
+here, with how it ended.
+
+*6 How it worked as a researcher:* nine lines, each a count the page makes
+from the records by a fixed rule shown on hover, with a word (present, partly,
+absent; "not recorded" for a session recorded before the field existed; "not
+applicable" with the reason) and links to its evidence: asks a question
+before testing; commits to a prediction first (a decision rule recorded before
+every simulation it names first ran; a simulation returned from an earlier one
+first ran when that one did); makes predictions that could fail; accepts a
+result against its expectation; changes course because of evidence; looks
+beyond the obvious setting; does not repeat itself; states the limits of its
+answer; supports each claim. With the operator columns on, two more: the
+scheduling policy beside the first judged hypothesis that names the scheduler,
+and the sentence about choosing at random. A reviewer's tick and note stand
+beside each line (review item `rs:<line>`). The page states no overall
+verdict. The same lines are columns of the Compare tab. A separate script,
+`research_recount.py`, recounts them from the ledger.
+
+*7 Looking closer:* the analysis views, each folded to one line that says
+what it holds, opened by one click (the browser remembers which, `ev-closer`):
+best so far, the simulations of each turn along one setting, the target where
+one setting alone differs, verdicts against checks, the tests as a list with
+margins, session flow, hypothesis map, the tree.
+
+*A guided walk* (`evidence_walk.js`): "Walk me through this session" shows one
+sentence per section 1 to 6 (five without a final report), built from the
+records by a fixed rule, at the head of its section, with back, next and
+leave; leaving it puts the page back as it was.
+
+*Clicks that move the page* are stated in "How to read this page": a turn's
+name in section 2, a row of section 3, a box of the structure map, a line of
+section 6 that names a section, and the walk. No other click does.
+
+*Design rules, for the session page and the set-up page.* Labels are plain
+words ("ratio", "UDP rate", "queue length", "TCP type"); the field name is on
+hover. A text the page did not write (the model's, the harness's, the
+operator's recorded words) is marked `data-own`. A measured number at levels 1
+and 2 has at most four significant digits and its unit (rates in Mbps or
+Gbps, fractions in per cent, counts whole; `EV.v4`); a setting's value is
+shown as recorded (`data-exact`); the exact value is on hover and at level 3.
+Colour has three meanings, named once in the legend under the header strip:
+who produced it (AI, harness, simulator, operator), the outcome of a test
+(held, failed, and the warning mark, kept for a refused answer, a verdict
+against its check and a number that differs from its measurement), and the
+flow (UDP, TCP). Selection is drawn in the neutral colour. The text is 14 px,
+small text 12 px or more, a paragraph at most about 80 characters wide.
+Nothing scrolls sideways from 900 to 1,800 px. `ev_readable.py` (parts 1 to 8)
+checks all of this.
+
 **The top bar is the same in every view** (**DECISION 2026-11-12**, after the
 operator found that it changed when a session was chosen and repeated what
 Home offered). It has two groups, always with all of their items, each at its
@@ -1118,7 +1278,7 @@ line at the foot of every view.
 | Place | What is there |
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far as a table, one row per brief (sessions, with a final report, meet the brief's conditions, largest gap to the best, not scored; a cell with nothing to count says "not scored"); the table of every session, sortable and filterable, a running one first, where a row opens its session and shows, on one line, its checks in order followed by the counts of held and failed, how many of its simulations were returned from an earlier one ("returned"), and how many no decision rule names ("not named by a rule") |
-| New session | Brief (or the brief editor), scheduling policy (share, cap, random), the flags, Start. While it runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
+| New session | The set-up page (`?tab=new`): the seven blocks of "The setting" as forms, the strip of the session to be, Start (section 7). While a session runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
 | A session | Header strip (always visible, labelled fields on one line); the Overview, first and at full width, one band that holds only the answer; "The system"; "What this session is made of"; then, in the left column beside the detail pane, "The final report" (the model's own words: its claims as rows of full sentences, its explanation); the notebook, one card per test, and under it, closed by default, the same tests as a list or as a tree; highlights; best so far; the work; "How to read this page" |
 | The work | Session flow (three lanes: model, harness, simulator) or Hypothesis map (arrows from `follows_from`). The tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2") is behind the notebook's switch. One selection is shared by the notebook, the tree, the flow and the map. Replay greys everything after the chosen step in all of them |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
@@ -1720,6 +1880,21 @@ untracked until they say otherwise.
    that names another knob first cannot name `weightUdp`. The records cannot
    show whether a report lost a knob this way; it is left as it is.
 
+10. **Left as it is after `READABLE_PAGE.md`** (2026-11-14). The picture of the
+    system is still scaled down in a window narrower than about 1,340 px, so
+    its labels are then smaller than 12 px (item 8). "The simulations of each
+    turn, along one setting" keeps one axis per turn (the exception decided on
+    2026-11-12), though the sheet's design rules say "never two scales". The
+    sheet's own example of the adjustment line shows a setting with five
+    digits and no unit ("ratio 0.5 → 0.30295"): a setting's value is shown as
+    recorded, and the rule of four digits and a unit is applied to measured
+    numbers. A line of "How it worked as a researcher" that names a section
+    goes to that section, a fifth click that moves the page beside the four
+    the sheet lists. "Commits to a prediction first" counts a decision rule as
+    late when it names a simulation returned from an earlier one (the
+    baseline, most often); whether that is the right reading is for the
+    operator to say.
+
 ## 16. History in short
 
 | Date | What |
@@ -1730,16 +1905,17 @@ untracked until they say otherwise.
 | 2026-11-12 | Stage 7: this document rewritten as a whole. The top bar made the same in every view. Two cards at the top of a session's page: "The system" and "What this session is made of". `check_objects.py`. |
 | 2026-11-13 | `OVERVIEW_REDESIGN.md`: the Overview as one band, the model's own words as the card "The final report". `FORMAT_FIX.md`: the cause of designs without `weightUdp` confirmed at the model server; the params object built from the brief with every knob required; a question with each hypothesis; `answers.jsonl`; a plan that cannot test anything is refused part by part; `audit.py` and the void marks on the page; six new sessions on `two-hosts-open` (s020 to s025). |
 | 2026-11-14 | `NOTEBOOK_VIEW.md`, Part 3, Step C, begun at the operator's word: new settings of the simulator, one at a time, each with an operator check that predicts a number, and with the earlier checks byte-identical at the defaults. First setting (build 5): each queue's own length, `queuePktsUdp` and `queuePktsTcp`; check 12; a brief may leave them out, fix them or open them to the model; the picture and the brief editor show and set them. Still to do, each waiting for the operator's word: the TCP initial window, a maximum rate per flow, strict priority as a third scheduling policy. |
+| 2026-11-14 | `READABLE_PAGE.md`, parts 1 to 8: the session page in three levels of detail and in the order of a reader's questions; the setting and the set-up page as one design of seven blocks; "What it needed to find out"; the final report as one argument, with a required role for each claim; "How it worked as a researcher"; design rules checked by a script; a guided walk. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
 are in the repository), `~/VIEWS_DECISIONS.md`, `~/PAGE_POLISH.md`,
-`OVERVIEW_REDESIGN.md`, `FORMAT_FIX.md`, `NOTEBOOK_VIEW.md` (the last three
+`OVERVIEW_REDESIGN.md`, `FORMAT_FIX.md`, `NOTEBOOK_VIEW.md`, `READABLE_PAGE.md` (the last four
 beside this file in `~/project`, not in the repository).
 
 ## 17. Source files
 
-Line counts on 2026-11-12. Many lines are long, in the viewer's JavaScript
+Line counts on 2026-11-14. Many lines are long, in the viewer's JavaScript
 above all, so the counts understate the size.
 
 **Scenario (`ns-3.49/scratch/two-hosts/`, copied to `scratch/two-hosts/`)**
@@ -1754,10 +1930,10 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `loop.py` | 602 | the loop: one session; the answer format from the brief; `trim` |
+| `loop.py` | 607 | the loop: one session; the answer format from the brief; `trim` |
 | `tools.py` | 258 | all the model can reach; the brief check; running simulations |
 | `decision_rules.py` | 163 | reads and checks decision rules |
-| `schema.json` | 408 | the answer format (its params object is put in by loop.py) |
+| `schema.json` | 418 | the answer format (its params object is put in by loop.py) |
 | `prompt.txt` | 31 | the system prompt |
 | `manifest.json` | 22 | outputs and tools, described |
 | `control.py` | 565 | the operator's server |
@@ -1780,40 +1956,42 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 188 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 165 | the address, loading, the top bar, clicks, replay, review marks |
-| `evidence_data.js` | 174 | a session's files read into what the page draws; the definitions; derives the tests |
+| `index.html` | 231 | the shell: colours, styles, the list of scripts |
+| `evidence.js` | 172 | the address, loading, the top bar, clicks, replay, review marks |
+| `evidence_data.js` | 175 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
-| `evidence_read.js` | 84 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
-| `evidence_notebook.js` | 70 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
+| `evidence_read.js` | 88 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
+| `evidence_notebook.js` | 79 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
-| `evidence_run.js` | 75 | the New session panel; the banner of a running session |
+| `evidence_run.js` | 55 | the New session panel; the banner of a running session |
 | `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_glance.js` | 127 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 119 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
-| `evidence_high.js` | 57 | highlights |
+| `evidence_high.js` | 62 | the key moments of a session, by fixed rules: marks on the notebook (once the card “Highlights”) |
 | `evidence_best.js` | 82 | best so far |
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
-| `evidence_tree.js` | 56 | the work as a tree; the shared selection |
+| `evidence_tree.js` | 55 | the work as a tree; the shared selection |
 | `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
 | `evidence_flow.js` | 109 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
-| `evidence_test.js` | 44 | the test panel |
+| `evidence_test.js` | 53 | the test panel |
 | `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
 | `evidence_more.js` | 77 | summary, the tests list, the final report in full, the evidence sheet |
-| `evidence_top.js` | 57 | the drawings of "How to read this page" |
+| `evidence_top.js` | 65 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 71 | verdicts against checks: the table of counts, in a session's summary and on Compare |
 | `evidence_margin.js` | 39 | the margin of a check: how far it was from its decision rule; a part of each test's line in the tests list |
 | `evidence_review.js` | 48 | the review queue and the sign-off |
 | `evidence_operator.js` | 53 | the Operator tab: the score, the checklist and its judgements |
 | `evidence_heat.js` | 64 | the sweep as a heat map: the colour range, the stretches of the axis, the session's simulations as marks |
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
-| `evidence_compare.js` | 66 | the Compare tab |
+| `evidence_compare.js` | 67 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
-| `evidence_share.js` | 54 | links, export, print |
+| `evidence_share.js` | 55 | links, export, print |
 | `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
-| `brief_editor.js` | 236 | the brief editor |
+| `brief_editor.js` | 352 | the set-up page, “New session”: the seven blocks as forms |
+| `evidence_walk.js` | 61 | the guided walk: one sentence per section, from the records |
+| `brief_editor_old.js` | 237 | the brief editor of the older control page (index_full.html) |
 
 **Earlier pages and the ADRS adapter (`viewer/`)**
 
