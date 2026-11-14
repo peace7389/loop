@@ -104,10 +104,11 @@ Object.assign(EV, {
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
         <li>A few clicks do move the page. A turn's name in “The session at a glance” brings the notebook to that turn. A row of “What it needed to find out” brings its notebook card into view.</li>
         <li>A box of “How a session is built” goes to its part of the page. So does a line of “How it worked as a researcher” that names a section. The guided walk goes from section to section.</li>
-        <li>“What it needed to find out”: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
+        <li>“What it needed to find out”: the board shows each hypothesis in the column of its turn; an arrow leads to a hypothesis that follows from it, in the colour of the result that led onward. Click a box to open its test.</li>
+        <li>“The same, test by test”, under the board: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
         <li>“Looking closer”: click a line to open that view. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
         <li>“The system”: click an object to see its settings beside the picture. “What this session is made of”: click a mark to open it; point at a mark to read what it is.</li>
-        <li>The session flow, the hypothesis map, the tree and the tests list: click an item or a row to open it. The session's summary: click any item on the left to open it there.</li>
+        <li>The session flow, the tree and the tests list: click an item or a row to open it. The session's summary: click any item on the left to open it there.</li>
         <li>An experiment's panel: click a test or a simulation to open it. A simulation's charts over time: point at a chart, and the same moment is marked in all of them.</li>
         <li>The Operator tab, the sweep: click a numbered circle to open that simulation; a dark circle stands for several at one place, and a click lists them under the map.</li>
         <li>A session that is running: the banner at the top says where the work is, and for how long. A dashed square, or the word “empty”, is a place whose record is not there yet; a pulsing dot marks the places the work can fill next.</li>

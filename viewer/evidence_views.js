@@ -37,44 +37,69 @@ Object.assign(EV, {
       <p class="sm">A hollow dot is a simulation whose result was returned from an earlier one with the same settings and seed (not run again). Dashed orange edge: a refused step. Click a turn's band to fold it.</p>`;
   },
 
-  // ---- View 2: one node per hypothesis, left to right by the turn it was stated in, arrows from what it follows from
+  // ---- View 2, the board of "What it needed to find out": one box per hypothesis, in the column of the turn it was stated
+  // in (time runs left to right; hypotheses of one turn stand one under the other), and an arrow from each hypothesis
+  // a later one follows from. An arrow says by its colour and its word which result led onward: a verdict "supported"
+  // or a check that held (the colour of "held"), a verdict "refuted" or a check that failed (the colour of "failed"),
+  // "inconclusive" or a void check (dashed, neutral), both kinds (dark). A dotted arrow is the weak link: the later
+  // hypothesis names only the result table of the experiment that tested the earlier one. A box is tinted by how its
+  // hypothesis ended and opens its test. In a running session the turn being written has one empty box.
   STATES: ['open', 'supported', 'refuted', 'inconclusive', 'dropped', 'ended without a verdict'],
   stCls: s => 'st-' + (s === 'ended without a verdict' ? 'ended' : s),
-  mapEdges() {  // [from hypothesis id or 'brief', to hypothesis id, label, the record ids it came from]
+  mapEdges() {  // [from hypothesis id or 'brief', to hypothesis id, labels, the record ids it came from, kind]
     const M = EV.M, out = {};
     M.hyps.forEach(h => (h.follows || []).forEach(f => {
       const src = f === 'brief' ? { hyp: 'brief', label: 'brief' } : M.source(f) || { hyp: null, label: 'not recorded' };
       const from = src.hyp && src.hyp !== h.id && M.hypById[src.hyp] ? src.hyp : 'brief', key = from + '>' + h.id;
       (out[key] = out[key] || { from, to: h.id, labels: [], ids: [] }); out[key].ids.push(f);
-      const lab = f === 'brief' ? 'brief' : src.label; if (!out[key].labels.includes(lab)) out[key].labels.push(lab); }));
-    return Object.values(out);
+      const lab = f === 'brief' ? 'brief' : M.voidIds.has(f) ? 'check void' : src.label; if (!out[key].labels.includes(lab)) out[key].labels.push(lab); }));
+    const good = ['supported', 'check held'], bad = ['refuted', 'check failed'];
+    return Object.values(out).map(x => { const g = x.labels.some(l => good.includes(l)), b = x.labels.some(l => bad.includes(l)), strong = x.labels.filter(l => l !== 'observation' && l !== 'brief' && l !== 'not recorded');
+      return { ...x, strong, kind: x.from === 'brief' ? 'brief' : g && b ? 'mixed' : g ? 'good' : b ? 'bad' : strong.length ? 'neutral' : 'weak' }; });
   },
   viewMap() {
-    const M = EV.M, S = EV.s, e = EV.e, info = EV.selInfo();
-    if (!M.hyps.length) return `<p class="sm">No hypothesis ${M.ended ? 'was stated in this session.' : 'has been stated yet.'}</p>`;
-    const NW = 132, NH = 50, GX = 124, GY = 16, cols = [...new Set(M.hyps.map(h => h.turn))].sort((a, b) => a - b), pos = { brief: { x: 6, y: 8 } };
+    const M = EV.M, S = EV.s, e = EV.e, info = EV.selInfo(), now = EV.liveNow(), slotTurn = now && now.phase === 'reply' && !now.mode ? now.turn : null;
+    if (!M.hyps.length && slotTurn == null) return `<p class="sm">No hypothesis ${M.ended ? 'was stated in this session.' : 'has been stated yet.'}</p>`;
+    const cols = [...new Set(M.hyps.map(h => h.turn).concat(slotTurn == null ? [] : [slotTurn]))].sort((a, b) => a - b), n = cols.length + 1;
+    // the boxes are as wide as the page allows (132 to 250 px); a board wider than the page is drawn smaller, as a whole
+    // where even 132 px do not fit, the boxes are small and hold the hypothesis's id and the sign of how it ended (its question is on hover and in the table below)
+    const avail = Math.max(600, (document.getElementById('ev').clientWidth || 1400) - 64), fit = gx => Math.floor((avail - 12 - (n - 1) * gx) / n), small = fit(56) < 132, GX = small ? 40 : n > 6 ? 56 : 84, NW = small ? Math.max(58, Math.min(96, fit(40))) : Math.min(250, fit(GX)), NH = small ? 30 : 54, GY = small ? 8 : 12, pos = { brief: { x: 6, y: 8 } };
+    const chars = Math.floor((NW - 14) / 6.7) * 2 - 6, rowsOf = t => M.hyps.filter(h => h.turn === t).length + (t === slotTurn ? 1 : 0);
     cols.forEach((t, i) => M.hyps.filter(h => h.turn === t).forEach((h, j) => { pos[h.id] = { x: 6 + (i + 1) * (NW + GX), y: 8 + j * (NH + GY) }; }));
     const edges = M.mapEdges = EV.mapEdges(), recorded = M.hyps.some(h => h.follows);
     const st = S.step == null ? null : EV_DATA.stateAt(M, S.step);
-    const ringed = new Set(M.claims.flatMap(c => c.hyps)), claimH = new Set(S.claim && M.claims[S.claim - 1] ? M.claims[S.claim - 1].hyps : []);
+    const ringed = new Set(EV.repNow() ? M.claims.flatMap(c => c.hyps) : []), claimH = new Set(S.claim && M.claims[S.claim - 1] ? M.claims[S.claim - 1].hyps : []);  // the ring: once the final report is there
     const onPath = new Set(), hot = new Set();
     if (S.path) { const todo = [...ringed]; while (todo.length) { const id = todo.pop(); if (onPath.has(id)) continue; onPath.add(id);
       edges.filter(x => x.to === id).forEach(x => { hot.add(x.from + '>' + x.to); todo.push(x.from); }); } }
-    const W = 6 + (cols.length + 1) * (NW + GX), H = 16 + Math.max(1, ...cols.map(t => M.hyps.filter(h => h.turn === t).length)) * (NH + GY);
-    const svgE = edges.map(x => { const a = pos[x.from], b = pos[x.to]; if (!a || !b) return '';
-      const x1 = a.x + NW, y1 = a.y + NH / 2, x2 = b.x - 2, y2 = b.y + NH / 2, k = Math.max(M.recStep[x.to] ?? 0, x.from === 'brief' ? 0 : M.recStep[x.from] ?? 0), isHot = hot.has(x.from + '>' + x.to);
-      const lab = x.labels.join(', '), short = lab.length > 24 ? lab.slice(0, 22) + '…' : lab, t = 0.6, bz = (a0, a1, a2, a3) => (1 - t) ** 3 * a0 + 3 * (1 - t) ** 2 * t * a1 + 3 * (1 - t) * t * t * a2 + t ** 3 * a3;
-      const lx = bz(x1, x1 + GX / 2, x2 - GX / 2, x2), ly = bz(y1, y1, y2, y2);
-      return `<g data-step="${k}"><path class="edge${isHot ? ' hot' : ''}" d="M${x1},${y1} C${x1 + GX / 2},${y1} ${x2 - GX / 2},${y2} ${x2},${y2}" marker-end="url(#${isHot ? 'ev-ahot' : 'ev-ah'})"/>
-        <text x="${lx}" y="${ly - 3}" text-anchor="middle" style="font-size:var(--f-note);paint-order:stroke;stroke:var(--surface-1);stroke-width:3px">${e(short)}</text><title>${e(x.to + ' follows from ' + x.ids.join(', ') + ' (' + lab + ')')}</title></g>`; }).join('');
-    const brief = EV.box(6, 8, NW, NH, 'operator', `${EV_ICON.brief} <b>${EV.term('Brief', 'brief')}</b><br><small>and the baseline the harness ran</small>`, 'data-act="open" data-t="brief" data-id="brief"', onPath.has('brief') ? 'hit' : '');
-    const nodes = M.hyps.map(h => { const p = pos[h.id], s = st ? st[h.id] || 'open' : h.state, label = EV.hshort(h), short = label.length > 54 ? label.slice(0, 52) + '…' : label;
+    const W = 12 + n * NW + (n - 1) * GX, H = 16 + Math.max(1, ...cols.map(rowsOf)) * (NH + GY);
+    const MK = { good: 'ev-ag', bad: 'ev-ab' }, order = { weak: 0, brief: 1, neutral: 2, mixed: 3, good: 4, bad: 4 };
+    // the arrows that carry a result arrive at their box one under the other, each with its sign just before the box
+    const into = {}; edges.filter(x => x.strong.length && pos[x.from] && pos[x.to]).sort((p, q) => pos[p.from].y - pos[q.from].y || pos[p.from].x - pos[q.from].x).forEach(x => { (into[x.to] = into[x.to] || []).push(x); });
+    const entry = x => { const l = into[x.to] || [], i = l.indexOf(x), gap = Math.min(13, (NH - 10) / Math.max(1, l.length)); return i < 0 ? 0 : (i - (l.length - 1) / 2) * gap; }, signsOut = [];
+    const svgE = edges.slice().sort((p, q) => order[p.kind] - order[q.kind]).map(x => { const a = pos[x.from], b = pos[x.to]; if (!a || !b) return '';
+      const x1 = a.x + NW, y1 = a.y + NH / 2, x2 = b.x - 2, y2 = b.y + NH / 2 + entry(x), k = Math.max(M.recStep[x.to] ?? 0, x.from === 'brief' ? 0 : M.recStep[x.from] ?? 0), isHot = hot.has(x.from + '>' + x.to);
+      const SIGN = { supported: 'supported', refuted: 'refuted', inconclusive: 'inconclusive', 'check held': 'held', 'check failed': 'failed', 'check void': 'void' }, signs = x.strong.map(l => SIGN[l]).filter(Boolean), t = 0.62, bz = (a0, a1, a2, a3) => (1 - t) ** 3 * a0 + 3 * (1 - t) ** 2 * t * a1 + 3 * (1 - t) * t * t * a2 + t ** 3 * a3;
+      const lx = x2 - 9 - signs.length * 7, ly = y2;
+      if (signs.length) signsOut.push(`<g data-step="${k}" class="esign" data-edge="${e(x.from + '>' + x.to)}"><rect class="elbg" x="${lx - signs.length * 7 - 2}" y="${ly - 8}" width="${signs.length * 14 + 4}" height="16" rx="8"/>${signs.map((q, i) => EV.gks(q, lx - signs.length * 7 + i * 14 + 1, ly - 6, 12)).join('')}</g>`);
+      const says = x.kind === 'weak' ? `${x.to} names only the result table of the experiment that tested ${x.from} (${x.ids.join(', ')})` : x.kind === 'brief' ? `${x.to} follows from the brief or the baseline (${x.ids.join(', ')})` : `${x.to} follows from ${x.from}: ${x.labels.join(', ')} (${x.ids.join(', ')})`;
+      return `<g data-step="${k}" data-edge="${e(x.from + '>' + x.to)}" data-kind="${x.kind}"><path class="edge ${x.kind}${isHot ? ' hot' : ''}" d="M${x1},${y1} C${x1 + GX / 2},${y1} ${x2 - GX / 2 - (signs.length ? 14 : 0)},${y2} ${x2},${y2}" marker-end="url(#${isHot ? 'ev-ahot' : MK[x.kind] || 'ev-ah'})"/>
+        <title>${e(says)}</title></g>`; }).join('');
+    const brief = EV.box(6, 8, NW, NH, 'operator', small ? `<b>${EV.term('Brief', 'brief')}</b>` : `${EV_ICON.brief} <b>${EV.term('Brief', 'brief')}</b><br><small>and the baseline the harness ran</small>`, 'data-act="open" data-t="brief" data-id="brief"', onPath.has('brief') ? 'hit' : '');
+    const nodes = M.hyps.map(h => { const p = pos[h.id], s = st ? st[h.id] || 'open' : h.state, label = EV.hshort(h), short = label.length > chars ? label.slice(0, chars - 2) + '…' : label;
       const cls = `${EV.stCls(s)}${info.hyps.has(h.id) ? ' sel' : ''}${claimH.has(h.id) || onPath.has(h.id) ? ' hit' : ''}`, T = h.tests.filter(q => EV.seen(M.testById[q].exp)).pop();  // a node opens the test of its hypothesis
-      return `<g data-step="${M.recStep[h.id] ?? 0}">${ringed.has(h.id) ? `<rect class="ring" x="${p.x - 4}" y="${p.y - 4}" width="${NW + 8}" height="${NH + 8}" rx="9"/>` : ''}
-        ${EV.box(p.x, p.y, NW, NH, 'model', `${EV_ICON.hypothesis} <b>${h.id}</b> · ${e(s)}<br><small>${e(short)}</small>`, T ? `data-act="open" data-t="test" data-id="${e(T)}"` : `data-act="open" data-t="hyp" data-id="${h.id}"`, cls).replace('</g>', `<title>${e(h.id + ': ' + h.text)}</title></g>`)}</g>`; }).join('');
-    const heads = cols.map((t, i) => `<text x="${6 + (i + 1) * (NW + GX)}" y="${H + 4}">${EV_ICON.turn} turn ${t}</text>`).join('');
-    return `<div class="ev-scroll ev-map"><svg width="${W}" height="${H + 10}" role="img" aria-label="Hypothesis map">${EV.arrowDefs()}${svgE}${brief}${nodes}${heads}</svg></div>
-      <p class="sm">${EV.STATES.map(s => `<span style="white-space:nowrap;margin-right:10px"><svg width="12" height="12" style="display:inline;vertical-align:-1px"><rect class="bx ${EV.stCls(s)}" x="1" y="1" width="10" height="10" rx="3"/></svg> ${s}</span>`).join('')}
-        <span style="white-space:nowrap">◯ ring: cited by the final report's claims</span>${recorded ? '' : ` · What each hypothesis follows from: ${EV.nr} (this session was recorded before that field existed), so the map has no arrows.`}</p>`;
+      const word = ['supported', 'refuted', 'inconclusive'].includes(s) ? EV.verdictRes(s) : e(s === 'open' ? (M.ended ? 'not judged' : 'not judged yet') : s);
+      return `<g data-step="${M.recStep[h.id] ?? 0}"${EV.freshAttr(h.id)} data-node="${h.id}">${ringed.has(h.id) ? `<rect class="ring" x="${p.x - 4}" y="${p.y - 4}" width="${NW + 8}" height="${NH + 8}" rx="9"/>` : ''}
+        ${EV.box(p.x, p.y, NW, NH, 'model', small ? `<b>${h.id}</b> ${['supported', 'refuted', 'inconclusive'].includes(s) ? EV.gkey(s) : s === 'dropped' ? EV.gkey('dropped') : ''}` : `<b>${h.id}</b> · ${word}<br><small data-own="model">${e(short)}</small>`, T ? `data-act="open" data-t="test" data-id="${e(T)}"` : `data-act="open" data-t="hyp" data-id="${h.id}"`, cls).replace('</g>', `<title>${e(h.id + ': ' + h.text)}</title></g>`)}</g>`; }).join('');
+    // a running session: the place of the next question, in the column of the turn that is being written
+    const sx = slotTurn == null ? null : { x: 6 + (cols.indexOf(slotTurn) + 1) * (NW + GX), y: 8 + M.hyps.filter(h => h.turn === slotTurn).length * (NH + GY) };
+    const slot = sx ? `<g id="map-next" data-slot="question"><rect class="bx slotbox" x="${sx.x}" y="${sx.y}" width="${NW}" height="${NH}" rx="6"/><foreignObject x="${sx.x + 2}" y="${sx.y}" width="${NW - 2}" height="${NH}"><div xmlns="http://www.w3.org/1999/xhtml" class="bt">${EV.nowDot()}<span class="mut">empty</span>${small ? '' : '<br><small>the next question, if this reply asks one</small>'}</div></foreignObject></g>` : '';
+    const heads = `<text x="6" y="${H + 4}">start</text>` + cols.map((t, i) => `<text x="${6 + (i + 1) * (NW + GX)}" y="${H + 4}">turn ${t}${now && now.turn === t ? ' · now' : ''}</text>`).join('');
+    const defs = `${EV.arrowDefs()}<defs>${[['ev-ag', '--good'], ['ev-ab', '--critical']].map(([id, c]) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(${c})"/></marker>`).join('')}</defs>`;
+    const kinds = new Set(edges.filter(x => EV.seen(x.to)).map(x => x.kind)), key = (k, cls, text) => (kinds.has(k) ? `<span class="mk" data-k="${k}"><svg width="30" height="10" style="display:inline;vertical-align:0"><path class="edge ${cls}" d="M1,5 H28"/></svg> ${text}</span>` : '');
+    return `<div class="ev-map" data-cols="${n}"${small ? ' data-small="1"' : ''}><svg viewBox="0 0 ${W} ${H + 10}" width="${W}" height="${H + 10}" style="max-width:100%;height:auto" role="img" aria-label="The hypotheses by the turn they were stated in, and which follows from which">${defs}${svgE}${brief}${nodes}${slot}${signsOut.join('')}${heads}</svg></div>
+      <p class="sm map-key">${recorded ? `<span class="mk"><b>an arrow</b>: the later hypothesis names that result as what it follows from; the sign on it is that result</span>${key('good', 'good', 'supported, or its check held')}${key('bad', 'bad', 'refuted, or its check failed')}${key('mixed', 'mixed', 'both')}${key('neutral', 'neutral', 'inconclusive, or a void check')}${key('weak', 'weak', 'it names only the result table of that experiment')}`
+        : `<span class="mk">What each hypothesis follows from: ${EV.nr} (this session was recorded before that field existed), so the board has no arrows.</span>`}
+        ${EV.STATES.filter(q => M.hyps.some(h => (st ? st[h.id] || 'open' : h.state) === q) && q !== 'open').map(q => `<span class="mk"><svg width="12" height="12" style="display:inline;vertical-align:-1px"><rect class="bx ${EV.stCls(q)}" x="1" y="1" width="10" height="10" rx="3"/></svg> ${q}</span>`).join('')}${ringed.size ? '<span class="mk">◯ ring: cited by the final report\'s claims</span>' : ''}${small ? '<span class="mk">many turns: a box holds its hypothesis\'s name and how it ended; its question is on hover and in the table below</span>' : ''}</p>`;
   },
 });

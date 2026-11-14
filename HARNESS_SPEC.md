@@ -1187,7 +1187,25 @@ log and brings the notebook to that turn. Where the turns do not fit the
 width, the table continues on further bands of the same rows: nothing scrolls
 sideways.
 
-*3 What it needed to find out:* one row per test in the order stated: the
+*3 What it needed to find out:* first the board (`EV.viewMap` in
+`evidence_views.js`; **DECISION 2026-11-14**, the operator: show on a board
+which hypothesis led to which, with a line coloured by supported or refuted,
+time on the x axis, the hypotheses of one time one under the other). One box
+per hypothesis in the column of the turn it was stated in, tinted by how it
+ended; a box opens its test. An arrow leads to each hypothesis that names a
+result of the earlier one in what it follows from: in the colour of "held"
+where that result is a verdict "supported" or a check that held, in the
+colour of "failed" where it is "refuted" or a check that failed, dark for
+both, dashed for "inconclusive" or a void check; the result's sign stands
+just before the box. A dotted arrow is the weak link: the later hypothesis
+names only the result table of the experiment that tested the earlier one.
+Where the page is too narrow for boxes of 132 px (many turns), the boxes are
+small and hold the hypothesis's id and the sign of how it ended. In a running
+session the turn being written has one empty box. "Show the path to the
+answer" marks the hypotheses the final report's claims rest on and what they
+follow from. The board replaces the folded "Hypothesis map". Under it, folded
+("The same, test by test"; open in Full; the browser remembers it,
+`ev-find`), the table: one row per test in the order stated: the
 question (the hypothesis's `question`; else its text, cut to two lines), the
 outcome (the verdict; "void" where the check compared a simulation with
 itself), what was measured (the check's numbers in words: "483 Mbps, not over
@@ -1234,7 +1252,8 @@ verdict. The same lines are columns of the Compare tab. A separate script,
 what it holds, opened by one click (the browser remembers which, `ev-closer`):
 best so far, the simulations of each turn along one setting, the target where
 one setting alone differs, verdicts against checks, the tests as a list with
-margins, session flow, hypothesis map, the tree.
+margins, session flow, the tree (the hypothesis map is the board of section
+3).
 
 *A guided walk* (`evidence_walk.js`): "Walk me through this session" shows one
 sentence per section 1 to 6 (five without a final report), built from the
@@ -1976,6 +1995,7 @@ untracked until they say otherwise.
 | 2026-11-14 | The words that need explaining, at the operator's word: settings, measures and parts of the network are marked wherever they stand, and a small box says what each is, from the brief, the harness's list and the picture's objects. |
 | 2026-11-14 | Who produced an item is said by an icon, at the operator's word; colour is kept for the outcome of a test and for the two flows. |
 | 2026-11-14 | The picture and the words set each other off on hover, at the operator's word. |
+| 2026-11-14 | The board of "What it needed to find out", at the operator's word: the hypothesis map moved up, with arrows in the colour of the result that led onward; the table of the tests folded under it. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -2026,7 +2046,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 251 | the shell: colours, styles, the list of scripts |
+| `index.html` | 253 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 175 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 176 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -2038,13 +2058,13 @@ above all, so the counts understate the size.
 | `evidence_words.js` | 123 | the words that need explaining: their marks, and the box that opens beside them |
 | `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 134 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 127 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
+| `evidence_page.js` | 128 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 62 | the key moments of a session, by fixed rules: marks on the notebook (once the card “Highlights”) |
 | `evidence_best.js` | 82 | best so far |
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 55 | the work as a tree; the shared selection |
-| `evidence_views.js` | 80 | View 1 (session flow) and View 2 (hypothesis map) |
+| `evidence_views.js` | 105 | View 1 (session flow) and View 2 (the board of "What it needed to find out": the hypotheses by turn and what each follows from) |
 | `evidence_flow.js` | 109 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 53 | the test panel |
@@ -2059,7 +2079,7 @@ above all, so the counts understate the size.
 | `evidence_oprun.js` | 78 | the operator's own simulation and sweep |
 | `evidence_compare.js` | 67 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
-| `evidence_share.js` | 55 | links, export, print |
+| `evidence_share.js` | 56 | links, export, print |
 | `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
 | `brief_editor.js` | 352 | the set-up page, “New session”: the seven blocks as forms |
 | `evidence_walk.js` | 61 | the guided walk: one sentence per section, from the records |

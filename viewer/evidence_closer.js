@@ -1,7 +1,7 @@
 // "Looking closer": the analysis views of a session, each folded to one line that says what it holds. In Brief a view
 // opens with one click on its line; Full (the switch in the header strip) opens them all. Nothing is removed from the
 // page: best so far, the simulations of each turn along one setting, the target where one setting alone differs, the
-// verdicts against their checks, the tests as a list with their margins, the session flow, the hypothesis map, the tree.
+// verdicts against their checks, the tests as a list with their margins, the session flow, the tree. (The hypothesis map is the board of "What it needed to find out".)
 // Which views a reader opened is remembered by the browser (ev-closer), as a card's fold is.
 // ======================================================================================================
 Object.assign(EV, {
@@ -13,7 +13,6 @@ Object.assign(EV, {
     ['verdicts', 'Verdicts against checks', 'each verdict beside the result of its check, and the checks in order', () => EV.verdictsCard()],
     ['tests', 'The tests as a list, with margins', 'one row per test: what was compared, by how much the check held or failed', () => EV.testsCard()],
     ['flow', 'Session flow', 'every step in order, in the lane of whoever did it', () => EV.flowCard()],
-    ['map', 'Hypothesis map', 'which hypothesis follows from which, and how each ended', () => EV.mapCard()],
     ['tree', 'The session as a tree', 'turn, experiment, test and simulation, one inside the other', () => EV.treeCard()],
   ],
   isOpen: k => !!(EV.s.full || (EV.s.closer || {})[k]),
@@ -25,8 +24,6 @@ Object.assign(EV, {
   },
   verdictsCard() { return `<div class="ev-card noprint" id="s-verdicts"><h2>Verdicts against checks <small>how often the model's verdict agreed with what its check found</small></h2>${EV.vcSession().replace(/ id="vc-session"/, ' id="vc-closer"').replace(/ id="(vc-[a-z]+)"/g, ' data-vc="$1"')}</div>`; },
   flowCard() { return `<div class="ev-card" id="s-work"><h2>Session flow <small>time runs down, in the lane of whoever did each step</small></h2><div class="ev-scroll ev-lanes">${EV.viewLanes()}</div></div>`; },
-  mapCard() { const S = EV.s; return `<div class="ev-card" id="s-map"><h2>Hypothesis map <small>left to right by the turn each hypothesis was stated</small></h2>
-      <div class="ev-bar"><button data-act="path" class="${S.path ? 'on' : ''}">show the path to the answer</button></div>${EV.viewMap()}</div>`; },
   treeCard() { return `<div class="ev-card noprint" id="s-alt"><h2>The session as a tree <small>turn, experiment, test, simulation</small></h2><div id="s-tree">${EV.viewTree()}</div></div>`; },
   // the replay's buttons: at step k everything recorded later is greyed, in every view
   replayBar() { const S = EV.s, n = EV.M.steps.length, k = S.step == null ? n - 1 : S.step;

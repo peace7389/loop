@@ -51,5 +51,6 @@ EV.act = Object.assign(EV.act || {}, {
     x.busy = false; EV.draw();
   },
   // the printed page holds the best-so-far chart and the tests list too: the two views are opened for the printing, and folded again as they were
-  printpage() { const S = EV.s, was = { ...S.closer }; S.closer = { ...was, best: true, tests: true }; EV.draw(); document.getElementById('ev').classList.remove('sheet'); window.print(); S.closer = was; EV.draw(); },
+  printpage() { const S = EV.s, was = { ...S.closer }; S.closer = { ...was, best: true, tests: true }; EV.draw(); const list = document.getElementById('find-list'); if (list) list.open = true;  // the table of the tests is printed open
+    document.getElementById('ev').classList.remove('sheet'); window.print(); S.closer = was; EV.draw(); },
 });
