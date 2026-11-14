@@ -366,6 +366,8 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
             no.append(("new hypothesis", "a hypothesis needs a text"))
         elif not text(h.get("question")):
             no.append(("new hypothesis", "a hypothesis needs a question: the hypothesis put as one plain question"))
+        elif not text(h.get("why")):
+            no.append(("new hypothesis", "a hypothesis needs a why: one plain sentence saying how answering it helps reach the goal"))
         elif not isinstance(h.get("follows_from"), list) or not h["follows_from"] or any(f != "brief" and kinds.get(f) not in ("verdict", "check", "evidence", "simulation") for f in h["follows_from"]):
             bad = [f for f in h.get("follows_from") or [] if f != "brief" and f not in kinds] if isinstance(h.get("follows_from"), list) else []
             no.append(("new hypothesis", (f"follows_from names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
@@ -585,7 +587,7 @@ def main():
             for d in ok["drop"]:
                 append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
             for h in ok["hypotheses"]:
-                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "question": h["question"], "prediction": h.get("prediction"), "follows_from": h["follows_from"]} | obs())
+                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "question": h["question"], "why": h["why"], "prediction": h.get("prediction"), "follows_from": h["follows_from"]} | obs())
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
             if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over

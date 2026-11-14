@@ -46,7 +46,7 @@ Object.assign(EV, {
   hypCard(id) {
     const M = EV.M, e = EV.e, h = M.hypById[id]; if (!h) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
     const ts = h.tests.map(q => M.testById[q]).filter(T => EV.seen(T.exp));  // during the replay: only the tests planned by then
-    return `<h2>${EV_ICON.hypothesis} ${EV.term('Hypothesis', 'Hypothesis')} ${e(h.id)} <small>stated in turn ${h.turn} · ${e(EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open')}</small></h2>${h.question ? `<p class="hq-line">${EV.question(h)}</p>` : ''}<p>${e(h.text)}</p>
+    return `<h2>${EV_ICON.hypothesis} ${EV.term('Hypothesis', 'Hypothesis')} ${e(h.id)} <small>stated in turn ${h.turn} · ${e(EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open')}</small></h2>${h.question ? `<p class="hq-line">${EV.question(h)}</p>` : ''}${h.why ? `<p id="h-why"><span class="sm">why it asks:</span> <span data-own="model">${e(h.why)}</span></p>` : ''}<p>${e(h.text)}</p>
       <p class="sm">prediction: ${e(h.prediction || 'not recorded')} · follows from: ${h.follows ? h.follows.map(EV.link).join(', ') : EV.nr}${h.drop && EV.seen(h.drop.id) ? ` · dropped in turn ${h.drop.turn}: ${e(h.drop.why || '')}` : ''}</p>
       ${ts.length ? ts.map(T => `<h3>${EV_ICON.test} Its ${EV.term('Test', 'test')} in experiment ${e(T.exp)}, turn ${T.turn}</h3>${EV.testBody(T)}`).join('') : '<p class="sm">This hypothesis was not put to a test.</p>'}`;
   },

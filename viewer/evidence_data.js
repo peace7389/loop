@@ -74,6 +74,7 @@ const EV_DATA = {
       const state = v ? v.body.result : d ? 'dropped' : ended ? 'ended without a verdict' : 'open';
       return { id: r.id, turn: r.turn, ts: r.ts, text: String(r.body.text || '').replace(/^\s*H\d+\s*:\s*/, ''), prediction: r.body.prediction || null,
                question: typeof r.body.question === 'string' && r.body.question.trim() ? r.body.question.trim() : null,  // the hypothesis as one plain question; null: not recorded (sessions before this field)
+               why: typeof r.body.why === 'string' && r.body.why.trim() ? r.body.why.trim() : null,  // why answering it helps reach the goal, in the model's words; null: not recorded (sessions before this field)
                follows: Array.isArray(r.body.follows_from) ? r.body.follows_from : null,  // null: not recorded (sessions before this field)
                state, verdict: v && { id: v.id, turn: v.turn, ts: v.ts, result: v.body.result, because: v.body.because, next: v.body.next, observations: v.body.observations || null,
                                       voidOnly: (() => { const cs = own.filter(c => pos[c.id] < pos[v.id]), last = cs.filter(c => c.exp === (cs[cs.length - 1] || {}).exp); return last.length > 0 && last.every(c => c.void); })() },

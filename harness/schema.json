@@ -18,6 +18,10 @@
       "type": "string",
       "description": "the hypothesis put as one plain question of at most 20 words, for a reader who is not a specialist"
      },
+     "why": {
+      "type": "string",
+      "description": "why answering this question helps reach the goal: one plain sentence of at most 25 words"
+     },
      "prediction": {
       "type": "string",
       "description": "falsifiable: a number, a range or a direction"
@@ -34,6 +38,7 @@
     "required": [
      "text",
      "question",
+     "why",
      "prediction",
      "follows_from"
     ],

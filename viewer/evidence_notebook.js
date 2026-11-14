@@ -3,6 +3,8 @@
 // simulations, without a card. A card has the same six lines, always in this order, each a recorded text or a measured
 // number, with the small colour of who produced it:
 //   Question    the hypothesis's question (a session that recorded none: the hypothesis text)          model
+//   Why         why answering it helps reach the goal, in the model's words; only where it is recorded   model
+//               (the harness requires it of every new hypothesis since 2026-11-14)
 //   Plan        what differs between the simulations the decision rule names, from their settings       model's design
 //   Expected    the decision rule for reading (evidence_read.js), and its rival in one line             model
 //   Result      the same rule with the measured numbers, and held or failed; a number opens its run     simulator, harness
@@ -53,6 +55,7 @@ Object.assign(EV, {
       mo.cited.has(T.id) ? `<span class="nb-mark" data-m="cited" data-step="${mo.citedStep}" title="The first claim of the final report cites this test">cited by claim 1</span>` : ''].join('');
     return `<div class="nb-card${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" data-act="open" data-t="test" data-id="${e(T.id)}" data-res="${c ? e(c.result) : 'none'}" data-step="${kx}"${EV.freshAttr(x.id)}>
       ${line('Question', ['model'], h && !h.question ? `<span class="lc3"><b>${e(T.hyp)}</b> ${e(h.text)}</span>` : `<b>${e(T.hyp)}</b> ${h ? EV.question(h) : EV.nr}`, st(T.hyp) < kx ? kx : st(T.hyp), 'nb-q', 'data-own="model"')}
+      ${h && h.why ? line('Why', ['model'], `<span class="lc2" title="${e(h.why)}">${e(h.why)}</span>`, st(T.hyp) < kx ? kx : st(T.hyp), 'nb-why', 'data-own="model"') : ''}
       ${line('Plan', ['model'], EV.nbPlan(T), kx, '', 'data-exact="1"')}
       ${line('Expected', ['model'], `${EV.ruleRead(T, 4)}${T.rival ? `<div class="sm lc2" title="${e(T.rival)}">${EV.term('Rival', 'rival')}: <span data-own="model">${e(T.rival)}</span></div>` : ''}`, kx)}
       ${line('Result', ['simulator', 'harness'], c ? EV.checkRead(T, 4) + gap : wait ? here(`the simulator is working on its simulations${EV.liveTimer()}`, 'sims') : `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`, kc)}
@@ -67,8 +70,8 @@ Object.assign(EV, {
     return `<div class="sm nb-when" data-before="${early.length ? 0 : 1}" data-secs="${early.length ? '' : secs}" title="${EV.e(tip)}">${early.length ? `the rule names ${early.length === T.sims.length && early.length > 1 ? 'simulations' : 'a simulation'} that had already run when it was stated (${EV.e(early.map(s => s.same_as || s.id).join(', '))})` : `the rule was stated ${EV.liveClock(secs * 1000)} before its simulations came back`}</div>`;
   },
   // while the AI writes a reply that may set up a test: a card with its six lines empty
-  nbSlot() { const l = (k, by) => `<div class="nb-l"><span class="nb-k">${by.map(b => `<i class="sw" data-by="${b}"></i>`).join('')}${k}</span><div class="nb-v"><span class="mut">empty</span></div></div>`;
-    return `<div class="nb-card nb-slot" id="nb-next" data-slot="test"><div class="nb-slot-h">${EV.nowDot()}The next test, if this reply sets one up${EV.liveTimer()}</div>${l('Question', ['model'])}${l('Plan', ['model'])}${l('Expected', ['model'])}${l('Result', ['simulator', 'harness'])}${l('Conclusion', ['model'])}${l('So next', ['model'])}</div>`; },
+  nbSlot() { const l = (k, by) => `<div class="nb-l" data-l="${k.toLowerCase().replace(' ', '-')}"><span class="nb-k">${by.map(b => `<i class="sw" data-by="${b}"></i>`).join('')}${k}</span><div class="nb-v"><span class="mut">empty</span></div></div>`;
+    return `<div class="nb-card nb-slot" id="nb-next" data-slot="test"><div class="nb-slot-h">${EV.nowDot()}The next test, if this reply sets one up${EV.liveTimer()}</div>${l('Question', ['model'])}${l('Why', ['model'])}${l('Plan', ['model'])}${l('Expected', ['model'])}${l('Result', ['simulator', 'harness'])}${l('Conclusion', ['model'])}${l('So next', ['model'])}</div>`; },
   notebookCard() {
     const now = EV.liveNow();
     const M = EV.M, S = EV.s, e = EV.e, st = id => M.recStep[id] ?? 0, sel = S.sel || {}, pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;

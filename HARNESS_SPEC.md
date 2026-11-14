@@ -557,7 +557,7 @@ may be null or empty):
 
 ```
 { "observations":   text
-  "hypotheses":     [ {text, question, prediction, follows_from: [ids | "brief"]} ]
+  "hypotheses":     [ {text, question, why, prediction, follows_from: [ids | "brief"]} ]
   "drop":           [ {id, why} ]
   "experiment":     { kind: "test"|"explore", tests: [H ids], question, varied: [knobs], control: label|null,
                       runs: [ {label, params: {every knob of the brief: value}} ],
@@ -595,6 +595,15 @@ hypothesis as one plain question, for a reader who is not a specialist. The
 harness requires only that it is not empty; "at most 20 words" is guidance in
 the prompt and in the format's description.
 
+**A hypothesis also says why it is asked** (`why`, required since 2026-11-14;
+**DECISION**, the operator: the page should show why the AI needed a question
+for the aim, and the records held nothing of the kind): one plain sentence
+saying how answering the question helps reach the goal. The harness requires
+only that it is not empty ("at most 25 words" is guidance); a hypothesis
+without one is a refused part ("a hypothesis needs a why: ..."), and the rest
+of the answer is used. It is not part of the ledger text the model reads
+back. Sessions before this date have none, and the page then shows none.
+
 **Each turn's accepted answer is kept as it was received**, before any part
 was refused or cut, in `sessions/<id>/answers.jsonl` (`{turn, answer}`, one
 line per turn that had something usable), so that what was asked can be
@@ -607,7 +616,7 @@ the parts accepted earlier count for the later ones:
 |---|---|
 | verdict | the hypothesis is open and one of its decision rules has been checked; it has a result and a because. It closes the hypothesis. |
 | drop | the hypothesis is open, none of its decision rules has been checked, and there is a reason. A tested hypothesis cannot be dropped: it needs a verdict. |
-| new hypothesis | it has a text, a question (not empty) and `follows_from`: ids of verdicts, checks, evidence tables or simulations that are in the ledger (a verdict accepted from this same answer counts, by the id it is about to get), or the word `brief`. It gets the next id `H<n>`, usable in the same answer. |
+| new hypothesis | it has a text, a question (not empty), a why (not empty) and `follows_from`: ids of verdicts, checks, evidence tables or simulations that are in the ledger (a verdict accepted from this same answer counts, by the id it is about to get), or the word `brief`. It gets the next id `H<n>`, usable in the same answer. |
 | experiment | see 8.5. At most one per turn. It is itself taken part by part: a design or a decision rule can be refused and the rest run. |
 | budget request | a whole number of at least 1 and a reason. Granted up to the brief's limit, before this turn's experiment is counted. |
 | report | see 8.6. Only together with `done`, and `done` only with a report. |
@@ -746,7 +755,7 @@ model's answer.
 
 | Type | Id | By | Body | In the prompt |
 |---|---|---|---|---|
-| hypothesis | H | model | text, question, prediction, follows_from | yes, with its current state (the question is not shown) |
+| hypothesis | H | model | text, question, why, prediction, follows_from | yes, with its current state (the question and the why are not shown) |
 | drop | W | model | for, why | yes |
 | experiment | X | model (X0: harness) | kind, tests, question, varied, control, runs [{label, params, clamped}], decision_rules: what is left after `loop.trim`; `params` holds every knob of the brief (X0's is empty) | yes |
 | simulation | S | simulator | label, run_id, params, metrics or error, same_as | no (the evidence has its line) |
@@ -769,7 +778,8 @@ Old formats, read but not written: `s001` has one simulation per experiment,
 `s003` say `rules` / `rule`; sessions before `s008` have no `follows_from`, no
 `turn` records and no structured refusals; sessions before `s020` have no
 `question`, no `answers.jsonl`, and designs whose `params` hold only the knobs
-the model stated (the others ran at the brief's default).
+the model stated (the others ran at the brief's default); sessions before
+`s028` have no `why` on their hypotheses.
 
 ### 8.8 How a session ends, and `session.json`
 
@@ -809,7 +819,9 @@ quantitative. Prefer experiments that distinguish between explanations."
 Since 2026-11-13 it also says that every design states a value for every knob
 of the brief (a knob left as it was is stated with the value it had), and that
 each new hypothesis is also given as one plain question of at most 20 words,
-for a reader who is not a specialist; that a knob which has a step in the
+for a reader who is not a specialist (and, since 2026-11-14, with why: one
+plain sentence of at most 25 words saying how answering it helps reach the
+goal); that a knob which has a step in the
 brief is rounded to it; and that a goal's tolerance makes two results closer
 than that many per cent count as equal.
 
@@ -1564,6 +1576,7 @@ number, with the small icon of who produced it:
 | Line | Taken from | Produced by |
 |---|---|---|
 | Question | the hypothesis's `question`; a session that recorded none: the hypothesis text | model |
+| Why | the hypothesis's `why`: why answering it helps reach the goal. Only where it is recorded; the line is absent otherwise | model |
 | Plan | what differs between the simulations the decision rule names, in words built from their settings ("2 simulations: UDP share of the link 0.2, 0.8 at Measured time 5"), then what they share that is not the brief's default | model's design |
 | Expected | the decision rule for reading, and its rival in one line | model |
 | Result | the same rule with the measured numbers, and held or failed; a number opens its simulation | simulator and harness |
@@ -2009,6 +2022,7 @@ untracked until they say otherwise.
 | 2026-11-14 | The picture and the words set each other off on hover, at the operator's word. |
 | 2026-11-14 | The board of "What it needed to find out", at the operator's word: the hypothesis map moved up, with arrows in the colour of the result that led onward; the table of the tests folded under it. |
 | 2026-11-14 | The live banner says how many simulations of the running experiment the harness has collected; a simulation's detail shows how the simulator was started. |
+| 2026-11-14 | Every new hypothesis says why it is asked (`why`, required), at the operator's word; the page shows it beside the question, and nothing where it was not recorded. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -2033,10 +2047,10 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `loop.py` | 607 | the loop: one session; the answer format from the brief; `trim` |
+| `loop.py` | 609 | the loop: one session; the answer format from the brief; `trim` |
 | `tools.py` | 258 | all the model can reach; the brief check; running simulations |
 | `decision_rules.py` | 163 | reads and checks decision rules |
-| `schema.json` | 418 | the answer format (its params object is put in by loop.py) |
+| `schema.json` | 423 | the answer format (its params object is put in by loop.py) |
 | `prompt.txt` | 31 | the system prompt |
 | `manifest.json` | 22 | outputs and tools, described |
 | `control.py` | 565 | the operator's server |
@@ -2061,10 +2075,10 @@ above all, so the counts understate the size.
 |---|---|---|
 | `index.html` | 260 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 175 | the address, loading, the top bar, clicks, replay, review marks |
-| `evidence_data.js` | 176 | a session's files read into what the page draws; the definitions; derives the tests |
+| `evidence_data.js` | 177 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
 | `evidence_read.js` | 88 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
-| `evidence_notebook.js` | 97 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
+| `evidence_notebook.js` | 100 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
 | `evidence_live.js` | 132 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
