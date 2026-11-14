@@ -23,16 +23,16 @@ Object.assign(EV, {
       .map(([i, y, j, z]) => a(...r(i, y), ...l(j, z))).join('') + `<path class="edge" d="M${col(2) + W / 2},${Y.top} C${col(2) + W / 2},-30 ${col(6) + W / 2},-30 ${col(6) + W / 2},${Y.mid - 2}" marker-end="url(#ev-ah)" stroke-dasharray="3 3"/>
         <path class="edge" d="M${col(2) + W},${Y.top + H / 2} C${col(3) - 20},${Y.top + H / 2} ${col(3) + W / 2},${Y.top + 20} ${col(3) + W / 2},${Y.mid - 2}" marker-end="url(#ev-ah)" stroke-dasharray="3 3"/>`;
     return `<svg viewBox="0 -34 ${col(6) + W + 8} ${Y.bot + H + 40}" width="100%" role="img" aria-label="How a session is built, with this session's counts">${EV.arrowDefs()}${edges}
-      ${node(col(0), Y.mid, 'Brief', 'brief', M.brief ? 1 : 0, 'operator', EV_ICON.brief, 's-work||brief', M.brief ? '' : EV.nr)}
-      ${node(col(1), Y.mid, 'Session', 'session', 1, 'harness', '▢', 's-overview', `${c.turn} ${c.turn === 1 ? 'turn' : 'turns'}`)}
-      ${node(col(2), Y.top, 'Hypothesis', 'hypotheses', c.hypothesis, 'model', EV_ICON.hypothesis, 's-work|map', c.drop ? `${c.drop} dropped` : '')}
+      ${node(col(0), Y.mid, 'Brief', 'brief', M.brief ? 1 : 0, 'operator', EV_ICON.brief, 's-system||brief', M.brief ? '' : EV.nr)}
+      ${node(col(1), Y.mid, 'Session', 'session', 1, 'harness', '▢', 's-made', `${c.turn} ${c.turn === 1 ? 'turn' : 'turns'}`)}
+      ${node(col(2), Y.top, 'Hypothesis', 'hypotheses', c.hypothesis, 'model', EV_ICON.hypothesis, 's-map|map', c.drop ? `${c.drop} dropped` : '')}
       ${node(col(2), Y.mid, 'Experiment', 'experiments', c.experiment, 'model', EV_ICON.experiment, 's-notebook', base ? `incl. ${base} baseline` : '')}
-      ${node(col(2), Y.bot, 'Final report', 'final report', c.report, 'model', EV_ICON.report, 's-overview', '')}
-      ${node(col(3), Y.mid, 'Test', 'tests', c.test, 'model', EV_ICON.test, 's-notebook', 'one rule each')}
+      ${node(col(2), Y.bot, 'Final report', 'final report', c.report, 'model', EV_ICON.report, 's-proposes', '')}
+      ${node(col(3), Y.mid, 'Test', 'tests', c.test, 'model', EV_ICON.test, 's-find', 'one rule each')}
       ${node(col(4), Y.top, 'Decision rule', 'decision rules', c.rule, 'model', '⊢', 's-notebook', '')}
-      ${node(col(4), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-best', reused ? `${reused} returned from earlier` : '')}
+      ${node(col(4), Y.bot, 'Simulation', 'simulations', c.simulation, 'simulator', EV_ICON.simulation, 's-best|best', reused ? `${reused} returned from earlier` : '')}
       ${node(col(5), Y.mid, 'Check', 'checks', c.check, 'harness', EV_ICON.check, 's-notebook', M.old ? EV.nr : `${M.checks.filter(q => q.result === 'held').length} held${M.voidIds.size ? ' · ' + M.voidIds.size + ' void' : ''}`)}
-      ${node(col(6), Y.mid, 'Verdict', 'verdicts', c.verdict, 'model', EV_ICON.verdict, 's-work|map', '')}
+      ${node(col(6), Y.mid, 'Verdict', 'verdicts', c.verdict, 'model', EV_ICON.verdict, 's-verdicts|verdicts', '')}
       <text x="${(col(2) + col(6) + W) / 2}" y="-24" text-anchor="middle">a verdict judges a hypothesis</text></svg>`;
   },
 

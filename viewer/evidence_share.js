@@ -30,7 +30,7 @@ Object.assign(EV, {
   shareBar() {
     const S = EV.s, e = EV.e, x = EV.exp, X = window.EV_EXPORT;
     if (X) return `<p class="sm noprint">An exported copy of this session, made ${e(String(X.made).replace('T', ' '))}${X.operator ? ', with the operator-only data' : ', without operator-only data'}: nothing can be started or saved from it. ${EV.copyBtn(S.sel)} · <button data-act="printpage">Print</button></p>`;
-    return `<p class="sm noprint">share: ${EV.copyBtn(S.sel)} to ${S.sel && S.sel.t !== 'session' ? 'the open item' : 'this session'} · <button data-act="printpage">Print</button> the overview, highlights, best so far and tests · <button data-act="expopen">${x.open ? 'close the export' : 'Export session…'}</button></p>
+    return `<p class="sm noprint">share: ${EV.copyBtn(S.sel)} to ${S.sel && S.sel.t !== 'session' ? 'the open item' : 'this session'} · <button data-act="printpage">Print</button> what it needed to find out, the notebook, what it proposes, best so far and the tests · <button data-act="expopen">${x.open ? 'close the export' : 'Export session…'}</button></p>
       ${x.open ? `<div class="who noprint" data-by="operator"><p class="sm">One folder, and a zip of it, holding this page and this session's files. It opens by double-clicking <code>index.html</code>, with no server, and never contains drafts.</p>
         <p><label style="font-weight:400"><input type="checkbox" data-ch="expop"${x.op ? ' checked' : ''}> include operator-only data (scheduling policy, score, review, answer key, sweep table)</label>
           <button data-act="expgo"${x.busy ? ' disabled' : ''}>${x.busy ? 'Exporting…' : 'Export'}</button>${x.msg ? ` <span class="bad">${e(x.msg)}</span>` : ''}</p>
@@ -50,5 +50,6 @@ EV.act = Object.assign(EV.act || {}, {
     try { x.done = await EV.post('../api/export', { session: EV.s.sid, operator: !!x.op }); } catch (q) { x.msg = q.message; }
     x.busy = false; EV.draw();
   },
-  printpage() { document.getElementById('ev').classList.remove('sheet'); window.print(); },
+  // the printed page holds the best-so-far chart and the tests list too: the two views are opened for the printing, and folded again as they were
+  printpage() { const S = EV.s, was = { ...S.closer }; S.closer = { ...was, best: true, tests: true }; EV.draw(); document.getElementById('ev').classList.remove('sheet'); window.print(); S.closer = was; EV.draw(); },
 });

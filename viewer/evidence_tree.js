@@ -52,5 +52,4 @@ Object.assign(EV, {
 });
 EV.act = Object.assign(EV.act || {}, {
   tfold(id) { EV.s.tree[id] = !EV.treeOpen(id); EV.draw(); },
-  left(id) { EV.s.left = id; EV.draw(); },
 });

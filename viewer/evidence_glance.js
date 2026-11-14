@@ -52,7 +52,7 @@ Object.assign(EV, {
   },
 
   glance() {
-    const fold = EV.store('ev-made') === '1', foldBtn = `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`, n = EV.glCounts(), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
+    const fold = !EV.s.full && EV.store('ev-made') === '1', foldBtn = EV.s.full ? '' : `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`, n = EV.glCounts(), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
     // folded, its line carries its content: the counts, from the records
     if (fold) return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed, n.void)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, live = S.step == null, sel = S.sel || {}, info = EV.glInfo(S.sel), st = live ? null : EV_DATA.stateAt(M, S.step);

@@ -71,10 +71,10 @@ Object.assign(EV, {
   systemCard() {
     const M = EV.M, S = EV.s, e = EV.e; EV.sysLoad();
     if (S.sel && S.sel.t === 'sim' && M.simById[S.sel.id] && S.sel !== S.sysFrom) { S.sysSim = { sid: M.id, id: S.sel.id }; S.sysFrom = S.sel; }  // the picture follows the simulation opened last (every opening is a new selection)
-    const fold = EV.store('ev-sys') === '1', V = EV.sysVals(), v = V.v, O = EV.OB, on = !O ? null : EV.sysFind(S.sysObj) ? S.sysObj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
+    const fold = !S.full && EV.store('ev-sys') === '1', V = EV.sysVals(), v = V.v, O = EV.OB, on = !O ? null : EV.sysFind(S.sysObj) ? S.sysObj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
     const shown = V.sim ? `the settings of ${EV_ICON.simulation} ${EV.term('Simulation', 'simulation')} ${e(V.sim.id)} “${e(V.sim.label || '')}”${fold ? '' : ' <button class="cl" data-act="sysdef">show the brief\'s defaults</button>'}`
       : M.brief ? `the settings shown are the ${EV.term('Brief', 'brief')}'s defaults, as in the baseline` : `the brief of this session: ${EV.nr}`;
-    const head = `<h2>The system <small>two computers and one link · ${shown}</small> <button class="cl noprint" data-act="sysfold" style="float:right">${fold ? 'unfold' : 'fold'}</button></h2>`;
+    const head = `<h2>The system <small>two computers and one link · ${shown}</small> ${S.full ? '' : `<button class="cl noprint" data-act="sysfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`}</h2>`;
     if (fold || !O) return `<div class="ev-card noprint" id="s-system">${head}${fold ? '' : `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`}</div>`;
     const pol = S.op && EV.files.row && EV.files.row.policy && !EV.files.row.policy_hidden ? `<rect x="398" y="154" width="8" height="8" rx="2" fill="var(--by-operator)"/><text x="410" y="162" text-anchor="start" class="sv">policy: ${e(EV.files.row.policy)}</text>` : '';
     const svg = EV.sysSvg({ v, knob: V.knob, fixed: V.fixed, on, act: 'sysobj', pol });

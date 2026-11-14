@@ -6,7 +6,7 @@
 // ======================================================================================================
 const EV = {
   s: { view: 'home', sid: null, brief: null, sel: null, step: null, claim: null, path: false, collapsed: {}, intro: true, heat: ['weightUdp', 'queuePkts'], wide: {}, xchart: null,
-       left: 'lanes', alt: '', tree: {}, how: false, more: false, zoom: false, op: false, home: { sort: 'started', dir: -1, filter: '' } },   // op: the "operator columns" switch
+       tree: {}, how: false, more: false, zoom: false, op: false, full: false, closer: {}, home: { sort: 'started', dir: -1, filter: '' } },   // op: the "operator columns" switch; full: Brief / Full; closer: the analysis views a reader opened
   M: null, st: null, files: {}, marks: {}, charts: {}, sig: '',
   e: s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])),
   term: (name, text) => `<abbr title="${EV.e(EV_DEF[name] || '')}">${EV.e(text || name.toLowerCase())}</abbr>`,
@@ -37,12 +37,13 @@ const EV = {
   address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : S.sel && EV.M && EV.M.id === S.sid && EV.itemOf(S.sel) ? '&item=' + encodeURIComponent(EV.itemOf(S.sel)) : ''}`; },
   go(o) {  // to another view or session; the browser's Back returns
     const S = EV.s, other = 'sid' in o && o.sid !== S.sid; Object.assign(S, o);
-    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; S.nbmore = {}; }
+    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; S.nbmore = {}; S.findAll = false; }
     history.pushState(null, '', EV.address()); EV.sig = ''; return EV.load();
   },
 
   async start() {
-    EV.s.alt = ['list', 'tree'].includes(EV.store('ev-alt')) ? EV.store('ev-alt') : '';  // the tests again "as a list" or "as a tree": closed unless the reader opened one
+    EV.s.full = EV.store('ev-full') === '1';  // Brief (as the page is laid out for a first reading) or Full (every folded section open): the browser remembers it
+    EV.s.closer = Object.fromEntries(String(EV.store('ev-closer') || '').split(',').filter(k => EV.CLOSER.some(q => q[0] === k)).map(k => [k, true]));  // the analysis views the reader left open
     EV.s.op = EV.store('ev-op') === '1'; EV.s.how = EV.store('ev-read') !== '1'; EV.store('ev-read', '1'); EV.route();  // "How to read this page": open on the first visit only
     const root = document.getElementById('ev');
     root.addEventListener('click', EV.click); root.addEventListener('change', EV.change); root.addEventListener('input', EV.input);
@@ -118,7 +119,7 @@ const EV = {
     if (a === 'fold') { S.collapsed[id] = !S.collapsed[id]; return EV.draw(); }
     if (a === 'intro') { S.intro = false; return EV.draw(); }
     if (a === 'print') return EV.printSheet(Number(id));
-    if (a === 'goto') { const [to, left, open] = id.split('|'); if (left) S.left = left; if (open) S.sel = { t: open, id: open }; if (left || open) EV.draw();  // a box of the structure map: to that part of the page
+    if (a === 'goto') { const [to, view, open] = id.split('|'); if (view) S.closer[view] = true; if (open) S.sel = { t: open, id: open }; if (view || open) EV.draw();  // a box of the structure map: to that part of the page (an analysis view is opened first)
       const el = document.getElementById(to); if (el) el.scrollIntoView({ block: 'start' }); return; }
     if (a === 'export') return EV.exportChart(id, t.dataset.x);
     if (EV.act && EV.act[a]) return EV.act[a](id, t);  // the actions the other files add

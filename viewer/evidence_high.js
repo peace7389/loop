@@ -1,5 +1,7 @@
-// Highlights: up to seven key moments of a session, chosen by fixed rules from its records (no model is asked), each
-// one sentence built from the record's fields and a link to the item. The rules, in priority order:
+// The key moments of a session, chosen by fixed rules from its records (no model is asked). They were once a card of
+// their own ("Highlights"); now they are marks where they happened: on the notebook's cards and turn headings
+// (EV.moments, below) and in the rows of "What it needed to find out". The sentences (EV.highlights: up to seven, each
+// built from the record's fields) are still used by the Compare tab and the guided walk. The rules, in priority order:
 //   1 the first test that held · 2 every failed test from which a later hypothesis follows · 3 the tests cited by the
 //   report's first claim · 4 the simulation after which the best valid result no longer improved · 5 every refused
 //   answer or part · 6 a verdict that contradicts its check, a number in the model's text that differs from the
@@ -13,9 +15,9 @@ Object.assign(EV, {
     if (M._mis) return M._mis; const out = [], bad = (text, sims) => EV.numRows(M, text, sims).filter(q => q.status === 'differs');
     M.turns.forEach(t => { if (t.n < 1) return;
       const obs = t.observations ? bad(t.observations, M.exps.filter(x => x.turn === t.n - 1).flatMap(x => x.sims)) : [];
-      if (obs.length) out.push({ key: 'log:' + t.n, where: `Turn ${t.n}, the observations`, open: { t: 'log', id: t.n }, step: t.steps[0] ? t.steps[0].k : 0, rows: obs });
+      if (obs.length) out.push({ key: 'log:' + t.n, turn: t.n, where: `Turn ${t.n}, the observations`, open: { t: 'log', id: t.n }, step: t.steps[0] ? t.steps[0].k : 0, rows: obs });
       t.verdicts.forEach(v => { const h = M.hypById[v.body.for], xs = h ? h.exps.map(id => M.expById[id]).filter(q => q.turn < t.n) : [], rows = bad(v.body.because, xs.length ? xs[xs.length - 1].sims : []);
-        if (rows.length) out.push({ key: 'log:' + t.n, where: `Turn ${t.n}, verdict ${v.id}`, open: { t: 'log', id: t.n }, step: M.recStep[v.id] ?? 0, rows }); }); });
+        if (rows.length) out.push({ key: 'log:' + t.n, verdict: v.id, where: `Turn ${t.n}, verdict ${v.id}`, open: { t: 'log', id: t.n }, step: M.recStep[v.id] ?? 0, rows }); }); });
     const rep = M.report, rows = rep ? bad([rep.explanation, rep.holds_when, rep.breaks_when, ...(rep.claims || []).map(c => c.text)].flat().filter(Boolean).join('\n'), M.sims) : [];
     if (rows.length) out.push({ key: 'report:report', where: 'The final report', open: { t: 'report', id: 'report' }, step: M.repRec ? M.recStep[M.repRec.id] ?? 0 : 0, rows });
     return (M._mis = out);
@@ -48,10 +50,13 @@ Object.assign(EV, {
     for (let i = 0; items.length < 7 && items.length < all; i++) by.forEach((q, r) => { if (q[i] && items.length < 7) items.push({ ...q[i], rule: r + 1 }); });
     return (M._hl = { items: items.sort((a, b) => (a.at ?? a.step) - (b.at ?? b.step) || a.rule - b.rule), left: all - items.length, all });  // in the order they happened (at); greyed in the replay until all they mention is there (step)
   },
-  highCard() {
-    const M = EV.M, h = EV.highlights(M), S = EV.s, on = q => S.sel && `${S.sel.t}:${S.sel.id}` === q.key;
-    return `<div class="ev-card" id="s-high"><h2>Highlights <small>the key moments, chosen by fixed rules from the records</small></h2>
-      ${h.items.length ? `<ol class="hl">${h.items.map(q => `<li data-step="${q.step}" class="${q.warn ? 'warn' : ''}${on(q) ? ' on' : ''}"><a data-act="open" data-t="${q.open.t}" data-id="${EV.e(q.open.id)}">${q.html}</a></li>`).join('')}</ol>` : `<p class="sm">${M.ended ? 'Nothing in this session meets a rule for a highlight.' : 'Nothing yet.'}</p>`}
-      ${h.left ? `<p class="sm">${h.all} moments qualified; ${h.left} ${h.left === 1 ? 'was' : 'were'} left out to keep seven (the first of each kind is kept before the second of any).</p>` : ''}</div>`;
+  // the moments as marks: which test held first, which tests the report's first claim cites, which simulation gave the
+  // best result that meets the conditions (and the step from which that is known: the last simulation), and the texts of
+  // the model whose numbers differ from the measurements (by verdict, and by the turn of the observations)
+  moments(M) {
+    if (M._mo) return M._mo; const st = id => M.recStep[id] ?? 0, first = M.tests.find(t => t.check && t.check.result === 'held'), c1 = M.claims[0], d = EV.bestData(M), mis = EV.mismatches(M);
+    return (M._mo = { first: first ? first.id : null, cited: new Set(c1 ? c1.tests : []), citedStep: M.repRec ? st(M.repRec.id) : 0,
+      best: d && d.last ? { sim: d.last.s, n: d.last.n, of: d.pts.length, step: st(d.pts[d.pts.length - 1].s.id) } : null,
+      verdict: Object.fromEntries(mis.filter(x => x.verdict).map(x => [x.verdict, x])), turn: Object.fromEntries(mis.filter(x => x.turn).map(x => [x.turn, x])), report: mis.find(x => x.key === 'report:report') || null });
   },
 });

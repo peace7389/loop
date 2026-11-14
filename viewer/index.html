@@ -49,18 +49,18 @@
 .ev-intro { display: flex; gap: 12px; align-items: flex-start; font-size: var(--f-text); } .ev-intro p { flex: 1; max-width: 980px; }
 .ev-top { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; }
 .ev-main { display: grid; grid-template-columns: minmax(450px, 0.9fr) minmax(0, 1.1fr); gap: 12px; align-items: start; }
-@media (max-width: 1100px) { .ev-main, .ev-top { grid-template-columns: 1fr; } }
+@media (max-width: 1100px) { .ev-main, .ev-top { grid-template-columns: minmax(0, 1fr); } }
 .ev-scroll { overflow: auto; } .ev-lanes { max-height: 1100px; } .ev-map { max-height: 300px; }
 .ev-side { position: sticky; top: calc(var(--head-h, 44px) + 8px); max-height: calc(100vh - var(--head-h, 44px) - 16px); overflow: auto; } .ev-side .ev-card { margin-bottom: 8px; }
 .ev-head { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px; margin-bottom: 10px; font-size: var(--f-text); box-shadow: 0 2px 8px rgb(0 0 0 / .07); display: flex; flex-wrap: wrap; gap: 4px 26px; align-items: flex-start; }
 /* a field of the header strip: a small label above its value */
 .ev .hf { display: grid; min-width: 0; } .ev .hf > span { font-size: var(--f-note); color: var(--text-muted); white-space: nowrap; } .ev .hf > b { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; } .ev .hf[data-f=rec] { flex: 0 1 auto; } .ev .hf[data-f=rec] > b { white-space: normal; }
-.ev .hf-op { display: flex; gap: 26px; } .ev .hf .pill { font-size: var(--f-sec); }
+.ev .hf-op { display: flex; gap: 20px; } .ev .ev-head { column-gap: 20px; } .ev .hf .pill { font-size: var(--f-sec); }
 /* the Overview is one band of four columns (two by two in a narrow window): the goal, the recommended settings, the expected result in short, the claims in numbers */
 .ev .ov-band { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px 32px; align-items: start; } .ev #ov-claims { font-size: var(--f-sec); line-height: 1.3; margin-bottom: 4px; } .ev #ov-exp-more { margin-top: 2px; }
 @media (max-width: 900px) { .ev .ov-band { grid-template-columns: 1fr 1fr; } }
 /* "The final report" is the model's: its colour on the card's left edge */
-.ev #s-report { border-left: 4px solid var(--c); } .ev #s-report .ov-when > h3:first-child { margin-top: 12px; }
+.ev #s-report { border-left: 4px solid var(--c); padding-left: 12px; margin-top: 10px; } .ev #s-report .ov-when > h3:first-child { margin-top: 12px; }
 /* the recommended settings: the knobs that differ from the brief's defaults, set large; the expected result: name on the left, value on the right */
 .ev .rec { display: flex; flex-wrap: wrap; gap: 6px 30px; } .ev .rk { display: grid; } .ev .rk > span { font-size: var(--f-sec); color: var(--text-secondary); } .ev .rk > b { font-size: var(--f-page); line-height: 1.2; font-variant-numeric: tabular-nums; }
 .ev table.xr td { padding: 4px 0; } .ev table.xr td.num { padding-left: 16px; white-space: nowrap; font-weight: 600; } .ev table.xr tr:last-child td { border-bottom: 0; } .ev table.xr .sm { margin-left: 8px; color: var(--text-muted); }
@@ -103,7 +103,19 @@
 .ev .nb-edge { display: inline-block; height: 11px; border-left: 4px solid var(--border); margin-right: 5px; vertical-align: -1px; }
 .ev .nb-l { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 0 8px; padding: 1.5px 0; font-size: var(--f-text); } .ev .nb-k { color: var(--text-muted); font-size: var(--f-sec); white-space: nowrap; padding-top: 1px; } .ev .nb-k .sw { margin-right: 3px; }
 .ev .nb-q .nb-v { font-weight: 600; } .ev .nb-q .nb-v .lc3, .ev .nb-q .nb-v .hq a { font-weight: 400; } .ev .nb-v { overflow-wrap: anywhere; } .ev .nb-card .sw + .sw { margin-left: -1px; }
-.ev .nb-turn-mark { position: absolute; top: 5px; right: 8px; font-size: var(--f-note); font-weight: 700; color: var(--text-primary); border: 1px solid var(--text-primary); border-radius: 999px; padding: 0 7px; background: var(--surface-1); }
+/* the key moments of a session are marks on the notebook's cards and headings: one line of small chips under a card's six lines */
+.ev .nb-marks { display: flex; flex-wrap: wrap; gap: 4px 6px; justify-content: flex-end; margin-top: 3px; } .ev .nb-mark { font-size: var(--f-note); font-weight: 700; color: var(--text-primary); border: 1px solid var(--text-primary); border-radius: 999px; padding: 0 7px; background: var(--surface-1); white-space: nowrap; text-decoration: none !important; }
+.ev a.nb-mark { cursor: pointer; } .ev a.nb-mark:hover { background: var(--surface-0); } .ev .nb-head .nb-mark { margin-left: 6px; font-weight: 600; }
+/* a section: its heading, and under it in small text the reader's question */
+.ev .sec-q { font-size: var(--f-sec); color: var(--text-secondary); margin: -3px 0 8px; } .ev .nb-bar { margin: 0 0 4px; } .ev .seg { display: inline-flex; } .ev .seg button { border-radius: 0; padding: 1px 9px; font-size: var(--f-sec); } .ev .seg button:first-child { border-radius: 7px 0 0 7px; } .ev .seg button:last-child { border-radius: 0 7px 7px 0; border-left: 0; } .ev .hf-level { margin-left: auto; }
+/* "What it needed to find out": one row per test; a failed check has no warning colour */
+.ev table.ft th:first-child, .ev table.ft td.fq { width: 46%; } .ev .ft td.fm .rr { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; } .ev .ft td.fo .rs, .ev .ft td.fl a, .ev .ft .fturn { white-space: nowrap; } .ev table.ft { table-layout: fixed; } .ev .ft th:nth-child(2) { width: 100px; } .ev .ft th:nth-child(4) { width: 15%; } .ev .ft td { overflow-wrap: anywhere; }
+@media (max-width: 700px) { .ev table.ft th:first-child, .ev table.ft td.fq { width: 38%; } .ev .ft th:nth-child(2) { width: 84px; } } .ev .ft .fh { display: inline-block; min-width: 2.6em; font-weight: 650; color: var(--text-secondary); } .ev .ft td.fq .lc2 { display: -webkit-inline-box; vertical-align: top; max-width: calc(100% - 3em); }
+.ev .ft tr.sel td { background: color-mix(in srgb, var(--series-1) 10%, transparent); } .ev .ft tr.flash td { background: color-mix(in srgb, var(--series-1) 22%, transparent); transition: background .3s; } .ev .ft .fturn { font-size: var(--f-note); font-weight: 700; border: 1px solid var(--text-primary); border-radius: 999px; padding: 0 6px; }
+.ev #s-find tr.later { visibility: visible; } .ev #s-find tr.later > td { background: var(--grid); color: transparent; } .ev #s-find tr.later > td > * { visibility: hidden; }
+/* "Looking closer": each analysis view folded to one line; an open one is drawn under its line */
+.ev .lc-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 5px 4px; border-top: 1px solid var(--grid); margin-bottom: 6px; } .ev .lc-row button { border: 0; background: none; padding: 2px 4px; font-weight: 600; text-align: left; } .ev .lc-row button:disabled { opacity: 1; cursor: default; } .ev .lc-row button:hover:not(:disabled) { background: var(--surface-0); } .ev .lc-tw { display: inline-block; width: 16px; color: var(--text-muted); } .ev .lc-head { margin-bottom: 4px; }
+.ev #s-overview { margin-bottom: 4px; } .ev #s-proposes .ov-band { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px 32px; } .ev .rep-h { font-size: var(--f-text); color: var(--text-primary); margin-top: 14px; }
 .ev .rr a.rn { text-decoration: underline dotted; cursor: pointer; } .ev .rr { cursor: help; } .ev div.nb-card.later, .ev div.nb-head.later { visibility: visible; opacity: 1; background: var(--grid); border-color: transparent; } .ev .nb-card.later > *, .ev .nb-head.later > * { visibility: hidden; } .ev .nb-head.later { color: transparent; } .ev #s-alt .ev-bar { margin: 0; } .ev #s-tree { margin-top: 8px; }
 /* the random method behind best so far: a grey band (10th to 90th percentile) and its median, dashed */
 .ev .rnd-area { fill: color-mix(in srgb, var(--text-muted) 26%, transparent); stroke: none; } .ev .rnd-line { fill: none; stroke: var(--text-muted); stroke-width: 1.4; stroke-dasharray: 5 4; }
@@ -170,10 +182,10 @@
 .ev #s-tests tr.later { visibility: visible; } .ev #s-tests tr.later > td { background: var(--grid); color: transparent; } .ev #s-tests tr.later > td > * { visibility: hidden; }
 #ev-print { display: none; }
 .ev .cl { font-size: var(--f-note); padding: 1px 8px; }
-@media print {  /* the page prints its overview, the final report, highlights, best-so-far chart and tests list; with class "sheet" only the evidence sheet of one claim */
+@media print {  /* the page prints what it needed to find out, the notebook, what it proposes, and the best-so-far chart and the tests list (Print opens those two for it); with class "sheet" only the evidence sheet of one claim */
   .ev { color-scheme: light; --surface-0: #fff; --surface-1: #fff; --border: #bbb; --text-primary: #000; --text-secondary: #333; --text-muted: #555; --grid: #ddd; background: #fff; color: #000; padding: 0; }
   .ev.sheet > *:not(#ev-print) { display: none !important; } .ev.sheet #ev-print { display: block; }
-  .ev:not(.sheet) > .ev-bar, .ev:not(.sheet) .ev-side, .ev:not(.sheet) #s-work, .ev:not(.sheet) #s-how, .ev:not(.sheet) .ev-run, .ev:not(.sheet) button:not(.chip), .ev:not(.sheet) .review, .ev:not(.sheet) .noprint { display: none !important; }
+  .ev:not(.sheet) > .ev-bar, .ev:not(.sheet) .ev-side, .ev:not(.sheet) #s-work, .ev:not(.sheet) #s-map, .ev:not(.sheet) .lc-row, .ev:not(.sheet) .lc-head, .ev:not(.sheet) #s-how, .ev:not(.sheet) .ev-run, .ev:not(.sheet) button:not(.chip), .ev:not(.sheet) .review, .ev:not(.sheet) .noprint { display: none !important; }
   .ev .ev-main { display: block; } .ev .ev-head { position: static; box-shadow: none; } .ev .ev-card { break-inside: avoid; } .ev #s-tests { break-inside: auto; } .ev #s-tests .ev-scroll { overflow: visible; }
   .ev .clamp, .ev #ov-goal { display: block; overflow: visible; } .ev .later { opacity: 1; }
 }
@@ -181,7 +193,7 @@
 <div class="ev" id="ev"><div class="ev-card">Loading the session list…</div></div>
 <script>
 const css = n => getComputedStyle(document.getElementById('ev')).getPropertyValue(n).trim();  // also used by adrs_view.js
-['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_marks.js', 'evidence_read.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_page.js', 'evidence_system.js', 'evidence_glance.js', 'evidence_high.js', 'evidence_best.js', 'evidence_random.js', 'evidence_knob.js', 'evidence_tree.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_notebook.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_margin.js', 'evidence_verdicts.js', 'evidence_operator.js', 'evidence_heat.js', 'evidence_compare.js', 'evidence_parallel.js', 'evidence_review.js', 'evidence_share.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
+['adrs_view.js', 'evidence_data.js', 'evidence.js', 'evidence_marks.js', 'evidence_read.js', 'evidence_home.js', 'evidence_run.js', 'evidence_oprun.js', 'evidence_page.js', 'evidence_system.js', 'evidence_glance.js', 'evidence_find.js', 'evidence_closer.js', 'evidence_high.js', 'evidence_best.js', 'evidence_random.js', 'evidence_knob.js', 'evidence_tree.js', 'evidence_top.js', 'evidence_views.js', 'evidence_flow.js', 'evidence_cards.js', 'evidence_test.js', 'evidence_notebook.js', 'evidence_panels.js', 'evidence_more.js', 'evidence_margin.js', 'evidence_verdicts.js', 'evidence_operator.js', 'evidence_heat.js', 'evidence_compare.js', 'evidence_parallel.js', 'evidence_review.js', 'evidence_share.js'].reduce((before, name) => before.then(() => new Promise((ok, no) => {
   const s = document.createElement('script'); s.src = name + '?t=' + Date.now(); s.onload = ok; s.onerror = () => no(name); document.head.appendChild(s); })), Promise.resolve())
   .then(() => EV.start()).catch(name => { document.getElementById('ev').innerHTML = '<div class="ev-card">Cannot load ' + name + '.</div>'; });
 </script>

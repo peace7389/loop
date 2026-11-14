@@ -7,6 +7,7 @@
 // one of < <= > >= == per comparison; comparisons joined by AND and OR. A text that cannot be read is shown as it is.
 // ======================================================================================================
 Object.assign(EV, {
+  READ_WORDS: { '<': 'under', '<=': 'at most', '>': 'over', '>=': 'at least', '==': 'equal to' },  // a comparison in words; one that did not hold: "not over"
   readTrees: new Map(),  // a rule's text -> its tree (null: unreadable), read once: the notebook draws every rule at every click
   readTree(text) { const C = EV.readTrees; if (!C.has(text)) C.set(text, EV.readTree1(text)); return C.get(text); },
   readTree1(text) {
@@ -64,7 +65,9 @@ Object.assign(EV, {
     const C = n => { if (n[0] === 'and' || n[0] === 'or') return n[1].map(C).join(n[0] === 'and' ? ' and ' : ' or '); if (n[0] === 'all') return '(' + C(n[1]) + ')';
       const U = EV.readUnit(n[1]) || EV.readUnit(n[3]); let p = 3;
       if (sims) { const a = EV.readValue(n[1], val), b = EV.readValue(n[3], val);  // as many digits as it takes to tell the two sides apart
-        if (a != null && b != null && a !== b) while (p < 9 && EV.readNum(a, U, p) === EV.readNum(b, U, p)) p++; }
+        if (a != null && b != null && a !== b) while (p < 9 && EV.readNum(a, U, p) === EV.readNum(b, U, p)) p++;
+        if (o.words && a != null && b != null) { const held = { '<': a < b, '<=': a <= b, '>': a > b, '>=': a >= b, '==': a === b }[n[2]];  // in words: "483 Mbps, not over 700 Mbps"
+          return `${R(n[1], U, p)}, ${held ? '' : 'not '}${EV.READ_WORDS[n[2]]} ${R(n[3], U, p)}`; } }
       return `${R(n[1], U, p)} ${n[2]} ${R(n[3], U, p)}`; };
     return C(tree);
   },

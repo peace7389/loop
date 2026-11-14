@@ -1,11 +1,13 @@
-// A session's page, top to bottom: the header strip (always visible, labelled fields on one line); the Overview, first and at
-// full width, one band that holds only the answer, so that a reader meets the conclusion first (the introduction, then four
-// columns from the final report: the goal, the recommended settings against the brief's defaults, the expected result in
-// short, the claims in numbers); "The system"; "What this session is made of"; then, in the left column, "The final report"
-// (the model's own words: its claims with the evidence each cites, the explanation, the full expected result, when it holds
-// and breaks); the notebook, one card per test (evidence_notebook.js), and under it, closed by default, the same tests "as a
-// list" or "as a tree"; the highlights; best so far; the work (session flow | hypothesis map); "How to read this page". The detail of whatever is selected is the right-hand pane: it stays in view beside the left column, so no
-// click has to move the page, and a click on a claim shows its test at once.
+// A session's page. Everything on it belongs to one of three levels of detail:
+//   1 · at a glance   the header strip; the setting (evidence_system.js); the session at a glance (evidence_glance.js);
+//                     what it needed to find out (evidence_find.js). Open, at the top, at full width.
+//   2 · read          the work, step by step: the notebook (evidence_notebook.js); what it proposes (the final report);
+//                     below level 1, in the left column, beside the detail pane.
+//   3 · inspect       a test's flow chart, the exact decision rule and numbers, a simulation's settings and charts, the
+//                     review queue: the detail pane on the right, opened by a click. Nothing of level 3 stands at level
+//                     1 or 2 except as something to click.
+// The analysis views are folded under "Looking closer" (evidence_closer.js); "How to read this page" is last. The switch
+// "Brief / Full" in the header strip opens every folded section at once; the browser remembers it.
 // ======================================================================================================
 Object.assign(EV, {
   // the recommendation against the brief's defaults (the comparison is the page's; both sides are recorded): the knobs
@@ -26,7 +28,8 @@ Object.assign(EV, {
     return `<div class="ev-head" id="ev-head">${f('brief', EV.term('Brief', 'Brief'), M.brief ? e(M.brief.id) : EV.nr)}${f('session', EV.term('Session', 'Session'), e(M.id))}${f('how', 'How it ended', ended, live ? m.how : '')}
       ${f('sims', EV.term('Simulation', 'Simulations'), `${live ? m.simulations ?? (M.old ? M.sims.length : row.simulations ?? used) : used}${row.allowed ? ' of ' + row.allowed : ''}`)}${f('checks', EV.term('Check', 'Checks'), M.old ? EV.nr : EV.tally(held, failed, voids))}
       ${f('model', 'Model', m.model ? e(m.model) : EV.nr)}${f('rec', 'Recommends', rec == null ? `<span class="mut">no recommendation${M.ended && live ? '' : ' yet'}</span>` : rec, R && R.known && R.differ.length ? "The knobs of the recommendation that differ from the brief's defaults" : '')}
-      ${S.op ? `<span data-by="operator" class="hf-op">${f('policy', '<i class="sw"></i>' + EV.term('Scheduling policy', 'Scheduling policy'), EV.policyText(row))}${f('gap', 'Gap to the best', EV.gapText(row) || '<span class="mut">not scored</span>')}</span>` : ''}</div>`;
+      ${S.op ? `<span data-by="operator" class="hf-op">${f('policy', '<i class="sw"></i>' + EV.term('Scheduling policy', 'Scheduling policy'), EV.policyText(row))}${f('gap', 'Gap to the best', EV.gapText(row) || '<span class="mut">not scored</span>')}</span>` : ''}
+      <div class="hf hf-level noprint" data-f="level" title="Brief: the page as laid out for a first reading. Full: every folded section open."><span>Detail</span><b class="seg"><button data-act="level" data-id="brief" class="${S.full ? '' : 'on'}">Brief</button><button data-act="level" data-id="full" class="${S.full ? 'on' : ''}">Full</button></b></div></div>`;
   },
 
   // ---- the final report by the replay's step (absent before its step, not greyed), and its expected result as rows:
@@ -45,11 +48,7 @@ Object.assign(EV, {
   // recommended settings, the expected result in short, the claims in numbers. The claims themselves, the explanation
   // and the full expected result are in the card "The final report", which stands beside the detail pane.
   overview() {
-    const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, rep = EV.repNow(), m = M.meta || {}, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts(), X = EV.expRows(rep);
-    const held = M.checks.filter(q => q.result === 'held' && seen(q.id)).length, voids = M.checks.filter(q => q.void && seen(q.id)).length, rules = M.checks.filter(q => seen(q.id)).length - voids, turns = M.turns.filter(t => t.n > 0 && (t.steps[0] ? t.steps[0].k : 0) <= (S.step ?? Infinity)).length;
-    const intro = !S.intro ? '' : `<div class="ev-intro"><p>A person wrote an assignment (the ${EV.term('Brief', 'brief', 1)}${M.brief ? ' “' + e(M.brief.id) + '”' : ''}). The AI made one attempt, in ${turns} ${EV.term('Turn', turns === 1 ? 'turn' : 'turns', 1)}${live ? '' : ' so far'}.
-      Each turn it stated what it expected, ran ${EV.term('Simulation', 'simulations', 1)}, and the harness checked whether it was right: ${M.old ? 'the checks were ' + EV.nr : `${held} of ${rules} ${EV.term('Decision rule', 'decision rules', 1)} held${voids ? `; ${voids} more ${voids === 1 ? 'was' : 'were'} void (${voids === 1 ? 'it' : 'each'} compared a simulation with itself)` : ''}`}.
-      ${M.report || !live ? '' : M.ended ? 'It ended without a final report.' : 'It is still running.'}</p><button data-act="intro">dismiss</button></div>`;
+    const M = EV.M, S = EV.s, e = EV.e, rep = EV.repNow(), m = M.meta || {}, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts(), X = EV.expRows(rep);
     const name = k => e(TH_DATA.KNOB[k] || k), val = (k, v) => e(TASK_VIEW._rate(String(EV.val(k, v)))).replace(/^Tcp/, '');
     const recHtml = !R ? EV.nr : R.text ? e(R.text) : `<div class="rec" id="ov-rec">${R.differ.map(([k, v]) => `<span class="rk" data-knob="${e(k)}"><span>${name(k)}</span><b>${val(k, v)}</b></span>`).join('') || (R.known ? '<span class="sm">no knob differs from the brief’s default</span>' : EV.nr)}</div>
       ${R.same.length ? `<p class="sm" id="ov-def">at the brief's default: ${R.same.map(([k, v]) => `${name(k)} ${val(k, v)}`).join(' · ')}</p>` : ''}${R.unnamed.length ? `<p class="sm">not named in the report: ${R.unnamed.map(name).join(', ')}</p>` : ''}`;
@@ -63,7 +62,7 @@ Object.assign(EV, {
           <div><h3>Expected result</h3>${expHtml}</div><div><h3>Its claims</h3>${counts}</div></div>`;
     // without a final report there is no card "The final report": the line that opens the brief and the summary stays here
     const open = rep ? '' : `<p class="sm noprint">open on the right: <a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p>`;
-    return `<div class="ev-card" id="s-overview"><h2>Overview <small>what this session concluded, from its ${EV.term('Final report', 'final report')}</small></h2>${intro}${body}${open}${EV.shareBar()}</div>`;
+    return `<div id="s-overview">${body}${open}</div>`;
   },
   repTxt: v => (Array.isArray(v) ? v.map(q => EV.e(q)).join(' · ') : EV.e(v ?? 'not recorded')),
 
@@ -77,33 +76,31 @@ Object.assign(EV, {
         return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}"><b>claim ${q.n}</b><span class="ct">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; }).join('')}</div>
       <p class="sm">${EV.claimCounts(M.claims)}${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
     const expHtml = !X ? `<p>${e(String(rep.expected ?? 'not recorded'))}</p>` : `<table class="xr" id="ov-exp"><tbody>${X.all.map(X.row).join('')}</tbody></table>`;
-    return `<div class="ev-card" id="s-report" data-by="model"><h2>The final report <small>the model's own words: its claims with the evidence each one cites, then its explanation</small></h2>${claims}
-      <h3>Explanation</h3><div id="ov-expl" class="${S.more ? '' : 'clamp'}">${txt(rep.explanation)}</div><a class="noprint sm" data-act="more">${S.more ? 'less' : 'more'}</a>
+    return `<div id="s-report" data-by="model"><h3 class="rep-h">The final report <span class="sm">the model's own words: its claims with the evidence each one cites, then its explanation</span></h3>${claims}
+      <h3>Explanation</h3><div id="ov-expl" class="${S.more || S.full ? '' : 'clamp'}">${txt(rep.explanation)}</div>${S.full ? '' : `<a class="noprint sm" data-act="more">${S.more ? 'less' : 'more'}</a>`}
       <h3>Expected result</h3>${expHtml}<div class="ov-when"><h3>Holds when</h3><p>${txt(rep.holds_when)}</p><h3>Breaks when</h3><p>${txt(rep.breaks_when)}</p></div>
       <p class="sm noprint" style="margin-top:10px">open on the right: <a data-act="open" data-t="report" data-id="report">the full final report</a> · <a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p></div>`;
   },
 
-  // ---- the work: the session flow or the hypothesis map (the tree is under the notebook, behind its switch); the selection is shared
-  workCard() {
-    const S = EV.s, M = EV.M, left = S.left === 'map' ? 'map' : 'lanes', n = M.steps.length, k = S.step == null ? n - 1 : S.step, b = (id, t) => `<button data-act="left" data-id="${id}" class="${left === id ? 'on' : ''}">${t}</button>`;
-    return `<div class="ev-card" id="s-work"><h2>The work <small>${left === 'lanes' ? 'time runs down, in the lane of whoever did each step' : 'left to right by the turn each hypothesis was stated'}</small></h2>
-      <div class="ev-bar"><span>${b('lanes', 'Session flow')} ${b('map', 'Hypothesis map')}</span>${left === 'map' ? `<button data-act="path" class="${S.path ? 'on' : ''}">show the path to the answer</button>` : ''}
-        <span class="end"><b>Replay</b> <button data-act="replay" data-id="first">« first</button> <button data-act="replay" data-id="prev">◀</button> <button data-act="replay" data-id="next">▶</button> <button data-act="replay" data-id="last">last »</button>
-          <span class="sm">step ${n ? k + 1 : 0} of ${n}${S.step == null ? '' : ': later items are greyed'} · arrow keys</span></span></div>
-      ${left === 'lanes' ? `<div class="ev-scroll ev-lanes">${EV.viewLanes()}</div>` : EV.viewMap()}</div>`;
+  // ---- "What it proposes": the answer, after the work that led to it. The band of four columns (the goal, the
+  // recommended settings, the expected result in short, the claims in numbers), then the model's own words. A session
+  // without a final report says so here, with how it ended.
+  proposesCard() {
+    return `<div class="ev-card" id="s-proposes"><h2>What it proposes</h2><p class="sec-q">What does it recommend, on what evidence, and where does that stop being true?</p>${EV.overview()}${EV.reportCard()}${EV.shareBar()}</div>`;
   },
 
   // ---- how to read this page: open on a reader's first visit, closed afterwards
   howTo() {
-    return `<details class="ev-card" id="s-how"${EV.s.how ? ' open' : ''}><summary><b>How to read this page</b> <span class="sm">how a session is built, the turn loop, who produced what, and the words used</span></summary>
+    return `<details class="ev-card" id="s-how"${EV.s.how || EV.s.full ? ' open' : ''}><summary><b>How to read this page</b> <span class="sm">how a session is built, the turn loop, who produced what, and the words used</span></summary>
       <div class="ev-top" style="margin-top:10px"><div><h3>How a session is built<span class="sm"> · this session's counts; click a box to go to that part</span></h3>${EV.structureMap()}</div>
         <div><h3>Who produced it</h3>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
       <h3>The words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
       <h3>Using the page</h3><ul class="sm" id="how-use" style="margin:0;padding-left:18px">
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
-        <li>Highlights: click one to open it. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
+        <li>“What it needed to find out”: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
+        <li>“Looking closer”: click a line to open that view. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
         <li>“The system”: click an object to see its settings beside the picture. “What this session is made of”: click a mark to open it; point at a mark to read what it is.</li>
-        <li>The work, and the tests list: click an item or a row to open it. The session's summary: click any item on the left to open it there.</li>
+        <li>The session flow, the hypothesis map, the tree and the tests list: click an item or a row to open it. The session's summary: click any item on the left to open it there.</li>
         <li>An experiment's panel: click a test or a simulation to open it. A simulation's charts over time: point at a chart, and the same moment is marked in all of them.</li>
         <li>The Operator tab, the sweep: click a numbered circle to open that simulation; a dark circle stands for several at one place, and a click lists them under the map.</li>
         <li>Home: click a row to open that session; click a column title to sort. Compare sessions: tick two or more to see them side by side; click a first test that held to open it in its session.</li></ul>
@@ -111,8 +108,8 @@ Object.assign(EV, {
   },
 
   sessionTab() {
-    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.overview()}${EV.systemCard()}${EV.glance()}
-      <div class="ev-main"><div>${EV.reportCard()}${EV.notebookCard()}${EV.highCard()}${EV.bestCard()}${EV.knobCard()}${EV.aloneCard()}${EV.workCard()}</div>
+    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.systemCard()}${EV.glance()}${EV.findCard()}
+      <div class="ev-main"><div>${EV.notebookCard()}${EV.proposesCard()}${EV.closerCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },
 });

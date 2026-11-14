@@ -11,7 +11,9 @@
 // The left edge says the outcome: expected and found (held), expected and not found (failed); a failed check is a
 // result, not a warning. A void check has a neutral edge. "changed course here": the check failed and a later
 // hypothesis follows from this test (it names its check, its verdict or its simulations, or the table of its experiment). A click on a card opens the test in the detail pane, as a row of the tests list does.
-// Under the notebook, closed by default, one switch shows the same tests "as a list" or "as a tree".
+// The same tests as a list (with margins) and as a tree are analysis views, folded under "Looking closer".
+// The key moments of the session (once the card "Highlights") are marks on the cards: the first test that held,
+// "changed course here", a test the report's first claim cites, the simulation that gave the best result.
 // ======================================================================================================
 Object.assign(EV, {
   // what differs between the simulations a test's rule names, in words built from their settings; then what they share
@@ -36,35 +38,38 @@ Object.assign(EV, {
     const line = (k, by, body, step, cls) => `<div class="nb-l${cls ? ' ' + cls : ''}" data-l="${k.toLowerCase().replace(' ', '-')}" data-step="${step}"><span class="nb-k">${by.map(b => `<i class="sw" data-by="${b}" title="produced by the ${b}"></i>`).join('')}${k}</span><div class="nb-v">${body}</div></div>`;
     const pending = M.ended ? (h && h.verdict ? 'no verdict here: the hypothesis was tested again first' : 'no verdict: the session ended without one') : 'not yet';
     const [first, rest] = v ? EV.nbFirst(v.because) : ['', false], open = (S.nbmore || {})[T.id];
-    const fk = Math.max(kv, ...fol.ids.map(id => st(id)));
+    const fk = Math.max(kv, ...fol.ids.map(id => st(id))), mo = EV.moments(M), mis = v ? mo.verdict[v.id] : null;
+    const marks = [mo.first === T.id ? `<span class="nb-mark" data-m="first" data-step="${kc}" title="The first test of this session whose check held">first test that held</span>` : '',
+      turned ? `<span class="nb-mark nb-turn-mark" data-m="turned" data-step="${fk}" title="Its check failed, and ${e(fol.ids.join(', '))} follow${fol.ids.length === 1 ? 's' : ''} from it${fol.via ? ' (through the table ' + e(fol.via) + ' of its experiment)' : ''}">changed course here</span>` : '',
+      mo.best && T.best ? `<a class="nb-mark" data-m="best" data-act="open" data-t="sim" data-id="${e(mo.best.sim.id)}" data-step="${mo.best.step}" title="${e(`Simulation ${mo.best.sim.id} (number ${mo.best.n} of ${mo.best.of}) gave the best result that meets the brief's conditions; none after it improved on it`)}">best result: ${e(mo.best.sim.id)}</a>` : '',
+      mo.cited.has(T.id) ? `<span class="nb-mark" data-m="cited" data-step="${mo.citedStep}" title="The first claim of the final report cites this test">cited by claim 1</span>` : ''].join('');
     return `<div class="nb-card${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" data-act="open" data-t="test" data-id="${e(T.id)}" data-res="${c ? e(c.result) : 'none'}" data-step="${kx}">
       ${line('Question', ['model'], h && !h.question ? `<span class="lc3"><b>${e(T.hyp)}</b> ${e(h.text)}</span>` : `<b>${e(T.hyp)}</b> ${h ? EV.question(h) : EV.nr}`, st(T.hyp) < kx ? kx : st(T.hyp), 'nb-q')}
       ${line('Plan', ['model'], EV.nbPlan(T), kx)}
       ${line('Expected', ['model'], `${EV.ruleRead(T)}${T.rival ? `<div class="sm lc2" title="${e(T.rival)}">${EV.term('Rival', 'rival')}: ${e(T.rival)}</div>` : ''}`, kx)}
       ${line('Result', ['simulator', 'harness'], c ? EV.checkRead(T) : `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`, kc)}
-      ${line('Conclusion', ['model'], v ? `${v.id} ${EV.verdictRes(v.result)}${EV.rests(v)}${EV.contradicts(v, c ? [c] : []) ? ' ' + EV.warn('disagrees with its check') : ''}${first ? ' · ' + e(open || !rest ? v.because : first) : ''}${rest ? ` <a class="noprint sm" data-act="nbmore" data-id="${e(T.id)}">${open ? 'less' : 'more'}</a>` : ''}` : `<span class="mut">${pending}</span>`, kv)}
+      ${line('Conclusion', ['model'], v ? `${v.id} ${EV.verdictRes(v.result)}${EV.rests(v)}${EV.contradicts(v, c ? [c] : []) ? ' ' + EV.warn('disagrees with its check') : ''}${first ? ' · ' + e(open || !rest ? v.because : first) : ''}${rest ? ` <a class="noprint sm" data-act="nbmore" data-id="${e(T.id)}">${open ? 'less' : 'more'}</a>` : ''}${mis ? ' ' + EV.warn('a number differs from its measurement', `It wrote “${mis.rows[0].written}”; measured ${mis.rows[0].measured}`) : ''}` : `<span class="mut">${pending}</span>`, kv)}
       ${line('So next', ['model'], v ? `${v.next ? e(v.next) : EV.nr}${fol.ids.length ? ` <span class="sm" data-step="${fk}">· followed by ${fol.ids.map(id => `<a data-act="open" data-t="hyp" data-id="${e(id)}">${EV_ICON.hypothesis}${e(id)}</a>`).join(', ')}${fol.via ? ` (through the table ${e(fol.via)})` : ''}</span>` : ''}` : `<span class="mut">${pending === 'not yet' ? 'not yet' : 'no verdict, so no next step'}</span>`, kv)}
-      ${turned ? `<div class="nb-turn-mark" data-step="${fk}" title="Its check failed, and ${e(fol.ids.join(', '))} follow${fol.ids.length === 1 ? 's' : ''} from it${fol.via ? ' (through the table ' + e(fol.via) + ' of its experiment)' : ''}">changed course here</div>` : ''}</div>`;
+      ${marks ? `<div class="nb-marks">${marks}</div>` : ''}</div>`;
   },
   notebookCard() {
     const M = EV.M, S = EV.s, e = EV.e, st = id => M.recStep[id] ?? 0, sel = S.sel || {}, pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
     const dots = x => x.sims.map(q => `<a class="nb-dot" data-act="open" data-t="sim" data-id="${e(q.id)}" data-step="${st(q.id)}" title="${e(`${q.id} · ${q.label || ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`)}">${EV.gkey(q.same_as ? 'sim-returned' : 'sim')}</a>`).join('');
-    const body = M.turns.map(t => { const k0 = t.steps[0] ? t.steps[0].k : 0, x = t.exp, ts = x ? M.tests.filter(T => T.exp === x.id) : [], bits = [];
+    const mo = EV.moments(M), bs = mo.best ? mo.best.sim : null; M.tests.forEach(T => { T.best = false; }); const holder = bs ? M.tests.find(T => T.sims.includes(bs)) : null; if (holder) holder.best = true;
+    const bestMark = bs && !holder ? ` <a class="nb-mark" data-m="best" data-act="open" data-t="sim" data-id="${e(bs.id)}" data-step="${mo.best.step}" title="${e(`Simulation ${bs.id} (number ${mo.best.n} of ${mo.best.of}) gave the best result that meets the brief's conditions; none after it improved on it`)}">best result: ${e(bs.id)}</a>` : '';
+    const body = M.turns.map(t => { const k0 = t.steps[0] ? t.steps[0].k : 0, x = t.exp, ts = x ? M.tests.filter(T => T.exp === x.id) : [], bits = [], here = bestMark && x && x.sims.includes(bs) ? bestMark : '', om = mo.turn[t.n];
       if (t.verdicts.length) bits.push(pl(t.verdicts.length, 'verdict')); if (t.hyps.length) bits.push(`${t.hyps.length} new hypothes${t.hyps.length === 1 ? 'is' : 'es'}`); if (t.drops.length) bits.push(`${t.drops.length} dropped`);
       const refused = t.malformed.length + t.refusals.length; if (refused) bits.push(`${refused} refused`); if (t.report) bits.push('the final report');
       const head = t.n === 0 ? `<div class="nb-head nb-start" data-act="open" data-t="exp" data-id="${x ? e(x.id) : 'X0'}" data-step="${k0}"><b>Start</b> · the harness's baseline: ${x ? pl(x.sims.length, 'simulation') : EV.nr} ${x ? dots(x) : ''}</div>`
-        : `<div class="nb-head nb-turn${sel.t === 'log' && sel.id === t.n ? ' sel' : ''}" data-act="open" data-t="log" data-id="${t.n}" data-turn="${t.n}" data-step="${k0}"><b>Turn ${t.n}</b> · ${t.left == null ? 'simulations left: ' + EV.nr : pl(t.left, 'simulation') + ' left'}${bits.length ? ` <span class="sm">· ${e(bits.join(' · '))}</span>` : ''}</div>`;
-      const explore = x && t.n > 0 && !ts.length ? `<div class="nb-head nb-exp${sel.t === 'exp' && sel.id === x.id ? ' sel' : ''}" data-act="open" data-t="exp" data-id="${e(x.id)}" data-step="${st(x.id)}">${EV_ICON.experiment} ${e(x.id)} explores: “${e(x.question || 'not recorded')}” · ${pl(x.sims.length, 'simulation')} ${dots(x)}</div>` : '';
+        : `<div class="nb-head nb-turn${sel.t === 'log' && sel.id === t.n ? ' sel' : ''}" data-act="open" data-t="log" data-id="${t.n}" data-turn="${t.n}" data-step="${k0}"><b>Turn ${t.n}</b> · ${t.left == null ? 'simulations left: ' + EV.nr : pl(t.left, 'simulation') + ' left'}${bits.length ? ` <span class="sm">· ${e(bits.join(' · '))}</span>` : ''}${om ? ` <span data-step="${om.step}">${EV.warn('a number in its observations differs from its measurement', `It wrote “${om.rows[0].written}”; measured ${om.rows[0].measured}`)}</span>` : ''}${here && ts.length ? here : ''}</div>`;
+      const explore = x && t.n > 0 && !ts.length ? `<div class="nb-head nb-exp${sel.t === 'exp' && sel.id === x.id ? ' sel' : ''}" data-act="open" data-t="exp" data-id="${e(x.id)}" data-step="${st(x.id)}">${EV_ICON.experiment} ${e(x.id)} explores: “${e(x.question || 'not recorded')}” · ${pl(x.sims.length, 'simulation')} ${dots(x)}${here}</div>` : '';
       return head + explore + ts.map(T => EV.nbCard(T)).join(''); }).join('');
-    const alt = S.alt || '', btn = (id, text) => `<button data-act="alt" data-id="${id}" class="${alt === id ? 'on' : ''}">${text}</button>`;
-    return `<div class="ev-card" id="s-notebook"><h2>The notebook <small>one card per ${EV.term('Test', 'test')}: the question, the plan, what was expected, what was found, the conclusion and what came next</small></h2>
+    return `<div class="ev-card" id="s-notebook"><h2>The work, step by step <small>the notebook · one card per ${EV.term('Test', 'test')}: the question, the plan, what was expected, what was found, the conclusion and what came next</small></h2>
+        <p class="sec-q">How did it test each?</p><div class="ev-bar nb-bar">${EV.replayBar()}</div>
         ${M.turns.length ? body : '<p class="sm">No record yet.</p>'}
-        <p class="sm nb-key"><i class="nb-edge" data-res="held"></i>expected and found (the check held) · <i class="nb-edge" data-res="failed"></i>expected and not found (the check failed): a result, not a warning · the small colours: who produced the line (${['model', 'harness', 'simulator'].map(b => `<span data-by="${b}"><i class="sw"></i>${b}</span>`).join(' ')}) · a number in Result opens its simulation</p></div>
-      <div class="ev-card noprint" id="s-alt"><div class="ev-bar"><b>The same tests</b> <span>${btn('list', 'as a list')} ${btn('tree', 'as a tree')}</span>${alt ? '' : '<span class="sm">closed · the notebook above shows them all</span>'}</div>
-        ${alt === 'tree' ? `<div id="s-tree">${EV.viewTree()}</div>` : ''}</div>${alt === 'list' ? EV.testsCard() : ''}`;
+        <p class="sm nb-key"><i class="nb-edge" data-res="held"></i>expected and found (the check held) · <i class="nb-edge" data-res="failed"></i>expected and not found (the check failed): a result, not a warning · the small colours: who produced the line (${['model', 'harness', 'simulator'].map(b => `<span data-by="${b}"><i class="sw"></i>${b}</span>`).join(' ')}) · a number in Result opens its simulation</p></div>`;
   },
 });
 EV.act = Object.assign(EV.act || {}, {
   nbmore(id) { const q = EV.s.nbmore = EV.s.nbmore || {}; q[id] = !q[id]; EV.draw(); },
-  alt(id) { EV.s.alt = EV.s.alt === id ? '' : id; EV.store('ev-alt', EV.s.alt); EV.draw(); },  // the reader's choice is kept, as a card's fold is
 });
