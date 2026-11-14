@@ -1,5 +1,5 @@
 // Set up and run. "New session" (the address ?tab=new, reached from Home's one button, or from a session's "Start a
-// new session from this setup": ?tab=new&from=<session>): the set-up page. On a running session's page: the banner with Stop. Everything goes through control.py's POST endpoints; the page itself writes no file.
+// new session from this setup": ?tab=new&from=<session>): the set-up page. On a running session's page: the banner (evidence_live.js) with Stop. Everything goes through control.py's POST endpoints; the page itself writes no file.
 // The operator's own simulation and sweep, on the Operator tab, are in evidence_oprun.js.
 // ======================================================================================================
 Object.assign(EV, {
@@ -30,14 +30,8 @@ Object.assign(EV, {
         return EV.go({ view: 'session', sid: id, from: null }); } });
   },
 
-  // ---- a running session: where it is, and Stop (for a session started from this server)
-  banner() {
-    const M = EV.M, row = EV.files.row || {}, e = EV.e; if (!row.running) return '';
-    const t = M.turns[M.turns.length - 1];
-    return `<div class="ev-card ev-bar ev-run"><span class="pill live">running</span> <b>${t && t.n ? 'turn ' + t.n : 'before the first turn'}</b> · ${t && t.left != null ? `${t.left} simulation${t.left === 1 ? '' : 's'} left` : 'simulations left: not recorded yet'}
-      <span class="sm">· this page refreshes by itself as records arrive; what you have open stays open</span>
-      <span class="end">${row.stoppable ? `<button data-act="stop"${EV.stopping ? ' disabled' : ''}>${EV.stopping ? 'Stopping…' : 'Stop'}</button>` : 'started from a terminal: it is stopped there'}${EV.stopMsg ? ` <span class="bad">${e(EV.stopMsg)}</span>` : ''}</span></div>`;
-  },
+  // ---- a running session: where its work is, what just arrived, and Stop (for a session started from this server): evidence_live.js
+  banner() { return EV.liveBanner(); },
 });
 EV.chg = Object.assign(EV.chg || {}, {
   nw(t) { const n = EV.nw, k = t.dataset.k; n[k] = t.type === 'checkbox' ? t.checked : t.value;  // a field never draws the page again: it would lose the cursor to its neighbour

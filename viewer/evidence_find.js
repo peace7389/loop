@@ -5,7 +5,8 @@
 // later hypothesis that follows from the test, which goes to that hypothesis's row). A failed check is a result: it has
 // no warning colour. A row opens its notebook card and brings it into view (one of the page's stated exceptions to
 // "a click never moves the page"). At most nine rows are shown, then "n more". The replay greys the rows recorded after
-// its step; a check or a verdict recorded later is absent from its row.
+// its step; a check or a verdict recorded later is absent from its row. In a running session a row whose simulations are
+// running says so, and while a reply is written that may ask a new question the table ends with one empty row.
 // ======================================================================================================
 Object.assign(EV, {
   FIND_ROWS: 9,
@@ -17,6 +18,7 @@ Object.assign(EV, {
   },
   findCard() {
     const M = EV.M, S = EV.s, e = EV.e, st = id => M.recStep[id] ?? 0, end = M.steps.length - 1, at = (k, html) => `<span data-step="${k}">${html}</span>`;
+    const now = EV.liveNow(), wait = T => !!now && now.phase === 'sims' && T.exp === now.exp;  // a running session: the tests whose simulations the simulator is working on
     const first = {}; M.tests.forEach(T => { if (!(T.hyp in first)) first[T.hyp] = T.id; });  // the row a hypothesis is first tested in
     const all = M.tests, open = S.full || S.findAll || all.length <= EV.FIND_ROWS, shown = open ? all : all.slice(0, EV.FIND_ROWS), sel = S.sel || {};
     const row = T => { const h = M.hypById[T.hyp], c = T.check, v = T.verdict, fol = T._fol || (T._fol = EV.followers(T)), fk = Math.max(v ? st(v.id) : 0, ...fol.ids.map(id => st(id)));
@@ -24,12 +26,14 @@ Object.assign(EV, {
       const out = c && c.void ? at(st(c.id), `<span class="rs" data-void="1" title="${e(EV.VOID)}">${EV.gkey('void')}void</span>${v ? ` <span class="sm" data-step="${st(v.id)}">judged ${e(v.result)}</span>` : ''}`)
         : v ? at(st(v.id), EV.verdictRes(v.result)) : at(end, `<span class="mut">${M.ended ? 'none' : 'none yet'}</span>`);
       const led = fol.ids.filter(id => first[id]).map(id => `<a data-act="findrow" data-id="${e(first[id])}" title="${e(`${id} follows from this test${fol.via ? ' (through the table ' + fol.via + ' of its experiment)' : ''}: go to its row`)}">→ ${e(id)}</a>`).join(' ');
-      return `<tr class="pick fr${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" id="fr-${e(T.id)}" data-act="find" data-id="${e(T.id)}" data-step="${st(T.exp)}"><td class="fq"><span class="fh">${e(T.hyp)}</span><span data-own="model">${q}</span></td>
-        <td class="fo">${out}</td><td class="fm">${c ? at(st(c.id), EV.measuredWords(T)) : at(end, `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`)}</td>
+      return `<tr class="pick fr${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" id="fr-${e(T.id)}" data-act="find" data-id="${e(T.id)}" data-step="${st(T.exp)}"${EV.freshAttr(T.exp)}><td class="fq"><span class="fh">${e(T.hyp)}</span><span data-own="model">${q}</span></td>
+        <td class="fo">${out}</td><td class="fm">${c ? at(st(c.id), EV.measuredWords(T)) : at(end, wait(T) ? `<span class="nowp" data-now="sims">${EV.nowDot()}its simulations are running</span>` : `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`)}</td>
         <td class="fl">${led ? at(fk, `${c && c.result === 'failed' ? '<span class="fturn" title="Its check failed, and a later hypothesis follows from it">changed course</span> ' : ''}${led}`) : ''}</td></tr>`; };
     const recorded = all.filter(T => EV.seen(T.exp)), more = recorded.length - shown.filter(T => EV.seen(T.exp)).length;  // "n more" counts only what is recorded by the replay's step
+    // while the AI writes a reply that may ask a new question: one empty row, which says so
+    const next = now && now.phase === 'reply' && !now.mode ? `<tr class="fr-slot" id="fr-next" data-slot="question"><td class="fq">${EV.nowDot()}<span class="mut">The next question, if this reply asks one</span></td><td class="fo"><span class="mut">empty</span></td><td class="fm"><span class="mut">empty</span></td><td class="fl"></td></tr>` : '';
     return `<div class="ev-card" id="s-find"><h2>What it needed to find out</h2><p class="sec-q">Which questions did it set itself, and what did it learn?</p>
-      ${all.length ? `<table class="ft"><thead><tr><th>The question</th><th>Outcome</th><th>Measured</th><th>Led to</th></tr></thead><tbody>${shown.map(row).join('')}</tbody></table>
+      ${all.length || next ? `<table class="ft"><thead><tr><th>The question</th><th>Outcome</th><th>Measured</th><th>Led to</th></tr></thead><tbody>${shown.map(row).join('')}${next}</tbody></table>
         ${more > 0 ? `<p class="sm noprint" id="find-more"><button data-act="findall">${more} more</button> ${recorded.length} tests in all</p>` : S.findAll && !S.full && all.length > EV.FIND_ROWS ? `<p class="sm noprint"><button data-act="findall">show the first ${EV.FIND_ROWS}</button></p>` : ''}
         <p class="sm">One row per ${EV.term('Test', 'test')}: one hypothesis put to one decision rule. A row opens its card in the notebook below. “Measured” is the ${EV.term('Check', 'check')}'s numbers; a check that failed is a result, not a fault.</p>`
         : `<p class="sm">${M.ended ? 'This session put no hypothesis to a test.' : 'No test yet.'}</p>`}</div>`;

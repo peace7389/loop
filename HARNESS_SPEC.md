@@ -1241,6 +1241,40 @@ sentence per section 1 to 6 (five without a final report), built from the
 records by a fixed rule, at the head of its section, with back, next and
 leave; leaving it puts the page back as it was.
 
+*A running session, shown as it is made* (`evidence_live.js`; **DECISION
+2026-11-14**, the operator: show the evidence as it is generated, as a
+skeleton of the steps whose places fill in, with the content of each place to
+read and with where the work is). No new section: the sections above are the
+skeleton. A place whose record is not there is drawn empty (a dashed square
+in section 2; the word "empty" elsewhere) and fills when its record arrives:
+a check or a verdict a test does not have yet, the simulations an experiment
+waits for, the final report (its six parts in section 5), and, while a reply
+is written, one empty row in section 3 and one empty card of six lines in
+the notebook. A place that is never filled stays drawn empty after the end
+("No verdict was given", "No final report was given"). Where the work is, is
+read from the records alone: no record, the harness is preparing the session;
+an experiment without its results, the simulator is working on its
+simulations; the newest record is a turn's first, the AI is writing its
+reply; anything else, the harness is preparing the next turn. The banner,
+which stays under the header strip, says it in one sentence with how long the
+newest record has been the newest (the server's `Date` against the ledger's
+`Last-Modified`), what arrived at the last reading, the switch "follow the
+work" (off unless the reader turns it on: the page does not move by itself)
+and Stop. The AI's reply arrives whole, so while it is written the mark stands
+on every place that reply may fill, and the sentence says so; a draft is never
+read (of a draft record only its type, to say that a reply was asked for
+again). New records are marked for half a minute. Every two seconds the page
+asks for the ledger's size (a HEAD request) and reads the session again only
+when it has grown. Section 6 says "not yet" where there is nothing to count.
+Under each result the notebook says how long before its simulations came
+back the decision rule was stated, or that the rule names a simulation that
+had already run. The key of section 2 says whose form it is: the rows are the
+harness's form of a turn, told to the AI in its prompt; what fills them, how
+many turns there are and when it stops are the AI's. `ev_live.py` checks it:
+two recorded sessions played back record by record as if running, each stage
+against a recount of those records, and one real session followed from the
+set-up page.
+
 *Clicks that move the page* are stated in "How to read this page": a turn's
 name in section 2, a row of section 3, a box of the structure map, a line of
 section 6 that names a section, and the walk. No other click does.
@@ -1278,7 +1312,7 @@ line at the foot of every view.
 | Place | What is there |
 |---|---|
 | Home | A title line with the one action that belongs there, New session; the results so far as a table, one row per brief (sessions, with a final report, meet the brief's conditions, largest gap to the best, not scored; a cell with nothing to count says "not scored"); the table of every session, sortable and filterable, a running one first, where a row opens its session and shows, on one line, its checks in order followed by the counts of held and failed, how many of its simulations were returned from an earlier one ("returned"), and how many no decision rule names ("not named by a rule") |
-| New session | The set-up page (`?tab=new`): the seven blocks of "The setting" as forms, the strip of the session to be, Start (section 7). While a session runs: a banner with turn, simulations left and Stop; the page refreshes by itself |
+| New session | The set-up page (`?tab=new`): the seven blocks of "The setting" as forms, the strip of the session to be, Start (section 7). While a session runs: the banner of the live view (above): where the work is, what just arrived, "follow the work" and Stop; the page reads new records by itself |
 | A session | Header strip (always visible, labelled fields on one line); the Overview, first and at full width, one band that holds only the answer; "The system"; "What this session is made of"; then, in the left column beside the detail pane, "The final report" (the model's own words: its claims as rows of full sentences, its explanation); the notebook, one card per test, and under it, closed by default, the same tests as a list or as a tree; highlights; best so far; the work; "How to read this page" |
 | The work | Session flow (three lanes: model, harness, simulator) or Hypothesis map (arrows from `follows_from`). The tree (turn, experiment, test, simulation; each row names its kind in words: "experiment X1", "test of H1", "simulation S2") is behind the notebook's switch. One selection is shared by the notebook, the tree, the flow and the map. Replay greys everything after the chosen step in all of them |
 | Detail pane | On the right, beside all of the above: the work-log card of a turn, the flow chart of one test, the result panel of a simulation, the chart of an experiment. A second tab holds the review queue and the sign-off |
@@ -1906,6 +1940,7 @@ untracked until they say otherwise.
 | 2026-11-13 | `OVERVIEW_REDESIGN.md`: the Overview as one band, the model's own words as the card "The final report". `FORMAT_FIX.md`: the cause of designs without `weightUdp` confirmed at the model server; the params object built from the brief with every knob required; a question with each hypothesis; `answers.jsonl`; a plan that cannot test anything is refused part by part; `audit.py` and the void marks on the page; six new sessions on `two-hosts-open` (s020 to s025). |
 | 2026-11-14 | `NOTEBOOK_VIEW.md`, Part 3, Step C, begun at the operator's word: new settings of the simulator, one at a time, each with an operator check that predicts a number, and with the earlier checks byte-identical at the defaults. First setting (build 5): each queue's own length, `queuePktsUdp` and `queuePktsTcp`; check 12; a brief may leave them out, fix them or open them to the model; the picture and the brief editor show and set them. Still to do, each waiting for the operator's word: the TCP initial window, a maximum rate per flow, strict priority as a third scheduling policy. |
 | 2026-11-14 | `READABLE_PAGE.md`, parts 1 to 8: the session page in three levels of detail and in the order of a reader's questions; the setting and the set-up page as one design of seven blocks; "What it needed to find out"; the final report as one argument, with a required role for each claim; "How it worked as a researcher"; design rules checked by a script; a guided walk. |
+| 2026-11-14 | The live view of a running session, at the operator's word: the page's sections as a skeleton whose empty places fill as records arrive, one sentence that says where the work is, and the time between a decision rule and its result under each result. No change to the harness: everything is read from the ledger. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -1956,17 +1991,18 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 231 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 172 | the address, loading, the top bar, clicks, replay, review marks |
-| `evidence_data.js` | 175 | a session's files read into what the page draws; the definitions; derives the tests |
+| `index.html` | 241 | the shell: colours, styles, the list of scripts |
+| `evidence.js` | 174 | the address, loading, the top bar, clicks, replay, review marks |
+| `evidence_data.js` | 176 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
 | `evidence_read.js` | 88 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
-| `evidence_notebook.js` | 79 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
+| `evidence_notebook.js` | 97 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
-| `evidence_run.js` | 55 | the New session panel; the banner of a running session |
+| `evidence_run.js` | 49 | the New session panel |
+| `evidence_live.js` | 113 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
 | `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 127 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 119 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
+| `evidence_glance.js` | 134 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_page.js` | 125 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 62 | the key moments of a session, by fixed rules: marks on the notebook (once the card “Highlights”) |
 | `evidence_best.js` | 82 | best so far |
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |

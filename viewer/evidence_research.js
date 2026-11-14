@@ -86,12 +86,17 @@ Object.assign(EV, {
     return out;
   },
   researchCard() {
-    const M = EV.M, S = EV.s, e = EV.e, lines = EV.research(M, EV.seen, S.op ? { row: EV.files.row, random: EV.files.score ? EV.randomOf : null } : null);
+    const M = EV.M, S = EV.s, e = EV.e, all = EV.research(M, EV.seen, S.op ? { row: EV.files.row, random: EV.files.score ? EV.randomOf : null } : null), run = !!EV.liveNow();
+    // a running session: a line that has nothing to count yet says "not yet" (it is not "absent"); a count is the count so far
+    const noRep = q => (q.key === 'limits' || q.key === 'claims') && !M.report, none = q => ((q.word === 'absent' || q.word === 'not applicable') && !q.of && !q.n) || (q.key === 'repeat' && !q.of) || (q.key === 'beyond' && !M.exps.some(x => x.by !== 'harness'));
+    const early = q => q.word === 'not recorded' && (((q.key === 'question' || q.key === 'course') && !M.hyps.length) || (q.key === 'rival' && !M.tests.some(T => T.rule)) || (q.key === 'first' && !M.tests.some(T => T.rule && T.sims.length)));  // a field that no record could hold yet is not "not recorded"
+    const lines = !run ? all : all.map(q => (early(q) ? { ...q, word: 'not yet', text: `not yet: no ${q.key === 'rival' ? 'decision rule' : q.key === 'first' ? 'result of a decision rule' : 'hypothesis'} so far` } : q.op || q.word === 'not recorded' ? q : noRep(q) ? { ...q, word: 'not yet', text: 'not yet: the final report is not written' }
+      : none(q) ? { ...q, word: 'not yet', text: `not yet: ${q.key === 'repeat' ? 'no test' : q.key === 'beyond' ? 'no experiment of its own' : String(q.text).replace(/^not applicable: /, '').replace(/ yet$/, '')} so far`, links: '' } : { ...q, text: `${q.text} · so far` }));
     const row = q => `<tr data-line="${q.key}" data-word="${q.word}"${q.n != null ? ` data-n="${q.n}"` : ''}${q.of != null ? ` data-of="${q.of}"` : ''}${q.op ? ' data-by="operator"' : ''}><td class="rs-does" title="${e(EV.RS_RULE[q.key])}">${q.op ? '<i class="sw"></i>' : ''}${e(EV.RS_DOES[q.key])}</td>
       <td class="rs-did"><span class="rs-text">${q.text}</span>${q.links ? `<div class="sm rs-links">${q.links}</div>` : ''}</td><td class="rs-word"><span class="rs-w" data-w="${q.word.replace(' ', '-')}">${q.word}</span></td><td class="rs-rev noprint">${EV.reviewBox('rs:' + q.key)}</td></tr>`;
     return `<div class="ev-card" id="s-research"><h2>How it worked as a researcher <small>counted by the page from the records; for a person to judge</small></h2><p class="sec-q">Did it work the way a researcher does?</p>
       <table class="rsc"><thead><tr><th>What a researcher does</th><th>What this session did</th><th></th><th class="noprint">Reviewer</th></tr></thead><tbody>${lines.map(row).join('')}</tbody></table>
-      <p class="sm">Each count follows a fixed rule: rest the pointer on a line's name to read it. <span class="rs-w" data-w="present">present</span>, <span class="rs-w" data-w="partly">partly</span> and <span class="rs-w" data-w="absent">absent</span> are findings, not errors. The page gives no overall verdict.${S.op ? ' The last two lines are operator-only.' : ''}</p></div>`;
+      <p class="sm">Each count follows a fixed rule: rest the pointer on a line's name to read it. <span class="rs-w" data-w="present">present</span>, <span class="rs-w" data-w="partly">partly</span> and <span class="rs-w" data-w="absent">absent</span> are findings, not errors.${run ? ' <span class="rs-w" data-w="not-yet">not yet</span>: nothing to count so far; the session is still running.' : ''} The page gives no overall verdict.${S.op ? ' The last two lines are operator-only.' : ''}</p></div>`;
   },
   // the same lines as columns of the Compare tab: one row per ticked session
   researchCompare(list) {

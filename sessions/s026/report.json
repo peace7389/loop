@@ -1,0 +1,102 @@
+{
+ "goal": "Maximize measured udp_loss_frac subject to udp_loss_frac <= 0.01, as stated in the brief.",
+ "recommendation": {
+  "weightUdp": 0.30335,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 2,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 297080000,
+  "tcp_goodput_bps": 671512896,
+  "udp_loss_frac": 0.009744,
+  "drops_band0": 522,
+  "drops_band1": 18,
+  "tcp_retrans": 18,
+  "link_util": 1.000002,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.30335
+ },
+ "explanation": "The UDP stream has a fixed demand, and the scheduler's configured UDP share must be close to the UDP demand to avoid loss. The sweep in E1 and the check C1 place the no-loss threshold between weightUdp=0.306 and 0.308. Just below that threshold, UDP loss becomes controllable. TcpCubic is important because it saturates the TCP share and creates queue pressure on the UDP queue; BBR and Vegas leave spare link capacity and produced zero UDP loss at the same weight (E2, C3, V3). At weightUdp=0.30335 with TcpCubic, seed=1, and queuePkts=100, the measured UDP loss is 0.009736 for duration=5 and 0.009744 for duration=2 (E2). The duration=2 run is the best observed feasible value because it is closer to the 0.01 constraint while still satisfying it. Queue sizes from 50 to 150 do not change the measured UDP loss at this weight, while queuePkts=1000 lowers it, so queuePkts=100 is the tested setting that preserves the higher feasible loss (E2, E3, C4, C5, C7, V4, V5, V7). Fine weight changes around 0.30330 to 0.30340 form plateaus: weights 0.30330 to 0.30333 give 0.010819, which violates the constraint, while weights 0.30334 to 0.30340 give 0.009736, which is feasible (E2, E3, C2, C6, V2, V6). A larger-queue, longer-duration sweep did not find a better feasible point near 0.01 (E4, C8). Therefore the recommended setting is the best observed feasible setting.",
+ "holds_when": "The fixed UDP rate remains 300 Mbps, the link remains 1 Gbps, the scheduler behaves as observed, TcpCubic saturates its configured TCP share, seed=1 is used, and the goal is evaluated from the measured outputs over the chosen duration.",
+ "breaks_when": "A different seed or start-time distribution shifts the loss plateau; a longer or fixed measurement duration may make duration=2 less appropriate; a TCP variant that underuses the link, such as BBR or Vegas, can remove UDP loss; very large queuePkts or different duration regimes can change measured loss; or if the goal requires robustness across seeds rather than the best measured value for seed=1.",
+ "claims": [
+  {
+   "text": "The no-loss UDP threshold is between weightUdp=0.306 and 0.308; below it UDP loss rises as weightUdp decreases.",
+   "role": "background",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "TcpCubic saturates the TCP share and creates UDP queue pressure, while BBR and Vegas leave spare capacity and produce zero UDP loss at weightUdp=0.30335.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "C3",
+    "V3"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.30335, TcpCubic, seed=1, queuePkts=100, the measured UDP loss is 0.009736 for duration=5 and 0.009744 for duration=2; duration=2 is the best observed feasible value.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "V4"
+   ]
+  },
+  {
+   "text": "Queue sizes 50 through 150 do not change measured UDP loss at weightUdp=0.30335, while queuePkts=1000 lowers it; queuePkts=4 gives zero UDP loss but large TCP drops.",
+   "role": "limits",
+   "evidence": [
+    "E2",
+    "E3",
+    "C4",
+    "C5",
+    "C7",
+    "V4",
+    "V5",
+    "V7"
+   ]
+  },
+  {
+   "text": "Fine weightUdp changes around 0.30330 to 0.30340 are plateaued: 0.30330 to 0.30333 give 0.010819 and violate the constraint, while 0.30334 to 0.30340 give 0.009736 and are feasible.",
+   "role": "limits",
+   "evidence": [
+    "E2",
+    "E3",
+    "C2",
+    "C6",
+    "V2",
+    "V6"
+   ]
+  },
+  {
+   "text": "The queuePkts=1000, duration=30 sweep did not find a feasible point near 0.01; all tested weights from 0.30295 to 0.30312 exceeded 0.01.",
+   "role": "limits",
+   "evidence": [
+    "E4",
+    "C8"
+   ]
+  },
+  {
+   "text": "The recommendation is the best observed feasible setting under the tested seeds, durations, queue sizes, and weights, not a proven global optimum.",
+   "role": "limits",
+   "evidence": [
+    "E2",
+    "E3",
+    "E4",
+    "C8"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether other seeds or start-time offsets can produce a feasible udp_loss_frac closer to 0.01.",
+  "Whether a weight slightly above 0.30312 with queuePkts=1000 and duration=30 could be feasible and closer to 0.01.",
+  "Whether duration=2 is acceptable if the intended goal is steady-state behavior rather than the measured output over a short window.",
+  "Whether the exact scheduler borrowing behavior when one queue is underfilled can be exploited more directly with other queue sizes or durations."
+ ]
+}

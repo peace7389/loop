@@ -7,6 +7,7 @@
 //   3 · inspect       a test's flow chart, the exact decision rule and numbers, a simulation's settings and charts, the
 //                     review queue: the detail pane on the right, opened by a click. Nothing of level 3 stands at level
 //                     1 or 2 except as something to click.
+// A session that is running is shown as it is made (evidence_live.js): the same sections, with empty places that fill.
 // The analysis views are folded under "Looking closer" (evidence_closer.js); "How to read this page" is last. The switch
 // "Brief / Full" in the header strip opens every folded section at once; the browser remembers it.
 // ======================================================================================================
@@ -65,7 +66,10 @@ Object.assign(EV, {
     const M = EV.M, S = EV.s, e = EV.e, rep = EV.repNow(), m = M.meta || {}, live = S.step == null || S.step >= M.steps.length - 1, txt = EV.repTxt;
     const head = `<h2>What it proposes</h2><p class="sec-q">What does it recommend, on what evidence, and where does that stop being true?</p>`;
     const open = `<p class="sm noprint" style="margin-top:10px">open on the right: ${rep ? '<a data-act="open" data-t="report" data-id="report">the full final report</a> · ' : ''}<a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p>`;
-    if (!rep) return `<div class="ev-card" id="s-proposes">${head}${live ? `<p id="ov-none"><b>No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>` : '<p id="ov-none" class="sm">No final report by this step.</p>'}${open}${EV.shareBar()}</div>`;
+    // a running session: the six parts of the report as empty places, which the final report fills when it arrives
+    const now = EV.liveNow(), due = !!now && now.phase === 'reply', parts = now ? `<div id="pr-slots" data-slot="report">${[['The aim', 'what it set out to find'], ['The proposed adjustment', 'the settings it recommends, beside where the session started'], ['The expected result', 'what it expects those settings to give'], ['Because', 'its claims, each with its evidence'], ['But', 'where the recommendation stops being true'], ['The explanation', 'in its own words']]
+      .map(([t, says], i) => `<div class="pr-b pr-slot"><h3><span class="st-n">${i + 1}</span>${t}</h3><p class="sm"><span class="mut">empty</span> · ${says}</p></div>`).join('')}</div>` : '';
+    if (!rep) return `<div class="ev-card" id="s-proposes">${head}${live ? `<p id="ov-none"><b>No final report${M.ended ? '' : ' yet'}.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : `The session is still running${due ? `: ${now.mode ? 'the final report is due in the reply being written' : 'the reply being written may hold it'}` : ''}.`}</p>${parts}` : '<p id="ov-none" class="sm">No final report by this step.</p>'}${open}${EV.shareBar()}</div>`;
     const R = EV.recParts(), X = EV.expRows(rep), kn = (M.brief && M.brief.knobs) || {}, g = (M.brief && M.brief.goal) || {}, lab = k => EV.label(k, (kn[k] || {}).meaning);
     // 1 · the aim, and who set it: the brief's goal in words when the operator gave one; the goal the AI states in its report when the brief left it open
     const aim = g.kind === 'given' ? `<p id="pr-aim" data-aim="given"><b>Find ${EV.aimWords(g) || 'not recorded'}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p><p class="sm lc4" id="ov-goal" data-own="model" title="The goal as the final report states it">${txt(rep.goal)}</p>`
@@ -106,6 +110,8 @@ Object.assign(EV, {
         <li>The session flow, the hypothesis map, the tree and the tests list: click an item or a row to open it. The session's summary: click any item on the left to open it there.</li>
         <li>An experiment's panel: click a test or a simulation to open it. A simulation's charts over time: point at a chart, and the same moment is marked in all of them.</li>
         <li>The Operator tab, the sweep: click a numbered circle to open that simulation; a dark circle stands for several at one place, and a click lists them under the map.</li>
+        <li>A session that is running: the banner at the top says where the work is, and for how long. A dashed square, or the word “empty”, is a place whose record is not there yet; a pulsing dot marks the places the work can fill next.</li>
+        <li>The page reads new records by itself and marks them for half a minute. It does not move by itself unless “follow the work” is on. A place that is never filled stays drawn empty after the session ended.</li>
         <li>Home: click a row to open that session; click a column title to sort. Compare sessions: tick two or more to see them side by side; click a first test that held to open it in its session.</li></ul>
       <p class="sm">“Work log”: the sequence of the model's steps and its stated reasons. “Operator columns”: anything operator-only, shown when the switch at the top is on.</p></details>`;
   },

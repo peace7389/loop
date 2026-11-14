@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s026 --brief go --draft on --policy share --baseline on
+session s026 (brief go): /home/chunguck.kim/project/sessions/s026
+stopped: session s026, simulation limit reached, 40 simulations, 5 turns, ledger /home/chunguck.kim/project/sessions/s026/ledger.jsonl

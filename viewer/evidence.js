@@ -73,12 +73,13 @@ const EV = {
       if (sig === EV.sig) return; EV.sig = sig; return EV.draw(); }
     const base = `../sessions/${S.sid}/`, sig = JSON.stringify([S.sid, row.records, row.running, row.how, S.view, row.score, row.policy]);
     if (sig === EV.sig) return; EV.sig = sig;
-    const [led, meta, rep, idx, score, marks] = await Promise.all([EV.get(base + 'ledger.jsonl'), EV.json(base + 'session.json'), EV.json(base + 'report.json'), EV.get(base + 'runs/index.json'),
+    const [led, meta, rep, idx, score, marks] = await Promise.all([EV.liveGet(base + 'ledger.jsonl'), EV.json(base + 'session.json'), EV.json(base + 'report.json'), EV.get(base + 'runs/index.json'),
       row.score ? EV.json(`../checks/scores/${S.sid}.json`) : null, row.review && row.review.n ? EV.json(`../checks/reviews/${S.sid}.json`) : null]);
     // the scheduling policy comes from control.py only: it withholds a policy the harness chose until the session is scored
     EV.files = { row, score, index: EV_DATA.lines(idx), policy: row.policy || null, key: row.brief ? await EV.json(`../checks/keys/${row.brief}.json`) : null };
     EV.marks = marks || {}; EV.marksFor = S.sid;
     EV.M = EV_DATA.build({ id: S.sid, ledger: EV_DATA.lines(led), session: meta, report: rep, running: !!row.running });
+    EV.liveLoaded(led);  // which records are new since the last reading (evidence_live.js)
     const linked = S.item != null && S.view === 'session'; if (linked) { S.sel = S.item ? EV.selOf(EV.M, S.item) : null; S.item = null; }  // from the address: on arrival, and on Back
     EV.draw(); if (linked && S.sel) EV.reveal();
   },
@@ -105,6 +106,7 @@ const EV = {
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
     if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
     if (window.scrollY !== y) window.scrollTo(0, y);
+    if (S.view === 'session') EV.liveAfter();  // a running session: the banner's height, the marks of what just arrived
     if (S.view === 'session' && EV.afterWalk) EV.afterWalk();  // the guided walk: its box at the head of its section, which comes into view
   },
 

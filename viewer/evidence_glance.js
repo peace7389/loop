@@ -5,6 +5,9 @@
 // is drawn here at all: a later item is an empty dot, with no text, state or title; the key and the sentence under the
 // table name only what is recorded by then. The card is not printed (the page prints four parts, and this is not one).
 // It folds like the card "The system": a "fold" button in its heading, and the browser remembers it.
+// A place whose record is not there is drawn as an empty place (a dashed square, EV.slot): a check or a verdict a test
+// does not have, the final report; in a running session also the simulations an experiment waits for and the places the
+// reply being written may fill, marked as where the work is (evidence_live.js). Not during the replay.
 // Under each turn's name its header says how many simulations were left at its start ("not recorded" before s008).
 // ======================================================================================================
 Object.assign(EV, {
@@ -56,11 +59,13 @@ Object.assign(EV, {
     // folded, its line carries its content: the counts, from the records
     if (fold) return `<div class="ev-card noprint" id="s-made"><h2>The session at a glance <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed, n.void)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, live = S.step == null, sel = S.sel || {}, info = EV.glInfo(S.sel), st = live ? null : EV_DATA.stateAt(M, S.step);
+    // a running session (evidence_live.js): where the work is, the places a reply may fill, the simulations an experiment still waits for
+    const now = EV.liveNow(), reply = c => !!now && now.phase === 'reply' && !now.mode && c.t.n === now.turn, pend = c => (now && (now.phase === 'sims' || now.phase === 'baseline') && c.x && c.x.id === now.exp ? Math.max(0, (c.x.runs.length || 1) - c.x.sims.length) : 0);
     const claim = S.claim ? M.claims[S.claim - 1] : null, hitT = new Set(claim ? claim.tests : []), hitH = new Set(claim ? claim.hyps : []);
     const gap = '<i class="gm"></i>';   // an empty place
     const mark = (m, t, id, rec, title, cls) => { if (!seen(rec)) return '<i class="gm gp"></i>';  // m: the kind of mark (EV.GK), with "-again" for one drawn before
       const on = t === 'hyp' ? info.hyps.has(id) : t === 'test' ? info.tests.has(id) : t === 'sim' ? info.sims.has(id) : sel.t === t, hit = t === 'hyp' ? hitH.has(id) : t === 'test' && hitT.has(id);
-      return `<a class="gm ${EV.GC[m.replace('-again', '')] || ''}${m.endsWith('-again') ? ' ag' : ''} ${cls || ''}${on ? ' on' : ''}${hit ? ' hit' : ''}" data-act="open" data-t="${t}" data-id="${e(id)}" data-m="${m}" title="${e(title)}">${EV.gk(m)}</a>`; };
+      return `<a class="gm ${EV.GC[m.replace('-again', '')] || ''}${m.endsWith('-again') ? ' ag' : ''} ${cls || ''}${on ? ' on' : ''}${hit ? ' hit' : ''}" data-act="open" data-t="${t}" data-id="${e(id)}" data-m="${m}"${EV.freshAttr(rec)} title="${e(title)}">${EV.gk(m)}</a>`; };
     // ---- the columns: every turn recorded by the replay's step; its experiment; the tests of that experiment, one place each
     const cols = M.turns.filter(t => live || (t.steps[0] ? t.steps[0].k : 0) <= S.step).map(t => { const x = t.exp && seen(t.exp.id) ? t.exp : null, ts = x ? M.tests.filter(T => T.exp === x.id) : [];
       const own = t.hyps.filter(h => seen(h.id) && !ts.some(T => T.hyp === h.id));  // stated in this turn and not tested in it
@@ -69,7 +74,7 @@ Object.assign(EV, {
     // with which every turn fits the width of the page; with none, the smallest, and the table scrolls sideways. A column
     // with more tests than fit in one line wraps, the same way in every row, so a test still stands in one line downwards.
     const anyLeft = cols.some(c => c.t.n && c.t.left != null);  // a session that records the simulations left at no turn says so once, in the key, not under every turn
-    const room = document.getElementById('ev').clientWidth - 76, places = (c, cap, per) => Math.max(Math.min(c.ts.length + c.own.length, cap), Math.min(c.x ? c.x.sims.length : 0, per), 1);
+    const room = document.getElementById('ev').clientWidth - 76, places = (c, cap, per) => Math.max(Math.min(c.ts.length + c.own.length + (reply(c) ? 1 : 0), cap), Math.min(c.x ? c.x.sims.length + pend(c) : 0, per), 1);
     const fit = [[17, 8, 6, 1], [15, 8, 6, 1], [13, 6, 5, 1], [13, 6, 4, 0], [11, 5, 4, 0]].find(([w, cap, per, notes]) => (notes ? 370 : 215) + cols.reduce((a, c) => a + Math.max(c.t.n && c.t.left == null && anyLeft ? 66 : 52, places(c, cap, per) * w) + 25, 0) <= room), fits = !!fit;  // 66: room for "not recorded" under the turn's name
     const [W, cap, per, notes] = fit || [11, 5, 4, 0]; cols.forEach(c => { c.w = W * places(c, cap, per); });
     // the bands: every turn in one table where they fit; otherwise as many turns to a band as the width holds
@@ -78,19 +83,19 @@ Object.assign(EV, {
     const hm = (h, first, c) => { const s = st ? st[h.id] || 'open' : h.state;  // a hypothesis is drawn in full once, where it was stated; small and faint wherever it stands again
       return mark(!first ? 'hyp-again' : s === 'dropped' ? 'dropped' : 'hyp', 'hyp', h.id, first ? h.id : c.x.id, first ? `${h.id} · ${s}` : `${h.id}, ${h.turn === c.t.n ? 'put to another decision rule' : `stated in turn ${h.turn} and tested here`}`); };
     const cell = {
-      hyp: c => c.ts.map((T, i) => { const h = M.hypById[T.hyp]; return h ? hm(h, h.turn === c.t.n && c.ts.findIndex(q => q.hyp === h.id) === i, c) : gap; }).concat(c.own.map(h => hm(h, true))).join(''),
-      rule: c => c.ts.map(T => (T.rule ? mark('rule', 'test', T.id, T.exp, `the decision rule for ${T.hyp}`) : gap)).join(''),
-      sim: c => (!c.x ? '' : `<a class="gx${sel.t === 'exp' && sel.id === c.x.id ? ' on' : ''}" data-act="open" data-t="exp" data-id="${e(c.x.id)}" title="experiment ${e(c.x.id)}">${e(c.x.id)}</a>`
-        + c.x.sims.map(q => mark(q.same_as ? 'sim-returned' : 'sim', 'sim', q.id, q.id, `${q.id} · ${q.label || ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`, q.error ? 'bad' : '')).join('')),
-      check: c => c.ts.map(T => { const k = T.check; return k ? mark(k.result === 'held' || k.result === 'failed' || k.result === 'void' ? k.result : 'not-checked', 'test', T.id, k.id, k.void ? `${k.id} · ${EV.VOID}` : `${k.id} · ${k.result}`) : gap; }).join(''),
+      hyp: c => c.ts.map((T, i) => { const h = M.hypById[T.hyp]; return h ? hm(h, h.turn === c.t.n && c.ts.findIndex(q => q.hyp === h.id) === i, c) : gap; }).concat(c.own.map(h => hm(h, true))).join('') + (reply(c) ? EV.slot('hyp', 'A new hypothesis, if this reply states one', true) : ''),
+      rule: c => c.ts.map(T => (T.rule ? mark('rule', 'test', T.id, T.exp, `the decision rule for ${T.hyp}`) : gap)).join('') + (reply(c) ? EV.slot('rule', 'A decision rule, if this reply sets up a test', true) : ''),
+      sim: c => (!c.x ? (reply(c) ? EV.slot('sim', 'Simulations, if this reply sets up an experiment', true) : '') : `<a class="gx${sel.t === 'exp' && sel.id === c.x.id ? ' on' : ''}" data-act="open" data-t="exp" data-id="${e(c.x.id)}" title="experiment ${e(c.x.id)}">${e(c.x.id)}</a>`
+        + c.x.sims.map(q => mark(q.same_as ? 'sim-returned' : 'sim', 'sim', q.id, q.id, `${q.id} · ${q.label || ''}${q.same_as ? ' · returned from ' + q.same_as : ''}`, q.error ? 'bad' : '')).join('') + Array(pend(c)).fill(EV.slot('sim', `A simulation of ${c.x.id}: the simulator is working on it`, true)).join('')),
+      check: c => c.ts.map(T => { const k = T.check; return k ? mark(k.result === 'held' || k.result === 'failed' || k.result === 'void' ? k.result : 'not-checked', 'test', T.id, k.id, k.void ? `${k.id} · ${EV.VOID}` : `${k.id} · ${k.result}`) : live && T.rule ? EV.slot('check', pend(c) ? 'Its check: made when its simulations are back' : M.ended ? 'Not checked' : 'Not checked yet', pend(c) > 0) : gap; }).join(''),
       verdict: c => c.ts.map((T, i) => { const v = T.verdict, odd = v && EV.contradicts(v, T.check ? [T.check] : []), kind = v && ['supported', 'refuted'].includes(v.result) ? v.result : 'inconclusive';
         const again = v && c.ts.findIndex(q => q.verdict === v) !== i;  // one verdict for a hypothesis put to several decision rules: in full once, small and faint under the others
-        return v ? mark(kind + (again ? '-again' : ''), 'test', T.id, v.id, `${v.id} · ${v.result}, given in turn ${v.turn}${again ? ' · the same verdict: one hypothesis, several decision rules' : ''}${v.voidOnly ? ' · ' + EV.RESTS : ''}${odd ? ' · disagrees with its check' : ''}`, odd ? 'odd' : '') : gap; }).join(''),
-      report: c => (c.t.report ? mark('report', 'report', 'report', c.t.report.id, 'the final report') : ''),
+        return v ? mark(kind + (again ? '-again' : ''), 'test', T.id, v.id, `${v.id} · ${v.result}, given in turn ${v.turn}${again ? ' · the same verdict: one hypothesis, several decision rules' : ''}${v.voidOnly ? ' · ' + EV.RESTS : ''}${odd ? ' · disagrees with its check' : ''}`, odd ? 'odd' : '') : live ? EV.slot('verdict', !M.ended ? 'Not judged yet' : M.hypById[T.hyp] && M.hypById[T.hyp].verdict ? 'No verdict here: the hypothesis was tested again first' : 'No verdict was given', !!now && now.phase === 'reply' && now.mode !== 'report' && !!T.check) : gap; }).join(''),
+      report: c => (c.t.report ? mark('report', 'report', 'report', c.t.report.id, 'the final report') : live && !M.report && c === cols[cols.length - 1] ? EV.slot('report', M.ended ? 'No final report was given' : 'The final report: not written yet', !!now && now.phase === 'reply') : ''),
     };
     const row = (by, icon, term, word, count, note, k, cs, first) => `<tr data-by="${by}" data-row="${k}"><th><span class="gi">${EV.gk(icon)}</span>${EV.term(term, word)}${first ? ` <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}` : ''}</th>${cs.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
     const head = cs => cs.map(c => { const r = c.t.malformed.concat(c.t.refusals).filter(q => seen(q.id)).length;
-      return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="turn" data-t="log" data-id="${c.t.n}" title="${c.t.n ? `Turn ${c.t.n}: open its work log and go to it in the notebook` : 'The start: go to it in the notebook'}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? `<span class="grf warnc" data-refused="${r}" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">${r}</span>` : ''}${
+      return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="turn" data-t="log" data-id="${c.t.n}" title="${c.t.n ? `Turn ${c.t.n}: open its work log and go to it in the notebook` : 'The start: go to it in the notebook'}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${now && now.turn === c.t.n ? EV.nowDot('The work is here: ' + EV.liveSay(now)) : ''}${r ? `<span class="grf warnc" data-refused="${r}" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">${r}</span>` : ''}${
         c.t.n && anyLeft ? `<div class="gleft" data-left="${c.t.left ?? ''}" title="${c.t.left == null ? 'How many simulations were left at the start of this turn is not recorded (sessions before s008)' : `${c.t.left} simulation${c.t.left === 1 ? ' was' : 's were'} left at the start of turn ${c.t.n}`}">${c.t.left == null ? EV.nr : c.t.left + ' left'}</div>` : ''}</td>`; }).join('');
     const has = f => cols.some(f), res = k => M.checks.some(q => q.result === k && seen(q.id)), vd = k => M.recs.some(r => r.type === 'verdict' && r.body.result === k && seen(r.id));  // the key names a sign only once one is drawn
     const K = EV.gkey, key = [[K('held') + 'held', res('held')], [K('failed') + 'failed', res('failed')], [K('void') + EV.VOID, res('void')], [K('supported') + 'supported', vd('supported')], [K('refuted') + 'refuted', vd('refuted')], [K('inconclusive') + 'inconclusive', vd('inconclusive')],
@@ -106,10 +111,12 @@ Object.assign(EV, {
         ${row('harness', 'held', 'Check', 'Checks', n.check, M.old ? EV.nr : 'the harness applies each rule', 'check', cs, !i)}
         ${row('model', 'supported', 'Verdict', 'Verdicts', n.verdict, 'the AI\'s judgments', 'verdict', cs, !i)}
         ${row('model', 'report', 'Final report', 'Final report', n.report, 'the AI\'s answer', 'report', cs, !i)}</tbody></table>`;
+    const tables = bands.map(table).join(''), blank = tables.includes('data-slot=');  // the key names the empty place and the mark of the work only where one is drawn
+    const more = `${blank ? `<span id="gl-slot">${EV.slot('eg', 'an empty place')}an empty place: ${M.ended ? 'never given' : 'not there yet'}</span>` : ''}${now ? `<span id="gl-now">${EV.nowDot()} where the work is now${now.phase === 'reply' ? ': the places this reply may fill' : ''} · a further turn appears only if the AI goes on</span>` : ''}`;
     return `<div class="ev-card noprint" id="s-made"><h2>The session at a glance <small>what this session is made of · one mark per item · a column is one ${EV.term('Turn', 'turn')}, read downwards · ${M.old ? 'checks ' + EV.nr : `<span id="gl-tally">${EV.term('Check', 'checks')} ${EV.tally(n.held, n.failed, n.void)}</span>`}${bands.length > 1 ? ` · <span id="gl-bands">the ${cols.length} turns continue over ${bands.length} bands of rows</span>` : ''}</small> ${foldBtn}</h2><p class="sec-q">What happened overall?</p>
-      <div class="gl-scroll" data-bands="${bands.length}">${bands.map(table).join('')}</div>
+      <div class="gl-scroll" data-bands="${bands.length}">${tables}</div>
       <p class="gl-say" id="gl-say" data-own="model">${EV.glSay(S.sel)}</p>
-      <p class="sm gl-key">${key}<span>the stripe of a row: who produced it</span></p></div>`;
+      <p class="sm gl-key">${key}${more}<span>the stripe of a row: who produced it</span><span id="gl-form">the rows are the harness’s form of a turn, told to the AI in its prompt; what fills them is the AI’s</span></p></div>`;
   },
 
   // pointing at a mark: what belongs with it is marked, and the line below says what it is; away from the marks, the selected item again

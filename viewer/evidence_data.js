@@ -36,7 +36,8 @@ const EV_DATA = {
   build(f) {
     const D = EV_DATA, recs = f.ledger || [], byId = Object.fromEntries(recs.map(r => [r.id, r])), pos = Object.fromEntries(recs.map((r, i) => [r.id, i]));
     const of = t => recs.filter(r => r.type === t), meta = f.session || null, brief = meta && meta.given ? meta.given : null;
-    const multi = recs.some(r => r.type === 'simulation');  // the format with experiments of several simulations
+    // the format with experiments of several simulations: also a running session whose first experiment has no result yet, or no record at all
+    const multi = recs.some(r => r.type === 'simulation' || (r.type === 'experiment' && r.body && Array.isArray(r.body.runs))) || (!!f.running && !recs.length);
     const ended = !!(meta && meta.how) || recs.some(r => r.type === 'report') || !f.running;
     recs.forEach(r => { if (r.turn == null) r.turn = 0; });  // records of the first session that carry no turn number: drawn before the first turn
 
