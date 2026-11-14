@@ -1307,11 +1307,16 @@ operator's recorded words) is marked `data-own`. A measured number at levels 1
 and 2 has at most four significant digits and its unit (rates in Mbps or
 Gbps, fractions in per cent, counts whole; `EV.v4`); a setting's value is
 shown as recorded (`data-exact`); the exact value is on hover and at level 3.
-Colour has three meanings, named once in the legend under the header strip:
-who produced it (AI, harness, simulator, operator), the outcome of a test
-(held, failed, and the warning mark, kept for a refused answer, a verdict
-against its check and a number that differs from its measurement), and the
-flow (UDP, TCP). Selection is drawn in the neutral colour. The text is 14 px,
+Who produced an item is said by a small icon in the neutral colour, not by a
+colour (**DECISION 2026-11-14**, the operator: a colour has no meaning of its
+own and has to be memorised): a spark for the AI, a gear for the harness, two
+computers and their link for the simulator, a person for the operator; each
+is named once in the legend under the header strip. In the picture of "The
+setting" a value the AI may change has ✦ before it and is set heavier; every
+other value is fixed by the operator. Colour has two meanings, named in the
+same legend: the outcome of a test (held, failed, and the warning mark, kept
+for a refused answer, a verdict against its check and a number that differs
+from its measurement), and the flow (UDP, TCP). Selection is drawn in the neutral colour. The text is 14 px,
 small text 12 px or more, a paragraph at most about 80 characters wide.
 Nothing scrolls sideways from 900 to 1,800 px. `ev_readable.py` (parts 1 to 8)
 checks all of this.
@@ -1518,7 +1523,7 @@ under a light heading per turn ("Turn 2 · 28 simulations left", with what the
 turn did); an exploration is a heading with its question and its simulations,
 without a card; the harness's baseline is the heading "Start". Every card has
 the same six lines, always in this order, each a recorded text or a measured
-number, with the small colour of who produced it:
+number, with the small icon of who produced it:
 
 | Line | Taken from | Produced by |
 |---|---|---|
@@ -1763,8 +1768,9 @@ Rules of the page:
 
 - **A click never moves the page.** Whatever is chosen opens in the pane
   beside it. The one exception is the structure map's boxes, which scroll.
-- One fixed colour per producer: model violet, harness magenta, simulator
-  green, operator yellow. UDP is blue and TCP orange in every chart. Never two
+- One fixed icon per producer, in the neutral colour (until 2026-11-14 one
+  fixed colour: model violet, harness magenta, simulator green, operator
+  yellow). UDP is blue and TCP orange in every chart. Never two
   scales in one chart, with one exception (**DECISION 2026-11-12**): in "The
   simulations of each turn, along one knob" every turn has its own axis, with
   both ends printed and lines joining it to the previous one.
@@ -1963,6 +1969,7 @@ untracked until they say otherwise.
 | 2026-11-14 | `READABLE_PAGE.md`, parts 1 to 8: the session page in three levels of detail and in the order of a reader's questions; the setting and the set-up page as one design of seven blocks; "What it needed to find out"; the final report as one argument, with a required role for each claim; "How it worked as a researcher"; design rules checked by a script; a guided walk. |
 | 2026-11-14 | The live view of a running session, at the operator's word: the page's sections as a skeleton whose empty places fill as records arrive, one sentence that says where the work is, and the time between a decision rule and its result under each result. No change to the harness: everything is read from the ledger. |
 | 2026-11-14 | The words that need explaining, at the operator's word: settings, measures and parts of the network are marked wherever they stand, and a small box says what each is, from the brief, the harness's list and the picture's objects. |
+| 2026-11-14 | Who produced an item is said by an icon, at the operator's word; colour is kept for the outcome of a test and for the two flows. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -2013,7 +2020,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 246 | the shell: colours, styles, the list of scripts |
+| `index.html` | 248 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 175 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 176 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |

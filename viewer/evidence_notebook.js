@@ -89,7 +89,7 @@ Object.assign(EV, {
     return `<div class="ev-card" id="s-notebook"><h2>The work, step by step <small>the notebook · one card per ${EV.term('Test', 'test')}: the question, the plan, what was expected, what was found, the conclusion and what came next</small></h2>
         <p class="sec-q">How did it test each?</p><div class="ev-bar nb-bar">${EV.replayBar()}</div>
         ${M.turns.length ? body : '<p class="sm">No record yet.</p>'}
-        <p class="sm nb-key">The left edge of a card: the outcome of its test. The small square before a line: who produced it. The colours are named in the legend at the top of the page. A number in Result opens its simulation.</p></div>`;
+        <p class="sm nb-key">The left edge of a card: the outcome of its test. The small icon before a line: who produced it. The icons and the colours are named in the legend at the top of the page. A number in Result opens its simulation.</p></div>`;
   },
 });
 EV.act = Object.assign(EV.act || {}, {

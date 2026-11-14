@@ -33,8 +33,8 @@ Object.assign(EV, {
   SYS_OWN: { queuePktsUdp: 'queuePkts', queuePktsTcp: 'queuePkts' },
   // the setting a shown value comes from. given(k): whether the brief (or the form) sets k itself
   sysOwn(n, given) { const k = EV.sysKey(n); return EV.SYS_OWN[k] && !given(k) ? EV.SYS_OWN[k] : k; },
-  // one legend for the two colours: a setting the brief opens to the model, a setting it fixes
-  sysLegend: () => `<span>a value in the AI's colour: the AI may change it</span><span>in the operator's colour: fixed by the operator</span>`,
+  // one legend for the two kinds of value: a setting the brief opens to the model (marked ✦, heavier), a setting it fixes
+  sysLegend: () => `<span><b>✦</b> before a value: the AI may change it</span><span>every other value: fixed by the operator</span>`,
   sysFill: (text, v) => TASK_VIEW._rate(String(text).replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : 'not recorded'))),
 
   // the picture itself, for a session's card and for the brief editor. o: { v: the values shown, knob(name) and fixed(name): whether the brief opens that
@@ -43,7 +43,7 @@ Object.assign(EV, {
     const e = EV.e, O = EV.OB, v = o.v, on = o.on, pol = o.pol || '';
     // ---- the pieces: a text, an object (a clickable group with its ns-3 class as the tooltip), a box, a queue, a computer
     const R = t => (t == null ? '' : TASK_VIEW._rate(t)), J = (...a) => a.filter(Boolean).join(' · '), T = (x, y, s, cls, anchor) => `<text x="${x}" y="${y}" class="${cls || ''}" text-anchor="${anchor || 'middle'}">${e(s)}</text>`;
-    const val = (x, y, s, k, anchor) => T(x, y, s, o.knob(k) ? 'sk' : o.fixed(k) ? 'sf' : 'sv', anchor);
+    const val = (x, y, s, k, anchor) => T(x, y, s && o.knob(k) ? '✦ ' + s : s, o.knob(k) ? 'sk' : o.fixed(k) ? 'sf' : 'sv', anchor);
     const obj = (id, inner) => { const f = id && EV.sysFind(id); return f ? `<g data-act="${o.act}" data-id="${id}"${on === id ? ' class="osel"' : ''}><title>${e(`${f.o.name} · ns-3 ${EV.sysFill(f.o.cls, v)}`)}</title>${inner}</g>` : ''; };
     const box = (id, x, y, w, h, l1, l2, o = {}) => obj(id, `<rect class="bx${o.cls || ''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${o.rx || 5}"/>${T(x + w / 2, y + h / 2 + (l2 ? -2 : 4), l1, o.lc || 'sn')}${l2 ? val(x + w / 2, y + h / 2 + 11, l2[0], l2[1]) : ''}`.replace(/(y=")(\d+(?:\.\d+)?)(" class="sn")/, (m, a, yy, c) => (l2 && !l2[0] ? a + (+yy + 6) + c : m)));
     const queue = (id, x, y, name, col, k) => obj(id, `<path class="bx" d="M${x},${y} H${x + 104} V${y + 30} H${x}"/>${[0, 1, 2].map(i => `<rect x="${x + 94 - i * 9}" y="${y + 4}" width="6" height="22" rx="1.5" fill="var(${col})" opacity="${0.75 - i * 0.2}"/>`).join('')}
@@ -56,7 +56,7 @@ Object.assign(EV, {
     const sched = obj(id('sender', 'tc', 'Scheduler'), `<circle cx="432" cy="107" r="22" fill="var(${w == null ? '--surface-1' : '--series-2'})"/>${cut}<circle class="bx" cx="432" cy="107" r="22" style="fill:none"/>${T(432, 77, 'scheduler', 'sn')}
       ${val(432, 148, w == null ? '' : `${v.weightUdp} : ${v.tcpShare}`, 'weightUdp')}${pol}`);
     const X = 678, flows = `<path class="fu" d="M122,82 H388 C408,82 408,94 416,96.5 M454,105.4 H${X + 100} M${X + 138},82 H${X + 238}"/><path class="ft" d="M122,132 H388 C408,132 408,120 416,117.5 M454,108.6 H${X + 100} M${X + 138},132 H${X + 238}"/>`;
-    const wire = obj('link', `<rect x="594" y="66" width="82" height="62" fill="transparent"/><path class="wa" d="M630,101.5 l9,5.5 l-9,5.5 z"/>${T(635, 80, 'link', 'sn')}<text x="635" y="93" class="sv" text-anchor="middle">${['linkRate', 'linkDelay'].filter(k => v[k] != null).map(k => `<tspan data-k="${k}" class="${o.knob(k) ? 'sk' : o.fixed(k) ? 'sf' : 'sv'}">${e(R(v[k]))}</tspan>`).join(' · ')}</text>`);
+    const wire = obj('link', `<rect x="594" y="66" width="82" height="62" fill="transparent"/><path class="wa" d="M630,101.5 l9,5.5 l-9,5.5 z"/>${T(635, 80, 'link', 'sn')}<text x="635" y="93" class="sv" text-anchor="middle">${['linkRate', 'linkDelay'].filter(k => v[k] != null).map(k => `<tspan data-k="${k}" class="${o.knob(k) ? 'sk' : o.fixed(k) ? 'sf' : 'sv'}">${o.knob(k) ? '✦ ' : ''}${e(R(v[k]))}</tspan>`).join(' · ')}</text>`);
     return `<svg class="sy" viewBox="0 0 1000 170" width="100%" style="max-width:1100px" role="img" aria-label="The system: a sender and a receiver, each one computer holding its ns-3 objects, joined by one link">
       ${pc(2, 590, O.hosts[0])}${pc(X - 2, 322, O.hosts[1])}${cap(68, 'applications')}${cap(203, 'internet stack')}${cap(366, 'traffic control')}${cap(528, 'net device')}${cap(X + 46, 'net device')}${cap(X + 154, 'internet stack')}${cap(X + 273, 'applications')}${flows}
       ${box(id('sender', 'apps', 'UDP source'), 10, Y.u, 112, 30, 'UDP source', [v.udpRate == null ? 'constant rate' : `${R(v.udpRate)}, constant`, 'udpRate'], { rx: 15 })}${box(id('sender', 'apps', 'TCP source'), 14, Y.t, 108, 30, 'TCP source', ['always has data', ''], { rx: 15 })}
@@ -76,7 +76,7 @@ Object.assign(EV, {
       : M.brief ? `the settings shown are the ${EV.term('Brief', 'brief')}'s defaults, as in the baseline` : `the brief of this session: ${EV.nr}`;
     const head = `<h2>The setting <small>two computers and one link · ${shown}</small> ${S.full ? '' : `<button class="cl noprint" data-act="sysfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`}</h2><p class="sec-q">What is this network, what was the AI asked, and what could it see?</p>`;
     if (fold || !O) return `<div class="ev-card noprint" id="s-system">${head}${fold ? '' : `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`}</div>`;
-    const pol = S.op && EV.files.row && EV.files.row.policy && !EV.files.row.policy_hidden ? `<rect x="398" y="154" width="8" height="8" rx="2" fill="var(--by-operator)"/><text x="410" y="162" text-anchor="start" class="sv">policy: ${e(EV.files.row.policy)}</text>` : '';
+    const pol = S.op && EV.files.row && EV.files.row.policy && !EV.files.row.policy_hidden ? `<text x="398" y="162" text-anchor="start" class="sv">policy (operator-only): ${e(EV.files.row.policy)}</text>` : '';
     const svg = EV.sysSvg({ v, knob: V.knob, fixed: V.fixed, on, act: 'sysobj', pol });
     const around = (O.around || []).map((o, i) => `<a data-act="sysobj" data-id="around-${i}"${on === 'around-' + i ? ' style="font-weight:700"' : ''}>${e(o.name.toLowerCase())}</a>`).join(', ');
     return `<div class="ev-card noprint" id="s-system">${head}<div class="sy-row"><div><div class="ev-scroll">${svg}</div>
@@ -92,7 +92,7 @@ Object.assign(EV, {
     const rows = o.rows.map(([k, text, flag]) => { const kn = keysOf(text).find(V.knob), fx = kn ? null : keysOf(text).find(V.fixed);
       const shown = flag === 'op' ? (S.op ? `<span data-by="operator"><i class="sw"></i>${EV.policyText(EV.files.row)}</span>` : '<span class="mut" title="Shown with the operator columns on">operator-only</span>') : e(EV.sysFill(text, V.v));
       const note = kn ? `<span data-by="model" data-set="knob"><i class="sw"></i>the AI may change it</span>: ${e(V.range(kn) + tried(V.key(kn)))}` : fx && flag !== 'op' ? '<span data-by="operator" data-set="fixed"><i class="sw"></i>fixed by the operator</span>' : flag === 'ns3' ? 'an ns-3 default' : flag === 'op' ? 'chosen by the operator, not told to the model' : '';
-      return `<tr data-k="${e(kn ? V.key(kn) : fx ? V.key(fx) : '')}"><td>${e(k)}</td><td>${kn ? `<b style="color:var(--by-model)">${shown}</b>` : shown}${note ? ` <span class="sm">· ${note}</span>` : ''}</td></tr>`; }).join('');
+      return `<tr data-k="${e(kn ? V.key(kn) : fx ? V.key(fx) : '')}"><td>${e(k)}</td><td>${kn ? `<b>${shown}</b>` : shown}${note ? ` <span class="sm">· ${note}</span>` : ''}</td></tr>`; }).join('');
     const ms = o.measured || [], names = ms.map(k => TH_DATA.PLAIN[k] || k), measured = !ms.length ? '' : sim && sim.metrics ? `<p class="sm" style="margin-top:6px">Measured here in ${EV.link(sim.id)}: ${ms.map((k, i) => `${e(names[i])} <b>${e(EV.val(k, sim.metrics[k]))}</b>`).join(' · ')}</p>`
       : `<p class="sm" style="margin-top:6px">Measured here in every simulation: ${e(names.join(', '))}. Open a simulation and its values appear here.</p>`;
     return `<p><b style="font-size:var(--f-card)">${e(o.name)}</b> <span class="sm">ns-3 <code>${e(EV.sysFill(o.cls, V.v))}</code></span></p>
