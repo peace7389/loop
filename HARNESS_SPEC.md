@@ -1284,7 +1284,15 @@ on every place that reply may fill, and the sentence says so; a draft is never
 read (of a draft record only its type, to say that a reply was asked for
 again). New records are marked for half a minute. Every two seconds the page
 asks for the ledger's size (a HEAD request) and reads the session again only
-when it has grown. In section 3 a strip shows the steps of a turn (the AI writes its reply, the
+when it has grown. While an experiment's simulations run, the sentence also
+says how many of them the harness has collected so far: the runs its index
+(`runs/index.json`) lists that no record holds yet (the harness reads its
+simulations in the order it started them). The simulator itself prints nothing
+while it runs, and ns-3's logging is not in the optimized build; a
+simulation's detail shows instead how the simulator was started: the
+program's name (kept in `objects.json` as `program`, which `check_objects.py`
+compares with `BIN` of `tools.py`) with the options that run recorded, and
+that the scheduling policy does not reach the program through its options. In section 3 a strip shows the steps of a turn (the AI writes its reply, the
 simulator runs its simulations, the harness checks each decision rule, the
 next turn), the one being worked on with its moving icon and the time; before
 the first hypothesis the section shows that strip alone. Section 6 says "not
@@ -2000,6 +2008,7 @@ untracked until they say otherwise.
 | 2026-11-14 | Who produced an item is said by an icon, at the operator's word; colour is kept for the outcome of a test and for the two flows. |
 | 2026-11-14 | The picture and the words set each other off on hover, at the operator's word. |
 | 2026-11-14 | The board of "What it needed to find out", at the operator's word: the hypothesis map moved up, with arrows in the colour of the result that led onward; the table of the tests folded under it. |
+| 2026-11-14 | The live banner says how many simulations of the running experiment the harness has collected; a simulation's detail shows how the simulator was started. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -2035,7 +2044,7 @@ above all, so the counts understate the size.
 | `audit.py` | 88 | operator: the audit of a session's checks, verdicts, experiments and designs |
 | `score.py` | 137 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
-| `check_objects.py` | 196 | operator: the picture of the system against the scenario source |
+| `check_objects.py` | 201 | operator: the picture of the system against the scenario source |
 | `make_trace.py` | 38 | operator: packet-event recordings |
 | `move_drafts.py` | 33 | operator, used once: draft text out of old ledgers |
 
@@ -2058,7 +2067,7 @@ above all, so the counts understate the size.
 | `evidence_notebook.js` | 97 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
-| `evidence_live.js` | 124 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
+| `evidence_live.js` | 132 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
 | `evidence_words.js` | 123 | the words that need explaining: their marks, and the box that opens beside them |
 | `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 134 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
@@ -2072,7 +2081,7 @@ above all, so the counts understate the size.
 | `evidence_flow.js` | 109 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 53 | the test panel |
-| `evidence_panels.js` | 96 | the experiment panel; the result panel of a simulation |
+| `evidence_panels.js` | 101 | the experiment panel; the result panel of a simulation |
 | `evidence_more.js` | 77 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 65 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 71 | verdicts against checks: the table of counts, in a session's summary and on Compare |
@@ -2084,7 +2093,7 @@ above all, so the counts understate the size.
 | `evidence_compare.js` | 67 | the Compare tab |
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 56 | links, export, print |
-| `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
+| `objects.json` | 78 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
 | `brief_editor.js` | 352 | the set-up page, “New session”: the seven blocks as forms |
 | `evidence_walk.js` | 61 | the guided walk: one sentence per section, from the records |
 | `brief_editor_old.js` | 237 | the brief editor of the older control page (index_full.html) |

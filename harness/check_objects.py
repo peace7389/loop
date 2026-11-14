@@ -103,6 +103,11 @@ def main():
         v = row(obj(O, None, "around", "Clock"), "Traffic starts"); same("traffic starts", f"at {float(g[0]):g} s", v, v == f"at {float(g[0]):g} s")
         v = row(obj(O, None, "around", "Random numbers"), "Used for"); same("start offset, under Random numbers", f"0–{float(s[0]) * 1000:g} ms", v, bool(v) and f"0–{float(s[0]) * 1000:g} ms" in v)
 
+    # ---- the program the harness starts (the viewer shows a simulation's command with this name)
+    g = re.search(r'^BIN = NS3 / "([^"]+)"', (ROOT / "harness/tools.py").read_text(), re.M)
+    if g:
+        name = g.group(1).split("/")[-1]; v = (O.get("program") or {}).get("name"); same("the built program (harness/tools.py BIN), in objects.json's program", name, v, v == name, who="tools.py")
+
     # ---- the internet stack
     g = find(cc, r'"ns3::TcpSocket::SegmentSize", UintegerValue\(mtu - (\d+)\)', "TCP segment size")
     if g:

@@ -65,8 +65,13 @@ Object.assign(EV, {
   simPanel(id) {
     const M = EV.M, e = EV.e, s = M.simById[id]; if (!s) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
     const x = M.expById[s.exp], ctl = x && x.sims.find(q => q.label === x.control);
+    // how the simulator was started: the program (its name is kept in objects.json, checked against harness/tools.py) and the options this run recorded
+    const run = (EV.files.index || []).find(q => q.id === s.run), prog = (EV.OB && EV.OB.program) || null, took = x && x.ts && s.ts && !s.same_as ? Math.round((new Date(s.ts) - new Date(x.ts)) / 1000) : null;
+    const cmd = !run || !run.params ? '' : `<details class="sim-cmd" id="sim-cmd"><summary>How the simulator was started${took != null ? ` <span class="sm">· the simulations of ${e(x.id)} came back ${EV.liveClock(took * 1000)} after the experiment was recorded</span>` : ''}</summary>
+      <p><code data-exact="1" id="sim-cmd-line">${e(`${prog ? prog.name : 'the built program'} ${Object.entries(run.params).map(([k, v]) => `--${k}=${v}`).join(' ')}`)} --out=&lt;the run's folder&gt;</code></p>
+      <p class="sm">${prog ? e(prog.says) + '. ' : ''}Rebuilt from the options run ${e(s.run)} recorded (its params.json); the program's name is the one the harness starts today. It prints nothing while it runs: its results are files, read when it ends. The scheduling policy does not reach the program through its options and is not shown here.</p></details>`;
     return `<h2>${EV_ICON.simulation} ${EV.term('Simulation', 'Simulation')} ${e(s.id)} <small>label “${e(s.label || '')}” · run ${e(s.run || 'not recorded')} · finished ${EV.time(s.ts)}</small></h2>
-      ${s.same_as ? `<p class="sm">${EV.gkey('sim-returned')}The result of ${EV.link(s.same_as)} (same settings and seed), returned again: nothing was run, and it was not counted against the budget.</p>` : ''}${s.error ? `<p class="bad">No measurements: ${e(s.error)}</p>` : ''}
+      ${s.same_as ? `<p class="sm">${EV.gkey('sim-returned')}The result of ${EV.link(s.same_as)} (same settings and seed), returned again: nothing was run, and it was not counted against the budget.</p>` : ''}${s.error ? `<p class="bad">No measurements: ${e(s.error)}</p>` : ''}${cmd}
       ${EV.resultPanel(s, ctl, { ctlHead: ctl ? `the control ${EV.link(ctl.id)} “${e(ctl.label)}”` : '', others: M.sims.filter(q => q.id !== s.id && q.run && !q.error) })}`;
   },
 

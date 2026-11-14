@@ -1,0 +1,86 @@
+{
+ "goal": "Maximize the smaller of UDP and TCP payload goodput (max-min fairness) while keeping link utilization near 1, for the default condition where UDP is offered at 2 Gbps and TCP is greedy.",
+ "recommendation": {
+  "weightUdp": 0.5
+ },
+ "expected": {
+  "udp_goodput_bps": 489526240,
+  "tcp_goodput_bps": 482007923,
+  "udp_loss_frac": 0.755237,
+  "drops_band0": 1348637,
+  "drops_band1": 71,
+  "tcp_retrans": 71,
+  "link_util": 1.000001,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.5
+ },
+ "explanation": "With UDP overloaded, the scheduler behaves like a work-conserving weighted allocator: UDP receives approximately its configured share and TCP receives the unused capacity. This makes UDP and TCP payload goodput trade off almost linearly around the 1 Gbps link. At weightUdp=0.50 the two delivered payload rates are closest to equal: UDP about 489.5 Mbps and TCP about 482.0 Mbps, so the minimum of the two is about 482.0 Mbps. Moving to 0.48 lowers UDP to 469.9 Mbps, moving to 0.52 lowers TCP to 462.7 Mbps, and moving to 0.90 or 0.95 raises UDP but collapses TCP to 96.1 Mbps or 48.2 Mbps. Therefore 0.50 is the best ratio for a balanced performance goal. The scheduler being work-conserving means this does not waste link capacity: link_util remains about 1.0.",
+ "holds_when": "UDP is offered above its configured share, e.g. the default 2 Gbps, and TCP is able to use the leftover capacity, as with the default TcpCubic or other greedy loss-based variants. Other knobs are at their defaults, especially queuePkts=100 and duration=10 s.",
+ "breaks_when": "If performance is defined as total payload goodput only, weightUdp=0.95 is slightly better (about 978.3 Mbps versus 971.5 Mbps at 0.50), but TCP is almost starved. If UDP offered rate is below about 0.5 Gbps, the ratio is not binding because the scheduler gives unused UDP capacity to TCP. If the objective includes latency, loss weighting, or a non-greedy TCP variant, the optimum may shift.",
+ "claims": [
+  {
+   "text": "The scheduler is work-conserving: unused UDP capacity is used by TCP rather than left idle.",
+   "role": "supports",
+   "evidence": [
+    "C1",
+    "E1",
+    "V1"
+   ]
+  },
+  {
+   "text": "When UDP is overloaded, UDP goodput tracks weightUdp and TCP receives the remaining link capacity.",
+   "role": "supports",
+   "evidence": [
+    "C2",
+    "E1",
+    "E2",
+    "E3",
+    "V2"
+   ]
+  },
+  {
+   "text": "For max-min payload goodput, weightUdp=0.50 is better than 0.45, 0.48, 0.52, 0.55, 0.90, and 0.95 in the tested default overloaded case.",
+   "role": "supports",
+   "evidence": [
+    "C3",
+    "E2",
+    "C5",
+    "E3"
+   ]
+  },
+  {
+   "text": "If the goal is aggregate payload goodput rather than balance, weightUdp=0.95 is slightly higher than balanced weights.",
+   "role": "limits",
+   "evidence": [
+    "C4",
+    "E2",
+    "C6",
+    "E3"
+   ]
+  },
+  {
+   "text": "Link utilization is essentially 1.0 across the tested weights, so changing weightUdp reallocates capacity rather than creating or wasting link capacity.",
+   "role": "background",
+   "evidence": [
+    "E0",
+    "E1",
+    "E2",
+    "E3"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.50 with UDP offered at 2 Gbps, UDP loss remains high because UDP demand exceeds its configured share; the ratio alone cannot make UDP lossless.",
+   "role": "limits",
+   "evidence": [
+    "E0",
+    "E3"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact max-min crossing is probably slightly below 0.50 (roughly 0.499 from linear interpolation), but the tested grid does not resolve it better than 0.02.",
+  "Robustness to non-default tcpVariant values, especially less greedy variants such as TcpVegas, was not tested.",
+  "Queue length and latency effects were not measured; queuePkts mainly changes buffering and loss timing, not the steady-state goodput split observed here.",
+  "If a weighted or loss-aware performance metric is required, the best ratio may move away from 0.50."
+ ]
+}

@@ -18,6 +18,8 @@
 //   the time           how long the newest record has been the newest: the server's own clock (the Date header of its
 //                      answer) against the time the ledger was last written (Last-Modified), counted on from there.
 //   what just arrived  the records that were not there at the last reading are marked for a short while.
+//   the simulations    while an experiment's simulations run, the sentence also says how many of them the harness has
+//                      collected so far: the runs its index (runs/index.json) lists that no record holds yet
 //   the quick reading  every two seconds the size of the ledger is asked for (a HEAD request); the session is read
 //                      again only when it has grown. The form of a turn is the harness's, told to the AI in its prompt;
 //                      what fills it, how many turns there are and when it stops are the AI's.
@@ -50,6 +52,10 @@ Object.assign(EV, {
     if (last.type === 'turn') return { phase: 'reply', turn: last.turn, mode: last.body.last_turn || null, again: EV.live.tries > 0 };
     return { phase: 'between', turn: last.turn };
   },
+  // the simulations of the experiment that is being run which the harness has collected so far: the runs its index lists that no record holds yet
+  // (the harness reads its simulations in the order it started them, so this is how many are in, not how many have ended)
+  liveDone() { const M = EV.M, have = new Set(M.sims.map(s => s.run)); return (EV.files.index || []).filter(q => q && q.id && !have.has(q.id)).length; },
+  liveDoneHtml(now) { return now && (now.phase === 'sims' || now.phase === 'baseline') ? ` <span class="sm" id="live-done" data-n="${EV.liveDone()}" data-of="${now.n}">· the harness has collected ${EV.liveDone()} of them so far</span>` : ''; },
   liveClock(ms) { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`; },
   liveAge() { const h = EV.live.head; return h && h.age != null ? h.age + (performance.now() - h.at) : null; },
   liveTimer() { const a = EV.liveAge(); return a == null ? '' : ` <span class="lv-t" data-live-t="1" title="How long the newest record has been the newest, by the server's clock">${EV.liveClock(a)}</span>`; },
@@ -97,7 +103,7 @@ Object.assign(EV, {
     const t = M.turns[M.turns.length - 1], arrived = EV.liveArrived(), stop = row.stoppable ? `<button data-act="stop"${EV.stopping ? ' disabled' : ''}>${EV.stopping ? 'Stopping…' : 'Stop'}</button>` : '<span class="sm">started from a terminal: it is stopped there</span>';
     const left = t && t.left != null ? `${t.left} simulation${t.left === 1 ? '' : 's'} left` : '';
     return `<div class="ev-card ev-bar ev-run" id="live-bar" data-phase="${now ? now.phase : S.step != null ? 'replay' : 'closing'}"${now && now.turn ? ` data-turn="${now.turn}"` : ''}><span class="pill live">running</span>
-      <span class="lv-say">${now ? `<span class="lv-step on lv-ico" data-by="${now.phase === 'reply' ? 'model' : now.phase === 'sims' ? 'simulator' : 'harness'}"><i class="sw"></i></span><b id="live-say">${EV.liveSay(now)}</b>${EV.liveTimer()}${EV.liveMay(now) ? ` <span id="live-may">${EV.liveMay(now)}</span>` : ''}` : `<b id="live-say">${S.step != null ? 'The replay is at an earlier step: the newest records are greyed.' : 'The final report is in: the harness is closing the session.'}</b>`}${left ? ` <span class="sm">· ${left}</span>` : ''}
+      <span class="lv-say">${now ? `<span class="lv-step on lv-ico" data-by="${now.phase === 'reply' ? 'model' : now.phase === 'sims' ? 'simulator' : 'harness'}"><i class="sw"></i></span><b id="live-say">${EV.liveSay(now)}</b>${EV.liveTimer()}${EV.liveDoneHtml(now)}${EV.liveMay(now) ? ` <span id="live-may">${EV.liveMay(now)}</span>` : ''}` : `<b id="live-say">${S.step != null ? 'The replay is at an earlier step: the newest records are greyed.' : 'The final report is in: the harness is closing the session.'}</b>`}${left ? ` <span class="sm">· ${left}</span>` : ''}
         ${arrived ? `<span class="sm" id="live-arrived">· just arrived: ${e(arrived)}</span>` : ''}</span>
       <span class="end"><label class="sm" style="font-weight:400" title="Off: the page never moves by itself. On: when new records arrive, the notebook comes to the place where the work is."><input type="checkbox" data-ch="follow"${S.follow ? ' checked' : ''}> follow the work</label> ${stop}${EV.stopMsg ? ` <span class="bad">${e(EV.stopMsg)}</span>` : ''}</span></div>`;
   },
@@ -116,6 +122,8 @@ Object.assign(EV, {
     const L = EV.live, row = (EV.files && EV.files.row) || {}, h = L.head;
     if (EV.off || L.busy || document.hidden || EV.s.view !== 'session' || !row.running || !h || (L.n = (L.n || 0) + 1) % 2) return;
     L.busy = true;
+    const now = EV.liveNow(), sid = EV.M && EV.M.id;  // while simulations run the ledger does not grow: the index of the runs does
+    if (now && (now.phase === 'sims' || now.phase === 'baseline')) EV.get(`../sessions/${sid}/runs/index.json`).then(t => { if (t == null || !EV.M || EV.M.id !== sid) return; EV.files.index = EV_DATA.lines(t); const el = document.getElementById('live-done'), n = EV.liveDone(); if (el && el.dataset.n !== String(n)) { el.dataset.n = n; el.textContent = `· the harness has collected ${n} of them so far`; } });
     fetch(h.url + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' }).then(r => { if (r.ok && r.headers.get('Content-Length') !== h.len && EV.live.head === h) { EV.sig = ''; return EV.load(); } }).catch(() => {}).finally(() => { L.busy = false; });
   },
 });
