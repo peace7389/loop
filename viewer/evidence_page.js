@@ -2,7 +2,8 @@
 //   1 · at a glance   the header strip; the setting (evidence_system.js); the session at a glance (evidence_glance.js);
 //                     what it needed to find out (evidence_find.js). Open, at the top, at full width.
 //   2 · read          the work, step by step: the notebook (evidence_notebook.js); what it proposes (the final report as one
-//                     argument); below level 1, in the left column, beside the detail pane.
+//                     argument); how it worked as a researcher (evidence_research.js); below level 1, in the left column,
+//                     beside the detail pane.
 //   3 · inspect       a test's flow chart, the exact decision rule and numbers, a simulation's settings and charts, the
 //                     review queue: the detail pane on the right, opened by a click. Nothing of level 3 stands at level
 //                     1 or 2 except as something to click.
@@ -96,7 +97,7 @@ Object.assign(EV, {
       <h3>The words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
       <h3>Using the page</h3><ul class="sm" id="how-use" style="margin:0;padding-left:18px">
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
-        <li>Four clicks do move the page, and say so here: a turn's name in “The session at a glance” and a row of “What it needed to find out” bring the notebook to that place; a box of “How a session is built” goes to its part; the guided walk goes from section to section.</li>
+        <li>A few clicks do move the page, and say so here: a turn's name in “The session at a glance” and a row of “What it needed to find out” bring the notebook to that place; a box of “How a session is built”, and a line of “How it worked as a researcher” that names a section, go to that part; the guided walk goes from section to section.</li>
         <li>“What it needed to find out”: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
         <li>“Looking closer”: click a line to open that view. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
         <li>“The system”: click an object to see its settings beside the picture. “What this session is made of”: click a mark to open it; point at a mark to read what it is.</li>
@@ -109,7 +110,7 @@ Object.assign(EV, {
 
   sessionTab() {
     return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.glance()}${EV.findCard()}
-      <div class="ev-main"><div>${EV.notebookCard()}${EV.proposesCard()}${EV.closerCard()}</div>
+      <div class="ev-main"><div>${EV.notebookCard()}${EV.proposesCard()}${EV.researchCard()}${EV.closerCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },
 });

@@ -4,6 +4,14 @@
 // A hypothesis opened from the map shows the same body for each of its tests.
 // ======================================================================================================
 Object.assign(EV, {
+  // the order of a test, from the records' times: the decision rule (recorded with its experiment), then the simulations it names
+  // (a simulation returned from an earlier one first ran when that one did), then the check
+  orderLine(T, simK, kc) {
+    const M = EV.M, e = EV.e, x = M.expById[T.exp], tm = EV.time, first = s => { const o = s.same_as && M.simById[s.same_as]; return o ? o.ts : s.ts; }; if (!T.rule || !x.ts) return '';
+    const ts = T.sims.map(first).filter(Boolean).sort(), early = T.sims.filter(s => first(s) && first(s) < x.ts);
+    return `<p class="sm" id="t-order" data-step="${Math.max(simK, kc)}" data-rule="${e(x.ts)}" data-first="${e(ts[0] || '')}" data-before="${early.length ? '0' : '1'}"><b>order</b> · the decision rule was recorded at ${e(tm(x.ts))}${ts.length ? `, ${early.length ? 'after' : 'before'} ${early.length ? `${early.length} of ` : ''}its ${T.sims.length} simulation${T.sims.length === 1 ? '' : 's'} (${ts.length > 1 && ts[0] !== ts[ts.length - 1] ? `first run ${e(tm(ts[0]))} to ${e(tm(ts[ts.length - 1]))}` : `run at ${e(tm(ts[0]))}`})` : ''}${
+      early.length ? `: ${e(early.map(s => s.id + (s.same_as ? ', returned from ' + s.same_as : '')).join('; '))} had already run` : ''}${T.check && T.check.ts ? `; the check was made at ${e(tm(T.check.ts))}` : ''}</p>`;
+  },
   testBody(T) {
     const M = EV.M, S = EV.s, e = EV.e, x = M.expById[T.exp], others = M.tests.filter(q => q.exp === T.exp && q !== T), wide = !!S.wide[T.id];
     const simK = Math.max(M.recStep[x.id] ?? 0, ...T.sims.map(s => M.recStep[s.id] ?? 0)), kc = T.check ? M.recStep[T.check.id] ?? simK : simK, v = T.verdict, kv = v ? M.recStep[v.id] ?? kc : kc;
@@ -19,6 +27,7 @@ Object.assign(EV, {
           <p class="sm"><button data-act="wide" data-id="${e(T.id)}">${wide ? `back to the ${T.sims.length} simulation${T.sims.length === 1 ? '' : 's'} this rule names` : `the same chart over all ${x.sims.length} simulations of ${e(x.id)}`}</button></p></div>
         <div data-step="${simK}" style="margin-top:12px"><h3>The simulations this rule names</h3>${table}</div>
       <h3>The ${EV.term('Decision rule', 'decision rule')}, in full</h3><p>${T.rule ? `<code>${e(T.rule)}</code>` : EV.nr}</p>
+      ${EV.orderLine(T, simK, kc)}
       ${T.rival ? `<p class="sm">${EV.term('Rival', 'rival')}: ${e(T.rival)} · under the rival the rule would have ${e(T.rival_predicts || 'not recorded')}</p>` : ''}
       <p class="sm" data-step="${kc}">${EV.term('Check', 'check')} by the harness: ${T.check ? `${EV_ICON.check} ${e(T.check.id)} · ${e(T.check.numbers)} → ${EV.checkRes(T.check)}` : EV.nr}</p>
       ${T.check && T.check.void ? `<p class="void-note" data-step="${kc}" data-void="${e(T.check.id)}">${EV.gkey('void')}<b>${EV.VOID}.</b> ${e(T.check.same.join(', '))} are one simulation (run ${e((T.sims.find(s => s.label === T.check.same[0]) || {}).run || 'not recorded')}): the same settings and seed under ${T.check.same.length} labels. The harness recorded “${e(T.check.recorded)}”; the page counts this check neither as held nor as failed.</p>` : ''}

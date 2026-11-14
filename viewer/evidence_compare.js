@@ -54,6 +54,7 @@ Object.assign(EV, {
         ${recRows || row('recommendation', q => '<span class="mut">no final report</span>')}
         ${S.op ? row(EV.term('Scheduling policy', 'scheduling policy'), q => EV.policyText(q.x)) + row('gap to the best', q => EV.gapText(q.x) || '<span class="mut">not scored</span>') : ''}</tbody></table></div>
         <p class="sm">≠ the ticked sessions recommend different values; the cells that differ from the most common value are marked.</p></div>
+      ${EV.researchCompare(list)}
       <div class="ev-card" id="cmp-first"><h2>The first ${EV.term('Test', 'test')} that held, in each <small>one for each ticked session</small></h2>${firsts}</div>
       ${S.op ? EV.parallelCards(list) : ''}`;
   },
