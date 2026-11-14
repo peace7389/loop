@@ -250,6 +250,8 @@ main(int argc, char* argv[])
     std::string tcpVariant = "TcpCubic";
     uint32_t mtu = 1500;
     uint32_t queuePkts = 100;
+    uint32_t queuePktsUdp = 0; // 0: the UDP queue is as long as queuePkts says
+    uint32_t queuePktsTcp = 0; // 0: the TCP queue is as long as queuePkts says
     double duration = 10;
     uint32_t seed = 1;
     double weightUdp = 0.5;
@@ -268,6 +270,8 @@ main(int argc, char* argv[])
     cmd.AddValue("tcpVariant", "TCP congestion control (ns-3 type name without ns3::)", tcpVariant);
     cmd.AddValue("mtu", "Link MTU in bytes", mtu);
     cmd.AddValue("queuePkts", "Queue length per band in packets", queuePkts);
+    cmd.AddValue("queuePktsUdp", "Length of the UDP queue alone, in packets (0 = queuePkts)", queuePktsUdp);
+    cmd.AddValue("queuePktsTcp", "Length of the TCP queue alone, in packets (0 = queuePkts)", queuePktsTcp);
     cmd.AddValue("duration", "Seconds of traffic", duration);
     cmd.AddValue("seed", "Random run number", seed);
     cmd.AddValue("weightUdp", "Part of the link configured for UDP, 0.05-0.95", weightUdp);
@@ -313,9 +317,11 @@ main(int argc, char* argv[])
     TrafficControlHelper tch;
     uint16_t h = tch.SetRootQueueDisc("ns3::LinkQueueDisc", "WeightUdp", DoubleValue(weightUdp));
     TrafficControlHelper::ClassIdList cids = tch.AddQueueDiscClasses(h, 2, "ns3::QueueDiscClass");
-    std::string qsize = std::to_string(queuePkts) + "p";
-    tch.AddChildQueueDisc(h, cids[0], "ns3::FifoQueueDisc", "MaxSize", StringValue(qsize));
-    tch.AddChildQueueDisc(h, cids[1], "ns3::FifoQueueDisc", "MaxSize", StringValue(qsize));
+    // Each queue has the common length unless its own length is given.
+    std::string qsizeUdp = std::to_string(queuePktsUdp ? queuePktsUdp : queuePkts) + "p";
+    std::string qsizeTcp = std::to_string(queuePktsTcp ? queuePktsTcp : queuePkts) + "p";
+    tch.AddChildQueueDisc(h, cids[0], "ns3::FifoQueueDisc", "MaxSize", StringValue(qsizeUdp));
+    tch.AddChildQueueDisc(h, cids[1], "ns3::FifoQueueDisc", "MaxSize", StringValue(qsizeTcp));
     QueueDiscContainer qdiscs = tch.Install(devs.Get(0));
 
     Ipv4AddressHelper addr;
@@ -436,7 +442,17 @@ main(int argc, char* argv[])
     std::ofstream pj(out + "/params.json");
     pj << "{\"linkRate\": \"" << linkRate << "\", \"linkDelay\": \"" << linkDelay << "\", \"udpRate\": \"" << udpRate
        << "\", \"tcpVariant\": \"" << tcpVariant << "\", \"mtu\": " << mtu << ", \"queuePkts\": " << queuePkts
-       << ", \"duration\": " << duration << ", \"seed\": " << seed << ", \"weightUdp\": " << weightUdp << "}\n";
+       << ", \"duration\": " << duration << ", \"seed\": " << seed << ", \"weightUdp\": " << weightUdp;
+    // A setting added after build 4 is stated only when it was given, so a run without it writes the file it always wrote.
+    if (queuePktsUdp)
+    {
+        pj << ", \"queuePktsUdp\": " << queuePktsUdp;
+    }
+    if (queuePktsTcp)
+    {
+        pj << ", \"queuePktsTcp\": " << queuePktsTcp;
+    }
+    pj << "}\n";
     pj.close();
     std::ofstream m(out + "/metrics.json");
     m << std::fixed << std::setprecision(0) << "{\n"

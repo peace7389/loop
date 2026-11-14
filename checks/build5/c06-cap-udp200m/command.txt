@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=cap two-hosts --udpRate=200Mbps --out=/home/chunguck.kim/project/checks/build5/c06-cap-udp200m
+exit 0, 34.4 s

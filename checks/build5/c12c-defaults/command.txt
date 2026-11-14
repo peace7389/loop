@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts  --out=/home/chunguck.kim/project/checks/build5/c12c-defaults
+exit 0, 26.0 s

@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=cap two-hosts --out=/home/chunguck.kim/project/checks/build5/c07-cap-defaults
+exit 0, 34.4 s

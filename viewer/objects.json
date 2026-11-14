@@ -1,6 +1,6 @@
 {
-  "about": "Every ns-3 object the scenario creates, with its settings, for the viewer's network diagram. Read by the viewer only: viewer/adrs_view.js, and viewer/evidence_system.js, which draws the system at the top of a session's page and finds each object here by its host, layer and name (no harness tool reads it, so the model never sees it). \"measured\" lists the outputs of metrics.json that are measured at an object. Values in {braces} are filled from the manifest's defaults: udpRate, tcpVariant, queuePkts, weightUdp, tcpShare, duration, seed, linkRate, linkDelay, mtu, segment (= mtu - 52), mode. Row flag: ai = a setting the AI may change, ns3 = an ns-3 default the script does not set, op = set by the operator.",
-  "checked": "against ns-3.49/scratch/two-hosts/two-hosts.cc and link-queue-disc.cc, 2026-11-11 (scheduler renamed LinkQueueDisc; its scheduling policy is no longer a program option: how it is set is in HARNESS_SPEC.md 6.2, not here, because this file goes into exported sessions); update both together",
+  "about": "Every ns-3 object the scenario creates, with its settings, for the viewer's network diagram. Read by the viewer only: viewer/adrs_view.js, and viewer/evidence_system.js, which draws the system at the top of a session's page and finds each object here by its host, layer and name (no harness tool reads it, so the model never sees it). \"measured\" lists the outputs of metrics.json that are measured at an object. Values in {braces} are filled from the brief's settings: udpRate, tcpVariant, queuePkts, queuePktsUdp and queuePktsTcp (each queue's own length; where the brief does not give it, the common queuePkts), weightUdp, tcpShare, duration, seed, linkRate, linkDelay, mtu, segment (= mtu - 52), mode. Row flag: ai = a setting the AI may change, ns3 = an ns-3 default the script does not set, op = set by the operator.",
+  "checked": "against ns-3.49/scratch/two-hosts/two-hosts.cc and link-queue-disc.cc, 2026-11-14 (build 5: each queue may have its own length; 2026-11-11: scheduler renamed LinkQueueDisc; its scheduling policy is no longer a program option: how it is set is in HARNESS_SPEC.md 6.2, not here, because this file goes into exported sessions); update both together",
   "layers": [
     {"key": "apps", "name": "Applications", "roles": {"sender": "create the data", "receiver": "count what arrives"}},
     {"key": "stack", "name": "Internet Stack", "roles": {"sender": "TCP stores and paces; UDP passes straight through", "receiver": "hands arriving data up to the applications"}},
@@ -29,9 +29,9 @@
       ],
       "tc": [
         {"name": "UDP queue", "cls": "FifoQueueDisc · band 0", "flow": "udp", "measured": ["drops_band0"], "rows": [
-          ["Room for", "{queuePkts} packets", "ai"], ["Takes", "packets marked priority 6"], ["When full", "the new packet is dropped"]]},
+          ["Room for", "{queuePktsUdp} packets", "ai"], ["Takes", "packets marked priority 6"], ["When full", "the new packet is dropped"]]},
         {"name": "TCP queue", "cls": "FifoQueueDisc · band 1", "flow": "tcp", "measured": ["drops_band1"], "rows": [
-          ["Room for", "{queuePkts} packets", "ai"], ["Takes", "every other packet"], ["When full", "the new packet is dropped"]]},
+          ["Room for", "{queuePktsTcp} packets", "ai"], ["Takes", "every other packet"], ["When full", "the new packet is dropped"]]},
         {"name": "Scheduler", "cls": "LinkQueueDisc", "wide": true, "key": true, "rows": [
           ["UDP : TCP share of the link", "{weightUdp} : {tcpShare}", "ai"], ["Scheduling policy", "{mode}", "op"],
           ["Turn size", "3000 bytes × share"], ["Link rate (read from its device)", "{linkRate}"]]}

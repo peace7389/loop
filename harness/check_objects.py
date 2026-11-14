@@ -13,8 +13,9 @@ where there is no ns-3 tree. It prints one line per value and ends with status 1
   MISSING  the line of the scenario this check reads is no longer there: the scenario changed its form, so the value
            must be compared by hand and the pattern below brought up to date
 Run it after every change of the scenario, with the eleven checks. It reads three kinds of file and writes nothing.
-Settings that a brief sets (link rate, delay, MTU, UDP rate, queue length, ratio, TCP variant, duration, seed) are not
-checked here: the page takes them from each session's own records. Standard library only."""
+Settings that a brief sets (link rate, delay, MTU, UDP rate, queue lengths, ratio, TCP variant, duration, seed) are not
+checked here: the page takes them from each session's own records. What is checked for a setting added later (each
+queue's own length) is that the scenario has the option and that the object it belongs to names it. Standard library only."""
 import argparse, json, re, sys
 from pathlib import Path
 
@@ -133,6 +134,13 @@ def main():
     same("queues in front of the scheduler", len(kids), len(queues), len(kids) == len(queues) and len(kids) > 0)
     for (band, cls), o in zip(kids, queues):
         same(f"class and band of the {o['name']}", f"{cls} · band {band}", o["cls"], o["cls"] == f"{cls} · band {band}")
+    for band, flow in (("0", "Udp"), ("1", "Tcp")):  # each queue's own length: the option exists, that band's queue takes it, and the queue's card names it
+        opt = f"queuePkts{flow}"
+        g = find(cc, r'cmd\.AddValue\("(' + opt + r')"', f"the option {opt}")
+        w = find(cc, r'AddChildQueueDisc\(h, cids\[' + band + r'\], "ns3::\w+", "MaxSize", StringValue\(qsize(\w+)\)\)', f"the length the {flow.upper()} queue is given")
+        if g and w:
+            same(f"the {flow.upper()} queue (band {band}) takes its own length", f"qsize{flow}", f"qsize{w[0]}", w[0] == flow, "the scenario gives it")
+            v = row(S("tc", f"{flow.upper()} queue"), "Room for"); same(f"the {flow.upper()} queue's card names {opt}", "{" + opt + "} packets", v, v == "{" + opt + "} packets")
     g = find(cc, r'p2p\.SetQueue\("ns3::(\w+)<Packet>", "MaxSize", StringValue\("(\d+)p"\)\)', "the device's transmit queue")
     if g:
         for side, who in ((S, "sender"), (R, "receiver")):

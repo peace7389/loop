@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --seed=1 --out=/home/chunguck.kim/project/checks/build5/c10-seed1-a
+exit 0, 34.4 s

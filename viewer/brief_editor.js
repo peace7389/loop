@@ -14,11 +14,14 @@
 const BRIEF_EDITOR = {
   // every setting of the program, in the order shown; every one can be fixed or opened to the model (the answer format is built from the brief).
   // step: a numeric knob may have one; open: the range and meaning offered when a setting no brief has opened yet is switched to a knob
+  // as: a setting a brief may leave out ("not set"); it then has the value of the setting named here, and the program is started without it
   SETTINGS: [
     { k: 'linkRate', name: 'Link rate', kind: 'text', hint: 'e.g. 1Gbps', open: { min: '100Mbps', max: '10Gbps', meaning: "rate of the link, e.g. '500Mbps'" } },
     { k: 'linkDelay', name: 'Link delay, one way', kind: 'text', hint: 'e.g. 50us', open: { min: '10us', max: '10ms', meaning: "one-way delay of the link, e.g. '200us'" } },
     { k: 'mtu', name: 'Largest packet', kind: 'num', hint: 'bytes', step: true, open: { min: '1428', max: '1500', meaning: 'largest packet the link carries, in bytes' } }, { k: 'weightUdp', name: 'UDP share of the link', kind: 'num', hint: '0.05 to 0.95', step: true },
     { k: 'udpRate', name: 'UDP offered rate', kind: 'text', hint: 'e.g. 300Mbps' }, { k: 'queuePkts', name: 'Queue length', kind: 'num', hint: 'packets', step: true },
+    { k: 'queuePktsUdp', name: 'UDP queue length', kind: 'num', hint: 'packets', step: true, as: 'queuePkts', open: { min: '4', max: '1000', meaning: 'most packets the UDP queue holds' } },
+    { k: 'queuePktsTcp', name: 'TCP queue length', kind: 'num', hint: 'packets', step: true, as: 'queuePkts', open: { min: '4', max: '1000', meaning: 'most packets the TCP queue holds' } },
     { k: 'tcpVariant', name: 'TCP congestion control', kind: 'choice', hint: 'e.g. TcpCubic' }, { k: 'duration', name: 'Measured time', kind: 'num', hint: 'seconds', step: true },
     { k: 'seed', name: 'Random seed', kind: 'num', hint: 'whole number', step: true }],
   // ready-made variations of the opened brief: [key, name, the id's ending, what it changes, when it cannot be used]
@@ -59,9 +62,9 @@ const BRIEF_EDITOR = {
   // ---- a brief file <-> the form's state (every field of the form is a text, as typed)
   fromBrief(b) {
     const B = BRIEF_EDITOR, set = {};
-    B.SETTINGS.forEach(({ k }) => {
+    B.SETTINGS.forEach(({ k, as }) => {
       const kn = (b.knobs || {})[k], t = B.template[k] || {}, str = v => (v == null ? '' : String(v));
-      set[k] = { fixed: !kn, value: str((b.system || {})[k] != null ? b.system[k] : (kn || t).default), min: str((kn || t).min), max: str((kn || t).max),
+      set[k] = { off: !!as && !kn && (b.system || {})[k] == null, fixed: !kn, value: str((b.system || {})[k] != null ? b.system[k] : (kn || t).default), min: str((kn || t).min), max: str((kn || t).max),
                  choices: ((kn || t).choices || []).join(', '), def: str((kn || t).default), meaning: str((kn || t).meaning), step: str((kn || {}).step) };
     });
     const g = b.goal || {}, t = g.target || {};
@@ -73,6 +76,7 @@ const BRIEF_EDITOR = {
     const val = (kind, v) => { const t = String(v).trim(); return kind === 'num' && t !== '' && isFinite(Number(t)) ? Number(t) : t; };
     B.SETTINGS.forEach(({ k, kind, step }) => {
       const f = s.set[k];
+      if (f.off) return;
       if (f.fixed) system[k] = val(kind, f.value);
       else knobs[k] = kind === 'choice' ? { choices: f.choices.split(',').map(c => c.trim()).filter(Boolean), default: f.def.trim(), meaning: f.meaning.trim() }
         : { min: val(kind, f.min), max: val(kind, f.max), default: val(kind, f.def), ...(step && String(f.step || '').trim() ? { step: val('num', f.step) } : {}), meaning: f.meaning.trim() };
@@ -118,28 +122,28 @@ const BRIEF_EDITOR = {
   // the picture of the system as the form: possible where the page has it (evidence_system.js) and its objects are read
   picture() { if (typeof EV === 'undefined' || !EV.sysSvg) return false; if (EV.OB === undefined) EV.sysLoad(); return !!EV.OB; },
   // the settings a part of the picture holds: those its rows of objects.json name
-  partSettings(id) { const B = BRIEF_EDITOR, f = EV.sysFind(id), keys = f ? [...new Set(f.o.rows.flatMap(([, text]) => [...String(text).matchAll(/\{(\w+)\}/g)].map(m => EV.sysKey(m[1]))))] : []; return B.SETTINGS.filter(q => keys.includes(q.k)); },
+  partSettings(id) { const B = BRIEF_EDITOR, f = EV.sysFind(id), keys = f ? [...new Set(f.o.rows.flatMap(([, text]) => [...String(text).matchAll(/\{(\w+)\}/g)].flatMap(m => { const k = EV.sysKey(m[1]); return EV.SYS_OWN[k] ? [EV.SYS_OWN[k], k] : [k]; })))] : []; return B.SETTINGS.filter(q => keys.includes(q.k)); },
   draw() {
     const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e, briefs = (B.ctx.st || {}).briefs || []; B.list = briefs.join('|');
     if (!s || !s.set) { B.node.innerHTML = B.ctx.sec(3, 'A brief', 'No brief could be read from briefs/.', ''); return; }
     const inp = (f, v, hint, cls) => `<input type="text" data-f="${f}" value="${e(v)}" placeholder="${e(hint || '')}" spellcheck="false"${cls ? ` class="${cls}"` : ''}>`;
-    const row = ({ k, name, kind, hint, step }) => { const f = s.set[k];
-      const fields = f.fixed ? `<div class="be-f"><label><small>value</small>${inp(`set.${k}.value`, f.value, hint)}</label></div>`
+    const row = ({ k, name, kind, hint, step, as }) => { const f = s.set[k], common = as ? B.SETTINGS.find(q => q.k === as) : null;
+      const fields = f.off ? `<div class="be-f"><small class="wide" data-off="${k}">Not set: it is as long as “${e(common.name)}” (${e(as)}) says. The brief does not name it, and the simulations are started as before this setting existed.</small></div>` : f.fixed ? `<div class="be-f"><label><small>value</small>${inp(`set.${k}.value`, f.value, hint)}</label></div>`
         : `<div class="be-f">${kind === 'choice' ? `<label class="wide"><small>choices, separated by commas</small>${inp(`set.${k}.choices`, f.choices, 'TcpCubic, TcpNewReno')}</label>`
             : `<label><small>from</small>${inp(`set.${k}.min`, f.min, hint)}</label><label><small>to</small>${inp(`set.${k}.max`, f.max, hint)}</label>`}
            <label><small>default</small>${inp(`set.${k}.def`, f.def, hint)}</label>${step ? `<label title="The model's values are rounded to it, counted from “from”; the rounding is recorded. Empty: no step."><small>step (optional)</small>${inp(`set.${k}.step`, f.step || '', 'none')}</label>` : ''}
            <label class="wide"><small>meaning, one line the model reads</small>${inp(`set.${k}.meaning`, f.meaning, '')}</label>${step ? '<small class="wide">A step: the model\'s values are rounded to it, and the rounding is recorded as a clamp.</small>' : ''}</div>`;
       return `<div class="be-row" data-row="${k}"><div><b>${e(name)}</b><code>${e(k)}</code></div>
-        <div><span class="be-sw"><button data-sw="${k}" data-to="fixed" class="${f.fixed ? 'on' : ''}">fixed</button><button data-sw="${k}" data-to="knob" class="${f.fixed ? '' : 'on'}">the model may change it</button></span></div>
+        <div><span class="be-sw">${as ? `<button data-sw="${k}" data-to="off" class="${f.off ? 'on' : ''}">not set</button>` : ''}<button data-sw="${k}" data-to="fixed" class="${!f.off && f.fixed ? 'on' : ''}">fixed</button><button data-sw="${k}" data-to="knob" class="${f.off || f.fixed ? '' : 'on'}">the model may change it</button></span></div>
         ${fields}</div>`; };
     // the settings: on the picture (a click on a part opens its settings), or all of them as a list
     const pic = B.picture(), mode = pic && s.mode !== 'list' ? 'picture' : 'list', num = (kind, t) => (kind === 'num' && String(t).trim() !== '' && isFinite(Number(t)) ? Number(t) : String(t).trim());
     let settings = B.SETTINGS.map(row).join('');
     if (mode === 'picture') {
-      const v = EV.sysDerive(Object.fromEntries(B.SETTINGS.map(({ k, kind }) => [k, num(kind, s.set[k].fixed ? s.set[k].value : s.set[k].def)]))), on = EV.sysFind(s.obj) ? s.obj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
+      const key = n => EV.sysOwn(n, k => !!s.set[k] && !s.set[k].off), v = EV.sysDerive(Object.fromEntries(B.SETTINGS.filter(({ k }) => !s.set[k].off).map(({ k, kind }) => [k, num(kind, s.set[k].fixed ? s.set[k].value : s.set[k].def)]))), on = EV.sysFind(s.obj) ? s.obj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
       const f = EV.sysFind(on), mine = B.partSettings(on), around = (EV.OB.around || []).map((o, i) => `<a data-act="beobj" data-id="around-${i}" style="cursor:pointer;text-decoration:underline${on === 'around-' + i ? ';font-weight:700' : ''}">${e(o.name.toLowerCase())}</a>`).join(', ');
       const reach = new Set(['link', ...(EV.OB.around || []).map((o, i) => 'around-' + i), ...EV.OB.hosts.flatMap(h => EV.OB.layers.flatMap(l => (h[l.key] || []).map((o, i) => `${h.key}-${l.key}-${i}`)))].flatMap(id => B.partSettings(id).map(q => q.k))), off = B.SETTINGS.filter(q => !reach.has(q.k));
-      settings = `<div class="be-pic" id="be-pic"><div style="overflow:auto">${EV.sysSvg({ v, knob: n => !s.set[EV.sysKey(n)] ? false : !s.set[EV.sysKey(n)].fixed, fixed: n => !!s.set[EV.sysKey(n)] && s.set[EV.sysKey(n)].fixed, on, act: 'beobj' })}</div>
+      settings = `<div class="be-pic" id="be-pic"><div style="overflow:auto">${EV.sysSvg({ v, knob: n => !s.set[key(n)] ? false : !s.set[key(n)].fixed, fixed: n => !!s.set[key(n)] && s.set[key(n)].fixed, on, act: 'beobj' })}</div>
           <div class="key"><span style="--c:var(--by-model)"><i></i>the model may change it</span><span style="--c:var(--by-operator)"><i></i>fixed by the operator</span>${around ? `<span>outside a packet's path: ${around}</span>` : ''}</div></div>
         <p class="th-sm" style="margin:8px 0 2px"><b>${e(f.o.name)}</b> · ${mine.length ? `its setting${mine.length === 1 ? '' : 's'}:` : 'this part has no setting a brief can set.'}</p>${mine.map(row).join('')}
         ${off.length ? `<p class="th-sm" style="margin:10px 0 2px">Not on the picture:</p>${off.map(row).join('')}` : ''}`;
@@ -150,7 +154,7 @@ const BRIEF_EDITOR = {
       <label>Task<small>the question, as the model reads it</small><textarea data-f="task" rows="3">${e(s.task)}</textarea></label>
       <label style="margin-top:12px">Description of the system<small>plain words, written by you. {name} is replaced by the fixed setting of that name, e.g. {linkRate}; a knob cannot be used that way</small><textarea data-f="description" rows="7">${e(s.description)}</textarea></label>
       <h3>Settings</h3>
-      <p class="th-sm" style="margin:0 0 8px">Fixed: one value, the model cannot change it. The model may change it: within the range (or among the choices), starting from the default. The UDP packet size is 1400 bytes in the scenario and is always stated as fixed.</p>
+      <p class="th-sm" style="margin:0 0 8px">Fixed: one value, the model cannot change it. The model may change it: within the range (or among the choices), starting from the default. Each queue's own length may also be left “not set”: the queue is then as long as the common queue length. The UDP packet size is 1400 bytes in the scenario and is always stated as fixed.</p>
       ${pic ? `<span class="be-sw" id="be-mode"><button data-mode="picture" class="${mode === 'picture' ? 'on' : ''}">on the picture</button><button data-mode="list" class="${mode === 'list' ? 'on' : ''}">all settings as a list</button></span>${mode === 'picture' ? ' <span class="th-sm">click a part to open its settings</span>' : ''}` : ''}
       ${settings}
       <h3>Goal</h3>
@@ -188,7 +192,7 @@ const BRIEF_EDITOR = {
       : running ? `The form is the saved brief ${s.baseId}. A session is running, so another cannot start.`
       : `The form is the saved brief ${s.baseId}. A session started here uses the draft, scheduling policy and baseline chosen in section 2, and this brief's limit of simulations.`;
     $('be-msg').innerHTML = s.msg ? `<div class="be-msg ${s.msg.bad ? 'bad' : 'ok'}">${s.msg.lines.length > 1 ? `${e(s.msg.lines[0])}<ul>${s.msg.lines.slice(1).map(l => `<li>${e(l)}</li>`).join('')}</ul>` : e(s.msg.lines[0])}</div>` : '';
-    const fixed = Object.fromEntries(B.SETTINGS.filter(({ k }) => s.set[k].fixed).map(({ k }) => [k, s.set[k].value.trim()])); fixed.udpPacketBytes = '1400';
+    const fixed = Object.fromEntries(B.SETTINGS.filter(({ k }) => s.set[k].fixed && !s.set[k].off).map(({ k }) => [k, s.set[k].value.trim()])); fixed.udpPacketBytes = '1400';
     $('be-read').innerHTML = e(s.description).replace(/\{(\w+)\}/g, (m, k) => (k in fixed ? `<mark>${e(fixed[k])}</mark>` : `<mark class="bad" title="not a fixed setting of this brief">${m}</mark>`)) || '<span class="th-muted">empty</span>';
   },
 
@@ -211,7 +215,9 @@ const BRIEF_EDITOR = {
       if (v[0] === 'small') { s.sims = '15'; if (Number(s.per) > 15) s.per = '15'; }
       let id = `${s.baseId}-${v[2]}`.slice(0, 56), n = 1; while (briefs.includes(id)) id = `${s.baseId}-${v[2]}`.slice(0, 54) + '-' + (++n); s.id = id;
       s.msg = { lines: [`Variation “${v[1]}”: ${v[3]}. Save it as ${id}, or change the id first.`] }; return B.draw(); }
-    if (t.dataset.sw) { const f = B.s.set[t.dataset.sw], q = B.SETTINGS.find(x => x.k === t.dataset.sw); f.fixed = t.dataset.to === 'fixed'; if (f.fixed && !f.value.trim()) f.value = f.def; if (!f.fixed && !f.def.trim()) f.def = f.value;
+    if (t.dataset.sw) { const f = B.s.set[t.dataset.sw], q = B.SETTINGS.find(x => x.k === t.dataset.sw); f.off = t.dataset.to === 'off'; if (f.off) return B.draw();
+      if (q.as && !f.value.trim() && !f.def.trim()) { const c = B.s.set[q.as]; f.value = f.def = (c.fixed ? c.value : c.def); }
+      f.fixed = t.dataset.to === 'fixed'; if (f.fixed && !f.value.trim()) f.value = f.def; if (!f.fixed && !f.def.trim()) f.def = f.value;
       if (!f.fixed && q.open) { if (!f.min.trim()) f.min = q.open.min; if (!f.max.trim()) f.max = q.open.max; if (!f.meaning.trim()) f.meaning = q.open.meaning; }  // a setting no brief has opened yet: a range to start from
       return B.draw(); }
     if (t.id === 'be-save') {

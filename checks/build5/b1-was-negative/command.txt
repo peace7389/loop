@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --weightUdp=0.32 --queuePkts=4 --tcpVariant=TcpNewReno --udpRate=300Mbps --out=/home/chunguck.kim/project/checks/build5/b1-was-negative
+exit 0, 72.8 s

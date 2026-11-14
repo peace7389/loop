@@ -10,11 +10,13 @@ NS3, HARNESS, SESSIONS, BRIEFS = ROOT / "ns-3.49", ROOT / "harness", ROOT / "ses
 SESSION = None          # the current session's folder, set by open_session(); no tool works before that
 BRIEF = None            # what the current session was given: its brief (description filled in) plus MANIFEST
 MANIFEST = json.loads((HARNESS / "manifest.json").read_text())  # the same for every brief: outputs, tools, how an experiment is run
-OPTIONS = ("linkRate", "linkDelay", "mtu", "udpRate", "tcpVariant", "queuePkts", "duration", "seed", "weightUdp")  # program options a brief sets
-KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed", "linkRate", "linkDelay", "mtu")  # those a brief may make knobs: every option of the program (the answer format has a type for each)
+OPTIONS = ("linkRate", "linkDelay", "mtu", "udpRate", "tcpVariant", "queuePkts", "duration", "seed", "weightUdp")  # program options every brief sets
+EXTRA = ("queuePktsUdp", "queuePktsTcp")  # program options a brief may leave out (settings added after build 4): the program is then started without them
+                                          # and does what it did before they existed. Here: a queue without its own length is as long as queuePkts says
+KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed", "linkRate", "linkDelay", "mtu") + EXTRA  # those a brief may make knobs: every option of the program (the answer format has a type for each)
 KNOB_TYPES = {"weightUdp": "number", "udpRate": "string", "queuePkts": "integer", "tcpVariant": "string", "duration": "number", "seed": "integer",
-              "linkRate": "string", "linkDelay": "string", "mtu": "integer"}  # their types in the answer format
-RATES, STEPPED = ("udpRate", "linkRate"), ("weightUdp", "queuePkts", "duration", "seed", "mtu")  # knobs given as a rate ("400Mbps"); numeric knobs, which may have a step
+              "linkRate": "string", "linkDelay": "string", "mtu": "integer", "queuePktsUdp": "integer", "queuePktsTcp": "integer"}  # their types in the answer format
+RATES, STEPPED = ("udpRate", "linkRate"), ("weightUdp", "queuePkts", "duration", "seed", "mtu", "queuePktsUdp", "queuePktsTcp")  # knobs given as a rate ("400Mbps"); numeric knobs, which may have a step
 DEFAULT_BRIEF = "two-hosts-open"
 POLICY = "share"        # the scheduling policy (how the scheduler divides the link: share or cap): the operator's choice, set by loop.py. It goes to
                         # the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
@@ -30,7 +32,7 @@ def _ok(k, v):
             return bool(re.fullmatch(r"\d+(\.\d+)?(ns|us|ms|s)", str(v)))
         if k == "tcpVariant":
             return bool(re.fullmatch(r"Tcp[A-Za-z0-9]+", str(v)))
-        if k in ("mtu", "queuePkts", "seed"):
+        if k in ("mtu", "queuePkts", "seed", "queuePktsUdp", "queuePktsTcp"):
             return type(v) is int and v >= (576 if k == "mtu" else 1)
         if k in ("weightUdp", "duration"):
             return type(v) in (int, float) and (0.05 <= v <= 0.95 if k == "weightUdp" else v > 0)
@@ -45,11 +47,13 @@ def check_brief(b, brief_id):
     num = lambda k, v: _rate_bps(v) if k in RATES else _seconds(v) if k == "linkDelay" else v
     bad = [] if b.get("id") == brief_id and re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) else ["id must equal the file name (letters, digits, - and _)"]
     bad += [f"'{k}' must be a text" for k in ("task", "description") if not isinstance(b.get(k), str) or not b[k].strip()]
-    bad += [f"'{k}' is not a setting of the program" for k in list(knobs) + list(system) if k not in OPTIONS + ("udpPacketBytes",)]
+    bad += [f"'{k}' is not a setting of the program" for k in list(knobs) + list(system) if k not in OPTIONS + EXTRA + ("udpPacketBytes",)]
     bad += [f"'{k}' is both fixed (system) and adjustable (knobs)" for k in knobs if k in system]
-    bad += [f"'{k}' can only be a fixed setting (the answer format has no field for it)" for k in knobs if k in OPTIONS and k not in KNOBS]
+    bad += [f"'{k}' can only be a fixed setting (the answer format has no field for it)" for k in knobs if k in OPTIONS + EXTRA and k not in KNOBS]
     bad += [f"'{k}' is missing: give it a fixed value (system) or make it a knob" for k in OPTIONS if k not in knobs and k not in system]
-    bad += [f"fixed setting '{k}': {v!r} is not a value the program accepts" for k, v in system.items() if k in OPTIONS + ("udpPacketBytes",) and not _ok(k, v)]
+    bad += [f"fixed setting '{k}': {v!r} is not a value the program accepts" for k, v in system.items() if k in OPTIONS + EXTRA + ("udpPacketBytes",) and not _ok(k, v)]
+    if "queuePkts" in knobs and all(k in knobs or k in system for k in ("queuePktsUdp", "queuePktsTcp")):  # a knob that changes nothing makes tests that test nothing
+        bad.append("'queuePkts' is a knob, but both queues have their own length (queuePktsUdp, queuePktsTcp), so it would change nothing: fix it, or leave one queue without its own length")
     for k, s in knobs.items():
         if k not in KNOBS or not isinstance(s, dict):
             continue
@@ -182,11 +186,12 @@ def _seconds(s):
 def options(clean, brief=None):
     """Every option the program is started with: the brief's fixed settings, its knobs' defaults, then the chosen values."""
     b = brief or BRIEF
-    return {**{k: v for k, v in b["system"].items() if k in OPTIONS}, **{k: s["default"] for k, s in b["knobs"].items()}, **clean}
+    return {**{k: v for k, v in b["system"].items() if k in OPTIONS + EXTRA}, **{k: s["default"] for k, s in b["knobs"].items()}, **clean}
 
 def same(opts):
-    """The settings and the seed of a simulation in a form that is equal exactly when the simulation would be the same."""
-    return tuple((k, _rate_bps(opts[k]) if k in RATES else _seconds(opts[k]) if k == "linkDelay" else float(opts[k]) if type(opts[k]) in (int, float) else str(opts[k])) for k in OPTIONS)
+    """The settings and the seed of a simulation in a form that is equal exactly when the simulation would be the same
+    (an option of EXTRA that was not given counts as not given: within one brief it is given always or never)."""
+    return tuple((k, _rate_bps(opts[k]) if k in RATES else _seconds(opts[k]) if k == "linkDelay" else float(opts[k]) if type(opts[k]) in (int, float) else str(opts[k])) for k in OPTIONS + EXTRA if k in OPTIONS or k in opts)
 
 def run_many(param_sets):
     """Several simulations at once, each in its own runs/<id>/ of the session: clamp, start the built program for all

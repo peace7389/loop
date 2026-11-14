@@ -1,0 +1,96 @@
+[
+ {
+  "build": "build5, 2026-11-14 (NOTEBOOK_VIEW.md, Part 3, Step C, first setting): the two queues can have separate lengths, --queuePktsUdp and --queuePktsTcp (0, the default: as long as --queuePkts says). params.json states each of the two only when it was given. Nothing else in the scenario changed.",
+  "how": "every command of the eleven checks (the 16 runs of build3, without the pcap run, and b1-was-negative of build4) was run with the build-4 program just before the change and with the build-5 program after it; metrics.json, series.csv, params.json and flowmon.xml compared byte for byte. Checks 1 to 4 were also compared with the files stored in checks/build4. Scripts: run_checks.py, compare.py, check12.py in this folder.",
+  "program": {
+   "build4_sha256": "7f46f5a04ead1148effef36a7750a093eecf4d7371b47e24f0ae0cd0172e8fce",
+   "build5_sha256": "9cc61f193a1f0e0419428f135646bc0b4c022050160a0248731cd28bfcac5632"
+  }
+ },
+ {
+  "check": "1 to 4 against checks/build4, with every new setting at its default",
+  "runs": [
+   "c01-udp-alone",
+   "c02-tcp-alone",
+   "c03-share-w0.2",
+   "c03-share-w0.5",
+   "c03-share-w0.8",
+   "c04-share-udp200m",
+   "b1-was-negative"
+  ],
+  "files_compared": 28,
+  "not_identical": 0,
+  "pass": true
+ },
+ {
+  "check": "1 to 11 against the build-4 program run the same day",
+  "summary": "17 runs, 68 files compared, 0 not identical",
+  "pass": true
+ },
+ {
+  "check": "12 separate queue lengths (new)",
+  "predicted_before_the_run": {
+   "12a": "queuePktsUdp 20, queuePktsTcp 200: the UDP queue never holds more than 20 packets and every UDP drop happens with exactly 20 waiting; the TCP queue never more than 200 and every TCP drop with exactly 200 waiting; the TCP queue is seen above 100 (the common default)",
+   "12b": "swapped (200, 20): the same with 200 for UDP and 20 for TCP",
+   "12c": "both given as 100 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without them (difference 0)",
+   "12d": "queuePkts 37 against queuePkts 999 with both own lengths 37: metrics.json, series.csv and flowmon.xml byte-identical (the common length has no effect once both are given)",
+   "12e": "queuePktsUdp 37 alone against queuePkts 100, queuePktsUdp 37, queuePktsTcp 100: byte-identical (a queue without its own length uses the common one)",
+   "12f": "under the other scheduling policy, (20, 200): the same limits as 12a"
+  },
+  "measured": {
+   "12a": {
+    "most_waiting_udp_whole_run": 20,
+    "most_waiting_tcp_whole_run": 199,
+    "most_waiting_udp": 20,
+    "most_waiting_tcp": 200,
+    "udp_drops_by_number_waiting": {
+     "20": 269728
+    },
+    "tcp_drops_by_number_waiting": {
+     "200": 4
+    }
+   },
+   "12b": {
+    "most_waiting_udp_whole_run": 200,
+    "most_waiting_tcp_whole_run": 20,
+    "most_waiting_udp": 200,
+    "most_waiting_tcp": 20,
+    "udp_drops_by_number_waiting": {
+     "200": 269728
+    },
+    "tcp_drops_by_number_waiting": {
+     "20": 185
+    }
+   },
+   "12f": {
+    "most_waiting_udp_whole_run": 20,
+    "most_waiting_tcp_whole_run": 200,
+    "most_waiting_udp": 20,
+    "most_waiting_tcp": 200,
+    "udp_drops_by_number_waiting": {
+     "20": 269847
+    },
+    "tcp_drops_by_number_waiting": {
+     "200": 4
+    }
+   },
+   "12c": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "12d": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "12e": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   }
+  },
+  "pass": true,
+  "detail": "check12.json"
+ }
+]

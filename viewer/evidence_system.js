@@ -23,12 +23,16 @@ Object.assign(EV, {
   sysVals() {
     const M = EV.M, S = EV.s, b = M.brief || {}, kn = b.knobs || {}, q = S.sysSim && S.sysSim.sid === M.id ? M.simById[S.sysSim.id] : null, sim = q && EV.seen(q.id) ? q : null;
     const v = { ...(b.system || {}), ...Object.fromEntries(Object.entries(kn).map(([n, o]) => [n, o.default])), ...(sim ? sim.params : {}) };
-    EV.sysDerive(v); const key = EV.sysKey;
+    EV.sysDerive(v); const key = n => EV.sysOwn(n, k => k in kn || k in (b.system || {}));
     return { v, sim, key, knob: n => key(n) in kn, fixed: n => key(n) in (b.system || {}), range: n => { const o = kn[key(n)] || {}; return o.choices ? o.choices.map(c => String(c).replace(/^Tcp/, '')).join(', ') : `${o.min} to ${TASK_VIEW._rate(o.max)}${o.step != null ? ', in steps of ' + o.step : ''}`; } };
   },
   // the values a picture shows beside the settings themselves, and the setting each of them comes from
-  sysDerive(v) { if (typeof v.mtu === 'number') v.segment = v.mtu - 52; if (typeof v.weightUdp === 'number') v.tcpShare = +(1 - v.weightUdp).toFixed(6); if (v.tcpVariant) v.tcpVariantPlain = String(v.tcpVariant).replace(/^Tcp/, ''); return v; },
+  sysDerive(v) { Object.entries(EV.SYS_OWN).forEach(([k, common]) => { if (v[k] == null && v[common] != null) v[k] = v[common]; }); if (typeof v.mtu === 'number') v.segment = v.mtu - 52; if (typeof v.weightUdp === 'number') v.tcpShare = +(1 - v.weightUdp).toFixed(6); if (v.tcpVariant) v.tcpVariantPlain = String(v.tcpVariant).replace(/^Tcp/, ''); return v; },
   sysKey: n => ({ tcpShare: 'weightUdp', tcpVariantPlain: 'tcpVariant', segment: 'mtu' }[n] || n),
+  // a setting a brief may leave out, and the setting whose value it then has: each queue's own length, else the common queue length
+  SYS_OWN: { queuePktsUdp: 'queuePkts', queuePktsTcp: 'queuePkts' },
+  // the setting a shown value comes from. given(k): whether the brief (or the form) sets k itself
+  sysOwn(n, given) { const k = EV.sysKey(n); return EV.SYS_OWN[k] && !given(k) ? EV.SYS_OWN[k] : k; },
   // one legend for the two colours: a setting the brief opens to the model, a setting it fixes
   sysLegend: () => `<span data-by="model"><i class="sw"></i>the model may change it</span><span data-by="operator"><i class="sw"></i>fixed by the operator</span>`,
   sysFill: (text, v) => TASK_VIEW._rate(String(text).replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : 'not recorded'))),
@@ -42,8 +46,8 @@ Object.assign(EV, {
     const val = (x, y, s, k, anchor) => T(x, y, s, o.knob(k) ? 'sk' : o.fixed(k) ? 'sf' : 'sv', anchor);
     const obj = (id, inner) => { const f = id && EV.sysFind(id); return f ? `<g data-act="${o.act}" data-id="${id}"${on === id ? ' class="osel"' : ''}><title>${e(`${f.o.name} · ns-3 ${EV.sysFill(f.o.cls, v)}`)}</title>${inner}</g>` : ''; };
     const box = (id, x, y, w, h, l1, l2, o = {}) => obj(id, `<rect class="bx${o.cls || ''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${o.rx || 5}"/>${T(x + w / 2, y + h / 2 + (l2 ? -2 : 4), l1, o.lc || 'sn')}${l2 ? val(x + w / 2, y + h / 2 + 11, l2[0], l2[1]) : ''}`.replace(/(y=")(\d+(?:\.\d+)?)(" class="sn")/, (m, a, yy, c) => (l2 && !l2[0] ? a + (+yy + 6) + c : m)));
-    const queue = (id, x, y, name, col) => obj(id, `<path class="bx" d="M${x},${y} H${x + 104} V${y + 30} H${x}"/>${[0, 1, 2].map(i => `<rect x="${x + 94 - i * 9}" y="${y + 4}" width="6" height="22" rx="1.5" fill="var(${col})" opacity="${0.75 - i * 0.2}"/>`).join('')}
-      ${T(x + 5, y + 13, name, 'sn', 'start')}${val(x + 5, y + 25, v.queuePkts == null ? '' : `${v.queuePkts} packets`, 'queuePkts', 'start')}`);
+    const queue = (id, x, y, name, col, k) => obj(id, `<path class="bx" d="M${x},${y} H${x + 104} V${y + 30} H${x}"/>${[0, 1, 2].map(i => `<rect x="${x + 94 - i * 9}" y="${y + 4}" width="6" height="22" rx="1.5" fill="var(${col})" opacity="${0.75 - i * 0.2}"/>`).join('')}
+      ${T(x + 5, y + 13, name, 'sn', 'start')}${val(x + 5, y + 25, v[k] == null ? '' : `${v[k]} packets`, k, 'start')}`);
     const pc = (x, w, H) => `<rect class="pc" x="${x}" y="2" width="${w}" height="166" rx="12"/><path class="pi" d="M${x + 14},11 h17 v11 h-17 z M${x + 19},26 h7 M${x + 22.5},22 v4"/>
       ${T(x + 40, 22, H.title, 'sn st', 'start')}${T(x + 40 + H.title.length * 8.2 + 8, 22, `ns-3 ${H.node} · ${H.sub}`, 'sc', 'start')}`;
     const cap = (x, s) => T(x, 50, s, 'sc'), id = EV.sysId, Y = { u: 67, t: 117 }, w = typeof v.weightUdp === 'number' ? Math.min(0.999, Math.max(0.001, v.weightUdp)) : null;
@@ -57,7 +61,7 @@ Object.assign(EV, {
       ${pc(2, 590, O.hosts[0])}${pc(X - 2, 322, O.hosts[1])}${cap(68, 'applications')}${cap(203, 'internet stack')}${cap(366, 'traffic control')}${cap(528, 'net device')}${cap(X + 46, 'net device')}${cap(X + 154, 'internet stack')}${cap(X + 273, 'applications')}${flows}
       ${box(id('sender', 'apps', 'UDP source'), 14, Y.u, 108, 30, 'UDP source', [v.udpRate == null ? 'constant rate' : `${R(v.udpRate)}, constant`, 'udpRate'], { rx: 15 })}${box(id('sender', 'apps', 'TCP source'), 14, Y.t, 108, 30, 'TCP source', ['always has data', ''], { rx: 15 })}
       ${box(id('sender', 'stack', 'UDP socket'), 140, Y.u, 72, 30, 'UDP socket')}${box(id('sender', 'stack', 'TCP socket'), 140, Y.t, 72, 30, 'TCP socket', [v.tcpVariantPlain || '', 'tcpVariant'])}${box(id('sender', 'stack', 'IPv4'), 228, 67, 38, 80, 'IPv4')}
-      ${queue(id('sender', 'tc', 'UDP queue'), 284, Y.u, 'UDP queue', '--series-1')}${queue(id('sender', 'tc', 'TCP queue'), 284, Y.t, 'TCP queue', '--series-2')}${sched}
+      ${queue(id('sender', 'tc', 'UDP queue'), 284, Y.u, 'UDP queue', '--series-1', 'queuePktsUdp')}${queue(id('sender', 'tc', 'TCP queue'), 284, Y.t, 'TCP queue', '--series-2', 'queuePktsTcp')}${sched}
       ${box(id('sender', 'dev', 'Point-to-point device'), 476, 85, 104, 44, 'device', [J(R(v.linkRate), 'queue 10'), 'linkRate'])}${wire}
       ${box(id('receiver', 'dev', 'Point-to-point device'), X + 10, 85, 72, 44, 'device', [R(v.linkRate), 'linkRate'])}${box(id('receiver', 'tc', 'Return queue'), X + 10, 138, 72, 22, 'return queue', null, { cls: ' dash', lc: 'sv' })}
       ${box(id('receiver', 'stack', 'IPv4'), X + 100, 67, 38, 80, 'IPv4')}${box(id('receiver', 'stack', 'UDP socket'), X + 154, Y.u, 70, 30, 'UDP socket')}${box(id('receiver', 'stack', 'TCP socket'), X + 154, Y.t, 70, 30, 'TCP socket')}

@@ -1,0 +1,244 @@
+{
+ "predicted_before_the_run": {
+  "12a": "queuePktsUdp 20, queuePktsTcp 200: the UDP queue never holds more than 20 packets and every UDP drop happens with exactly 20 waiting; the TCP queue never more than 200 and every TCP drop with exactly 200 waiting; the TCP queue is seen above 100 (the common default)",
+  "12b": "swapped (200, 20): the same with 200 for UDP and 20 for TCP",
+  "12c": "both given as 100 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without them (difference 0)",
+  "12d": "queuePkts 37 against queuePkts 999 with both own lengths 37: metrics.json, series.csv and flowmon.xml byte-identical (the common length has no effect once both are given)",
+  "12e": "queuePktsUdp 37 alone against queuePkts 100, queuePktsUdp 37, queuePktsTcp 100: byte-identical (a queue without its own length uses the common one)",
+  "12f": "under the other scheduling policy, (20, 200): the same limits as 12a"
+ },
+ "checks": [
+  {
+   "check": "12a",
+   "run": "c12a-udp20-tcp200",
+   "limits": {
+    "udp": 20,
+    "tcp": 200
+   },
+   "whole_run_series": {
+    "most_waiting_udp": 20,
+    "most_waiting_tcp": 199,
+    "drops_band0": 1348637,
+    "drops_band1": 20
+   },
+   "two_recorded_seconds": {
+    "most_waiting_udp": 20,
+    "most_waiting_tcp": 200,
+    "udp_drops_by_number_waiting": {
+     "20": 269728
+    },
+    "tcp_drops_by_number_waiting": {
+     "200": 4
+    }
+   },
+   "params_json": {
+    "linkRate": "1Gbps",
+    "linkDelay": "50us",
+    "udpRate": "2Gbps",
+    "tcpVariant": "TcpCubic",
+    "mtu": 1500,
+    "queuePkts": 100,
+    "duration": 10,
+    "seed": 1,
+    "weightUdp": 0.5,
+    "queuePktsUdp": 20,
+    "queuePktsTcp": 200
+   },
+   "pass": true
+  },
+  {
+   "check": "12b",
+   "run": "c12b-udp200-tcp20",
+   "limits": {
+    "udp": 200,
+    "tcp": 20
+   },
+   "whole_run_series": {
+    "most_waiting_udp": 200,
+    "most_waiting_tcp": 20,
+    "drops_band0": 1348637,
+    "drops_band1": 922
+   },
+   "two_recorded_seconds": {
+    "most_waiting_udp": 200,
+    "most_waiting_tcp": 20,
+    "udp_drops_by_number_waiting": {
+     "200": 269728
+    },
+    "tcp_drops_by_number_waiting": {
+     "20": 185
+    }
+   },
+   "params_json": {
+    "linkRate": "1Gbps",
+    "linkDelay": "50us",
+    "udpRate": "2Gbps",
+    "tcpVariant": "TcpCubic",
+    "mtu": 1500,
+    "queuePkts": 100,
+    "duration": 10,
+    "seed": 1,
+    "weightUdp": 0.5,
+    "queuePktsUdp": 200,
+    "queuePktsTcp": 20
+   },
+   "pass": true
+  },
+  {
+   "check": "12f",
+   "run": "c12f-cap-udp20-tcp200",
+   "limits": {
+    "udp": 20,
+    "tcp": 200
+   },
+   "whole_run_series": {
+    "most_waiting_udp": 20,
+    "most_waiting_tcp": 200,
+    "drops_band0": 1349234,
+    "drops_band1": 20
+   },
+   "two_recorded_seconds": {
+    "most_waiting_udp": 20,
+    "most_waiting_tcp": 200,
+    "udp_drops_by_number_waiting": {
+     "20": 269847
+    },
+    "tcp_drops_by_number_waiting": {
+     "200": 4
+    }
+   },
+   "params_json": {
+    "linkRate": "1Gbps",
+    "linkDelay": "50us",
+    "udpRate": "2Gbps",
+    "tcpVariant": "TcpCubic",
+    "mtu": 1500,
+    "queuePkts": 100,
+    "duration": 10,
+    "seed": 1,
+    "weightUdp": 0.5,
+    "queuePktsUdp": 20,
+    "queuePktsTcp": 200
+   },
+   "pass": true
+  },
+  {
+   "check": "12c",
+   "runs": [
+    "c12c-both100",
+    "c12c-defaults"
+   ],
+   "byte_identical": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "params_json": [
+    {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 100,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5,
+     "queuePktsUdp": 100,
+     "queuePktsTcp": 100
+    },
+    {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 100,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5
+    }
+   ],
+   "pass": true
+  },
+  {
+   "check": "12d",
+   "runs": [
+    "c12d-common37",
+    "c12d-common999-own37"
+   ],
+   "byte_identical": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "params_json": [
+    {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 37,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5
+    },
+    {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 999,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5,
+     "queuePktsUdp": 37,
+     "queuePktsTcp": 37
+    }
+   ],
+   "pass": true
+  },
+  {
+   "check": "12e",
+   "runs": [
+    "c12e-udp37-only",
+    "c12e-udp37-tcp100"
+   ],
+   "byte_identical": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "params_json": [
+    {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 100,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5,
+     "queuePktsUdp": 37
+    },
+    {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 100,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5,
+     "queuePktsUdp": 37,
+     "queuePktsTcp": 100
+    }
+   ],
+   "pass": true
+  }
+ ]
+}

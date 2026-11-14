@@ -338,7 +338,7 @@ const TASK_VIEW = {
   _fill(sys) {
     const R = TASK_VIEW._rate, d = sys.defaults || {};
     const vals = { ...d, linkRate: sys.link_rate, linkDelay: sys.link_delay, mtu: sys.mtu, segment: (sys.mtu || 1500) - 52, mode: sys.mode || 'share',
-      tcpShare: d.weightUdp != null ? +(1 - d.weightUdp).toFixed(3) : '?', tcpVariantPlain: String(d.tcpVariant || '').replace(/^Tcp/, '') };
+      tcpShare: d.weightUdp != null ? +(1 - d.weightUdp).toFixed(3) : '?', tcpVariantPlain: String(d.tcpVariant || '').replace(/^Tcp/, ''), queuePktsUdp: d.queuePktsUdp != null ? d.queuePktsUdp : d.queuePkts, queuePktsTcp: d.queuePktsTcp != null ? d.queuePktsTcp : d.queuePkts };
     return t => R(String(t).replace(/\{(\w+)\}/g, (m, k) => (vals[k] != null ? vals[k] : m)));
   },
   _find(O, id) {  // an object of the schema by its id: "link", or "<host>-<layer>-<index>"

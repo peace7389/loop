@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=cap two-hosts --queuePktsUdp=20 --queuePktsTcp=200 --out=/home/chunguck.kim/project/checks/build5/c12f-cap-udp20-tcp200
+exit 0, 26.3 s

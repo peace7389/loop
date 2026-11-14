@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --queuePktsUdp=20 --queuePktsTcp=200 --out=/home/chunguck.kim/project/checks/build5/c12a-udp20-tcp200
+exit 0, 26.0 s

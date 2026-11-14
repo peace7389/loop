@@ -253,7 +253,7 @@ def run_sweep(folder, brief, policy, combos, st, stop, kept=()):
     """Every combination, at most PARALLEL at a time, by the built program directly. One row per simulation in
     table.csv, in the order they finish (sorted by number at the end); a run's own folder is removed once its row is written.
     kept: the rows of the table that stay as they are when combinations are added to an existing sweep."""
-    cols = ["i", *tools.OPTIONS, *tools.MANIFEST["outputs"], "seconds", "error"]
+    cols = ["i", *tools.OPTIONS, *[k for k in tools.EXTRA if k in brief["knobs"] or k in brief["system"]], *tools.MANIFEST["outputs"], "seconds", "error"]  # an option a brief may leave out has a column only where the brief sets it
     rows, running, nxt, t_start, first = list(kept), {}, 0, time.time(), len(kept)
     with (folder / "table.csv").open("w", newline="") as f:
         out = csv.DictWriter(f, cols)

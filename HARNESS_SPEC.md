@@ -197,7 +197,7 @@ draft's length and token count.
 │       └── <run>/                params.json, metrics.json, series.csv, flowmon.xml (ids r001, ...)
 ├── checks/                       operator-only: no function of tools.py reads here
 │   ├── operator.jsonl            {session, id, policy, seconds} per simulation, appended by loop.py
-│   ├── build1/ ... build4/       the operator's checks of the simulator, by build (6.4)
+│   ├── build1/ ... build5/       the operator's checks of the simulator, by build (6.4)
 │   ├── op-<time>/, control.jsonl operator simulations started from the page
 │   ├── sessions/<id>.log         terminal output of a session started by control.py
 │   ├── sweeps/<id>/              table.csv, status.json (10.2)
@@ -228,7 +228,8 @@ Two nodes on one point-to-point link. Node 0 sends, node 1 receives.
   TCP + 12 timestamp option), so a full segment is exactly one MTU-sized
   packet. Send and receive buffers are 1 MB.
 - On node 0's device the root queue disc is `ns3::LinkQueueDisc` (6.2) with two
-  child `FifoQueueDisc`s of `--queuePkts` packets each. The device's own queue
+  child `FifoQueueDisc`s, each of `--queuePkts` packets unless its own length
+  is given (`--queuePktsUdp`, `--queuePktsTcp`). The device's own queue
   is a 10-packet drop-tail, so queueing and drops happen in the queue disc,
   per band, where they are counted.
 - Timing: traffic starts at t = 1 s. Each sender starts up to 10 ms later; the
@@ -252,8 +253,17 @@ Options and defaults:
 | `tcpVariant` | TcpCubic | a brief: fixed or knob |
 | `duration` | 10 | a brief: fixed or knob |
 | `seed` | 1 | a brief: fixed or knob |
+| `queuePktsUdp`, `queuePktsTcp` | 0: as long as `queuePkts` says | a brief: left out, fixed or knob (a whole number of at least 1) |
 | `out` | (required) | the harness |
 | `warmup` (1), `tcp` (on), `udpTos` (0x10), `pcap` (off), `events` (0), `eventsAt` (0) | | the operator only, by starting the program directly |
+
+**Settings added after build 4** (`NOTEBOOK_VIEW.md`, Part 3, Step C; one at
+a time, each with an operator check that predicts a number, 6.4). The rule for
+each: at its default the program does what it did before the setting existed
+and writes the same files, byte for byte; `params.json` states such a setting
+only when it was given. So far: `queuePktsUdp` and `queuePktsTcp`, each queue's
+own length (build 5). A queue without its own length has the common
+`queuePkts`; once both are given, `queuePkts` has no effect.
 
 `--udpRate=0bps` leaves the UDP sender out and `--tcp=0` the TCP sender.
 `--events=MS` writes every packet-level event of a window of MS milliseconds to
@@ -309,7 +319,8 @@ The scheduler's own source still says "mode" inside. It was left so because
 
 ### 6.3 Outputs (fixed; the tools, the ledger and the viewer read these)
 
-`params.json`: the nine brief options as the program used them.
+`params.json`: the nine brief options as the program used them, then each
+setting added after build 4 that was given (6.1), and no others.
 
 `metrics.json`, flat, the measured `duration` seconds only:
 
@@ -352,9 +363,14 @@ starting the built program directly into `checks/<build>/`, never through
 | 3 | 11-11 | Scheduler renamed `LinkQueueDisc`; policy from `TWOHOSTS_SCHED`; link rate read from the device | `checks/build3/results.json`: checks 1 to 4 byte-identical to build 2; checks 5 to 11 pass |
 | 4 | 11-11 | `udp_loss_frac` counted by packet uid (it could be slightly negative before) | `checks/build4/results.json`: checks 1 to 4 give the same value for every other metric; largest change of `udp_loss_frac` 0.000006 |
 
-Build 4 is the current one. Both sweep tables (10.2) were made with it.
+| 5 | 11-14 | Each queue may have its own length: `--queuePktsUdp`, `--queuePktsTcp` (Step C, first setting) | `checks/build5/results.json`: with the new options left out, every run of checks 1 to 11 (17 runs; `metrics.json`, `series.csv`, `params.json`, `flowmon.xml`: 68 files) is byte-identical to the build-4 program run just before the change, and checks 1 to 4 to the files in `checks/build4/`; check 12 passes |
 
-The eleven checks, as measured with build 3:
+Build 5 is the current one. Both sweep tables (10.2) were made with build 4;
+build 5 writes the same files for settings that leave the new options out.
+The scripts that ran and compared the checks of build 5 are kept in its folder
+(`run_checks.py`, `compare.py`, `check12.py`).
+
+The twelve checks; 1 to 11 as measured with build 3, 12 with build 5:
 
 | # | Settings | Measured | Result |
 |---|---|---|---|
@@ -370,16 +386,19 @@ The eleven checks, as measured with build 3:
 | 9 | packet count, defaults | UDP sent = received + dropped, to 0.0001% | pass |
 | 10 | seed 1 twice, then seed 2 | seed 1 byte-identical; seed 2 differs in `series.csv`, metrics within 0.0002% | pass |
 | 11 | duration 2 and 30 against 10 | rates within 0.001%; counts under 50 events are exempt | pass (**DECISION 2026-11-11**: the exemption) |
+| 12 | separate queue lengths, predicted before the run: with queuePktsUdp 20 and queuePktsTcp 200 (and swapped; and under cap) no queue ever holds more than its own length and every drop happens with exactly that many waiting; both given as 100 is the default; `queuePkts` 37 is `queuePkts` 999 with both own lengths 37; one own length alone leaves the other queue at `queuePkts` | most waiting 20 and 200 (swapped: 200 and 20); in two recorded seconds 269,728 UDP drops all at 20 waiting and 4 TCP drops all at 200 (swapped: all at 200, 185 at 20; cap: 269,847 at 20, 4 at 200); the three pairs byte-identical in `metrics.json`, `series.csv`, `flowmon.xml` | pass |
 
-`harness/check_objects.py` is the twelfth thing to run after a change of the
+`harness/check_objects.py` is run with them after a change of the
 scenario. The viewer's picture of the system (12.1) states values that the
 scenario fixes in its source: the UDP packet size, the ports, the device's
 queue, the TCP buffers, the scheduler's quantum, the start times. Nothing
 updates them when the scenario changes. The check reads `two-hosts.cc` and
 `link-queue-disc.cc` and compares them, value by value, with
 `viewer/objects.json` and with the picture's script; it writes nothing and ends
-with status 1 if a value differs or can no longer be read. On 2026-11-12: 42
-values compared, 42 ok.
+with status 1 if a value differs or can no longer be read. For a setting added
+after build 4 it checks that the scenario has the option, that the object it
+belongs to is given it, and that the object's row in `objects.json` names it.
+On 2026-11-14: 46 values compared, 46 ok.
 
 What checks 5a and 5b show: with short queues TCP's queue empties after a
 loss, and under share UDP then gets more than its configured part. With Cubic
@@ -406,6 +425,12 @@ account of the system.
 
 - every program option of the first nine rows of 6.1 is either fixed or a
   knob, never both;
+- **a setting added after build 4** (6.1: `queuePktsUdp`, `queuePktsTcp`) may
+  be left out, fixed or made a knob. Left out, it is in neither the brief nor
+  the program's command line, so the briefs written before it and their
+  sessions and sweeps are as they were. Refused: `queuePkts` as a knob while
+  both queues have their own length (it would change nothing, and a test on it
+  would test nothing);
 - any of the nine can be a knob (**DECISION 2026-11-13**, `NOTEBOOK_VIEW.md`,
   Part 3, Step B: since the answer format is built from the brief, link rate,
   link delay and MTU can be opened to the model too; no brief in the
@@ -413,7 +438,7 @@ account of the system.
 - values the program accepts; `min < max` with the default between; a meaning
   for every knob;
 - **a step** (optional, for a numeric knob: weightUdp, queuePkts, duration,
-  seed, mtu; a whole number where the knob is one; above 0 and at most
+  seed, mtu, queuePktsUdp, queuePktsTcp; a whole number where the knob is one; above 0 and at most
   `max - min`): the model's values are rounded to it, counted from the knob's
   `min`, and the rounding is recorded as a clamp (asked, used). The model
   reads it in the brief with the knob's range. Two designs that round to the
@@ -449,7 +474,9 @@ reads and sets the settings **on the picture of the system** (12.1): a click
 on a part opens its settings, each with a switch "fixed / the model may
 change it", a value or a range, a default, and for a numeric knob an optional
 step; the picture draws each value in the colour of its state as the form
-changes. The same rows for every setting stay reachable as "all settings as a
+changes. A setting a brief may leave out has a third state, "not set", which
+says whose value it then has; a click on a queue opens the common length and
+that queue's own. The same rows for every setting stay reachable as "all settings as a
 list". A given goal has a field for the tolerance. Three ready-made
 **variations** of the opened brief fill the form with one change and propose a
 new id: "no loss allowed" (the condition on UDP loss becomes
@@ -790,7 +817,8 @@ Simulations are run only by the harness, for an accepted experiment:
 `design=<label>` it also refuses a design that does not state every knob,
 8.5), starts the
 built program with every option explicit (`options`: the fixed settings, the
-knobs' defaults, then the chosen values) and `TWOHOSTS_SCHED` in its
+knobs' defaults, then the chosen values; a setting the brief leaves out,
+`tools.EXTRA`, is not passed) and `TWOHOSTS_SCHED` in its
 environment, waits up to 600 s, and appends `{id, params, metrics}` to the
 session's `runs/index.json`.
 
@@ -836,7 +864,8 @@ An operator simulation is made by the built program directly, never by
 `POST /api/sweep {brief, policy, grid: {knob: [values]}}` runs every
 combination of the grid, at most 64 at a time, one sweep at a time, at most
 5,000 simulations. `checks/sweeps/<id>/table.csv` has one row per simulation
-(its number, the nine options, the outputs, seconds, error); `status.json` the
+(its number, the nine options, a column for each setting of `tools.EXTRA` the
+brief sets, the outputs, seconds, error); `status.json` the
 progress. A simulation's own folder is removed once its row is written.
 
 `{add_to: <sweep id>, grid}` adds the combinations the table does not have yet;
@@ -1212,6 +1241,9 @@ internet stack, traffic control, net device), and the link between them.
   the scenario source, 6.4). The values come from the session: its brief's
   fixed settings and each knob's default, or the settings of the simulation
   the reader opened last; "show the brief's defaults" brings the defaults back.
+  Each queue shows its own length; where the brief does not give it one, the
+  common queue length, in the colour and with the label of that setting
+  (`EV.SYS_OWN`, `EV.sysOwn`).
 - **Two colours, one legend**: a setting the brief opens to the model is
   written in the model's colour, a setting the brief fixes in the operator's;
   the legend under the picture names both. The same picture (`EV.sysSvg`) is
@@ -1640,7 +1672,7 @@ untracked until they say otherwise.
 - Do not invent a value for something that was not recorded.
 - Do not overwrite a brief, rewrite an old session, or edit a ledger line.
 - Do not change the ns-3 scenario without the operator's word; after a change,
-  run the eleven checks and `check_objects.py` again, bring
+  run the checks of 6.4 and `check_objects.py` again, bring
   `viewer/objects.json` up to date, and make the sweeps and recordings again.
 - Do not write into `viewer/objects.json` how the scheduling policy is set: the
   file goes into exported sessions.
@@ -1697,6 +1729,7 @@ untracked until they say otherwise.
 | 2026-11-11 | Scheduler renamed and the policy moved to an environment variable (build 3), after s001 showed the model reading the policy's name in the source. `RESTRUCTURE_PLAN.md` stages 1 to 5: sessions in their own folders; briefs; experiments of several simulations with decision rules checked by the harness; the final report; sweep, answer key and score. `CHECKS_AND_REPAIRS.md`: checks 5 to 11, and repairs B1 (loss cannot be negative, build 4), B2 (a tested hypothesis needs a verdict), B3 (draft text in its own file). Terms fixed: decision rule, scheduling policy. Rivals; simulations not run twice; answers taken part by part. `EVIDENCE_VIEW.md` and `PAGE_REDESIGN.md`: the evidence page (replacing stage 6). Sessions s002 to s019. The project became a public git repository. |
 | 2026-11-12 | Stage 7: this document rewritten as a whole. The top bar made the same in every view. Two cards at the top of a session's page: "The system" and "What this session is made of". `check_objects.py`. |
 | 2026-11-13 | `OVERVIEW_REDESIGN.md`: the Overview as one band, the model's own words as the card "The final report". `FORMAT_FIX.md`: the cause of designs without `weightUdp` confirmed at the model server; the params object built from the brief with every knob required; a question with each hypothesis; `answers.jsonl`; a plan that cannot test anything is refused part by part; `audit.py` and the void marks on the page; six new sessions on `two-hosts-open` (s020 to s025). |
+| 2026-11-14 | `NOTEBOOK_VIEW.md`, Part 3, Step C, begun at the operator's word: new settings of the simulator, one at a time, each with an operator check that predicts a number, and with the earlier checks byte-identical at the defaults. First setting (build 5): each queue's own length, `queuePktsUdp` and `queuePktsTcp`; check 12; a brief may leave them out, fix them or open them to the model; the picture and the brief editor show and set them. Still to do, each waiting for the operator's word: the TCP initial window, a maximum rate per flow, strict priority as a third scheduling policy. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -1713,7 +1746,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `two-hosts.cc` | 462 | the scenario and its outputs |
+| `two-hosts.cc` | 478 | the scenario and its outputs |
 | `link-queue-disc.cc` | 171 | the scheduler, both policies |
 | `link-queue-disc.h` | 45 | its header |
 
@@ -1722,7 +1755,7 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `loop.py` | 602 | the loop: one session; the answer format from the brief; `trim` |
-| `tools.py` | 253 | all the model can reach; the brief check; running simulations |
+| `tools.py` | 258 | all the model can reach; the brief check; running simulations |
 | `decision_rules.py` | 163 | reads and checks decision rules |
 | `schema.json` | 408 | the answer format (its params object is put in by loop.py) |
 | `prompt.txt` | 31 | the system prompt |
@@ -1732,7 +1765,7 @@ above all, so the counts understate the size.
 | `audit.py` | 88 | operator: the audit of a session's checks, verdicts, experiments and designs |
 | `score.py` | 137 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
-| `check_objects.py` | 188 | operator: the picture of the system against the scenario source |
+| `check_objects.py` | 196 | operator: the picture of the system against the scenario source |
 | `make_trace.py` | 38 | operator: packet-event recordings |
 | `move_drafts.py` | 33 | operator, used once: draft text out of old ledgers |
 
@@ -1755,7 +1788,7 @@ above all, so the counts understate the size.
 | `evidence_notebook.js` | 70 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 75 | the New session panel; the banner of a running session |
-| `evidence_system.js` | 103 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
+| `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 121 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 119 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 57 | highlights |
@@ -1780,7 +1813,7 @@ above all, so the counts understate the size.
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 54 | links, export, print |
 | `objects.json` | 77 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
-| `brief_editor.js` | 230 | the brief editor |
+| `brief_editor.js` | 236 | the brief editor |
 
 **Earlier pages and the ADRS adapter (`viewer/`)**
 

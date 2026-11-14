@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --weightUdp=0.5 --out=/home/chunguck.kim/project/checks/build5/c03-share-w0.5
+exit 0, 34.4 s
