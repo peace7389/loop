@@ -1275,6 +1275,27 @@ two recorded sessions played back record by record as if running, each stage
 against a recount of those records, and one real session followed from the
 set-up page.
 
+*The words that need explaining* (`evidence_words.js`; **DECISION 2026-11-14**,
+the operator: emphasise the important words and explain them on hover). A
+setting, a measure or a part of the network has a dotted line under it
+wherever it stands on a session's page (in the AI's own words, in the page's
+lines, in a table), and its first occurrence in a card, a row or a claim is
+set a little heavier. Pointing at it, or reaching it with the Tab key, opens
+a small box beside it; the page does not move, and the text itself is never
+changed. A word is found by a fixed list: a setting by its field name
+(`weightUdp`) and by its plain name where that is more than one word; a
+measure by its field name and its plain name ("UDP loss"); a part by the name
+of a picture's object that is one of a kind (UDP queue, TCP queue, scheduler,
+UDP source, TCP source). What the box says is taken from what is recorded: for
+a setting the brief's own line about it, its range and where the session
+started (or that the operator fixed it, and at what) and the values the
+session's own simulations tried; for a measure the harness's line about it,
+its unit, its value in the baseline and what the brief's goal says about it;
+for a part its card from "The setting", where the scheduling policy stays
+operator-only. The labels and terms the page already explained on hover open
+the same box. At an earlier step of the replay a box shows nothing recorded
+later. `ev_words.py` checks it.
+
 *Clicks that move the page* are stated in "How to read this page": a turn's
 name in section 2, a row of section 3, a box of the structure map, a line of
 section 6 that names a section, and the walk. No other click does.
@@ -1941,6 +1962,7 @@ untracked until they say otherwise.
 | 2026-11-14 | `NOTEBOOK_VIEW.md`, Part 3, Step C, begun at the operator's word: new settings of the simulator, one at a time, each with an operator check that predicts a number, and with the earlier checks byte-identical at the defaults. First setting (build 5): each queue's own length, `queuePktsUdp` and `queuePktsTcp`; check 12; a brief may leave them out, fix them or open them to the model; the picture and the brief editor show and set them. Still to do, each waiting for the operator's word: the TCP initial window, a maximum rate per flow, strict priority as a third scheduling policy. |
 | 2026-11-14 | `READABLE_PAGE.md`, parts 1 to 8: the session page in three levels of detail and in the order of a reader's questions; the setting and the set-up page as one design of seven blocks; "What it needed to find out"; the final report as one argument, with a required role for each claim; "How it worked as a researcher"; design rules checked by a script; a guided walk. |
 | 2026-11-14 | The live view of a running session, at the operator's word: the page's sections as a skeleton whose empty places fill as records arrive, one sentence that says where the work is, and the time between a decision rule and its result under each result. No change to the harness: everything is read from the ledger. |
+| 2026-11-14 | The words that need explaining, at the operator's word: settings, measures and parts of the network are marked wherever they stand, and a small box says what each is, from the brief, the harness's list and the picture's objects. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -1991,8 +2013,8 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 241 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 174 | the address, loading, the top bar, clicks, replay, review marks |
+| `index.html` | 246 | the shell: colours, styles, the list of scripts |
+| `evidence.js` | 175 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 176 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
 | `evidence_read.js` | 88 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
@@ -2000,9 +2022,10 @@ above all, so the counts understate the size.
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
 | `evidence_live.js` | 113 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
+| `evidence_words.js` | 97 | the words that need explaining: their marks, and the box that opens beside them |
 | `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 134 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 125 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
+| `evidence_page.js` | 126 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 62 | the key moments of a session, by fixed rules: marks on the notebook (once the card “Highlights”) |
 | `evidence_best.js` | 82 | best so far |
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |

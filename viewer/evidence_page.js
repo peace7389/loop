@@ -112,6 +112,7 @@ Object.assign(EV, {
         <li>The Operator tab, the sweep: click a numbered circle to open that simulation; a dark circle stands for several at one place, and a click lists them under the map.</li>
         <li>A session that is running: the banner at the top says where the work is, and for how long. A dashed square, or the word “empty”, is a place whose record is not there yet; a pulsing dot marks the places the work can fill next.</li>
         <li>The page reads new records by itself and marks them for half a minute. It does not move by itself unless “follow the work” is on. A place that is never filled stays drawn empty after the session ended.</li>
+        <li>A word with a dotted line under it is a setting, a measure or a part of the network. Point at it, or reach it with the Tab key, and a small box says what it is; the text itself is never changed.</li>
         <li>Home: click a row to open that session; click a column title to sort. Compare sessions: tick two or more to see them side by side; click a first test that held to open it in its session.</li></ul>
       <p class="sm">“Work log”: the sequence of the model's steps and its stated reasons. “Operator columns”: anything operator-only, shown when the switch at the top is on.</p></details>`;
   },

@@ -106,6 +106,7 @@ const EV = {
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
     if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
     if (window.scrollY !== y) window.scrollTo(0, y);
+    if (S.view === 'session') { EV.wdHide(); EV.wordsMark(); }  // the words that need explaining get their mark (evidence_words.js)
     if (S.view === 'session') EV.liveAfter();  // a running session: the banner's height, the marks of what just arrived
     if (S.view === 'session' && EV.afterWalk) EV.afterWalk();  // the guided walk: its box at the head of its section, which comes into view
   },
