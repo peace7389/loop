@@ -14,6 +14,11 @@ const EV = {
   time: ts => String(ts || '').slice(11, 19) || '–',
   mb: v => (typeof v === 'number' ? (v / 1e6).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '–'),
   val(k, v) { return v == null ? '–' : typeof v !== 'number' ? String(v) : /_bps$/.test(k) ? EV.mb(v) + ' Mbps' : Number.isInteger(v) ? v.toLocaleString('en-US') : String(+v.toPrecision(6)); },
+  // a measured number for levels 1 and 2 of the page: at most four significant digits, with its unit (rates in Mbps or Gbps,
+  // fractions in per cent, counts whole); the exact value, with the field's name, is on hover and at level 3 (EV.val)
+  v4(k, v) { if (v == null) return '–'; if (typeof v !== 'number') return EV.e(String(v)); const sig = x => String(+x.toPrecision(4));
+    const f = /_bps$/.test(k) ? (Math.abs(v) >= 1e9 ? sig(v / 1e9) + ' Gbps' : sig(v / 1e6) + ' Mbps') : ['udp_loss_frac', 'link_util'].includes(k) ? sig(100 * v) + ' %' : Number.isInteger(v) ? v.toLocaleString('en-US') : sig(v);
+    return `<span title="${EV.e(k + ' = ' + v)}">${f}</span>`; },
   get off() { return !!window.EV_EXPORT; },  // an exported copy: its data is in export_data.js beside the page, there is no server
   async get(url) {
     if (window.EV_EXPORT) { const k = url.replace(/^(\.\.\/)+/, '').split('?')[0]; return k === 'api/status' ? JSON.stringify(EV_EXPORT.status) : k in EV_EXPORT.files ? EV_EXPORT.files[k] : null; }
@@ -37,7 +42,7 @@ const EV = {
   address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'new' ? `?tab=new${S.from ? '&from=' + encodeURIComponent(S.from) : ''}` : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : S.sel && EV.M && EV.M.id === S.sid && EV.itemOf(S.sel) ? '&item=' + encodeURIComponent(EV.itemOf(S.sel)) : ''}`; },
   go(o) {  // to another view or session; the browser's Back returns
     const S = EV.s, other = 'sid' in o && o.sid !== S.sid; Object.assign(S, o);
-    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; S.nbmore = {}; S.findAll = false; }
+    if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; S.nbmore = {}; S.findAll = false; S.walk = null; }
     history.pushState(null, '', EV.address()); EV.sig = ''; return EV.load();
   },
 
@@ -100,6 +105,7 @@ const EV = {
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
     if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
     if (window.scrollY !== y) window.scrollTo(0, y);
+    if (S.view === 'session' && EV.afterWalk) EV.afterWalk();  // the guided walk: its box at the head of its section, which comes into view
   },
 
   // ---- clicks: every clickable thing carries data-act (and data-id); nothing here moves the page

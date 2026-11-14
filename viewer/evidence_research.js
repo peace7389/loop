@@ -79,7 +79,7 @@ Object.assign(EV, {
     // operator-only: the policy beside the first judged hypothesis that names the scheduler; the comparison with choosing at random
     const row = op.row || {}, sch = hyps.filter(h => EV.SCHED_WORDS.test(`${h.text} ${h.question || ''}`) && h.verdict && seen(h.verdict.id)).sort((a, b) => st(a.verdict.id) - st(b.verdict.id))[0], T0 = sch ? tests.find(T => T.hyp === sch.id) : null;
     out.push({ key: 'policy', op: true, word: sch ? 'present' : 'absent', n: sch ? 1 : 0, of: null, hyp: sch ? sch.id : null, text: `the policy was ${EV.policyText(row)} · ${sch ? `the first judged hypothesis about the scheduler: ${e(sch.id)}, ${e(sch.verdict.result)}` : 'not judged from the records'}`,
-      links: sch ? `${T0 ? 'the test that decided it: ' + tl(T0) : `<a data-act="open" data-t="hyp" data-id="${e(sch.id)}">${e(sch.id)}</a>`} · “${e(EV.hshort(sch).slice(0, 110))}”` : '' });
+      links: sch ? `${T0 ? 'the test that decided it: ' + tl(T0) : `<a data-act="open" data-t="hyp" data-id="${e(sch.id)}">${e(sch.id)}</a>`} · <span data-own="model">“${e(EV.hshort(sch).slice(0, 110))}”</span>` : '' });
     const open = M.brief && M.brief.goal && M.brief.goal.kind === 'open', rnd = open || !op.random ? null : op.random(M), d = rnd && rnd.band ? EV.bestData(M) : null;
     out.push({ key: 'random', op: true, n: null, of: null, word: open ? 'not applicable' : d ? 'present' : 'not recorded', text: open ? 'not applicable: the goal is chosen by the AI' : d ? EV.randomSentence(rnd, d).replace(/<\/?p[^>]*>/g, '').replace(/ id="[^"]*"/g, '') : rnd && rnd.loading ? 'reading the sweep table…' : `not recorded: ${row.score ? 'the sweep table is missing' : 'the session is not scored'}`,
       links: open ? '' : '<a data-act="goto" data-id="s-best|best">best so far</a>' });
@@ -91,7 +91,7 @@ Object.assign(EV, {
       <td class="rs-did"><span class="rs-text">${q.text}</span>${q.links ? `<div class="sm rs-links">${q.links}</div>` : ''}</td><td class="rs-word"><span class="rs-w" data-w="${q.word.replace(' ', '-')}">${q.word}</span></td><td class="rs-rev noprint">${EV.reviewBox('rs:' + q.key)}</td></tr>`;
     return `<div class="ev-card" id="s-research"><h2>How it worked as a researcher <small>counted by the page from the records; for a person to judge</small></h2><p class="sec-q">Did it work the way a researcher does?</p>
       <table class="rsc"><thead><tr><th>What a researcher does</th><th>What this session did</th><th></th><th class="noprint">Reviewer</th></tr></thead><tbody>${lines.map(row).join('')}</tbody></table>
-      <p class="sm">Each count follows a fixed rule, shown when the pointer rests on a line's name. <span class="rs-w" data-w="present">present</span>, <span class="rs-w" data-w="partly">partly</span> and <span class="rs-w" data-w="absent">absent</span> are findings, not errors, and the page gives no overall verdict.${S.op ? ' The last two lines are operator-only.' : ''}</p></div>`;
+      <p class="sm">Each count follows a fixed rule: rest the pointer on a line's name to read it. <span class="rs-w" data-w="present">present</span>, <span class="rs-w" data-w="partly">partly</span> and <span class="rs-w" data-w="absent">absent</span> are findings, not errors. The page gives no overall verdict.${S.op ? ' The last two lines are operator-only.' : ''}</p></div>`;
   },
   // the same lines as columns of the Compare tab: one row per ticked session
   researchCompare(list) {

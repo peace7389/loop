@@ -16,7 +16,7 @@ Object.assign(EV, {
   newTab() {
     const st = EV.st, S = EV.s, running = st.sessions.filter(x => x.running).length;
     return `<div class="ev-card" id="new-setup"><h2>New session <small>one complete attempt by the AI at one ${EV.term('Brief', 'brief')} · ${running} running now${S.from ? ` · filled from session ${EV.e(S.from)}` : ''}</small></h2>
-      <p class="sec-q">What will the network be, what will the AI be asked, and what will it see?</p><div id="be-host"></div></div>`;
+      <p class="sec-q">What will the network be, what will the AI be asked, and what will it see?</p>${EV.legendBar()}<div id="be-host"></div></div>`;
   },
   async afterNew() {
     if (!document.getElementById('be-host')) return;

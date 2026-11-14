@@ -46,12 +46,20 @@ Object.assign(EV, {
       <text x="${cx}" y="${cy - 2}" text-anchor="middle" style="font-size:var(--f-page);font-weight:700;fill:var(--text-primary)">${n}</text><text x="${cx}" y="${cy + 14}" text-anchor="middle">${n === 1 ? 'turn' : 'turns'}</text></svg>`;
   },
 
-  // ---- who produced what: one colour per source, with this session's record counts; and the one symbol per record type
+  // ---- the page's one legend: colour has three meanings only, and each is named here once. Who produced a thing (a thin
+  // left edge, a small square); the outcome of a test (a card's edge and a word; the warning mark is kept for a refused
+  // answer, a verdict against its check and a number that differs from its measurement); the flow, in the picture and the charts.
+  legendBar() { const sw = (v, name, title) => `<span class="lg"${title ? ` title="${EV.e(title)}"` : ''}><i class="sw" data-col="${name}" style="background:var(${v})"></i>${name}</span>`, eg = (v, col, name, title) => `<span class="lg"${title ? ` title="${EV.e(title)}"` : ''}><i class="eg" data-col="${col}" style="background:var(${v})"></i>${name}</span>`;
+    return `<div class="ev-legend noprint" id="ev-legend"><span class="lg-grp"><b>who produced it</b>${sw('--by-model', 'AI', 'What the AI wrote, and a setting the AI may change')}${sw('--by-harness', 'harness', 'What the harness computed, found or decided')}${sw('--by-simulator', 'simulator', 'What a simulation measured')}${sw('--by-operator', 'operator', 'What the person set: the brief, a fixed setting, the scheduling policy')}</span>
+      <span class="lg-grp"><b>outcome of a test</b>${eg('--good', 'held', 'expected and found', 'The check held; a verdict “supported”')}${eg('--critical', 'failed', 'expected and not found: a result, not a warning', 'The check failed; a verdict “refuted”')}<span class="lg" title="Kept for three things: a refused answer or part, a verdict that disagrees with its check, a number that differs from its measurement"><i class="sw" data-col="warning" style="background:var(--warning)"></i>${EV.gkey('warn')}needs a look</span></span>
+      <span class="lg-grp"><b>flow</b>${sw('--series-1', 'UDP')}${sw('--series-2', 'TCP')}</span></div>`; },
+
+  // ---- who produced what: this session's record counts per source (the colours are in the page's legend); and the one symbol per record type
   legend() {
     const say = { model: 'what the AI wrote', harness: 'what the harness computed, found or decided', simulator: 'what a simulation measured', operator: 'what the person set: the brief, the scheduling policy' };
     const names = { brief: 'brief', hypothesis: 'hypothesis', drop: 'dropped hypothesis', experiment: 'experiment', test: 'test', simulation: 'simulation', evidence: 'evidence table', check: 'check',
                     verdict: 'verdict', report: 'final report', note: 'note', malformed: 'refused answer', request: 'request for information', result: 'its result', turn: 'turn record' };
-    return `<table><tbody>${['model', 'harness', 'simulator', 'operator'].map(b => `<tr data-by="${b}"><td><i class="sw"></i><b>${b}</b></td><td class="num">${EV.M.bySource[b]} record${EV.M.bySource[b] === 1 ? '' : 's'}</td><td class="sm">${say[b]}</td></tr>`).join('')}</tbody></table>
+    return `<table><tbody>${['model', 'harness', 'simulator', 'operator'].map(b => `<tr><td><b>${b === 'model' ? 'AI (model)' : b}</b></td><td class="num">${EV.M.bySource[b]} record${EV.M.bySource[b] === 1 ? '' : 's'}</td><td class="sm">${say[b]}</td></tr>`).join('')}</tbody></table>
       <p class="sm" style="margin-top:6px">${Object.entries(EV_ICON).map(([k, i]) => `<span style="white-space:nowrap;margin-right:10px">${i} ${names[k]}</span>`).join(' ')}</p>`;
   },
 });

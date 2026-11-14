@@ -53,13 +53,13 @@ const BRIEF_EDITOR = {
 .ev .be-sw button + button { border-left: 1px solid var(--border); } .ev .be-sw button.on { background: var(--text-primary); color: var(--surface-1); font-weight: 600; }
 .be-f { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 8px; } .be-f .wide { grid-column: 1 / -1; } .be-f small { margin: 0 0 2px; }
 .be table.be-who td { padding: 2px 8px 2px 0; border-bottom: 0; vertical-align: middle; } .be table.be-who input { width: 5.6em; padding: 2px 6px; } .be table.be-who input.w { width: 9.5em; } .be table.be-who .lab { font-size: var(--f-sec); color: var(--text-muted); margin: 0 3px 0 6px; }
-.be .be-why { display: block; color: var(--critical); font-size: var(--f-sec); font-weight: 600; margin: 1px 0 0; } .be .be-why:empty { display: none; } .be input.bad, .be textarea.bad, .be select.bad { border-color: var(--critical); }
-.be input.chg, .be textarea.chg, .be select.chg { box-shadow: inset 3px 0 0 var(--series-1); } .be .chg-note { color: var(--series-1); font-weight: 600; }
+.be .be-why { display: block; color: var(--warning); font-size: var(--f-sec); font-weight: 600; margin: 1px 0 0; } .be .be-why:empty { display: none; } .be input.bad, .be textarea.bad, .be select.bad { border-color: var(--warning); }
+.be input.chg, .be textarea.chg, .be select.chg, .be .be-sw.chg { box-shadow: inset 3px 0 0 var(--by-operator); } .be .chg-note { font-weight: 600; }
 .be-aim label { font-weight: 400; margin: 3px 0; } .be-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 6px; }
 .be-var { display: flex; flex-wrap: wrap; gap: 6px; } .ev .be-var button { font-size: var(--f-sec); text-align: left; padding: 3px 9px; } .be-pic svg g[data-act] { cursor: pointer; }
 .be-start { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-top: 14px; } .be-start .ev-head { position: static; box-shadow: none; margin: 6px 0 10px; }
 .be-msg { margin: 8px 0 0; font-size: var(--f-text); padding: 6px 10px; border-left: 3px solid var(--border); } .be-msg ul { margin: 4px 0 0; padding-left: 18px; }
-.be-msg.bad { border-color: var(--critical); background: color-mix(in srgb, var(--critical) 8%, transparent); } .be-msg.ok { border-color: var(--good); background: color-mix(in srgb, var(--good) 8%, transparent); }
+.be-msg.bad { border-color: var(--warning); } .be-msg.ok { border-color: var(--text-primary); }
 .be .kv input, .be .kv select { width: 100%; } .be .kv input[type=checkbox] { width: auto; }
 @media (max-width: 1000px) { .be-top, .be-row { grid-template-columns: minmax(0, 1fr); } }`,
   node: null, s: null, ctx: null, template: {}, list: '', typing: null, man: null,
@@ -233,7 +233,7 @@ const BRIEF_EDITOR = {
       const on = EV.sysFind(s.obj) ? s.obj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
       const f = EV.sysFind(on), mine = B.partSettings(on), around = (EV.OB.around || []).map((o, i) => `<a data-act="beobj" data-id="around-${i}" style="cursor:pointer${on === 'around-' + i ? ';font-weight:700' : ''}">${e(o.name.toLowerCase())}</a>`).join(', ');
       b1 = `<div class="be-pic" id="be-pic"><div class="ev-scroll" id="be-svg">${B.picSvg()}</div>
-          <p class="sm gl-key"><span><i class="sw" style="background:var(--series-1)"></i>UDP</span><span><i class="sw" style="background:var(--series-2)"></i>TCP</span>${EV.sysLegend()}${around ? `<span>outside a packet's path: ${around}</span>` : ''}<span>click a part to open its settings</span></p></div>
+          <p class="sm gl-key">${EV.sysLegend()}${around ? `<span>outside a packet's path: ${around}</span>` : ''}<span>click a part to open its settings</span></p></div>
         <p class="sm" id="be-part" style="margin:6px 0 2px"><b>${e(f.o.name)}</b> · ${mine.length ? `its setting${mine.length === 1 ? '' : 's'}:` : 'this part has no setting a brief can set.'}</p>${mine.map(B.row).join('')}`;
     }
     // 2 · who decides what
@@ -248,7 +248,7 @@ const BRIEF_EDITOR = {
         <label>Tolerance, per cent (optional)<small>two results closer than this count as equal; default: none</small>${inp('tolerance', s.tolerance || '', 'none, e.g. 1')}${B.why('tolerance')}</label></div>` : ''}<div id="be-aim-says" style="margin-top:6px"></div>`;
     // 4 · what the AI is told, is not told, and can do
     const b4 = `<div class="be-two"><label>The task<small>the question, as the AI reads it</small><textarea data-f="task" rows="4">${e(s.task)}</textarea>${B.why('task')}</label>
-        <label>The description of the system<small>plain words, written by you; {name} is filled from the fixed setting of that name, e.g. {linkRate}</small><textarea data-f="description" rows="4">${e(s.description)}</textarea>${B.why('description')}</label></div><div id="be-lists" style="margin-top:8px"></div>`;
+        <label>The description of the system<small>plain words, written by you; a setting's name in braces is filled from that fixed setting (the name: point at a setting's label)</small><textarea data-f="description" rows="4">${e(s.description)}</textarea>${B.why('description')}</label></div><div id="be-lists" style="margin-top:8px"></div>`;
     // 5 · the limits
     const b5 = `<div class="be-two"><label>Simulations in all<small>the most a session may run; default of the opened brief: ${e((s.orig || {}).sims || 'none')}</small>${inp('sims', s.sims, 'e.g. 40')}${B.why('sims')}</label><label>In one experiment<small>the most the AI may plan at once; default of the opened brief: ${e((s.orig || {}).per || 'none')}</small>${inp('per', s.per, 'e.g. 12')}${B.why('per')}</label></div>`;
     // 6 · kept from the AI: the scheduling policy
@@ -301,9 +301,9 @@ const BRIEF_EDITOR = {
     const n = changed.length + runChanged.length;
     $('be-save').disabled = !!s.busy || !id || !!keys.length || same; $('be-save').textContent = s.busy === 'save' ? 'Saving…' : 'Save as new brief';
     $('be-start').disabled = !!s.busy || !!keys.length || (!same && !id); $('be-start').textContent = s.busy === 'start' ? 'Starting…' : same ? `Start the session on ${s.baseId}` : id ? `Save as ${id} and start the session` : 'Start the session';
-    $('be-state').innerHTML = keys.length ? `<span class="bad">${keys.length} value${keys.length === 1 ? '' : 's'} cannot be used: see the red line${keys.length === 1 ? '' : 's'} above.</span>`
-      : `${s.from ? `Filled from session ${e(s.from)} (brief ${e(s.fromBrief)}): <span id="be-changed" data-n="${n}" class="${n ? 'chg-note' : ''}">${n ? `${n} value${n === 1 ? '' : 's'} changed, marked with a blue edge` : 'every value is that session\'s'}</span>. ` : same ? `The form is the saved brief ${e(s.baseId)}. ` : `The form differs from ${e(s.baseId || 'every saved brief')}<span id="be-changed" data-n="${n}"> (${n} value${n === 1 ? '' : 's'} changed, marked with a blue edge)</span>. `}
-        ${same ? '' : id ? `It will be saved as briefs/${e(id)}.json; a saved brief is never overwritten.` : 'Give the new brief a name: a saved brief is never overwritten.'} ${running} session${running === 1 ? ' is' : 's are'} running now.`;
+    $('be-state').innerHTML = keys.length ? `<span class="warnc">${keys.length} value${keys.length === 1 ? '' : 's'} cannot be used: see the reason beside ${keys.length === 1 ? 'it' : 'each'}, above.</span>`
+      : `${s.from ? `Filled from session ${e(s.from)} (brief ${e(s.fromBrief)}): <span id="be-changed" data-n="${n}" class="${n ? 'chg-note' : ''}">${n ? `${n} value${n === 1 ? '' : 's'} changed, marked with an edge in the operator's colour` : 'every value is that session\'s'}</span>. ` : same ? `The form is the saved brief ${e(s.baseId)}. ` : `The form differs from ${e(s.baseId || 'every saved brief')}<span id="be-changed" data-n="${n}"> (${n} value${n === 1 ? '' : 's'} changed, marked with an edge in the operator's colour)</span>. `}
+        ${same ? '' : id ? `It will be saved as <span data-own="operator">briefs/${e(id)}.json</span>; a saved brief is never overwritten.` : 'Give the new brief a name: a saved brief is never overwritten.'} ${running} session${running === 1 ? ' is' : 's are'} running now.`;
     $('be-msg').innerHTML = s.msg ? `<div class="be-msg ${s.msg.bad ? 'bad' : 'ok'}">${s.msg.lines.length > 1 ? `${e(s.msg.lines[0])}<ul>${s.msg.lines.slice(1).map(l => `<li>${e(l)}</li>`).join('')}</ul>` : e(s.msg.lines[0])}</div>` : '';
   },
 

@@ -45,7 +45,7 @@ Object.assign(EV, {
     const a = V(n[2]), b = V(n[3]); return a == null || b == null ? null : n[1] === '+' ? a + b : n[1] === '-' ? a - b : n[1] === '*' ? a * b : b ? a / b : null;
   },
   // a number in the unit of an output (key), with p significant digits; a literal of a rule keeps every digit it was written with
-  readNum(v, key, p) { const [u, f] = key ? EV.unit(key) : ['', q => q], x = f(v); return (+x.toPrecision(p || 12)).toLocaleString('en-US', { maximumFractionDigits: 9 }) + (u ? ' ' + u : ''); },
+  readNum(v, key, p) { const [u, f] = key ? EV.unit(key) : ['', q => q], x = f(v), big = u === 'Mbps' && p && p <= 4 && Math.abs(x) >= 10000; return (+(big ? x / 1000 : x).toPrecision(p || 12)).toLocaleString('en-US', { maximumFractionDigits: 9 }) + (u ? ' ' + (big ? 'Gbps' : u) : ''); },
   // o.sims: { label: simulation } gives the check (measured numbers in place of the outputs, each opening its simulation);
   // without it, the rule. o.test: the test's id, carried by those links. Returns HTML, or null when the text cannot be read
   readHtml(text, o) {
@@ -53,8 +53,8 @@ Object.assign(EV, {
     const e = EV.e, sims = o.sims || null, one = sims && Object.keys(sims).length === 1 ? Object.values(sims)[0] : null, sim = l => (sims ? sims[l] || (l == null ? one : null) : null);
     const val = (name, label) => { const s = sim(label); return s && s.metrics ? s.metrics[name] : undefined; };
     const R = (n, U, p) => { const k = n[0];
-      if (k === 'num') return e(EV.readNum(n[1], U, 0));
-      if (k === 'val') { if (!sims) return `${e(TH_DATA.PLAIN[n[1]] || n[1])}${n[2] ? ' at ' + e(n[2]) : ''}`; const s = sim(n[2]), v = val(n[1], n[2]);
+      if (k === 'num') return e(EV.readNum(n[1], U, o.max || 0));
+      if (k === 'val') { if (!sims) return `${e(TH_DATA.PLAIN[n[1]] || n[1])}${n[2] ? ` at <span data-own="model">${e(n[2])}</span>` : ''}`; const s = sim(n[2]), v = val(n[1], n[2]);
         if (typeof v === 'number' && o.plain) return e(EV.readNum(v, n[1], p));
         return typeof v !== 'number' ? '<span class="mut">no value</span>' : `<a class="rn" data-act="open" data-t="sim" data-id="${e(s.id)}"${o.test ? ` data-test="${e(o.test)}"` : ''} title="${e(`${TH_DATA.PLAIN[n[1]] || n[1]} at ${s.label || n[2] || ''} (${s.id}): ${v}`)}">${e(EV.readNum(v, n[1], p))}</a>`; }
       if (k === 'neg') return '−' + R(n[1], U, p); if (k === 'grp') return '(' + R(n[1], U, p) + ')';
@@ -65,18 +65,19 @@ Object.assign(EV, {
     const C = n => { if (n[0] === 'and' || n[0] === 'or') return n[1].map(C).join(n[0] === 'and' ? ' and ' : ' or '); if (n[0] === 'all') return '(' + C(n[1]) + ')';
       const U = EV.readUnit(n[1]) || EV.readUnit(n[3]); let p = 3;
       if (sims) { const a = EV.readValue(n[1], val), b = EV.readValue(n[3], val);  // as many digits as it takes to tell the two sides apart
-        if (a != null && b != null && a !== b) while (p < 9 && EV.readNum(a, U, p) === EV.readNum(b, U, p)) p++;
+        if (a != null && b != null && a !== b) while (p < (o.max || 9) && EV.readNum(a, U, p) === EV.readNum(b, U, p)) p++;
         if (o.words && a != null && b != null) { const held = { '<': a < b, '<=': a <= b, '>': a > b, '>=': a >= b, '==': a === b }[n[2]];  // in words: "483 Mbps, not over 700 Mbps"
           return `${R(n[1], U, p)}, ${held ? '' : 'not '}${EV.READ_WORDS[n[2]]} ${R(n[3], U, p)}`; } }
       return `${R(n[1], U, p)} ${n[2]} ${R(n[3], U, p)}`; };
     return C(tree);
   },
   // a test's decision rule, and its check, for reading; the exact text on hover
-  ruleRead(T) { const h = T.rule ? EV.readHtml(T.rule) : null; return !T.rule ? EV.nr : h ? `<span class="rr" data-rr="rule" title="${EV.e(T.rule)}">${h}</span>` : `<code>${EV.e(T.rule)}</code>`; },
-  checkRead(T) {
+  // max: the most significant digits of a number (levels 1 and 2 of the page: four; the detail pane: as many as it takes)
+  ruleRead(T, max) { const h = T.rule ? EV.readHtml(T.rule, { max }) : null; return !T.rule ? EV.nr : h ? `<span class="rr" data-rr="rule" title="${EV.e(T.rule)}">${h}</span>` : `<code>${EV.e(T.rule)}</code>`; },
+  checkRead(T, max) {
     const c = T.check; if (!c) return null;
     if (c.void) return `<span class="rr" data-rr="void" data-void="1" title="${EV.e(EV.VOID)}${c.recorded ? ' (the harness recorded: ' + c.recorded + ')' : ''}">${EV.gkey('void')}void: compared a simulation with itself</span>`;
-    const h = EV.readHtml(T.rule, { sims: Object.fromEntries(T.sims.map(s => [s.label, s])), test: T.id }), word = c.result === 'held' || c.result === 'failed' ? EV.checkRes(c) : `<span class="mut">${EV.e(c.result || 'not checked')}</span>`;
+    const h = EV.readHtml(T.rule, { sims: Object.fromEntries(T.sims.map(s => [s.label, s])), test: T.id, max }), word = c.result === 'held' || c.result === 'failed' ? EV.checkRes(c) : `<span class="mut">${EV.e(c.result || 'not checked')}</span>`;
     return `<span class="rr" data-rr="check" title="${EV.e(c.numbers == null ? '' : c.numbers + ' : ' + (c.recorded || c.result))}">${h || `<code>${EV.e(c.numbers ?? '')}</code>`}: ${word}</span>`;
   },
   // the measured numbers alone, without the result's word; plain: as text, where a link cannot stand (inside another link)

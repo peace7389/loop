@@ -12,7 +12,7 @@ Object.assign(EV, {
   // the check's numbers in words. One comparison: "483 Mbps, not over 700 Mbps"; several: joined by "and" / "or"
   measuredWords(T) {
     const c = T.check; if (!c) return null; if (c.void) return '<span class="mut">compared a simulation with itself</span>';
-    const h = EV.readHtml(T.rule, { sims: Object.fromEntries(T.sims.map(s => [s.label, s])), plain: true, words: true });
+    const h = EV.readHtml(T.rule, { sims: Object.fromEntries(T.sims.map(s => [s.label, s])), plain: true, words: true, max: 4 });
     return h ? `<span class="rr" data-rr="measured" title="${EV.e(c.numbers == null ? '' : c.numbers + ' : ' + (c.recorded || c.result))}">${h}</span>` : `<code>${EV.e(c.numbers ?? '')}</code>`;
   },
   findCard() {
@@ -24,7 +24,7 @@ Object.assign(EV, {
       const out = c && c.void ? at(st(c.id), `<span class="rs" data-void="1" title="${e(EV.VOID)}">${EV.gkey('void')}void</span>${v ? ` <span class="sm" data-step="${st(v.id)}">judged ${e(v.result)}</span>` : ''}`)
         : v ? at(st(v.id), EV.verdictRes(v.result)) : at(end, `<span class="mut">${M.ended ? 'none' : 'none yet'}</span>`);
       const led = fol.ids.filter(id => first[id]).map(id => `<a data-act="findrow" data-id="${e(first[id])}" title="${e(`${id} follows from this test${fol.via ? ' (through the table ' + fol.via + ' of its experiment)' : ''}: go to its row`)}">→ ${e(id)}</a>`).join(' ');
-      return `<tr class="pick fr${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" id="fr-${e(T.id)}" data-act="find" data-id="${e(T.id)}" data-step="${st(T.exp)}"><td class="fq"><span class="fh">${e(T.hyp)}</span>${q}</td>
+      return `<tr class="pick fr${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" id="fr-${e(T.id)}" data-act="find" data-id="${e(T.id)}" data-step="${st(T.exp)}"><td class="fq"><span class="fh">${e(T.hyp)}</span><span data-own="model">${q}</span></td>
         <td class="fo">${out}</td><td class="fm">${c ? at(st(c.id), EV.measuredWords(T)) : at(end, `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`)}</td>
         <td class="fl">${led ? at(fk, `${c && c.result === 'failed' ? '<span class="fturn" title="Its check failed, and a later hypothesis follows from it">changed course</span> ' : ''}${led}`) : ''}</td></tr>`; };
     const recorded = all.filter(T => EV.seen(T.exp)), more = recorded.length - shown.filter(T => EV.seen(T.exp)).length;  // "n more" counts only what is recorded by the replay's step

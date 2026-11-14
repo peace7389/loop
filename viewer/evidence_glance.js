@@ -70,8 +70,11 @@ Object.assign(EV, {
     // with more tests than fit in one line wraps, the same way in every row, so a test still stands in one line downwards.
     const anyLeft = cols.some(c => c.t.n && c.t.left != null);  // a session that records the simulations left at no turn says so once, in the key, not under every turn
     const room = document.getElementById('ev').clientWidth - 76, places = (c, cap, per) => Math.max(Math.min(c.ts.length + c.own.length, cap), Math.min(c.x ? c.x.sims.length : 0, per), 1);
-    const fit = [[17, 8, 6, 1], [15, 8, 6, 1], [13, 6, 5, 1], [13, 6, 4, 0], [11, 5, 4, 0]].find(([w, cap, per, notes]) => (notes ? 320 : 170) + cols.reduce((a, c) => a + Math.max(c.t.n && c.t.left == null && anyLeft ? 66 : 52, places(c, cap, per) * w) + 25, 0) <= room), fits = !!fit;  // 66: room for "not recorded" under the turn's name
+    const fit = [[17, 8, 6, 1], [15, 8, 6, 1], [13, 6, 5, 1], [13, 6, 4, 0], [11, 5, 4, 0]].find(([w, cap, per, notes]) => (notes ? 370 : 215) + cols.reduce((a, c) => a + Math.max(c.t.n && c.t.left == null && anyLeft ? 66 : 52, places(c, cap, per) * w) + 25, 0) <= room), fits = !!fit;  // 66: room for "not recorded" under the turn's name
     const [W, cap, per, notes] = fit || [11, 5, 4, 0]; cols.forEach(c => { c.w = W * places(c, cap, per); });
+    // the bands: every turn in one table where they fit; otherwise as many turns to a band as the width holds
+    const colW = c => Math.max(c.t.n && c.t.left == null && anyLeft ? 66 : 52, c.w) + 25, bands = [[]]; let used = 215;
+    cols.forEach(c => { if (!fits && bands[bands.length - 1].length && used + colW(c) > room - 12) { bands.push([]); used = 215; } bands[bands.length - 1].push(c); used += colW(c); });
     const hm = (h, first, c) => { const s = st ? st[h.id] || 'open' : h.state;  // a hypothesis is drawn in full once, where it was stated; small and faint wherever it stands again
       return mark(!first ? 'hyp-again' : s === 'dropped' ? 'dropped' : 'hyp', 'hyp', h.id, first ? h.id : c.x.id, first ? `${h.id} · ${s}` : `${h.id}, ${h.turn === c.t.n ? 'put to another decision rule' : `stated in turn ${h.turn} and tested here`}`); };
     const cell = {
@@ -85,8 +88,8 @@ Object.assign(EV, {
         return v ? mark(kind + (again ? '-again' : ''), 'test', T.id, v.id, `${v.id} · ${v.result}, given in turn ${v.turn}${again ? ' · the same verdict: one hypothesis, several decision rules' : ''}${v.voidOnly ? ' · ' + EV.RESTS : ''}${odd ? ' · disagrees with its check' : ''}`, odd ? 'odd' : '') : gap; }).join(''),
       report: c => (c.t.report ? mark('report', 'report', 'report', c.t.report.id, 'the final report') : ''),
     };
-    const row = (by, icon, term, word, count, note, k) => `<tr data-by="${by}"><th><span class="gi">${EV.gk(icon)}</span>${EV.term(term, word)} <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}</th>${cols.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
-    const head = cols.map(c => { const r = c.t.malformed.concat(c.t.refusals).filter(q => seen(q.id)).length;
+    const row = (by, icon, term, word, count, note, k, cs, first) => `<tr data-by="${by}" data-row="${k}"><th><span class="gi">${EV.gk(icon)}</span>${EV.term(term, word)}${first ? ` <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}` : ''}</th>${cs.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
+    const head = cs => cs.map(c => { const r = c.t.malformed.concat(c.t.refusals).filter(q => seen(q.id)).length;
       return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="turn" data-t="log" data-id="${c.t.n}" title="${c.t.n ? `Turn ${c.t.n}: open its work log and go to it in the notebook` : 'The start: go to it in the notebook'}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? `<span class="grf warnc" data-refused="${r}" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">${r}</span>` : ''}${
         c.t.n && anyLeft ? `<div class="gleft" data-left="${c.t.left ?? ''}" title="${c.t.left == null ? 'How many simulations were left at the start of this turn is not recorded (sessions before s008)' : `${c.t.left} simulation${c.t.left === 1 ? ' was' : 's were'} left at the start of turn ${c.t.n}`}">${c.t.left == null ? EV.nr : c.t.left + ' left'}</div>` : ''}</td>`; }).join('');
     const has = f => cols.some(f), res = k => M.checks.some(q => q.result === k && seen(q.id)), vd = k => M.recs.some(r => r.type === 'verdict' && r.body.result === k && seen(r.id));  // the key names a sign only once one is drawn
@@ -96,16 +99,17 @@ Object.assign(EV, {
       [K('dropped') + 'dropped', M.hyps.some(h => h.drop && seen(h.drop.id))], ['<span class="grf warnc">n</span> refused answers or parts in that turn', cols.some(c => c.t.malformed.concat(c.t.refusals).some(q => seen(q.id)))],
       [`<span id="gl-left">simulations left at each turn: ${EV.nr}</span>`, !anyLeft && cols.some(c => c.t.n)]].filter(q => q[1]).map(q => `<span>${q[0]}</span>`).join('');
     EV._gl = '';
-    return `<div class="ev-card noprint" id="s-made"><h2>The session at a glance <small>what this session is made of · one mark per item · a column is one ${EV.term('Turn', 'turn')}, read downwards · ${M.old ? 'checks ' + EV.nr : `<span id="gl-tally">${EV.term('Check', 'checks')} ${EV.tally(n.held, n.failed, n.void)}</span>`}${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small> ${foldBtn}</h2><p class="sec-q">What happened overall?</p>
-      <div class="ev-scroll gl-scroll${fits ? '' : ' gl-more'}"><table class="gl" style="--gw:${W}px"><thead><tr data-by="harness"><th><span class="gi"></span>${EV.term('Turn', 'Turns')} <b>${n.turn}</b>${notes ? ' <span class="sm">one answer of the model each</span>' : ''}</th>${head}</tr></thead><tbody>
-        ${row('model', 'hyp', 'Hypothesis', 'Hypotheses', n.hyp, 'the model\'s claims', 'hyp')}
-        ${row('model', 'rule', 'Decision rule', 'Decision rules', n.rule, 'stated before the simulations', 'rule')}
-        ${row('simulator', 'sim', 'Simulation', 'Simulations', n.sim, `in ${n.exp} ${EV.term('Experiment', n.exp === 1 ? 'experiment' : 'experiments')}`, 'sim')}
-        ${row('harness', 'held', 'Check', 'Checks', n.check, M.old ? EV.nr : 'the harness applies each rule', 'check')}
-        ${row('model', 'supported', 'Verdict', 'Verdicts', n.verdict, 'the model\'s judgments', 'verdict')}
-        ${row('model', 'report', 'Final report', 'Final report', n.report, 'the model\'s answer', 'report')}</tbody></table></div>
-      <p class="gl-say" id="gl-say">${EV.glSay(S.sel)}</p>
-      <p class="sm gl-key">${key}<span>row stripe, who produced it: ${['model', 'harness', 'simulator'].map(b => `<span data-by="${b}"><i class="sw"></i>${b}</span>`).join(' ')}</span></p></div>`;
+    const table = (cs, i) => `<table class="gl" data-band="${i}" style="--gw:${W}px"><thead><tr data-by="harness"><th><span class="gi"></span>${EV.term('Turn', 'Turns')}${i ? '' : ` <b>${n.turn}</b>${notes ? ' <span class="sm">one answer of the AI each</span>' : ''}`}</th>${head(cs)}</tr></thead><tbody>
+        ${row('model', 'hyp', 'Hypothesis', 'Hypotheses', n.hyp, 'the AI\'s claims', 'hyp', cs, !i)}
+        ${row('model', 'rule', 'Decision rule', 'Decision rules', n.rule, 'stated before the simulations', 'rule', cs, !i)}
+        ${row('simulator', 'sim', 'Simulation', 'Simulations', n.sim, `in ${n.exp} ${EV.term('Experiment', n.exp === 1 ? 'experiment' : 'experiments')}`, 'sim', cs, !i)}
+        ${row('harness', 'held', 'Check', 'Checks', n.check, M.old ? EV.nr : 'the harness applies each rule', 'check', cs, !i)}
+        ${row('model', 'supported', 'Verdict', 'Verdicts', n.verdict, 'the AI\'s judgments', 'verdict', cs, !i)}
+        ${row('model', 'report', 'Final report', 'Final report', n.report, 'the AI\'s answer', 'report', cs, !i)}</tbody></table>`;
+    return `<div class="ev-card noprint" id="s-made"><h2>The session at a glance <small>what this session is made of · one mark per item · a column is one ${EV.term('Turn', 'turn')}, read downwards · ${M.old ? 'checks ' + EV.nr : `<span id="gl-tally">${EV.term('Check', 'checks')} ${EV.tally(n.held, n.failed, n.void)}</span>`}${bands.length > 1 ? ` · <span id="gl-bands">the ${cols.length} turns continue over ${bands.length} bands of rows</span>` : ''}</small> ${foldBtn}</h2><p class="sec-q">What happened overall?</p>
+      <div class="gl-scroll" data-bands="${bands.length}">${bands.map(table).join('')}</div>
+      <p class="gl-say" id="gl-say" data-own="model">${EV.glSay(S.sel)}</p>
+      <p class="sm gl-key">${key}<span>the stripe of a row: who produced it</span></p></div>`;
   },
 
   // pointing at a mark: what belongs with it is marked, and the line below says what it is; away from the marks, the selected item again

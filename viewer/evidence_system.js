@@ -34,7 +34,7 @@ Object.assign(EV, {
   // the setting a shown value comes from. given(k): whether the brief (or the form) sets k itself
   sysOwn(n, given) { const k = EV.sysKey(n); return EV.SYS_OWN[k] && !given(k) ? EV.SYS_OWN[k] : k; },
   // one legend for the two colours: a setting the brief opens to the model, a setting it fixes
-  sysLegend: () => `<span data-by="model"><i class="sw"></i>the AI may change it</span><span data-by="operator"><i class="sw"></i>fixed by the operator</span>`,
+  sysLegend: () => `<span>a value in the AI's colour: the AI may change it</span><span>in the operator's colour: fixed by the operator</span>`,
   sysFill: (text, v) => TASK_VIEW._rate(String(text).replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : 'not recorded'))),
 
   // the picture itself, for a session's card and for the brief editor. o: { v: the values shown, knob(name) and fixed(name): whether the brief opens that
@@ -49,7 +49,7 @@ Object.assign(EV, {
     const queue = (id, x, y, name, col, k) => obj(id, `<path class="bx" d="M${x},${y} H${x + 104} V${y + 30} H${x}"/>${[0, 1, 2].map(i => `<rect x="${x + 94 - i * 9}" y="${y + 4}" width="6" height="22" rx="1.5" fill="var(${col})" opacity="${0.75 - i * 0.2}"/>`).join('')}
       ${T(x + 5, y + 13, name, 'sn', 'start')}${val(x + 5, y + 25, v[k] == null ? '' : `${v[k]} packets`, k, 'start')}`);
     const pc = (x, w, H) => `<rect class="pc" x="${x}" y="2" width="${w}" height="166" rx="12"/><path class="pi" d="M${x + 14},11 h17 v11 h-17 z M${x + 19},26 h7 M${x + 22.5},22 v4"/>
-      ${T(x + 40, 22, H.title, 'sn st', 'start')}${T(x + 40 + H.title.length * 8.2 + 8, 22, `ns-3 ${H.node} · ${H.sub}`, 'sc', 'start')}`;
+      ${T(x + 40, 22, H.title, 'sn st', 'start')}${T(x + 40 + H.title.length * 9.4 + 10, 22, `ns-3 ${H.node} · ${H.sub}`, 'sc', 'start')}`;
     const cap = (x, s) => T(x, 50, s, 'sc'), id = EV.sysId, Y = { u: 67, t: 117 }, w = typeof v.weightUdp === 'number' ? Math.min(0.999, Math.max(0.001, v.weightUdp)) : null;
     // the scheduler: a circle divided as the ratio divides the link, the UDP part on the side the UDP queue enters
     const at = d => [432 + 22 * Math.cos(d * Math.PI / 180), 107 + 22 * Math.sin(d * Math.PI / 180)].map(n => n.toFixed(1)).join(','), cut = w == null ? '' : `<path d="M432,107 L${at(-90 - 180 * w)} A22,22 0 ${w > 0.5 ? 1 : 0},1 ${at(-90 + 180 * w)} Z" fill="var(--series-1)"/>`;
@@ -59,10 +59,10 @@ Object.assign(EV, {
     const wire = obj('link', `<rect x="594" y="66" width="82" height="62" fill="transparent"/><path class="wa" d="M630,101.5 l9,5.5 l-9,5.5 z"/>${T(635, 80, 'link', 'sn')}<text x="635" y="93" class="sv" text-anchor="middle">${['linkRate', 'linkDelay'].filter(k => v[k] != null).map(k => `<tspan data-k="${k}" class="${o.knob(k) ? 'sk' : o.fixed(k) ? 'sf' : 'sv'}">${e(R(v[k]))}</tspan>`).join(' · ')}</text>`);
     return `<svg class="sy" viewBox="0 0 1000 170" width="100%" style="max-width:1100px" role="img" aria-label="The system: a sender and a receiver, each one computer holding its ns-3 objects, joined by one link">
       ${pc(2, 590, O.hosts[0])}${pc(X - 2, 322, O.hosts[1])}${cap(68, 'applications')}${cap(203, 'internet stack')}${cap(366, 'traffic control')}${cap(528, 'net device')}${cap(X + 46, 'net device')}${cap(X + 154, 'internet stack')}${cap(X + 273, 'applications')}${flows}
-      ${box(id('sender', 'apps', 'UDP source'), 14, Y.u, 108, 30, 'UDP source', [v.udpRate == null ? 'constant rate' : `${R(v.udpRate)}, constant`, 'udpRate'], { rx: 15 })}${box(id('sender', 'apps', 'TCP source'), 14, Y.t, 108, 30, 'TCP source', ['always has data', ''], { rx: 15 })}
+      ${box(id('sender', 'apps', 'UDP source'), 10, Y.u, 112, 30, 'UDP source', [v.udpRate == null ? 'constant rate' : `${R(v.udpRate)}, constant`, 'udpRate'], { rx: 15 })}${box(id('sender', 'apps', 'TCP source'), 14, Y.t, 108, 30, 'TCP source', ['always has data', ''], { rx: 15 })}
       ${box(id('sender', 'stack', 'UDP socket'), 140, Y.u, 72, 30, 'UDP socket')}${box(id('sender', 'stack', 'TCP socket'), 140, Y.t, 72, 30, 'TCP socket', [v.tcpVariantPlain || '', 'tcpVariant'])}${box(id('sender', 'stack', 'IPv4'), 228, 67, 38, 80, 'IPv4')}
       ${queue(id('sender', 'tc', 'UDP queue'), 284, Y.u, 'UDP queue', '--series-1', 'queuePktsUdp')}${queue(id('sender', 'tc', 'TCP queue'), 284, Y.t, 'TCP queue', '--series-2', 'queuePktsTcp')}${sched}
-      ${box(id('sender', 'dev', 'Point-to-point device'), 476, 85, 104, 44, 'device', [J(R(v.linkRate), 'queue 10'), 'linkRate'])}${wire}
+      ${box(id('sender', 'dev', 'Point-to-point device'), 470, 85, 116, 44, 'device', [J(R(v.linkRate), 'queue 10'), 'linkRate'])}${wire}
       ${box(id('receiver', 'dev', 'Point-to-point device'), X + 10, 85, 72, 44, 'device', [R(v.linkRate), 'linkRate'])}${box(id('receiver', 'tc', 'Return queue'), X + 10, 138, 72, 22, 'return queue', null, { cls: ' dash', lc: 'sv' })}
       ${box(id('receiver', 'stack', 'IPv4'), X + 100, 67, 38, 80, 'IPv4')}${box(id('receiver', 'stack', 'UDP socket'), X + 154, Y.u, 70, 30, 'UDP socket')}${box(id('receiver', 'stack', 'TCP socket'), X + 154, Y.t, 70, 30, 'TCP socket')}
       ${box(id('receiver', 'apps', 'UDP sink'), X + 238, Y.u, 70, 30, 'UDP sink', null, { rx: 15 })}${box(id('receiver', 'apps', 'TCP sink'), X + 238, Y.t, 70, 30, 'TCP sink', null, { rx: 15 })}</svg>`;
@@ -97,7 +97,7 @@ Object.assign(EV, {
       : `<p class="sm" style="margin-top:6px">Measured here in every simulation: ${e(names.join(', '))}. Open a simulation and its values appear here.</p>`;
     return `<p><b style="font-size:var(--f-card)">${e(o.name)}</b> <span class="sm">ns-3 <code>${e(EV.sysFill(o.cls, V.v))}</code></span></p>
       <p class="sm">${e(f.where)} · ${o.flow === 'udp' ? '<i class="sw" style="background:var(--series-1)"></i>handles UDP' : o.flow === 'tcp' ? '<i class="sw" style="background:var(--series-2)"></i>handles TCP' : id === 'link' ? 'carries both flows' : id.startsWith('around') ? 'the same for both flows' : 'shared by both flows'}${f.role ? ' · ' + e(f.role) : ''}</p>
-      <table><tbody>${rows}</tbody></table>${measured}`;
+      <table data-exact="1"><tbody>${rows}</tbody></table>${measured}`;
   },
 });
 EV.act = Object.assign(EV.act || {}, {

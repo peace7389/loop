@@ -51,14 +51,16 @@ Object.assign(EV, {
   // 2 · who decides what: one line per setting, in a fixed order; the two colours are those of the picture
   setWho(c) {
     const b = c.b, e = EV.e, sys = b.system || {}, kn = b.knobs || {}, keys = EV.SET_ORDER.filter(k => k in sys || k in kn).concat(Object.keys({ ...sys, ...kn }).filter(k => !EV.SET_ORDER.includes(k)));
-    const row = k => (k in kn ? `<tr data-k="${e(k)}" data-set="knob"><td>${EV.label(k, kn[k].meaning)}</td><td><span data-by="model"><i class="sw"></i>the AI may change it</span></td><td>${e(EV.setRange(k, kn[k]))} <span class="sm" title="the value it starts from: the brief's default">from ${e(EV.SET_UNIT[k] ? String(kn[k].default) : EV.setVal(k, kn[k].default))}</span></td></tr>`
-      : `<tr data-k="${e(k)}" data-set="fixed"><td>${EV.label(k)}</td><td><span data-by="operator"><i class="sw"></i>fixed by the operator</span></td><td>${e(EV.setVal(k, sys[k]))}</td></tr>`);
-    return keys.length ? `<table class="st-who"><tbody>${keys.map(row).join('')}</tbody></table>` : `<p class="sm">the settings: ${EV.nr}</p>`;
+    const fixed = keys.filter(k => !(k in kn)), open = keys.filter(k => k in kn);
+    const row = k => (k in kn ? `<tr data-k="${e(k)}" data-set="knob"><td>${EV.label(k, kn[k].meaning)}</td><td>${e(EV.setRange(k, kn[k]))} <span class="sm" title="the value it starts from: the brief's default">from ${e(EV.SET_UNIT[k] ? String(kn[k].default) : EV.setVal(k, kn[k].default))}</span></td></tr>`
+      : `<tr data-k="${e(k)}" data-set="fixed"><td>${EV.label(k)}</td><td>${e(EV.setVal(k, sys[k]))}</td></tr>`);
+    const part = (by, words, list) => (list.length ? `<tr class="st-grp" data-by="${by}"><td colspan="2"><i class="sw"></i>${words}</td></tr>${list.map(row).join('')}` : '');
+    return keys.length ? `<table class="st-who" data-exact="1"><tbody>${part('operator', 'fixed by the operator', fixed)}${part('model', 'the AI may change it', open)}</tbody></table>` : `<p class="sm">the settings: ${EV.nr}</p>`;
   },
   // 3 · the aim, and who set it. An open aim: the one the AI chose is the goal of its final report (c.chosen)
   setAim(c) {
     const g = c.b.goal || {}, e = EV.e, w = EV.aimWords(g);
-    if (g.kind === 'open') return `<p data-aim="open"><b>Open:</b> the AI chooses its own aim and has to justify it. <span class="st-by" data-by="model"><i class="sw"></i>chosen by the AI</span></p>${c.mode === 'session' ? `<p class="sm lc4" id="st-chosen">${c.chosen ? `It chose: ${e(c.chosen)}` : c.ended ? 'It stated no aim: there is no final report.' : 'It has not stated its aim yet.'}</p>` : ''}`;
+    if (g.kind === 'open') return `<p data-aim="open"><b>Open:</b> the AI chooses its own aim and has to justify it. <span class="st-by" data-by="model"><i class="sw"></i>chosen by the AI</span></p>${c.mode === 'session' ? `<p class="sm lc4" id="st-chosen">${c.chosen ? `It chose: <span data-own="model">${e(c.chosen)}</span>` : c.ended ? 'It stated no aim: there is no final report.' : 'It has not stated its aim yet.'}</p>` : ''}`;
     if (!w) return `<p class="sm">the aim: ${EV.nr}</p>`;
     return `<p data-aim="given"><b>Find ${w}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p>${g.tolerance != null && g.tolerance !== '' ? `<p class="sm">Tolerance ${e(g.tolerance)} %: two results closer than this count as equal.</p>` : ''}`;
   },
@@ -81,7 +83,7 @@ Object.assign(EV, {
     const was = c.mode === 'setup' ? 'will be' : 'was';
     return `<div class="st-lists"><div data-list="told"><h4>The AI is told</h4><ul>${told}</ul></div><div data-list="not"><h4>The AI is not told</h4><ul>${not}</ul></div>
         <div data-list="can"><h4>The AI can</h4><ul>${can}</ul><h4>It cannot</h4><ul data-list="cannot">${cannot}</ul></div></div>
-      <details class="st-exact" id="st-exact"${EV.s.exact ? ' open' : ''}><summary>the exact text the AI ${was} given</summary><p class="sm">What the harness's <code>describe_system()</code> returns for this ${c.mode === 'setup' ? 'set-up' : 'session'}, word for word: the brief, then the measures and the tools.</p><pre id="st-given">${c.given ? e(JSON.stringify(c.given, null, 1)) : 'not recorded'}</pre></details>`;
+      <details class="st-exact" id="st-exact"${EV.s.exact ? ' open' : ''}><summary>the exact text the AI ${was} given</summary><p class="sm">What the harness returns when the AI asks to read the brief (<code>describe_system()</code>), word for word: the brief, then the measures and the tools.</p><pre id="st-given">${c.given ? e(JSON.stringify(c.given, null, 1)) : 'not recorded'}</pre></details>`;
   },
   // 5 · the limits (and, on a session, how many simulations were used)
   setLimits(c) { const l = c.b.limits || {}, e = EV.e;
@@ -93,7 +95,7 @@ Object.assign(EV, {
   },
   // 7 · how the AI runs: the flags, each beside its default
   setRuns(c) { const f = c.flags, e = EV.e, show = v => (v === true ? 'on' : v === false ? 'off' : v == null ? 'the default' : String(v));
-    return `<table class="st-flags"><tbody>${c.mode === 'session' ? `<tr data-flag="model"><td>model</td><td><b>${e(c.model || 'not recorded')}</b></td><td class="sm">taken from the model server</td></tr>` : ''}${EV.FLAGS.map(([k, name, dflt]) => `<tr data-flag="${k}"><td>${e(name)}</td><td><b>${f ? e(show(f[k])) : 'not recorded'}</b></td><td class="sm">default: ${e(dflt)}</td></tr>`).join('')}</tbody></table>`; },
+    return `<table class="st-flags" data-exact="1"><tbody>${c.mode === 'session' ? `<tr data-flag="model"><td>model</td><td><b>${e(c.model || 'not recorded')}</b></td><td class="sm">taken from the model server</td></tr>` : ''}${EV.FLAGS.map(([k, name, dflt]) => `<tr data-flag="${k}"><td>${e(name)}</td><td><b>${f ? e(show(f[k])) : 'not recorded'}</b></td><td class="sm">default: ${e(dflt)}</td></tr>`).join('')}</tbody></table>`; },
   // one line that carries a folded block's content
   setLine(key, c) { const l = c.b.limits || {}, f = c.flags || {}, e = EV.e;
     return key === 'limits' ? `${e(l.simulations ?? 'not recorded')} simulations in all, ${e(l.simulations_per_experiment ?? 'not recorded')} in one experiment${c.mode === 'session' ? `, ${e(c.used ?? 'not recorded')} used` : ''}`
@@ -101,7 +103,7 @@ Object.assign(EV, {
       : c.flags ? `${c.model ? e(c.model) + ' · ' : ''}draft ${e(f.draft ?? 'not recorded')} · temperature ${e(f.temperature ?? 'not recorded')} · baseline ${f.baseline === false || f.baseline === 'off' ? 'off' : 'on'}` : 'the flags: not recorded'; },
   // the frame of a block: its number, its heading, the sentence that says what it is for, its content
   setBlock(i, body, o) { const [key, head, says, comp] = EV.SET_BLOCKS[i], e = EV.e; o = o || {};
-    return `<div class="st-b${o.cls ? ' ' + o.cls : ''}" data-block="${key}" data-comp="${comp}"${key === 'kept' ? ' data-by="operator"' : ''}><h3 class="st-h" title="${e(says)}"><span class="st-n">${i + 1}</span><span class="st-t">${e(head)}</span>${o.fold != null ? ` <button class="cl noprint" data-act="setfold" data-id="${key}">${o.fold ? 'open' : 'fold'}</button>` : ''}${o.extra || ''}</h3>${o.fold ? `<p class="st-line">${o.line}</p>` : `${o.says ? `<p class="st-says sm">${e(says)}</p>` : ''}${body}`}</div>`; },
+    return `<div class="st-b${o.cls ? ' ' + o.cls : ''}" data-block="${key}" data-comp="${comp}"${key === 'kept' ? ' data-by="operator"' : ''}><h3 class="st-h" title="${e(says)}"><span class="st-n">${i + 1}</span><span class="st-t">${e(head)}</span>${o.fold != null ? ` <button class="cl noprint" data-act="setfold" data-id="${key}">${o.fold ? 'open' : 'fold'}</button>` : ''}${o.extra || ''}</h3>${o.fold ? `<p class="st-line" data-exact="1">${o.line}</p>` : `${o.says ? `<p class="st-says sm">${e(says)}</p>` : ''}${body}`}</div>`; },
 
   // ---- what a session's records say of its setting
   setCtx() {
@@ -114,7 +116,7 @@ Object.assign(EV, {
   settingCard() {
     const M = EV.M, S = EV.s, e = EV.e; EV.sysLoad();
     if (S.sel && S.sel.t === 'sim' && M.simById[S.sel.id] && S.sel !== S.sysFrom) { S.sysSim = { sid: M.id, id: S.sel.id }; S.sysFrom = S.sel; }  // the picture follows the simulation opened last (every opening is a new selection)
-    const fold = !S.full && EV.store('ev-sys') === '1', V = EV.sysVals(), O = EV.OB, on = !O ? null : EV.sysFind(S.sysObj) ? S.sysObj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
+    const fold = !S.full && EV.store('ev-sys') === '1', V = EV.sysVals(), O = EV.OB, on = O && EV.sysFind(S.sysObj) ? S.sysObj : null;  // no part is chosen until the reader clicks one
     const shown = V.sim ? `the picture shows the settings of ${EV_ICON.simulation} ${EV.term('Simulation', 'simulation')} ${e(V.sim.id)} “${e(V.sim.label || '')}”${fold ? '' : ' <button class="cl" data-act="sysdef">show the brief\'s defaults</button>'}`
       : M.brief ? `the picture shows the ${EV.term('Brief', 'brief')}'s defaults, as in the baseline` : `the brief of this session: ${EV.nr}`;
     const again = M.brief && !EV.off && !fold ? `<button class="cl noprint" data-act="setagain" style="float:right;margin-right:6px" title="Open the set-up page filled in with every value of this session; the brief is saved under a new name, never overwritten">Start a new session from this setup</button>` : '';
@@ -125,7 +127,7 @@ Object.assign(EV, {
     const pol = `<text x="432" y="162" text-anchor="middle" class="sv" id="sy-pol"${S.op ? ' data-by="operator"' : ''}>${S.op && row.policy && !row.policy_hidden ? `policy: ${e(row.policy)} · not told to the AI` : 'policy not told to the AI'}</text>`;
     const pic = !O ? `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`
       : `<div class="sy-row"><div><div class="ev-scroll">${EV.sysSvg({ v: V.v, knob: V.knob, fixed: V.fixed, on, act: 'sysobj', pol })}</div>
-          <p class="sm gl-key"><span><i class="sw" style="background:var(--series-1)"></i>UDP</span><span><i class="sw" style="background:var(--series-2)"></i>TCP</span>${M.brief ? EV.sysLegend() : ''}${(O.around || []).length ? `<span>outside a packet's path: ${(O.around || []).map((o, i) => `<a data-act="sysobj" data-id="around-${i}"${on === 'around-' + i ? ' style="font-weight:700"' : ''}>${e(o.name.toLowerCase())}</a>`).join(', ')}</span>` : ''}</p></div><div class="sy-det">${EV.objCard(on)}</div></div>`;
+          <p class="sm gl-key">${M.brief ? EV.sysLegend() : ''}${(O.around || []).length ? `<span>outside a packet's path: ${(O.around || []).map((o, i) => `<a data-act="sysobj" data-id="around-${i}"${on === 'around-' + i ? ' style="font-weight:700"' : ''}>${e(o.name.toLowerCase())}</a>`).join(', ')}</span>` : ''}</p></div><div class="sy-det">${on ? `${EV.objCard(on)}<p class="sm noprint"><button class="cl" data-act="sysobj" data-id="">close</button></p>` : '<p class="sm mut" id="sy-hint">Click a part of the picture to see its settings, what the AI may change there, and what is measured there.</p>'}</div></div>`;
     const open = k => S.full || (S.setOpen || {})[k], line = (i, key, body) => EV.setBlock(i, body(), { fold: S.full ? null : !open(key), line: EV.setLine(key, c) });
     const none = `<p class="sm">${EV.nr}: this session was made before briefs existed.</p>`, has = !!M.brief;
     return `<div class="ev-card noprint" id="s-system">${head}<div class="st" id="st-blocks">

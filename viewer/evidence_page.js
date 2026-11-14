@@ -25,7 +25,7 @@ Object.assign(EV, {
   headStrip() {
     const M = EV.M, S = EV.s, row = EV.files.row || {}, m = M.meta || {}, e = EV.e, seen = EV.seen, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts();
     const used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;  // the checks' tally stands in "The session at a glance", the model in the session's summary
-    const kv = ([k, v]) => `${e(k)} ${e(TASK_VIEW._rate(String(v)))}`, rec = !R ? null : R.text ? e(R.text) : R.differ.length ? R.differ.map(kv).join(', ') : R.known ? "every knob at the brief's default" : EV.nr;
+    const kn = (M.brief && M.brief.knobs) || {}, kv = ([k, v]) => `${EV.label(k, (kn[k] || {}).meaning)} ${e(EV.adjVal(k, v))}`, rec = !R ? null : R.text ? e(R.text) : R.differ.length ? `<span data-exact="1">${R.differ.map(kv).join(', ')}</span>` : R.known ? "every knob at the brief's default" : EV.nr;
     const f = EV.stripField;
     const ended = row.running ? '<span class="pill live">running</span>' : !live ? `<span class="mut">at step ${S.step + 1} of ${M.steps.length}</span>` : m.how ? e(m.how) : `ending ${EV.nr}`;
     return `<div class="ev-head" id="ev-head">${f('brief', EV.term('Brief', 'Brief'), M.brief ? e(M.brief.id) : EV.nr)}${f('session', EV.term('Session', 'Session'), e(M.id))}${f('how', 'How it ended', ended, live ? m.how : '')}
@@ -42,7 +42,7 @@ Object.assign(EV, {
     const M = EV.M, e = EV.e, g = EV.goalOf(M.brief), conds = (M.brief && M.brief.goal && M.brief.goal.conditions) || [], of = k => conds.find(q => new RegExp('^\\s*' + k + '\\b').test(q));
     if (!rep || !rep.expected || typeof rep.expected !== 'object') return null;
     const all = Object.entries(rep.expected).filter(([k]) => !['link_rate_bps', 'weight_udp'].includes(k)).sort(([a], [b]) => (g ? (b === g.target) - (a === g.target) : 0));
-    const row = ([k, v]) => `<tr data-k="${e(k)}"><td>${e(TH_DATA.PLAIN[k] || k)} ${of(k) ? `<span class="sm">the brief allows ${e(of(k))}</span>` : ''}</td><td class="num">${e(EV.val(k, v))}</td></tr>`;
+    const row = ([k, v]) => `<tr data-k="${e(k)}"><td>${e(TH_DATA.PLAIN[k] || k)} ${of(k) ? `<span class="sm" title="${e(of(k))}">the brief allows ${EV.readHtml(of(k)) || e(of(k))}</span>` : ''}</td><td class="num">${EV.v4(k, v)}</td></tr>`;
     // the short list of the Overview: the goal's target and the measures the brief's conditions name; a brief without a goal: the first three rows
     return { all, top: g ? all.filter(([k]) => k === g.target || of(k)) : all.slice(0, 3), row };
   },
@@ -57,7 +57,7 @@ Object.assign(EV, {
   repTxt: v => (Array.isArray(v) ? v.map(q => EV.e(q)).join(' · ') : EV.e(v ?? 'not recorded')),
   ROLES: [['supports', 'because', 'reasons for the recommendation'], ['background', 'because', 'how the system behaves'], ['limits', 'but', 'when the recommendation would change']],
   claimBtn(q) { const S = EV.s, e = EV.e, n = q.evidence.filter(id => (EV.marks['rec:' + id] || {}).tick).length;
-    return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}" data-role="${q.role || ''}"><b>claim ${q.n}</b><span class="ct">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; },
+    return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}" data-role="${q.role || ''}"><b>claim ${q.n}</b><span class="ct" data-own="model">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; },
   // the setting a recommended value stands for, in the page's words and without its unit: "ratio 0.5 → 0.30295"
   adjVal: (k, v) => TASK_VIEW._rate(String(v)).replace(/^Tcp/, ''),
   proposesCard() {
@@ -67,25 +67,25 @@ Object.assign(EV, {
     if (!rep) return `<div class="ev-card" id="s-proposes">${head}${live ? `<p id="ov-none"><b>No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>` : '<p id="ov-none" class="sm">No final report by this step.</p>'}${open}${EV.shareBar()}</div>`;
     const R = EV.recParts(), X = EV.expRows(rep), kn = (M.brief && M.brief.knobs) || {}, g = (M.brief && M.brief.goal) || {}, lab = k => EV.label(k, (kn[k] || {}).meaning);
     // 1 · the aim, and who set it: the brief's goal in words when the operator gave one; the goal the AI states in its report when the brief left it open
-    const aim = g.kind === 'given' ? `<p id="pr-aim" data-aim="given"><b>Find ${EV.aimWords(g) || 'not recorded'}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p><p class="sm lc4" id="ov-goal" title="The goal as the final report states it">${txt(rep.goal)}</p>`
-      : `<p id="pr-aim" data-aim="${g.kind === 'open' ? 'open' : ''}"><span id="ov-goal" class="lc4">${txt(rep.goal)}</span></p><p class="sm"><span class="st-by" data-by="model"><i class="sw"></i>${g.kind === 'open' ? 'chosen by the AI' : 'as the final report states it'}</span>${g.kind === 'open' ? ' · the brief left the aim open' : M.brief ? '' : ` · the brief: ${EV.nr}`}</p>`;
+    const aim = g.kind === 'given' ? `<p id="pr-aim" data-aim="given"><b>Find ${EV.aimWords(g) || 'not recorded'}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p><p class="sm lc4" id="ov-goal" data-own="model" title="The goal as the final report states it">${txt(rep.goal)}</p>`
+      : `<p id="pr-aim" data-aim="${g.kind === 'open' ? 'open' : ''}"><span id="ov-goal" class="lc4" data-own="model">${txt(rep.goal)}</span></p><p class="sm"><span class="st-by" data-by="model"><i class="sw"></i>${g.kind === 'open' ? 'chosen by the AI' : 'as the final report states it'}</span>${g.kind === 'open' ? ' · the brief left the aim open' : M.brief ? '' : ` · the brief: ${EV.nr}`}</p>`;
     // 2 · the proposed adjustment: each recommended setting that differs, beside the value the session started from (the brief's default)
-    const adj = !R ? EV.nr : R.text ? e(R.text) : `<p id="ov-rec" class="pr-adj">${R.differ.map(([k, v]) => `<span class="rk" data-knob="${e(k)}">${lab(k)} <b>${k in kn ? e(EV.adjVal(k, kn[k].default)) + ' → ' : ''}${e(EV.adjVal(k, v))}</b></span>`).join('<span class="pr-sep">, </span>') || (R.known ? '<span class="sm">no setting differs from where the session started</span>' : EV.nr)}</p>
-      ${R.known ? `<p class="sm" id="ov-def">everything else unchanged${R.same.length || R.unnamed.length ? `: ${[...R.same.map(([k, v]) => `${EV.LABEL[k] || k} ${EV.setVal(k, v)}`), ...R.unnamed.map(k => `${EV.LABEL[k] || k} ${EV.setVal(k, kn[k].default)} (not named in the report)`)].map(e).join(' · ')}` : ''}</p>` : ''}`;
+    const adj = !R ? EV.nr : R.text ? e(R.text) : `<p id="ov-rec" class="pr-adj" data-exact="1">${R.differ.map(([k, v]) => `<span class="rk" data-knob="${e(k)}">${lab(k)} <b>${k in kn ? e(EV.adjVal(k, kn[k].default)) + ' → ' : ''}${e(EV.adjVal(k, v))}</b></span>`).join('<span class="pr-sep">, </span>') || (R.known ? '<span class="sm">no setting differs from where the session started</span>' : EV.nr)}</p>
+      ${R.known ? `<p class="sm" id="ov-def" data-exact="1">everything else unchanged${R.same.length || R.unnamed.length ? `: ${[...R.same.map(([k, v]) => `${EV.LABEL[k] || k} ${EV.setVal(k, v)}`), ...R.unnamed.map(k => `${EV.LABEL[k] || k} ${EV.setVal(k, kn[k].default)} (not named in the report)`)].map(e).join(' · ')}` : ''}</p>` : ''}`;
     // 3 · the expected result: the target's measure and those the conditions name
     const left = X ? X.all.length - X.top.length : 0;
     const exp = !X ? `<p class="lc4">${e(String(rep.expected ?? 'not recorded'))}</p>` : `<table class="xr" id="ov-exp-top"><tbody>${X.top.map(X.row).join('')}</tbody></table>${left ? `<p class="sm" id="ov-exp-more"><a data-act="open" data-t="report" data-id="report">${left} more in the final report</a></p>` : ''}`;
     // 4 and 5 · because, and but: the claims by their role; a report recorded without roles: one list
     const roles = M.claims.length > 0 && M.claims.every(q => q.role), of = r => M.claims.filter(q => q.role === r), group = ([r, , says]) => (of(r).length ? `<p class="pr-role sm" data-role="${r}">${says}</p><div class="claims">${of(r).map(EV.claimBtn).join('')}</div>` : '');
     const counts = `<p class="sm" id="pr-counts">${EV.claimCounts(M.claims)}${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
-    const mis = EV.moments(M).report, when = `<div class="ov-when"><h4>Holds when</h4><p>${txt(rep.holds_when)}</p><h4>Breaks when</h4><p>${txt(rep.breaks_when)}</p></div>`;
+    const mis = EV.moments(M).report, when = `<div class="ov-when"><h4>Holds when</h4><p data-own="model">${txt(rep.holds_when)}</p><h4>Breaks when</h4><p data-own="model">${txt(rep.breaks_when)}</p></div>`;
     const because = !M.claims.length ? '<p class="sm">The report states no claims.</p>' : roles ? (EV.ROLES.filter(q => q[1] === 'because').map(group).join('') || '<p class="sm">No claim is given as a reason.</p>') : `<p class="sm" id="pr-noroles">This report was recorded before claims had roles: its claims in one list.</p><div class="claims">${M.claims.map(EV.claimBtn).join('')}</div>`;
     const but = `${roles ? EV.ROLES.filter(q => q[1] === 'but').map(group).join('') || '<p class="sm">No claim says when the recommendation would change.</p>' : ''}${when}`;
     const blk = (n, key, title, body) => `<div class="pr-b" data-pr="${key}"><h3><span class="st-n">${n}</span>${title}</h3>${body}</div>`;
     return `<div class="ev-card" id="s-proposes">${head}<div id="s-report" data-by="model">
         ${blk(1, 'aim', 'The aim', aim)}${blk(2, 'adjust', 'The proposed adjustment', adj)}${blk(3, 'expected', 'The expected result', exp)}
         ${blk(4, 'because', roles || !M.claims.length ? 'Because' : 'Its claims', because + counts)}${blk(5, 'but', 'But', but)}
-        <details class="pr-b" data-pr="explanation" id="pr-expl"${S.more || S.full ? ' open' : ''}><summary><h3 style="display:inline"><span class="st-n">6</span>The explanation</h3> <span class="sm">folded · the model's own words</span></summary><div id="ov-expl">${txt(rep.explanation)}</div></details>
+        <details class="pr-b" data-pr="explanation" id="pr-expl"${S.more || S.full ? ' open' : ''}><summary><h3 style="display:inline"><span class="st-n">6</span>The explanation</h3> <span class="sm">folded · the model's own words</span></summary><div id="ov-expl" data-own="model">${txt(rep.explanation)}</div></details>
         ${mis ? `<p class="sm" data-step="${mis.step}">${EV.warn('a number in the report differs from its measurement', `It wrote “${mis.rows[0].written}”; measured ${mis.rows[0].measured}`)} · <a data-act="open" data-t="report" data-id="report">the report's numbers against the measurements</a></p>` : ''}</div>${open}${EV.shareBar()}</div>`;
   },
 
@@ -97,7 +97,8 @@ Object.assign(EV, {
       <h3>The words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
       <h3>Using the page</h3><ul class="sm" id="how-use" style="margin:0;padding-left:18px">
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
-        <li>A few clicks do move the page, and say so here: a turn's name in “The session at a glance” and a row of “What it needed to find out” bring the notebook to that place; a box of “How a session is built”, and a line of “How it worked as a researcher” that names a section, go to that part; the guided walk goes from section to section.</li>
+        <li>A few clicks do move the page. A turn's name in “The session at a glance” brings the notebook to that turn. A row of “What it needed to find out” brings its notebook card into view.</li>
+        <li>A box of “How a session is built” goes to its part of the page. So does a line of “How it worked as a researcher” that names a section. The guided walk goes from section to section.</li>
         <li>“What it needed to find out”: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
         <li>“Looking closer”: click a line to open that view. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
         <li>“The system”: click an object to see its settings beside the picture. “What this session is made of”: click a mark to open it; point at a mark to read what it is.</li>
@@ -109,7 +110,7 @@ Object.assign(EV, {
   },
 
   sessionTab() {
-    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.glance()}${EV.findCard()}
+    return `${EV.headStrip()}${EV.legendBar()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.glance()}${EV.findCard()}
       <div class="ev-main"><div>${EV.notebookCard()}${EV.proposesCard()}${EV.researchCard()}${EV.closerCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },
