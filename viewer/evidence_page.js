@@ -21,13 +21,13 @@ Object.assign(EV, {
   // ---- the header strip: labelled fields on one line, each a small label above its value; only what is recorded by the replay's step
   headStrip() {
     const M = EV.M, S = EV.s, row = EV.files.row || {}, m = M.meta || {}, e = EV.e, seen = EV.seen, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts();
-    const held = M.checks.filter(c => c.result === 'held' && seen(c.id)).length, failed = M.checks.filter(c => c.result === 'failed' && seen(c.id)).length, voids = M.checks.filter(c => c.void && seen(c.id)).length, used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;
+    const used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;  // the checks' tally stands in "The session at a glance", the model in the session's summary
     const kv = ([k, v]) => `${e(k)} ${e(TASK_VIEW._rate(String(v)))}`, rec = !R ? null : R.text ? e(R.text) : R.differ.length ? R.differ.map(kv).join(', ') : R.known ? "every knob at the brief's default" : EV.nr;
     const f = (id, label, value, title) => `<div class="hf" data-f="${id}"${title ? ` title="${e(title)}"` : ''}><span>${label}</span><b>${value}</b></div>`;
     const ended = row.running ? '<span class="pill live">running</span>' : !live ? `<span class="mut">at step ${S.step + 1} of ${M.steps.length}</span>` : m.how ? e(m.how) : `ending ${EV.nr}`;
     return `<div class="ev-head" id="ev-head">${f('brief', EV.term('Brief', 'Brief'), M.brief ? e(M.brief.id) : EV.nr)}${f('session', EV.term('Session', 'Session'), e(M.id))}${f('how', 'How it ended', ended, live ? m.how : '')}
-      ${f('sims', EV.term('Simulation', 'Simulations'), `${live ? m.simulations ?? (M.old ? M.sims.length : row.simulations ?? used) : used}${row.allowed ? ' of ' + row.allowed : ''}`)}${f('checks', EV.term('Check', 'Checks'), M.old ? EV.nr : EV.tally(held, failed, voids))}
-      ${f('model', 'Model', m.model ? e(m.model) : EV.nr)}${f('rec', 'Recommends', rec == null ? `<span class="mut">no recommendation${M.ended && live ? '' : ' yet'}</span>` : rec, R && R.known && R.differ.length ? "The knobs of the recommendation that differ from the brief's defaults" : '')}
+      ${f('sims', EV.term('Simulation', 'Simulations'), `${live ? m.simulations ?? (M.old ? M.sims.length : row.simulations ?? used) : used}${row.allowed ? ' of ' + row.allowed : ''}`)}
+      ${f('rec', 'Recommends', rec == null ? `<span class="mut">no recommendation${M.ended && live ? '' : ' yet'}</span>` : rec, R && R.known && R.differ.length ? "The knobs of the recommendation that differ from the brief's defaults" : '')}
       ${S.op ? `<span data-by="operator" class="hf-op">${f('policy', '<i class="sw"></i>' + EV.term('Scheduling policy', 'Scheduling policy'), EV.policyText(row))}${f('gap', 'Gap to the best', EV.gapText(row) || '<span class="mut">not scored</span>')}</span>` : ''}
       <div class="hf hf-level noprint" data-f="level" title="Brief: the page as laid out for a first reading. Full: every folded section open."><span>Detail</span><b class="seg"><button data-act="level" data-id="brief" class="${S.full ? '' : 'on'}">Brief</button><button data-act="level" data-id="full" class="${S.full ? 'on' : ''}">Full</button></b></div></div>`;
   },
@@ -57,7 +57,7 @@ Object.assign(EV, {
     const n = k => M.claims.filter(q => q.kind === k).length;
     const counts = !M.claims.length ? '<p class="sm">The report states no claims.</p>' : `<div id="ov-claims" data-counts="${EV.CLAIM_KINDS.map(([k]) => n(k)).join(',')}"><div><b>${M.claims.length}</b> claim${M.claims.length === 1 ? '' : 's'}</div>${EV.CLAIM_KINDS.map(([k, t]) => `<div${k === 'none' && n(k) ? ' class="warnc"' : ''}><b>${n(k)}</b> ${t}</div>`).join('')}</div>
       <p class="sm">Each claim, with the evidence it cites, is in The final report, beside the detail pane.</p>`;
-    const body = !rep ? (live ? `<p id="ov-none"><b class="warnc">No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>` : '<p id="ov-none" class="sm">No final report by this step.</p>')
+    const body = !rep ? (live ? `<p id="ov-none"><b>No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>` : '<p id="ov-none" class="sm">No final report by this step.</p>')
       : `<div class="ov ov-band"><div><h3>The goal</h3><p id="ov-goal" class="lc4">${EV.repTxt(rep.goal)}</p></div><div><h3>Recommended settings</h3>${recHtml}</div>
           <div><h3>Expected result</h3>${expHtml}</div><div><h3>Its claims</h3>${counts}</div></div>`;
     // without a final report there is no card "The final report": the line that opens the brief and the summary stays here
@@ -91,12 +91,13 @@ Object.assign(EV, {
 
   // ---- how to read this page: open on a reader's first visit, closed afterwards
   howTo() {
-    return `<details class="ev-card" id="s-how"${EV.s.how || EV.s.full ? ' open' : ''}><summary><b>How to read this page</b> <span class="sm">how a session is built, the turn loop, who produced what, and the words used</span></summary>
+    return `<details class="ev-card" id="s-how"${EV.s.how || EV.s.full ? ' open' : ''}><summary><b class="how-h">How to read this page</b> <span class="sec-q">What is a turn, a test, a check?</span></summary>
       <div class="ev-top" style="margin-top:10px"><div><h3>How a session is built<span class="sm"> · this session's counts; click a box to go to that part</span></h3>${EV.structureMap()}</div>
         <div><h3>Who produced it</h3>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
       <h3>The words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
       <h3>Using the page</h3><ul class="sm" id="how-use" style="margin:0;padding-left:18px">
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
+        <li>Four clicks do move the page, and say so here: a turn's name in “The session at a glance” and a row of “What it needed to find out” bring the notebook to that place; a box of “How a session is built” goes to its part; the guided walk goes from section to section.</li>
         <li>“What it needed to find out”: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
         <li>“Looking closer”: click a line to open that view. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
         <li>“The system”: click an object to see its settings beside the picture. “What this session is made of”: click a mark to open it; point at a mark to read what it is.</li>

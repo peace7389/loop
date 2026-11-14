@@ -10,7 +10,7 @@ Object.assign(EV, {
     const live = EV.s.step == null, seen = EV.seen, at = live ? null : EV_DATA.stateAt(M, EV.s.step);
     const kinds = {}; M.exps.filter(x => seen(x.id)).forEach(x => { const k = x.by === 'harness' ? 'baseline' : x.kind || 'not recorded'; kinds[k] = (kinds[k] || 0) + 1; });
     const st = {}; M.hyps.filter(h => seen(h.id)).forEach(h => { const s = at ? at[h.id] || 'open' : h.state; st[s] = (st[s] || 0) + 1; });
-    const kv = [['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], ...(EV.s.op ? [[EV.term('Scheduling policy', 'scheduling policy') + ' (operator column)', EV.policyText(EV.files.row)]] : []),
+    const kv = [['model', m.model || EV.nr], ['flags', f ? Object.entries(f).map(([k, v]) => `${k} ${v}`).join(' · ') : EV.nr], ...(EV.s.op ? [[EV.term('Scheduling policy', 'scheduling policy') + ' (operator column)', EV.policyText(EV.files.row)]] : []),
       ['started', m.started ? m.started.replace('T', ' ') : M.recs[0] && M.recs[0].ts ? M.recs[0].ts.replace('T', ' ') : EV.nr], ...(live ? [['duration', mins], [EV.term('Turn', 'turns'), `${m.turns ?? c.turn}${unusable ? ` · ${unusable} unusable` : ''}`], ['model calls', m.calls ?? EV.nr], ['replies cut off', m.cut_off ?? EV.nr]]
         : [[EV.term('Turn', 'turns') + ' by this step', String(EV.glCounts().turn)]])];
     return `<div class="kv" id="sum-kv">${kv.map(([k, v]) => `<div><span>${k}</span><b>${String(v).startsWith('<') ? v : e(v)}</b></div>`).join('')}</div>

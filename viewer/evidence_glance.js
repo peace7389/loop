@@ -54,7 +54,7 @@ Object.assign(EV, {
   glance() {
     const fold = !EV.s.full && EV.store('ev-made') === '1', foldBtn = EV.s.full ? '' : `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`, n = EV.glCounts(), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
     // folded, its line carries its content: the counts, from the records
-    if (fold) return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed, n.void)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
+    if (fold) return `<div class="ev-card noprint" id="s-made"><h2>The session at a glance <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed, n.void)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, live = S.step == null, sel = S.sel || {}, info = EV.glInfo(S.sel), st = live ? null : EV_DATA.stateAt(M, S.step);
     const claim = S.claim ? M.claims[S.claim - 1] : null, hitT = new Set(claim ? claim.tests : []), hitH = new Set(claim ? claim.hyps : []);
     const gap = '<i class="gm"></i>';   // an empty place
@@ -87,7 +87,7 @@ Object.assign(EV, {
     };
     const row = (by, icon, term, word, count, note, k) => `<tr data-by="${by}"><th><span class="gi">${EV.gk(icon)}</span>${EV.term(term, word)} <b>${count}</b>${notes || note === EV.nr ? ` <span class="sm">${note}</span>` : ''}</th>${cols.map(c => `<td><div class="gs" style="width:${c.w}px">${cell[k](c)}</div></td>`).join('')}</tr>`;
     const head = cols.map(c => { const r = c.t.malformed.concat(c.t.refusals).filter(q => seen(q.id)).length;
-      return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="open" data-t="log" data-id="${c.t.n}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? `<span class="grf warnc" data-refused="${r}" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">${r}</span>` : ''}${
+      return `<td><a class="gt${sel.t === 'log' && sel.id === c.t.n ? ' on' : ''}" data-act="turn" data-t="log" data-id="${c.t.n}" title="${c.t.n ? `Turn ${c.t.n}: open its work log and go to it in the notebook` : 'The start: go to it in the notebook'}">${c.t.n ? 'turn ' + c.t.n : 'start'}</a>${r ? `<span class="grf warnc" data-refused="${r}" title="${r} refused answer${r === 1 ? '' : 's'} or part${r === 1 ? '' : 's'} of an answer in this turn">${r}</span>` : ''}${
         c.t.n && anyLeft ? `<div class="gleft" data-left="${c.t.left ?? ''}" title="${c.t.left == null ? 'How many simulations were left at the start of this turn is not recorded (sessions before s008)' : `${c.t.left} simulation${c.t.left === 1 ? ' was' : 's were'} left at the start of turn ${c.t.n}`}">${c.t.left == null ? EV.nr : c.t.left + ' left'}</div>` : ''}</td>`; }).join('');
     const has = f => cols.some(f), res = k => M.checks.some(q => q.result === k && seen(q.id)), vd = k => M.recs.some(r => r.type === 'verdict' && r.body.result === k && seen(r.id));  // the key names a sign only once one is drawn
     const K = EV.gkey, key = [[K('held') + 'held', res('held')], [K('failed') + 'failed', res('failed')], [K('void') + EV.VOID, res('void')], [K('supported') + 'supported', vd('supported')], [K('refuted') + 'refuted', vd('refuted')], [K('inconclusive') + 'inconclusive', vd('inconclusive')],
@@ -96,7 +96,7 @@ Object.assign(EV, {
       [K('dropped') + 'dropped', M.hyps.some(h => h.drop && seen(h.drop.id))], ['<span class="grf warnc">n</span> refused answers or parts in that turn', cols.some(c => c.t.malformed.concat(c.t.refusals).some(q => seen(q.id)))],
       [`<span id="gl-left">simulations left at each turn: ${EV.nr}</span>`, !anyLeft && cols.some(c => c.t.n)]].filter(q => q[1]).map(q => `<span>${q[0]}</span>`).join('');
     EV._gl = '';
-    return `<div class="ev-card noprint" id="s-made"><h2>What this session is made of <small>one mark per item · a column is one ${EV.term('Turn', 'turn')}, read downwards${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small> ${foldBtn}</h2>
+    return `<div class="ev-card noprint" id="s-made"><h2>The session at a glance <small>what this session is made of · one mark per item · a column is one ${EV.term('Turn', 'turn')}, read downwards · ${M.old ? 'checks ' + EV.nr : `<span id="gl-tally">${EV.term('Check', 'checks')} ${EV.tally(n.held, n.failed, n.void)}</span>`}${fits ? '' : ` · <b class="warnc">the ${cols.length} columns are wider than the page: scroll the table sideways for the later turns</b>`}</small> ${foldBtn}</h2><p class="sec-q">What happened overall?</p>
       <div class="ev-scroll gl-scroll${fits ? '' : ' gl-more'}"><table class="gl" style="--gw:${W}px"><thead><tr data-by="harness"><th><span class="gi"></span>${EV.term('Turn', 'Turns')} <b>${n.turn}</b>${notes ? ' <span class="sm">one answer of the model each</span>' : ''}</th>${head}</tr></thead><tbody>
         ${row('model', 'hyp', 'Hypothesis', 'Hypotheses', n.hyp, 'the model\'s claims', 'hyp')}
         ${row('model', 'rule', 'Decision rule', 'Decision rules', n.rule, 'stated before the simulations', 'rule')}
@@ -117,5 +117,7 @@ Object.assign(EV, {
     say.innerHTML = EV.glSay(sel || EV.s.sel);
   },
 });
-EV.act = Object.assign(EV.act || {}, { glfold() { EV.store('ev-made', EV.store('ev-made') === '1' ? '0' : '1'); EV.draw(); } });
+EV.act = Object.assign(EV.act || {}, { glfold() { EV.store('ev-made', EV.store('ev-made') === '1' ? '0' : '1'); EV.draw(); },
+  // a turn's name: its work log opens in the detail pane, and the notebook comes to that turn (a stated exception to "a click never moves the page")
+  turn(id) { const n = Number(id); EV.s.sel = { t: 'log', id: n }; EV.draw(); const el = document.querySelector(n ? `#s-notebook .nb-turn[data-turn="${n}"]` : '#s-notebook .nb-start'); if (el) el.scrollIntoView({ block: 'start' }); } });
 document.getElementById('ev').addEventListener('mouseover', EV.glHover);

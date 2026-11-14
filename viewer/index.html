@@ -55,7 +55,7 @@
 .ev-head { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px; margin-bottom: 10px; font-size: var(--f-text); box-shadow: 0 2px 8px rgb(0 0 0 / .07); display: flex; flex-wrap: wrap; gap: 4px 26px; align-items: flex-start; }
 /* a field of the header strip: a small label above its value */
 .ev .hf { display: grid; min-width: 0; } .ev .hf > span { font-size: var(--f-note); color: var(--text-muted); white-space: nowrap; } .ev .hf > b { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; } .ev .hf[data-f=rec] { flex: 0 1 auto; } .ev .hf[data-f=rec] > b { white-space: normal; }
-.ev .hf-op { display: flex; gap: 20px; } .ev .ev-head { column-gap: 20px; } .ev .hf .pill { font-size: var(--f-sec); }
+.ev .hf-op { display: flex; gap: 26px; } .ev .hf .pill { font-size: var(--f-sec); }
 /* the Overview is one band of four columns (two by two in a narrow window): the goal, the recommended settings, the expected result in short, the claims in numbers */
 .ev .ov-band { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1fr); gap: 8px 32px; align-items: start; } .ev #ov-claims { font-size: var(--f-sec); line-height: 1.3; margin-bottom: 4px; } .ev #ov-exp-more { margin-top: 2px; }
 @media (max-width: 900px) { .ev .ov-band { grid-template-columns: 1fr 1fr; } }
@@ -106,6 +106,9 @@
 /* the key moments of a session are marks on the notebook's cards and headings: one line of small chips under a card's six lines */
 .ev .nb-marks { display: flex; flex-wrap: wrap; gap: 4px 6px; justify-content: flex-end; margin-top: 3px; } .ev .nb-mark { font-size: var(--f-note); font-weight: 700; color: var(--text-primary); border: 1px solid var(--text-primary); border-radius: 999px; padding: 0 7px; background: var(--surface-1); white-space: nowrap; text-decoration: none !important; }
 .ev a.nb-mark { cursor: pointer; } .ev a.nb-mark:hover { background: var(--surface-0); } .ev .nb-head .nb-mark { margin-left: 6px; font-weight: 600; }
+/* a refused answer or part: one line under its turn's heading, in the warning colour's mark and plain words */
+.ev .nb-refused { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 0 6px; align-items: baseline; margin: 2px 0 2px 14px; font-size: var(--f-sec); color: var(--text-secondary); cursor: pointer; } .ev .nb-refused:hover { background: var(--surface-0); } .ev div.nb-refused.later { visibility: hidden; }
+.ev .nb-head { scroll-margin-top: calc(var(--head-h, 44px) + 12px); } .ev #s-how > summary .sec-q { margin-left: 8px; } .ev .how-h { font-size: var(--f-card); }
 /* a section: its heading, and under it in small text the reader's question */
 .ev .sec-q { font-size: var(--f-sec); color: var(--text-secondary); margin: -3px 0 8px; } .ev .nb-bar { margin: 0 0 4px; } .ev .seg { display: inline-flex; } .ev .seg button { border-radius: 0; padding: 1px 9px; font-size: var(--f-sec); } .ev .seg button:first-child { border-radius: 7px 0 0 7px; } .ev .seg button:last-child { border-radius: 0 7px 7px 0; border-left: 0; } .ev .hf-level { margin-left: auto; }
 /* "What it needed to find out": one row per test; a failed check has no warning colour */
