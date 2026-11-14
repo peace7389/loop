@@ -22,7 +22,7 @@ The ledger is the complete record of everything you have hypothesised, run, obse
    - recommendation: the settings you recommend, as knob: value. Only knobs, each within its range; a setting the brief fixes cannot be recommended.
    - expected: the output values you expect at the recommendation, by the outputs' names.
    - explanation: why this setting is best. holds_when: the conditions under which your answer stays valid. breaks_when: the conditions under which it would change.
-   - claims: the statements your answer rests on, each with evidence: the ids of the ledger records that support it (for example E3, C5). Every id must exist in the ledger; a report that cites an id that does not exist is rejected.
+   - claims: the statements your answer rests on, each with evidence: the ids of the ledger records that support it (for example E3, C5). Every id must exist in the ledger; a report that cites an id that does not exist is rejected. Give each claim its role: supports (a reason for the recommendation), background (how the system behaves), or limits (when the recommendation would change).
    - open_questions: what you could not settle.
    Before the report, give a verdict on every hypothesis that has a checked decision rule; the verdicts can be in the same answer as the report.
 

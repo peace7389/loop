@@ -28,13 +28,13 @@ Object.assign(EV, {
   rests: (v, short) => (v && v.voidOnly ? ` <span class="rs mut" data-rests="void" title="${EV.RESTS}: every check this verdict could rest on compared a simulation with itself">${short ? EV.gkey('void') : '· ' + EV.RESTS}</span>` : ''),
   tally: (held, failed, voids) => `<span class="rs tally" data-held="${held}" data-failed="${failed}" data-void="${voids || 0}">${EV.gkey('held')}${held}</span> <span class="rs">${EV.gkey('failed')}${failed}</span>${voids ? ` <span class="rs" title="${EV.VOID}">${EV.gkey('void')}${voids}</span>` : ''}`,
   warn: (text, title) => `<span class="warnc rs"${title ? ` title="${EV.e(title)}"` : ''}>${EV.gkey('warn')}${text || ''}</span>`,
-  // a claim of the final report: the checks it cites as marks, in the order cited; "no check cited"; or, the one warning, "no evidence".
+  // a claim of the final report: the checks it cites as marks, in the order cited; "no check cited"; or "cites nothing" (in plain words, not a warning).
   // seen: which records the replay shows (a check recorded later is not drawn)
   claimMarks(q, seen) { const cs = q.cites.filter(c => !seen || seen(c.id));
-    return q.kind === 'none' ? EV.warn('no evidence') : cs.length ? `<span class="cm" data-kind="${q.kind}">${cs.map(c => `<span class="rs" data-check="${EV.e(c.id)}">${EV.gkey(EV.ck(c.result))}${EV.e(c.id)}</span>`).join(' ')}</span>` : '<span class="cm" data-kind="nocheck">no check cited</span>'; },
-  CLAIM_KINDS: [['held', 'cite held checks only'], ['both', 'cite held and failed checks'], ['failed', 'cite failed checks only'], ['nocheck', 'cite no check'], ['none', 'with no evidence']],
+    return q.kind === 'none' ? '<span class="cm" data-kind="none">cites nothing</span>' : cs.length ? `<span class="cm" data-kind="${q.kind}">${cs.map(c => `<span class="rs" data-check="${EV.e(c.id)}">${EV.gkey(EV.ck(c.result))}${EV.e(c.id)}</span>`).join(' ')}</span>` : '<span class="cm" data-kind="nocheck">no check cited</span>'; },
+  CLAIM_KINDS: [['held', 'cite only checks that held'], ['both', 'cite checks that held and failed'], ['failed', 'cite only checks that failed'], ['nocheck', 'cite no check'], ['none', 'cite nothing']],  // worded neutrally; none is a warning
   claimCounts(claims) { const n = k => claims.filter(q => q.kind === k).length;
-    return `<span id="claim-counts" data-counts="${EV.CLAIM_KINDS.map(([k]) => n(k)).join(',')}">${claims.length} claim${claims.length === 1 ? '' : 's'} · ${EV.CLAIM_KINDS.map(([k, t]) => (k === 'none' && n(k) ? `<span class="warnc">${n(k)} ${t}</span>` : `${n(k)} ${t}`)).join(' · ')}</span>`; },
+    return `<span id="claim-counts" data-counts="${EV.CLAIM_KINDS.map(([k]) => n(k)).join(',')}">${claims.length} claim${claims.length === 1 ? '' : 's'} · ${EV.CLAIM_KINDS.map(([k, t]) => `${n(k)} ${t}`).join(' · ')}</span>`; },
   // a hypothesis in short: its question when the session recorded one (the hypothesis put as one plain question, for a
   // reader who is not a specialist); a session that recorded none: the hypothesis text in its place
   hshort: h => (h ? h.question || h.text || '' : ''),

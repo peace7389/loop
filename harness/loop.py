@@ -186,6 +186,8 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
     ch = r["choices"][0]
     return ch["message"].get("content") or "", ch["message"].get("reasoning") or "", ch.get("finish_reason"), r.get("usage", {})
 
+ROLES = ("supports", "background", "limits")  # what a claim of a final report does: a reason for the recommendation, how the system behaves, when the recommendation would change
+
 def check_report(rep, brief, ids):
     """None if the final report can be accepted; otherwise what is wrong with it."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
@@ -208,7 +210,10 @@ def check_report(rep, brief, ids):
     if not isinstance(exp, dict) or set(exp) - set(tools.MANIFEST["outputs"]) or not all(type(v) in (int, float) for v in exp.values()):
         return "report.expected must give numbers for outputs (by their names)"
     if not isinstance(claims, list) or not all(isinstance(c, dict) and text(c.get("text")) and isinstance(c.get("evidence"), list) for c in claims):
-        return "report.claims must be a list of {text, evidence: [ledger ids]}"
+        return "report.claims must be a list of {text, role, evidence: [ledger ids]}"
+    norole = [str(i + 1) for i, c in enumerate(claims) if c.get("role") not in ROLES]  # what each claim does in the argument: the page orders the report by it
+    if norole:
+        return f"report.claims: claim {', '.join(norole)} has no role: give each claim its role, one of {', '.join(ROLES)}"
     missing = sorted({i for c in claims for i in c["evidence"] if i not in ids})
     if missing:
         return f"report.claims cites ids that are not in the ledger: {', '.join(map(str, missing))}"

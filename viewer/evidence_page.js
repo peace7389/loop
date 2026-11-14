@@ -1,8 +1,8 @@
 // A session's page. Everything on it belongs to one of three levels of detail:
 //   1 · at a glance   the header strip; the setting (evidence_system.js); the session at a glance (evidence_glance.js);
 //                     what it needed to find out (evidence_find.js). Open, at the top, at full width.
-//   2 · read          the work, step by step: the notebook (evidence_notebook.js); what it proposes (the final report);
-//                     below level 1, in the left column, beside the detail pane.
+//   2 · read          the work, step by step: the notebook (evidence_notebook.js); what it proposes (the final report as one
+//                     argument); below level 1, in the left column, beside the detail pane.
 //   3 · inspect       a test's flow chart, the exact decision rule and numbers, a simulation's settings and charts, the
 //                     review queue: the detail pane on the right, opened by a click. Nothing of level 3 stands at level
 //                     1 or 2 except as something to click.
@@ -46,49 +46,46 @@ Object.assign(EV, {
     return { all, top: g ? all.filter(([k]) => k === g.target || of(k)) : all.slice(0, 3), row };
   },
 
-  // ---- the first thing a reader reads: the answer, in one band. Four columns: the goal (four lines at most), the
-  // recommended settings, the expected result in short, the claims in numbers. The claims themselves, the explanation
-  // and the full expected result are in the card "The final report", which stands beside the detail pane.
-  overview() {
-    const M = EV.M, S = EV.s, e = EV.e, rep = EV.repNow(), m = M.meta || {}, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts(), X = EV.expRows(rep);
-    const name = k => e(TH_DATA.KNOB[k] || k), val = (k, v) => e(TASK_VIEW._rate(String(EV.val(k, v)))).replace(/^Tcp/, '');
-    const recHtml = !R ? EV.nr : R.text ? e(R.text) : `<div class="rec" id="ov-rec">${R.differ.map(([k, v]) => `<span class="rk" data-knob="${e(k)}"><span>${name(k)}</span><b>${val(k, v)}</b></span>`).join('') || (R.known ? '<span class="sm">no knob differs from the brief’s default</span>' : EV.nr)}</div>
-      ${R.same.length ? `<p class="sm" id="ov-def">at the brief's default: ${R.same.map(([k, v]) => `${name(k)} ${val(k, v)}`).join(' · ')}</p>` : ''}${R.unnamed.length ? `<p class="sm">not named in the report: ${R.unnamed.map(name).join(', ')}</p>` : ''}`;
-    const left = X ? X.all.length - X.top.length : 0;
-    const expHtml = !X ? `<p class="lc4">${e(String((rep && rep.expected) ?? 'not recorded'))}</p>` : `<table class="xr" id="ov-exp-top"><tbody>${X.top.map(X.row).join('')}</tbody></table>${left ? `<p class="sm" id="ov-exp-more">${left} more in the final report</p>` : ''}`;
-    const n = k => M.claims.filter(q => q.kind === k).length;
-    const counts = !M.claims.length ? '<p class="sm">The report states no claims.</p>' : `<div id="ov-claims" data-counts="${EV.CLAIM_KINDS.map(([k]) => n(k)).join(',')}"><div><b>${M.claims.length}</b> claim${M.claims.length === 1 ? '' : 's'}</div>${EV.CLAIM_KINDS.map(([k, t]) => `<div${k === 'none' && n(k) ? ' class="warnc"' : ''}><b>${n(k)}</b> ${t}</div>`).join('')}</div>
-      <p class="sm">Each claim, with the evidence it cites, is in The final report, beside the detail pane.</p>`;
-    const body = !rep ? (live ? `<p id="ov-none"><b>No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>` : '<p id="ov-none" class="sm">No final report by this step.</p>')
-      : `<div class="ov ov-band"><div><h3>The goal</h3><p id="ov-goal" class="lc4">${EV.repTxt(rep.goal)}</p></div><div><h3>Recommended settings</h3>${recHtml}</div>
-          <div><h3>Expected result</h3>${expHtml}</div><div><h3>Its claims</h3>${counts}</div></div>`;
-    // without a final report there is no card "The final report": the line that opens the brief and the summary stays here
-    const open = rep ? '' : `<p class="sm noprint">open on the right: <a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p>`;
-    return `<div id="s-overview">${body}${open}</div>`;
-  },
+  // ---- section 5, "What it proposes": the final report as one argument, in this order: the aim (and who set it); the
+  // proposed adjustment (each recommended setting beside the value the session started from); the expected result in
+  // short; because (the claims that support the recommendation, then those that say how the system behaves); but (the
+  // claims that say when it would be wrong, then "holds when" and "breaks when"); the explanation, folded. Every line is
+  // the model's own text or a recorded value; the page only orders them. A claim's part in the argument is its "role"
+  // (supports, background, limits), which the harness requires since READABLE_PAGE.md; a report recorded without roles
+  // shows its claims in one list. A session without a final report says so here, with how it ended.
   repTxt: v => (Array.isArray(v) ? v.map(q => EV.e(q)).join(' · ') : EV.e(v ?? 'not recorded')),
-
-  // ---- "The final report", at the head of the left column, so that it stands beside the detail pane: a click on a
-  // claim opens its test there, in view. The model's own words: its claims with the evidence each one cites, the
-  // explanation (six lines, then "more"), the full expected result, when it holds, when it breaks.
-  // A session without a final report has no such card; in the replay it appears at the step of the final report.
-  reportCard() {
-    const M = EV.M, S = EV.s, e = EV.e, rep = EV.repNow(), X = EV.expRows(rep), txt = EV.repTxt; if (!rep) return '';
-    const claims = !M.claims.length ? '<p class="sm">The report states no claims.</p>' : `<h3>Its claims</h3><div class="claims">${M.claims.map(q => { const n = q.evidence.filter(id => (EV.marks['rec:' + id] || {}).tick).length;
-        return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}"><b>claim ${q.n}</b><span class="ct">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; }).join('')}</div>
-      <p class="sm">${EV.claimCounts(M.claims)}${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
-    const expHtml = !X ? `<p>${e(String(rep.expected ?? 'not recorded'))}</p>` : `<table class="xr" id="ov-exp"><tbody>${X.all.map(X.row).join('')}</tbody></table>`;
-    return `<div id="s-report" data-by="model"><h3 class="rep-h">The final report <span class="sm">the model's own words: its claims with the evidence each one cites, then its explanation</span></h3>${claims}
-      <h3>Explanation</h3><div id="ov-expl" class="${S.more || S.full ? '' : 'clamp'}">${txt(rep.explanation)}</div>${S.full ? '' : `<a class="noprint sm" data-act="more">${S.more ? 'less' : 'more'}</a>`}
-      <h3>Expected result</h3>${expHtml}<div class="ov-when"><h3>Holds when</h3><p>${txt(rep.holds_when)}</p><h3>Breaks when</h3><p>${txt(rep.breaks_when)}</p></div>
-      <p class="sm noprint" style="margin-top:10px">open on the right: <a data-act="open" data-t="report" data-id="report">the full final report</a> · <a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p></div>`;
-  },
-
-  // ---- "What it proposes": the answer, after the work that led to it. The band of four columns (the goal, the
-  // recommended settings, the expected result in short, the claims in numbers), then the model's own words. A session
-  // without a final report says so here, with how it ended.
+  ROLES: [['supports', 'because', 'reasons for the recommendation'], ['background', 'because', 'how the system behaves'], ['limits', 'but', 'when the recommendation would change']],
+  claimBtn(q) { const S = EV.s, e = EV.e, n = q.evidence.filter(id => (EV.marks['rec:' + id] || {}).tick).length;
+    return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}" data-role="${q.role || ''}"><b>claim ${q.n}</b><span class="ct">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; },
+  // the setting a recommended value stands for, in the page's words and without its unit: "ratio 0.5 → 0.30295"
+  adjVal: (k, v) => TASK_VIEW._rate(String(v)).replace(/^Tcp/, ''),
   proposesCard() {
-    return `<div class="ev-card" id="s-proposes"><h2>What it proposes</h2><p class="sec-q">What does it recommend, on what evidence, and where does that stop being true?</p>${EV.overview()}${EV.reportCard()}${EV.shareBar()}</div>`;
+    const M = EV.M, S = EV.s, e = EV.e, rep = EV.repNow(), m = M.meta || {}, live = S.step == null || S.step >= M.steps.length - 1, txt = EV.repTxt;
+    const head = `<h2>What it proposes</h2><p class="sec-q">What does it recommend, on what evidence, and where does that stop being true?</p>`;
+    const open = `<p class="sm noprint" style="margin-top:10px">open on the right: ${rep ? '<a data-act="open" data-t="report" data-id="report">the full final report</a> · ' : ''}<a data-act="open" data-t="brief" data-id="brief">the brief</a> · <a data-act="open" data-t="session" data-id="${e(M.id)}">the session's summary</a></p>`;
+    if (!rep) return `<div class="ev-card" id="s-proposes">${head}${live ? `<p id="ov-none"><b>No final report.</b> ${M.ended ? `The session ended: ${m.how ? e(m.how) : EV.nr}.` : 'The session is still running.'}</p>` : '<p id="ov-none" class="sm">No final report by this step.</p>'}${open}${EV.shareBar()}</div>`;
+    const R = EV.recParts(), X = EV.expRows(rep), kn = (M.brief && M.brief.knobs) || {}, g = (M.brief && M.brief.goal) || {}, lab = k => EV.label(k, (kn[k] || {}).meaning);
+    // 1 · the aim, and who set it: the brief's goal in words when the operator gave one; the goal the AI states in its report when the brief left it open
+    const aim = g.kind === 'given' ? `<p id="pr-aim" data-aim="given"><b>Find ${EV.aimWords(g) || 'not recorded'}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p><p class="sm lc4" id="ov-goal" title="The goal as the final report states it">${txt(rep.goal)}</p>`
+      : `<p id="pr-aim" data-aim="${g.kind === 'open' ? 'open' : ''}"><span id="ov-goal" class="lc4">${txt(rep.goal)}</span></p><p class="sm"><span class="st-by" data-by="model"><i class="sw"></i>${g.kind === 'open' ? 'chosen by the AI' : 'as the final report states it'}</span>${g.kind === 'open' ? ' · the brief left the aim open' : M.brief ? '' : ` · the brief: ${EV.nr}`}</p>`;
+    // 2 · the proposed adjustment: each recommended setting that differs, beside the value the session started from (the brief's default)
+    const adj = !R ? EV.nr : R.text ? e(R.text) : `<p id="ov-rec" class="pr-adj">${R.differ.map(([k, v]) => `<span class="rk" data-knob="${e(k)}">${lab(k)} <b>${k in kn ? e(EV.adjVal(k, kn[k].default)) + ' → ' : ''}${e(EV.adjVal(k, v))}</b></span>`).join('<span class="pr-sep">, </span>') || (R.known ? '<span class="sm">no setting differs from where the session started</span>' : EV.nr)}</p>
+      ${R.known ? `<p class="sm" id="ov-def">everything else unchanged${R.same.length || R.unnamed.length ? `: ${[...R.same.map(([k, v]) => `${EV.LABEL[k] || k} ${EV.setVal(k, v)}`), ...R.unnamed.map(k => `${EV.LABEL[k] || k} ${EV.setVal(k, kn[k].default)} (not named in the report)`)].map(e).join(' · ')}` : ''}</p>` : ''}`;
+    // 3 · the expected result: the target's measure and those the conditions name
+    const left = X ? X.all.length - X.top.length : 0;
+    const exp = !X ? `<p class="lc4">${e(String(rep.expected ?? 'not recorded'))}</p>` : `<table class="xr" id="ov-exp-top"><tbody>${X.top.map(X.row).join('')}</tbody></table>${left ? `<p class="sm" id="ov-exp-more"><a data-act="open" data-t="report" data-id="report">${left} more in the final report</a></p>` : ''}`;
+    // 4 and 5 · because, and but: the claims by their role; a report recorded without roles: one list
+    const roles = M.claims.length > 0 && M.claims.every(q => q.role), of = r => M.claims.filter(q => q.role === r), group = ([r, , says]) => (of(r).length ? `<p class="pr-role sm" data-role="${r}">${says}</p><div class="claims">${of(r).map(EV.claimBtn).join('')}</div>` : '');
+    const counts = `<p class="sm" id="pr-counts">${EV.claimCounts(M.claims)}${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
+    const mis = EV.moments(M).report, when = `<div class="ov-when"><h4>Holds when</h4><p>${txt(rep.holds_when)}</p><h4>Breaks when</h4><p>${txt(rep.breaks_when)}</p></div>`;
+    const because = !M.claims.length ? '<p class="sm">The report states no claims.</p>' : roles ? (EV.ROLES.filter(q => q[1] === 'because').map(group).join('') || '<p class="sm">No claim is given as a reason.</p>') : `<p class="sm" id="pr-noroles">This report was recorded before claims had roles: its claims in one list.</p><div class="claims">${M.claims.map(EV.claimBtn).join('')}</div>`;
+    const but = `${roles ? EV.ROLES.filter(q => q[1] === 'but').map(group).join('') || '<p class="sm">No claim says when the recommendation would change.</p>' : ''}${when}`;
+    const blk = (n, key, title, body) => `<div class="pr-b" data-pr="${key}"><h3><span class="st-n">${n}</span>${title}</h3>${body}</div>`;
+    return `<div class="ev-card" id="s-proposes">${head}<div id="s-report" data-by="model">
+        ${blk(1, 'aim', 'The aim', aim)}${blk(2, 'adjust', 'The proposed adjustment', adj)}${blk(3, 'expected', 'The expected result', exp)}
+        ${blk(4, 'because', roles || !M.claims.length ? 'Because' : 'Its claims', because + counts)}${blk(5, 'but', 'But', but)}
+        <details class="pr-b" data-pr="explanation" id="pr-expl"${S.more || S.full ? ' open' : ''}><summary><h3 style="display:inline"><span class="st-n">6</span>The explanation</h3> <span class="sm">folded · the model's own words</span></summary><div id="ov-expl">${txt(rep.explanation)}</div></details>
+        ${mis ? `<p class="sm" data-step="${mis.step}">${EV.warn('a number in the report differs from its measurement', `It wrote “${mis.rows[0].written}”; measured ${mis.rows[0].measured}`)} · <a data-act="open" data-t="report" data-id="report">the report's numbers against the measurements</a></p>` : ''}</div>${open}${EV.shareBar()}</div>`;
   },
 
   // ---- how to read this page: open on a reader's first visit, closed afterwards

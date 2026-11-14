@@ -299,6 +299,15 @@
          "text": {
           "type": "string"
          },
+         "role": {
+          "type": "string",
+          "enum": [
+           "supports",
+           "background",
+           "limits"
+          ],
+          "description": "what the claim does in your answer: supports (a reason for the recommendation), background (how the system behaves), limits (when the recommendation would change)"
+         },
          "evidence": {
           "type": "array",
           "items": {
@@ -309,6 +318,7 @@
         },
         "required": [
          "text",
+         "role",
          "evidence"
         ],
         "additionalProperties": false

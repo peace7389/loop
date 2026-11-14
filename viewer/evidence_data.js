@@ -110,11 +110,12 @@ const EV_DATA = {
         return []; });  // an evidence table or a simulation is evidence without a check of its own
       const hs = [...new Set(ids.map(id => (source(id) || {}).hyp).filter(Boolean))];
       const state = !ids.length ? 'none' : cited.some(q => q.result === 'failed') ? 'failed' : cited.some(q => q.result === 'held') ? 'held' : 'unchecked';
+      // role (below): what the claim does in the argument (supports, background, limits); null: not recorded (reports before this field).
       // the checks the claim cites itself, in the order cited, and what kind of claim that makes it. A failed check is a
       // result, not a fault: a claim can rest on a refutation. Only a claim with no evidence at all is a warning.
       const cites = ids.filter(id => byId[id] && byId[id].type === 'check').map(id => ({ id, result: (checks.find(q => q.id === id) || { result: byId[id].body.result }).result })), hd = cites.some(q => q.result === 'held'), fl = cites.some(q => q.result === 'failed');
       const kind = !ids.length ? 'none' : !cites.length ? 'nocheck' : hd && fl ? 'both' : fl ? 'failed' : hd ? 'held' : 'nocheck';
-      return { n: i + 1, text: c.text, evidence: ids, cites, kind, hyps: hs, tests: [...new Set(ids.flatMap(id => tests.filter(t => (t.check && t.check.id === id) || (t.verdict && t.verdict.id === id)).map(t => t.id)))], exps: [...new Set(cited.map(q => q.exp).concat(ids.map(id => { const r = byId[id] || {}; return r.type === 'evidence' ? (r.body.experiment || (expById[r.parent] ? r.parent : (byId[r.parent] || {}).id)) : r.type === 'simulation' ? r.parent : null; }).filter(Boolean)))], state }; });
+      return { n: i + 1, text: c.text, role: ['supports', 'background', 'limits'].includes(c.role) ? c.role : null, evidence: ids, cites, kind, hyps: hs, tests: [...new Set(ids.flatMap(id => tests.filter(t => (t.check && t.check.id === id) || (t.verdict && t.verdict.id === id)).map(t => t.id)))], exps: [...new Set(cited.map(q => q.exp).concat(ids.map(id => { const r = byId[id] || {}; return r.type === 'evidence' ? (r.body.experiment || (expById[r.parent] ? r.parent : (byId[r.parent] || {}).id)) : r.type === 'simulation' ? r.parent : null; }).filter(Boolean)))], state }; });
 
     // ---- the turns, and the steps of the session flow (one box each, in the order they were recorded)
     const turnNos = [...new Set(recs.map(r => r.turn))].sort((a, b) => a - b), steps = [], recStep = {};

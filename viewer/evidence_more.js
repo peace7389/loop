@@ -59,7 +59,7 @@ Object.assign(EV, {
       ${rep.open_questions ? `<h3>Open questions</h3>${txt(rep.open_questions)}` : ''}
       <h3>The report's numbers against the measurements</h3>${EV.numCheck(all, M.sims) || '<p class="sm">no number in the report names or equals a measurement</p>'}
       <h3>Claims and their evidence</h3>${M.claims.map(c => `<div class="who" data-by="model"><p><b>claim ${c.n}</b> ${e(c.text)} <span class="sm">${EV.claimMarks(c, EV.seen)}</span></p>
-        ${c.evidence.map(id => `<div class="sm" style="margin:3px 0 0 8px">${EV.link(id)} ${EV.evLine(id)}${EV.reviewBox('rec:' + id)}</div>`).join('') || '<p class="sm warnc">cites no evidence</p>'}
+        ${c.evidence.map(id => `<div class="sm" style="margin:3px 0 0 8px">${EV.link(id)} ${EV.evLine(id)}${EV.reviewBox('rec:' + id)}</div>`).join('') || '<p class="sm">cites nothing</p>'}
         <p class="sm"><button data-act="print" data-id="${c.n}">print the evidence sheet for claim ${c.n}</button></p></div>`).join('') || '<p class="sm">The report states no claims.</p>'}`;
   },
 
