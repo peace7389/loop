@@ -66,7 +66,7 @@ Object.assign(EV, {
     const avail = Math.max(600, (document.getElementById('ev').clientWidth || 1400) - 64), fit = gx => Math.floor((avail - 12 - (n - 1) * gx) / n), small = fit(56) < 132, GX = small ? 40 : n > 6 ? 56 : 84, NW = small ? Math.max(58, Math.min(96, fit(40))) : Math.min(250, fit(GX)), NH = small ? 30 : 54, GY = small ? 8 : 12, pos = { brief: { x: 6, y: 8 } };
     const chars = Math.floor((NW - 14) / 6.7) * 2 - 6, rowsOf = t => M.hyps.filter(h => h.turn === t).length + (t === slotTurn ? 1 : 0);
     cols.forEach((t, i) => M.hyps.filter(h => h.turn === t).forEach((h, j) => { pos[h.id] = { x: 6 + (i + 1) * (NW + GX), y: 8 + j * (NH + GY) }; }));
-    const edges = M.mapEdges = EV.mapEdges(), recorded = M.hyps.some(h => h.follows);
+    const edges = M.mapEdges = EV.mapEdges(), recorded = !M.hyps.length || M.hyps.some(h => h.follows);  // "not recorded" is said only of hypotheses that are there and name nothing
     const st = S.step == null ? null : EV_DATA.stateAt(M, S.step);
     const ringed = new Set(EV.repNow() ? M.claims.flatMap(c => c.hyps) : []), claimH = new Set(S.claim && M.claims[S.claim - 1] ? M.claims[S.claim - 1].hyps : []);  // the ring: once the final report is there
     const onPath = new Set(), hot = new Set();

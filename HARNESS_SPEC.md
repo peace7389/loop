@@ -1284,7 +1284,11 @@ on every place that reply may fill, and the sentence says so; a draft is never
 read (of a draft record only its type, to say that a reply was asked for
 again). New records are marked for half a minute. Every two seconds the page
 asks for the ledger's size (a HEAD request) and reads the session again only
-when it has grown. Section 6 says "not yet" where there is nothing to count.
+when it has grown. In section 3 a strip shows the steps of a turn (the AI writes its reply, the
+simulator runs its simulations, the harness checks each decision rule, the
+next turn), the one being worked on with its moving icon and the time; before
+the first hypothesis the section shows that strip alone. Section 6 says "not
+yet" where there is nothing to count.
 Under each result the notebook says how long before its simulations came
 back the decision rule was stated, or that the rule names a simulation that
 had already run. The key of section 2 says whose form it is: the rows are the
@@ -2046,7 +2050,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 253 | the shell: colours, styles, the list of scripts |
+| `index.html` | 260 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 175 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 176 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -2054,7 +2058,7 @@ above all, so the counts understate the size.
 | `evidence_notebook.js` | 97 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
-| `evidence_live.js` | 113 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
+| `evidence_live.js` | 124 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
 | `evidence_words.js` | 123 | the words that need explaining: their marks, and the box that opens beside them |
 | `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 134 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |

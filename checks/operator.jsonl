@@ -873,3 +873,8 @@
 {"session": "s026", "id": "r039", "policy": "share", "seconds": 103.3}
 {"session": "s026", "id": "r040", "policy": "share", "seconds": 103.3}
 {"session": "s026", "id": "r041", "policy": "share", "seconds": 103.3}
+{"session": "s027", "id": "r001", "policy": "share", "seconds": 26.3}
+{"session": "s027", "id": "r002", "policy": "share", "seconds": 7.4}
+{"session": "s027", "id": "r003", "policy": "share", "seconds": 7.6}
+{"session": "s027", "id": "r004", "policy": "share", "seconds": 13.1}
+{"session": "s027", "id": "r005", "policy": "share", "seconds": 13.1}

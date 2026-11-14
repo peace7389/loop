@@ -12,6 +12,9 @@
 //                        anything else                                   the harness is preparing the next turn
 //                      The AI's reply arrives whole, so while it is written the page cannot know which place it will
 //                      fill: the mark then stands on every place that reply may fill, and the sentence says so.
+//   the stage          in "What it needed to find out" a strip of the steps of a turn (the AI writes its reply, the simulator
+//                      runs its simulations, the harness checks each decision rule, the next turn), the one being worked
+//                      on with its moving icon and the time; before the first question exists the section shows only that
 //   the time           how long the newest record has been the newest: the server's own clock (the Date header of its
 //                      answer) against the time the ledger was last written (Last-Modified), counted on from there.
 //   what just arrived  the records that were not there at the last reading are marked for a short while.
@@ -59,6 +62,14 @@ Object.assign(EV, {
       : now.phase === 'reply' ? `${t}the AI is writing its reply${now.again ? ' again (its first reply could not be used)' : ''}.`
       : `${t}the harness is preparing the next turn.`;
   },
+  // the stage of a running session, as a strip of the steps of a turn: the AI writes its reply, the simulator runs its simulations, the harness checks
+  // each decision rule, then the next turn. The step being worked on carries its moving icon and the time. big: where a section has nothing else yet
+  liveStage(now, big) {
+    if (!now) return ''; const step = (key, by, text, on) => `<span class="lv-step${on ? ' on' : ''}" data-key="${key}" data-by="${by}"><i class="sw"></i>${text}${on ? EV.liveTimer() : ''}</span>`, to = '<span class="lv-arrow">→</span>', wrap = inner => `<div class="lv-stage${big ? ' big' : ''}" data-phase="${now.phase}">${inner}</div>`;
+    if (now.phase === 'start' || now.phase === 'baseline') return wrap(`<span class="lv-turn">Before turn 1</span>${step('baseline', 'harness', now.phase === 'start' ? 'the harness prepares the session' : 'the harness runs the baseline simulation', true)}${to}${step('reply', 'model', 'the AI writes its first reply', false)}`);
+    return wrap(`<span class="lv-turn">Turn ${now.turn}</span>${step('reply', 'model', `the AI writes its reply${now.again ? ' again' : ''}`, now.phase === 'reply')}${to}${now.phase === 'reply' && now.mode ? '<span class="lv-step lv-next">the session ends with its final report</span>'
+      : `${step('sims', 'simulator', 'the simulator runs its simulations', now.phase === 'sims')}${to}${step('checks', 'harness', now.phase === 'between' ? 'the harness prepares the next turn' : 'the harness checks each decision rule', now.phase === 'between')}${to}<span class="lv-step lv-next">the next turn</span>`}`);
+  },
   // what the reply being written may fill: the reply arrives whole, so the page cannot say which
   liveMay: now => (now.phase !== 'reply' ? '' : now.mode === 'report' ? 'This is the last turn: only the final report is accepted.' : now.mode === 'budget' ? 'This is the last turn, the simulations are used up: it may judge earlier tests, and the final report is due.' : 'It may judge earlier tests, ask a new question, set up a new test, or give its final report.'),
   // what arrived at the last reading, in words, from the kinds of the new records
@@ -86,7 +97,7 @@ Object.assign(EV, {
     const t = M.turns[M.turns.length - 1], arrived = EV.liveArrived(), stop = row.stoppable ? `<button data-act="stop"${EV.stopping ? ' disabled' : ''}>${EV.stopping ? 'Stopping…' : 'Stop'}</button>` : '<span class="sm">started from a terminal: it is stopped there</span>';
     const left = t && t.left != null ? `${t.left} simulation${t.left === 1 ? '' : 's'} left` : '';
     return `<div class="ev-card ev-bar ev-run" id="live-bar" data-phase="${now ? now.phase : S.step != null ? 'replay' : 'closing'}"${now && now.turn ? ` data-turn="${now.turn}"` : ''}><span class="pill live">running</span>
-      <span class="lv-say">${now ? `${EV.nowDot()}<b id="live-say">${EV.liveSay(now)}</b>${EV.liveTimer()}${EV.liveMay(now) ? ` <span id="live-may">${EV.liveMay(now)}</span>` : ''}` : `<b id="live-say">${S.step != null ? 'The replay is at an earlier step: the newest records are greyed.' : 'The final report is in: the harness is closing the session.'}</b>`}${left ? ` <span class="sm">· ${left}</span>` : ''}
+      <span class="lv-say">${now ? `<span class="lv-step on lv-ico" data-by="${now.phase === 'reply' ? 'model' : now.phase === 'sims' ? 'simulator' : 'harness'}"><i class="sw"></i></span><b id="live-say">${EV.liveSay(now)}</b>${EV.liveTimer()}${EV.liveMay(now) ? ` <span id="live-may">${EV.liveMay(now)}</span>` : ''}` : `<b id="live-say">${S.step != null ? 'The replay is at an earlier step: the newest records are greyed.' : 'The final report is in: the harness is closing the session.'}</b>`}${left ? ` <span class="sm">· ${left}</span>` : ''}
         ${arrived ? `<span class="sm" id="live-arrived">· just arrived: ${e(arrived)}</span>` : ''}</span>
       <span class="end"><label class="sm" style="font-weight:400" title="Off: the page never moves by itself. On: when new records arrive, the notebook comes to the place where the work is."><input type="checkbox" data-ch="follow"${S.follow ? ' checked' : ''}> follow the work</label> ${stop}${EV.stopMsg ? ` <span class="bad">${e(EV.stopMsg)}</span>` : ''}</span></div>`;
   },

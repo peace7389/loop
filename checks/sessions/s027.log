@@ -1,0 +1,2 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s027 --brief wow --draft on --policy share --baseline on
+session s027 (brief wow): /home/chunguck.kim/project/sessions/s027
