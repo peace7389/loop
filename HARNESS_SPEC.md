@@ -1294,7 +1294,12 @@ its unit, its value in the baseline and what the brief's goal says about it;
 for a part its card from "The setting", where the scheduling policy stays
 operator-only. The labels and terms the page already explained on hover open
 the same box. At an earlier step of the replay a box shows nothing recorded
-later. `ev_words.py` checks it.
+later. The picture and the words belong together: pointing at a part of the
+picture sets off, everywhere on the page, the settings that part is set by
+and the measures taken there (the link: link rate, link delay, link use), as
+`objects.json` records them for that part; pointing at a marked word sets off
+the parts of the picture where it is set or measured. `ev_words.py` checks
+it.
 
 *Clicks that move the page* are stated in "How to read this page": a turn's
 name in section 2, a row of section 3, a box of the structure map, a line of
@@ -1970,6 +1975,7 @@ untracked until they say otherwise.
 | 2026-11-14 | The live view of a running session, at the operator's word: the page's sections as a skeleton whose empty places fill as records arrive, one sentence that says where the work is, and the time between a decision rule and its result under each result. No change to the harness: everything is read from the ledger. |
 | 2026-11-14 | The words that need explaining, at the operator's word: settings, measures and parts of the network are marked wherever they stand, and a small box says what each is, from the brief, the harness's list and the picture's objects. |
 | 2026-11-14 | Who produced an item is said by an icon, at the operator's word; colour is kept for the outcome of a test and for the two flows. |
+| 2026-11-14 | The picture and the words set each other off on hover, at the operator's word. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -2020,7 +2026,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 248 | the shell: colours, styles, the list of scripts |
+| `index.html` | 251 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 175 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 176 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -2029,10 +2035,10 @@ above all, so the counts understate the size.
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
 | `evidence_live.js` | 113 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
-| `evidence_words.js` | 97 | the words that need explaining: their marks, and the box that opens beside them |
+| `evidence_words.js` | 123 | the words that need explaining: their marks, and the box that opens beside them |
 | `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 134 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 126 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
+| `evidence_page.js` | 127 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 62 | the key moments of a session, by fixed rules: marks on the notebook (once the card “Highlights”) |
 | `evidence_best.js` | 82 | best so far |
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |

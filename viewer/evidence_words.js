@@ -19,6 +19,10 @@
 //               scheduling policy stays operator-only there as everywhere
 // The labels and terms the page already explains on hover (EV.label, EV.term) open the same box instead of the
 // browser's own tooltip; their title stays in the page for a reader who cannot point.
+// The picture and the words belong together: pointing at a part of the picture in "The setting" sets off, everywhere on
+// the page, the settings that part is set by and the measures taken there (the link: link rate, link delay, link use);
+// pointing at a marked word sets off the parts of the picture where it is set or measured. Which settings and measures
+// belong to a part is what objects.json records for it (the settings its rows show, its "measured" list); nothing is guessed.
 // ======================================================================================================
 Object.assign(EV, {
   WD_PARTS: [['UDP queue', 'sender', 'tc'], ['TCP queue', 'sender', 'tc'], ['Scheduler', 'sender', 'tc'], ['UDP source', 'sender', 'apps'], ['TCP source', 'sender', 'apps']],
@@ -71,6 +75,25 @@ Object.assign(EV, {
       ${g.kind === 'given' && g.target && g.target.measure === name ? `<p data-wd-goal="target"><span class="st-by" data-by="operator"><i class="sw"></i>the brief's target</span>: the ${g.target.direction === 'min' ? 'smallest' : 'largest'} is wanted</p>` : ''}${cond ? `<p data-wd-goal="condition"><span class="st-by" data-by="operator"><i class="sw"></i>the brief's condition</span>: ${EV.readHtml(cond) || e(cond)}</p>` : ''}
       ${where ? `<p class="sm">measured at: ${e(where.name)}${where.host ? ', ' + e(where.host.toLowerCase()) : ''}</p>` : ''}`;
   },
+  // ---- the picture and the words. The keys of a part: the settings its rows show (as this session's brief names them) and its measures
+  wdOfPart(id) {
+    const f = EV.OB && EV.sysFind(id), b = (EV.M && EV.M.brief) || {}; if (!f) return [];
+    const V = EV.sysVals(), names = f.o.rows.flatMap(([, text]) => [...String(text).matchAll(/\{(\w+)\}/g)].map(m => V.key(m[1])));
+    return [...new Set([...names.filter(k => k in (b.knobs || {}) || k in (b.system || {})).map(k => 'k:' + k), ...(f.o.measured || []).map(k => 'm:' + k)])];
+  },
+  wdParts() {  // every part of the picture: its id and its keys (read once per session)
+    const M = EV.M, O = EV.OB; if (!O || !M) return []; if (M._parts) return M._parts;
+    const ids = ['link', ...O.hosts.flatMap(h => O.layers.flatMap(l => (h[l.key] || []).map((o, i) => `${h.key}-${l.key}-${i}`)))];
+    return (M._parts = ids.map(id => ({ id, keys: EV.wdOfPart(id) })).filter(q => q.keys.length));
+  },
+  wdLinkOff() { document.querySelectorAll('#ev .wd-hot, #ev .wd-hot-row, #ev .ohot').forEach(el => el.classList.remove('wd-hot', 'wd-hot-row', 'ohot')); },
+  // a part of the picture is pointed at: its settings and measures are set off wherever they stand
+  wdLinkPart(id) {
+    EV.wdLinkOff(); const keys = new Set(EV.wdOfPart(id)); if (!keys.size) return;
+    document.querySelectorAll('#ev [data-wd]:not(.wd-pop)').forEach(el => { if (!keys.has(el.dataset.wd)) return; el.classList.add('wd-hot'); const row = el.closest('#s-system tr'); if (row) row.classList.add('wd-hot-row'); });
+  },
+  // a marked word is pointed at: the parts of the picture where it is set or measured are set off
+  wdLinkWord(key) { EV.wdLinkOff(); EV.wdParts().filter(q => q.keys.includes(key)).forEach(q => { const g = [...document.querySelectorAll('#s-system svg.sy g[data-id]')].find(el => el.dataset.id === q.id); if (g) g.classList.add('ohot'); }); },
   // ---- the box: one for the page, shown beside the word that is pointed at or has the keyboard's focus
   wdShow(el) {
     const root = document.getElementById('ev'); EV.wdHide(); if (!el.isConnected || !EV.M) return;
@@ -88,8 +111,11 @@ Object.assign(EV, {
   wdHide() { clearTimeout(EV._wdT); const pop = document.getElementById('wd-pop'); if (pop) pop.remove(); (EV._wdTitles || []).forEach(([a, t]) => { if (a.isConnected && !a.title) a.title = t; }); EV._wdTitles = []; EV._wdEl = null; },
 });
 (() => { const root = document.getElementById('ev'), of = ev => (ev.target.closest ? ev.target.closest('[data-wd]:not(.wd-pop)') : null);
-  root.addEventListener('mouseover', ev => { const el = of(ev); if (!el || el === EV._wdEl) return; clearTimeout(EV._wdT); EV._wdT = setTimeout(() => EV.wdShow(el), 140); });
-  root.addEventListener('mouseout', ev => { const el = of(ev); if (el && !(ev.relatedTarget && el.contains(ev.relatedTarget))) EV.wdHide(); });
+  const part = ev => (ev.target.closest ? ev.target.closest('#s-system svg.sy g[data-id]') : null);
+  root.addEventListener('mouseover', ev => { const g = part(ev); if (g) { if (EV._wdPart !== g.dataset.id) { EV._wdPart = g.dataset.id; EV.wdLinkPart(g.dataset.id); } return; }
+    const el = of(ev); if (!el || el === EV._wdEl) return; if (EV._wdKey !== el.dataset.wd) { EV._wdKey = el.dataset.wd; EV.wdLinkWord(el.dataset.wd); } clearTimeout(EV._wdT); EV._wdT = setTimeout(() => EV.wdShow(el), 140); });
+  root.addEventListener('mouseout', ev => { const g = part(ev); if (g && !(ev.relatedTarget && g.contains(ev.relatedTarget))) { EV._wdPart = null; EV.wdLinkOff(); }
+    const el = of(ev); if (el && !(ev.relatedTarget && el.contains(ev.relatedTarget))) { EV._wdKey = null; EV.wdLinkOff(); EV.wdHide(); } });
   root.addEventListener('focusin', ev => { const el = of(ev); if (el) EV.wdShow(el); });
   root.addEventListener('focusout', ev => { if (of(ev)) EV.wdHide(); });
   document.addEventListener('keydown', ev => { if (ev.key === 'Escape') EV.wdHide(); });
