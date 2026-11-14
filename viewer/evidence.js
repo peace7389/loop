@@ -31,10 +31,10 @@ const EV = {
   route() {
     const q = new URLSearchParams(location.search), S = EV.s, tab = q.get('tab');
     const named = q.get('session') || (EV.off ? EV_EXPORT.session : null); if (named) S.sid = named;  // Home and Compare name none: the session chosen earlier stays chosen
-    S.brief = q.get('brief') || S.brief; S.view = tab === 'compare' ? 'compare' : !named ? 'home' : tab === 'operator' ? 'operator' : 'session';
+    S.brief = q.get('brief') || S.brief; S.view = tab === 'compare' ? 'compare' : tab === 'new' ? 'new' : !named ? 'home' : tab === 'operator' ? 'operator' : 'session'; S.from = tab === 'new' ? q.get('from') || null : null;
     S.item = q.get('item') || '';  // the item a link names: selected once the session is read
   },
-  address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : S.sel && EV.M && EV.M.id === S.sid && EV.itemOf(S.sel) ? '&item=' + encodeURIComponent(EV.itemOf(S.sel)) : ''}`; },
+  address() { const S = EV.s; return S.view === 'home' ? location.pathname : S.view === 'new' ? `?tab=new${S.from ? '&from=' + encodeURIComponent(S.from) : ''}` : S.view === 'compare' ? `?tab=compare${S.brief ? '&brief=' + encodeURIComponent(S.brief) : ''}` : `?session=${S.sid}${S.view === 'operator' ? '&tab=operator' : S.sel && EV.M && EV.M.id === S.sid && EV.itemOf(S.sel) ? '&item=' + encodeURIComponent(EV.itemOf(S.sel)) : ''}`; },
   go(o) {  // to another view or session; the browser's Back returns
     const S = EV.s, other = 'sid' in o && o.sid !== S.sid; Object.assign(S, o);
     if (other) { S.sel = null; S.step = null; S.claim = null; S.path = false; S.collapsed = {}; S.cmp = null; S.tree = {}; S.more = false; S.qmore = {}; S.nbmore = {}; S.findAll = false; }
@@ -47,7 +47,7 @@ const EV = {
     EV.s.op = EV.store('ev-op') === '1'; EV.s.how = EV.store('ev-read') !== '1'; EV.store('ev-read', '1'); EV.route();  // "How to read this page": open on the first visit only
     const root = document.getElementById('ev');
     root.addEventListener('click', EV.click); root.addEventListener('change', EV.change); root.addEventListener('input', EV.input);
-    root.addEventListener('toggle', ev => { if (ev.target.id === 's-how') EV.s.how = ev.target.open; }, true);
+    root.addEventListener('toggle', ev => { if (ev.target.id === 's-how') EV.s.how = ev.target.open; if (ev.target.id === 'st-exact') EV.s.exact = ev.target.open; if (ev.target.id === 'pr-expl') EV.s.more = ev.target.open; }, true);
     window.addEventListener('popstate', () => { EV.route(); EV.sig = ''; EV.load(); });
     document.addEventListener('keydown', ev => { if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || EV.s.view !== 'session' || !EV.M) return;
       if (ev.key === 'ArrowRight') { EV.replay('next'); ev.preventDefault(); } else if (ev.key === 'ArrowLeft') { EV.replay('prev'); ev.preventDefault(); } });
@@ -60,11 +60,11 @@ const EV = {
   async load() {
     const st = await EV.json('../api/status'); if (!st || !Array.isArray(st.sessions)) { document.getElementById('ev').innerHTML = '<div class="ev-card">This page is served by harness/control.py, which lists the sessions. It does not answer.</div>'; return; }
     const S = EV.s, all = st.sessions, row = all.find(x => x.id === S.sid) || null, a = document.activeElement;
-    if (EV.sig && a && a.closest && a.closest('#ev') && ['INPUT', 'TEXTAREA'].includes(a.tagName) && a.type !== 'checkbox') return;
+    if (EV.sig && a && a.closest && a.closest('#ev') && ['INPUT', 'TEXTAREA'].includes(a.tagName) && a.type !== 'checkbox' && a.type !== 'radio') return;
     EV.st = st;
     if ((S.view === 'session' || S.view === 'operator') && !row) S.view = 'home';
-    if (S.view === 'home' || S.view === 'compare') {
-      const sig = JSON.stringify([S.view, all.map(x => [x.id, x.records, x.running, x.how, x.score, x.review, x.policy]), st.briefs, st.session && st.session.running]);
+    if (S.view === 'home' || S.view === 'compare' || S.view === 'new') {
+      const sig = JSON.stringify([S.view, S.from, all.map(x => [x.id, x.records, x.running, x.how, x.score, x.review, x.policy]), st.briefs, st.session && st.session.running]);
       if (sig === EV.sig) return; EV.sig = sig; return EV.draw(); }
     const base = `../sessions/${S.sid}/`, sig = JSON.stringify([S.sid, row.records, row.running, row.how, S.view, row.score, row.policy]);
     if (sig === EV.sig) return; EV.sig = sig;
@@ -91,14 +91,14 @@ const EV = {
     // the earlier pages are not part of this page's structure: one quiet line at the foot of every view
     const foot = EV.off ? '' : `<div class="ev-foot noprint">earlier pages: <a href="index_runs.html${S.sid ? '?session=' + e(S.sid) : ''}">runs compared</a> · <a href="index_full.html${S.sid ? '?session=' + e(S.sid) : ''}">system, packet events, older control page</a></div>`;
     if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
-    const body = S.view === 'home' ? EV.homeView() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
+    const body = S.view === 'home' ? EV.homeView() : S.view === 'new' ? EV.newTab() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
     const root = document.getElementById('ev'), inner = ['.tree', '.ev-lanes', '.ev-map', '.ev-side', '.qlist', '.gl-scroll'].map(q => { const el = root.querySelector(q); return el && [q, el.scrollTop, el.scrollLeft]; }).filter(Boolean);
     root.innerHTML = bar + body + foot + '<div id="ev-print"></div>';
     inner.forEach(([q, top, left]) => { const el = root.querySelector(q); if (el) { el.scrollTop = top; el.scrollLeft = left; } });  // the lists that scroll inside the page stay where the reader left them
     if (S.view === 'session' && EV.M && !EV.off) history.replaceState(null, '', EV.address());  // the address follows the selection: it is always the link to what is open
     // flowFit (below): a test's flow chart is drawn to the width it has, once the HTML is in place
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
-    if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'home' && EV.afterHome) EV.afterHome();
+    if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
     if (window.scrollY !== y) window.scrollTo(0, y);
   },
 

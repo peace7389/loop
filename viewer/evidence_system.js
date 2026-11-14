@@ -34,7 +34,7 @@ Object.assign(EV, {
   // the setting a shown value comes from. given(k): whether the brief (or the form) sets k itself
   sysOwn(n, given) { const k = EV.sysKey(n); return EV.SYS_OWN[k] && !given(k) ? EV.SYS_OWN[k] : k; },
   // one legend for the two colours: a setting the brief opens to the model, a setting it fixes
-  sysLegend: () => `<span data-by="model"><i class="sw"></i>the model may change it</span><span data-by="operator"><i class="sw"></i>fixed by the operator</span>`,
+  sysLegend: () => `<span data-by="model"><i class="sw"></i>the AI may change it</span><span data-by="operator"><i class="sw"></i>fixed by the operator</span>`,
   sysFill: (text, v) => TASK_VIEW._rate(String(text).replace(/\{(\w+)\}/g, (m, k) => (v[k] != null ? v[k] : 'not recorded'))),
 
   // the picture itself, for a session's card and for the brief editor. o: { v: the values shown, knob(name) and fixed(name): whether the brief opens that
@@ -91,7 +91,7 @@ Object.assign(EV, {
       return !vs.length ? '' : ` · this session tried ${vs.length === 1 ? 'one value, ' + short(vs[0]) : num ? `${vs.length} values, ${Math.min(...vs)} to ${Math.max(...vs)}` : vs.map(short).join(', ')}`; };
     const rows = o.rows.map(([k, text, flag]) => { const kn = keysOf(text).find(V.knob), fx = kn ? null : keysOf(text).find(V.fixed);
       const shown = flag === 'op' ? (S.op ? `<span data-by="operator"><i class="sw"></i>${EV.policyText(EV.files.row)}</span>` : '<span class="mut" title="Shown with the operator columns on">operator-only</span>') : e(EV.sysFill(text, V.v));
-      const note = kn ? `<span data-by="model" data-set="knob"><i class="sw"></i>the model may change it</span>: ${e(V.range(kn) + tried(V.key(kn)))}` : fx && flag !== 'op' ? '<span data-by="operator" data-set="fixed"><i class="sw"></i>fixed by the operator</span>' : flag === 'ns3' ? 'an ns-3 default' : flag === 'op' ? 'chosen by the operator, not told to the model' : '';
+      const note = kn ? `<span data-by="model" data-set="knob"><i class="sw"></i>the AI may change it</span>: ${e(V.range(kn) + tried(V.key(kn)))}` : fx && flag !== 'op' ? '<span data-by="operator" data-set="fixed"><i class="sw"></i>fixed by the operator</span>' : flag === 'ns3' ? 'an ns-3 default' : flag === 'op' ? 'chosen by the operator, not told to the model' : '';
       return `<tr data-k="${e(kn ? V.key(kn) : fx ? V.key(fx) : '')}"><td>${e(k)}</td><td>${kn ? `<b style="color:var(--by-model)">${shown}</b>` : shown}${note ? ` <span class="sm">· ${note}</span>` : ''}</td></tr>`; }).join('');
     const ms = o.measured || [], names = ms.map(k => TH_DATA.PLAIN[k] || k), measured = !ms.length ? '' : sim && sim.metrics ? `<p class="sm" style="margin-top:6px">Measured here in ${EV.link(sim.id)}: ${ms.map((k, i) => `${e(names[i])} <b>${e(EV.val(k, sim.metrics[k]))}</b>`).join(' · ')}</p>`
       : `<p class="sm" style="margin-top:6px">Measured here in every simulation: ${e(names.join(', '))}. Open a simulation and its values appear here.</p>`;

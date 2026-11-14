@@ -505,7 +505,7 @@ const RUN_TOOLS = {
 };
 
 const be = document.createElement('script');  // the brief editor of the Control page
-be.src = 'brief_editor.js?t=' + Date.now();
+be.src = 'brief_editor_old.js?t=' + Date.now();  // the editor as this older page knows it; the set-up page of the evidence page has its own (brief_editor.js)
 document.head.appendChild(be);
 const s = document.createElement('script');  // the shared content + layout code, never from the browser's cache
 s.src = 'adrs_view_full.js?t=' + Date.now();

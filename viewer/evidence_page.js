@@ -19,11 +19,13 @@ Object.assign(EV, {
     return !kn ? { differ: all, same: [], unnamed: [], known: false } : { differ: all.filter(([k, v]) => !(k in kn) || !same(v, kn[k].default)), same: all.filter(([k, v]) => k in kn && same(v, kn[k].default)), unnamed: Object.keys(kn).filter(k => !(k in rec)), known: true };
   },
   // ---- the header strip: labelled fields on one line, each a small label above its value; only what is recorded by the replay's step
+  stripField: (id, label, value, title) => `<div class="hf" data-f="${id}"${title ? ` title="${EV.e(title)}"` : ''}><span>${label}</span><b>${value}</b></div>`,
+  strip: (fields, id) => `<div class="ev-head" id="${id}">${fields.map(q => EV.stripField(...q)).join('')}</div>`,  // the same strip, from a list of [field, label, value, hover]: the set-up page shows the one its session will have
   headStrip() {
     const M = EV.M, S = EV.s, row = EV.files.row || {}, m = M.meta || {}, e = EV.e, seen = EV.seen, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts();
     const used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;  // the checks' tally stands in "The session at a glance", the model in the session's summary
     const kv = ([k, v]) => `${e(k)} ${e(TASK_VIEW._rate(String(v)))}`, rec = !R ? null : R.text ? e(R.text) : R.differ.length ? R.differ.map(kv).join(', ') : R.known ? "every knob at the brief's default" : EV.nr;
-    const f = (id, label, value, title) => `<div class="hf" data-f="${id}"${title ? ` title="${e(title)}"` : ''}><span>${label}</span><b>${value}</b></div>`;
+    const f = EV.stripField;
     const ended = row.running ? '<span class="pill live">running</span>' : !live ? `<span class="mut">at step ${S.step + 1} of ${M.steps.length}</span>` : m.how ? e(m.how) : `ending ${EV.nr}`;
     return `<div class="ev-head" id="ev-head">${f('brief', EV.term('Brief', 'Brief'), M.brief ? e(M.brief.id) : EV.nr)}${f('session', EV.term('Session', 'Session'), e(M.id))}${f('how', 'How it ended', ended, live ? m.how : '')}
       ${f('sims', EV.term('Simulation', 'Simulations'), `${live ? m.simulations ?? (M.old ? M.sims.length : row.simulations ?? used) : used}${row.allowed ? ' of ' + row.allowed : ''}`)}
@@ -109,7 +111,7 @@ Object.assign(EV, {
   },
 
   sessionTab() {
-    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.systemCard()}${EV.glance()}${EV.findCard()}
+    return `${EV.headStrip()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.glance()}${EV.findCard()}
       <div class="ev-main"><div>${EV.notebookCard()}${EV.proposesCard()}${EV.closerCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },

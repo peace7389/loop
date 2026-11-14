@@ -57,9 +57,9 @@ Object.assign(EV, {
     const running = all.filter(x => x.running).length;
     // one title line with the page's one action, beside the title where the eye starts (not at the far right). Opening a session (a row below, or the top bar's list) and comparing
     // (the top bar) each have one place, so they are not repeated here
-    return `<div class="ev-title"><h1>All sessions</h1>${EV.newPanel ? `<button class="big primary" data-act="new" title="Write or choose an assignment and start the AI on it">${S.newOpen ? 'Close' : 'New session…'}</button>` : ''}
+    return `<div class="ev-title"><h1>All sessions</h1>${EV.off ? '' : `<button class="big primary" data-act="new" title="Set up a session: the network, who decides what, the aim, what the AI is told, the limits, and start the AI on it">New session…</button>`}
         <span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${running} running now` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
-      ${S.newOpen && EV.newPanel ? EV.newPanel() : ''}
+      
       <div class="ev-card"><h2>Results so far <small>one row per ${EV.term('Brief', 'brief')}, counted from the sessions and, where they exist, their scores</small></h2>
         ${briefs.length ? `<table id="home-results" style="width:auto"><thead><tr><th>${EV.term('Brief', 'brief')}</th><th class="num">sessions</th><th class="num">with a final report</th><th class="num">meet the brief's conditions</th><th class="num">largest gap to the best</th><th class="num">not scored</th></tr></thead>
           <tbody>${briefs.map(b => EV.resultRow(b)).join('')}</tbody></table>` : '<p class="sm">No session yet.</p>'}</div>
