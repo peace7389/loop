@@ -35,9 +35,10 @@ const BRIEF_EDITOR = {
     { k: 'queuePkts', kind: 'num', whole: true, least: 1, hint: 'packets', step: true },
     { k: 'queuePktsUdp', kind: 'num', whole: true, least: 1, hint: 'packets', step: true, as: 'queuePkts', open: { min: '4', max: '1000', meaning: 'most packets the UDP queue holds' } },
     { k: 'queuePktsTcp', kind: 'num', whole: true, least: 1, hint: 'packets', step: true, as: 'queuePkts', open: { min: '4', max: '1000', meaning: 'most packets the TCP queue holds' } },
-    // the two settings of build 6: a brief may leave them out (the program then does what it always did), fix them, or leave them to the AI
+    // the settings of builds 6 and 7: a brief may leave them out (the program then does what it always did), fix them, or leave them to the AI
     { k: 'tcpInitCwnd', kind: 'num', whole: true, least: 1, hint: 'segments', step: true, as: 'default', dflt: ['10', "TCP's first window is ns-3's own, 10 segments"], open: { min: '1', max: '100', meaning: "TCP's first window: the segments it sends before its first acknowledgement" } },
     { k: 'tcpBufBytes', kind: 'num', whole: true, least: 4096, hint: 'bytes', step: true, as: 'default', dflt: ['1048576', "TCP's send and receive buffers are 1 MB each"], open: { min: '65536', max: '4194304', meaning: "TCP's send buffer and its receive buffer, in bytes each" } },
+    { k: 'devQueuePkts', kind: 'num', whole: true, least: 1, hint: 'packets', step: true, as: 'default', dflt: ['10', "each device's transmit queue holds 10 packets"], open: { min: '1', max: '1000', meaning: "most packets a device's transmit queue holds; they wait there after the scheduler has chosen them" } },
     { k: 'tcpVariant', kind: 'choice', hint: 'e.g. TcpCubic' }, { k: 'duration', kind: 'num', above: 0, hint: 'seconds', step: true },
     { k: 'seed', kind: 'num', whole: true, least: 1, hint: 'whole number', step: true }],
   // ready-made aims: [key, the aim in words, measure, direction, conditions]

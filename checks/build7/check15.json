@@ -1,0 +1,91 @@
+{
+ "predicted_before_the_run": {
+  "15a": "with the scheduler never empty, the packets waiting in the sender's device queue number at most N and reach N (N = 1, 10 when not given, 50, 200); a packet waits there for the transmissions of the N packets before it: between N x 11.44 and N x 12.02 microseconds on the 1 Gbps link (frames of 1430 to 1502 bytes)",
+  "15b": "given as 10 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without it"
+ },
+ "checks": [
+  {
+   "check": "15a",
+   "run": "c15a-dev1",
+   "N": 1,
+   "most_waiting": 1,
+   "packets_timed": 2559,
+   "wait_us": {
+    "least": 11.44,
+    "median": 11.44,
+    "most": 12.016
+   },
+   "predicted_wait_us": [
+    11.44,
+    12.02
+   ],
+   "pass": true
+  },
+  {
+   "check": "15a",
+   "run": "c15a-dev10-not-given",
+   "N": 10,
+   "most_waiting": 10,
+   "packets_timed": 2553,
+   "wait_us": {
+    "least": 116.704,
+    "median": 117.28,
+    "most": 117.28
+   },
+   "predicted_wait_us": [
+    114.4,
+    120.2
+   ],
+   "pass": true
+  },
+  {
+   "check": "15a",
+   "run": "c15a-dev50",
+   "N": 50,
+   "most_waiting": 50,
+   "packets_timed": 2523,
+   "wait_us": {
+    "least": 585.824,
+    "median": 585.824,
+    "most": 586.4
+   },
+   "predicted_wait_us": [
+    572.0,
+    601.0
+   ],
+   "pass": true
+  },
+  {
+   "check": "15a",
+   "run": "c15a-dev200",
+   "N": 200,
+   "most_waiting": 200,
+   "packets_timed": 2410,
+   "wait_us": {
+    "least": 2343.872,
+    "median": 2344.448,
+    "most": 2344.448
+   },
+   "predicted_wait_us": [
+    2288.0,
+    2404.0
+   ],
+   "pass": true
+  },
+  {
+   "check": "15b",
+   "identical": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "pass": true
+  },
+  {
+   "check": "15 params.json",
+   "stated_when_given": 50,
+   "absent_when_not_given": true,
+   "pass": true
+  }
+ ]
+}

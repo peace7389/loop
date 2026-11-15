@@ -11,13 +11,14 @@ SESSION = None          # the current session's folder, set by open_session(); n
 BRIEF = None            # what the current session was given: its brief (description filled in) plus MANIFEST
 MANIFEST = json.loads((HARNESS / "manifest.json").read_text())  # the same for every brief: outputs, tools, how an experiment is run
 OPTIONS = ("linkRate", "linkDelay", "mtu", "udpRate", "tcpVariant", "queuePkts", "duration", "seed", "weightUdp")  # program options every brief sets
-EXTRA = ("queuePktsUdp", "queuePktsTcp", "tcpInitCwnd", "tcpBufBytes")  # (build 6: TCP's first window in segments, TCP's send and receive buffer in bytes; not given: ns-3's 10 segments, 1 MB)
+EXTRA = ("queuePktsUdp", "queuePktsTcp", "tcpInitCwnd", "tcpBufBytes", "devQueuePkts")  # (build 6: TCP's first window in segments, TCP's send and receive buffer in bytes; not given: ns-3's 10 segments, 1 MB.
+                                          # build 7: the length of each device's transmit queue in packets; not given: 10)
         # program options a brief may leave out (settings added after build 4): the program is then started without them
                                           # and does what it did before they existed. Here: a queue without its own length is as long as queuePkts says
 KNOBS = ("weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration", "seed", "linkRate", "linkDelay", "mtu") + EXTRA  # those a brief may make knobs: every option of the program (the answer format has a type for each)
 KNOB_TYPES = {"weightUdp": "number", "udpRate": "string", "queuePkts": "integer", "tcpVariant": "string", "duration": "number", "seed": "integer",
-              "linkRate": "string", "linkDelay": "string", "mtu": "integer", "queuePktsUdp": "integer", "queuePktsTcp": "integer", "tcpInitCwnd": "integer", "tcpBufBytes": "integer"}  # their types in the answer format
-RATES, STEPPED = ("udpRate", "linkRate"), ("weightUdp", "queuePkts", "duration", "seed", "mtu", "queuePktsUdp", "queuePktsTcp", "tcpInitCwnd", "tcpBufBytes")  # knobs given as a rate ("400Mbps"); numeric knobs, which may have a step
+              "linkRate": "string", "linkDelay": "string", "mtu": "integer", "queuePktsUdp": "integer", "queuePktsTcp": "integer", "tcpInitCwnd": "integer", "tcpBufBytes": "integer", "devQueuePkts": "integer"}  # their types in the answer format
+RATES, STEPPED = ("udpRate", "linkRate"), ("weightUdp", "queuePkts", "duration", "seed", "mtu", "queuePktsUdp", "queuePktsTcp", "tcpInitCwnd", "tcpBufBytes", "devQueuePkts")  # knobs given as a rate ("400Mbps"); numeric knobs, which may have a step
 DEFAULT_BRIEF = "two-hosts-open"
 POLICY = "share"        # the scheduling policy (how the scheduler divides the link: share or cap): the operator's choice, set by loop.py. It goes to
                         # the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
@@ -33,7 +34,7 @@ def _ok(k, v):
             return bool(re.fullmatch(r"\d+(\.\d+)?(ns|us|ms|s)", str(v)))
         if k == "tcpVariant":
             return bool(re.fullmatch(r"Tcp[A-Za-z0-9]+", str(v)))
-        if k in ("mtu", "queuePkts", "seed", "queuePktsUdp", "queuePktsTcp", "tcpInitCwnd", "tcpBufBytes"):
+        if k in ("mtu", "queuePkts", "seed", "queuePktsUdp", "queuePktsTcp", "tcpInitCwnd", "tcpBufBytes", "devQueuePkts"):
             return type(v) is int and v >= (576 if k == "mtu" else 4096 if k == "tcpBufBytes" else 1)
         if k in ("weightUdp", "duration"):
             return type(v) in (int, float) and (0.05 <= v <= 0.95 if k == "weightUdp" else v > 0)

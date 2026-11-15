@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --tcpBufBytes=1048576 --out=/home/chunguck.kim/project/checks/build7/c14c-buf1m
+exit 0, 26.4 s

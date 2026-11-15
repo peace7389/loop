@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --udpRate=0bps --linkDelay=10ms --duration=10 --tcpBufBytes=65536 --out=/home/chunguck.kim/project/checks/build7/c14a-buf64k
+exit 0, 26.4 s

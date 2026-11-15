@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --devQueuePkts=10 --out=/home/chunguck.kim/project/checks/build7/c15b-dev10
+exit 0, 26.2 s

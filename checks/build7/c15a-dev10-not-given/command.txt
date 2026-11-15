@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --duration=3 --events=40 --out=/home/chunguck.kim/project/checks/build7/c15a-dev10-not-given
+exit 0, 26.0 s

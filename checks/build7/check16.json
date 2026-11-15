@@ -1,0 +1,22 @@
+{
+ "predicted_before_the_run": {
+  "16a": "a run of 10 measured seconds takes about 25 s: 6 s after it was started its series.csv already holds samples (at least 5 rows) and its metrics.json does not exist yet",
+  "16b": "the finished series.csv is byte-identical to the one build 6 wrote for the same options (the runs of checks 1 to 14 are compared separately; here the watched run itself, against build 6's run with no options)"
+ },
+ "checks": [
+  {
+   "check": "16a",
+   "rows_after_6s": 25,
+   "metrics_json_after_6s": false,
+   "still_running_after_6s": true,
+   "pass": true
+  },
+  {
+   "check": "16b",
+   "compared_with": "checks/build6/c13c-defaults/series.csv",
+   "command_of_that_run": "TWOHOSTS_SCHED=share two-hosts  --out=/home/chunguck.kim/project/checks/build6/c13c-defaults",
+   "identical": true,
+   "pass": true
+  }
+ ]
+}

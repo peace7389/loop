@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --tcpInitCwnd=10 --out=/home/chunguck.kim/project/checks/build7/c13c-first10
+exit 0, 25.9 s

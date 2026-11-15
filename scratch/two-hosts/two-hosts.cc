@@ -208,6 +208,7 @@ struct Sampler
             << std::setprecision(0) << (u - lastUdp) * 8.0 / period << "," << (t - lastTcp) * 8.0 / period
             << "," << g_cwnd << "," << Drops(0) << "," << Drops(1) << "," << Occupancy(0) << "," << Occupancy(1)
             << "," << g_qMin[0] << "," << g_qMin[1] << "\n";
+        csv.flush(); // each sample is in the file as soon as it is taken, so a run can be watched while it runs (the bytes are the same)
         g_qMin[0] = Occupancy(0);
         g_qMin[1] = Occupancy(1);
         lastUdp = u;
@@ -253,6 +254,7 @@ main(int argc, char* argv[])
     uint32_t queuePktsUdp = 0; // 0: the UDP queue is as long as queuePkts says
     uint32_t tcpInitCwnd = 0;  // 0: TCP's first window is ns-3's own (10 segments)
     uint32_t tcpBufBytes = 0;  // 0: TCP's send and receive buffers are 1 MB each
+    uint32_t devQueuePkts = 0; // 0: the device's transmit queue holds 10 packets
     uint32_t queuePktsTcp = 0; // 0: the TCP queue is as long as queuePkts says
     double duration = 10;
     uint32_t seed = 1;
@@ -276,6 +278,7 @@ main(int argc, char* argv[])
     cmd.AddValue("queuePktsTcp", "Length of the TCP queue alone, in packets (0 = queuePkts)", queuePktsTcp);
     cmd.AddValue("tcpInitCwnd", "TCP's first window, in segments (0 = ns-3's own, 10)", tcpInitCwnd);
     cmd.AddValue("tcpBufBytes", "TCP's send and receive buffer, in bytes each (0 = 1 MB)", tcpBufBytes);
+    cmd.AddValue("devQueuePkts", "Length of the device's transmit queue, in packets (0 = 10)", devQueuePkts);
     cmd.AddValue("duration", "Seconds of traffic", duration);
     cmd.AddValue("seed", "Random run number", seed);
     cmd.AddValue("weightUdp", "Part of the link configured for UDP, 0.05-0.95", weightUdp);
@@ -315,7 +318,7 @@ main(int argc, char* argv[])
     p2p.SetDeviceAttribute("DataRate", StringValue(linkRate));
     p2p.SetDeviceAttribute("Mtu", UintegerValue(mtu));
     p2p.SetChannelAttribute("Delay", StringValue(linkDelay));
-    p2p.SetQueue("ns3::DropTailQueue<Packet>", "MaxSize", StringValue("10p"));
+    p2p.SetQueue("ns3::DropTailQueue<Packet>", "MaxSize", StringValue(std::to_string(devQueuePkts ? devQueuePkts : 10) + "p"));
     NetDeviceContainer devs = p2p.Install(nodes);
 
     InternetStackHelper stack;
@@ -467,6 +470,10 @@ main(int argc, char* argv[])
     if (queuePktsTcp)
     {
         pj << ", \"queuePktsTcp\": " << queuePktsTcp;
+    }
+    if (devQueuePkts)
+    {
+        pj << ", \"devQueuePkts\": " << devQueuePkts;
     }
     pj << "}\n";
     pj.close();

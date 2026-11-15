@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --udpRate=0bps --tcpInitCwnd=40 --out=/home/chunguck.kim/project/checks/build7/c13d-first40-10s
+exit 0, 26.4 s

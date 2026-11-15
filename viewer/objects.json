@@ -39,7 +39,7 @@
       ],
       "dev": [
         {"name": "Point-to-point device", "cls": "PointToPointNetDevice", "wide": true, "rows": [
-          ["Rate", "{linkRate}"], ["Largest packet", "{mtu} bytes"], ["Transmit queue", "10 packets (DropTailQueue)"], ["Header added", "2 bytes"]]}
+          ["Rate", "{linkRate}"], ["Largest packet", "{mtu} bytes"], ["Transmit queue", "{devQueuePkts} packets (DropTailQueue)"], ["Header added", "2 bytes"]]}
       ]
     },
     {
@@ -60,7 +60,7 @@
       ],
       "dev": [
         {"name": "Point-to-point device", "cls": "PointToPointNetDevice", "wide": true, "rows": [
-          ["Rate", "{linkRate}"], ["Largest packet", "{mtu} bytes"], ["Transmit queue", "10 packets (DropTailQueue)"]]}
+          ["Rate", "{linkRate}"], ["Largest packet", "{mtu} bytes"], ["Transmit queue", "{devQueuePkts} packets (DropTailQueue)"]]}
       ]
     }
   ],

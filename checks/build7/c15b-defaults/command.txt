@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts  --out=/home/chunguck.kim/project/checks/build7/c15b-defaults
+exit 0, 26.4 s

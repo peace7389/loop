@@ -1,0 +1,33 @@
+{
+ "predicted_before_the_run": {
+  "14a": "buffers of 65,536 bytes, round trip 20 ms: the window cannot exceed the buffer, so goodput is at most 8 x 65,536 / 0.020 = 26.2 Mbps, and at least 40 % of that",
+  "14b": "buffers of 262,144 bytes: at most 104.9 Mbps and at least 40 % of that; between 3 and 4.5 times the goodput of 14a (four times the buffer)",
+  "14c": "given as 1,048,576 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without it"
+ },
+ "checks": [
+  {
+   "check": "14a",
+   "bound_bps": 26214400.0,
+   "goodput_bps": 26163200,
+   "share_of_bound": 0.998,
+   "pass": true
+  },
+  {
+   "check": "14b",
+   "bound_bps": 104857600.0,
+   "goodput_bps": 104649114,
+   "share_of_bound": 0.998,
+   "ratio_to_14a": 4.0,
+   "pass": true
+  },
+  {
+   "check": "14c",
+   "identical": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "pass": true
+  }
+ ]
+}

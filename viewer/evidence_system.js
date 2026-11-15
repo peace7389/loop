@@ -28,8 +28,8 @@ Object.assign(EV, {
   },
   // the values a picture shows beside the settings themselves, and the setting each of them comes from
   sysDerive(v) { Object.entries(EV.SYS_OWN).forEach(([k, common]) => { if (v[k] == null && v[common] != null) v[k] = v[common]; }); if (typeof v.mtu === 'number') v.segment = v.mtu - 52; if (typeof v.weightUdp === 'number') v.tcpShare = +(1 - v.weightUdp).toFixed(6); if (v.tcpVariant) v.tcpVariantPlain = String(v.tcpVariant).replace(/^Tcp/, '');
-    // the two settings of build 6, as the program has them when a brief does not give them: ns-3's first window of 10 segments, buffers of 1 MB
-    const size = n => (n % (1 << 20) === 0 ? `${n >> 20} MB` : n % (1 << 10) === 0 ? `${n >> 10} kB` : `${n} bytes`); if (v.tcpInitCwnd == null) v.tcpInitCwnd = 10; v.tcpBufPlain = size(v.tcpBufBytes ?? 1048576); return v; },
+    // the settings of builds 6 and 7, as the program has them when a brief does not give them: ns-3's first window of 10 segments, buffers of 1 MB, a device queue of 10 packets
+    const size = n => (n % (1 << 20) === 0 ? `${n >> 20} MB` : n % (1 << 10) === 0 ? `${n >> 10} kB` : `${n} bytes`); if (v.tcpInitCwnd == null) v.tcpInitCwnd = 10; if (v.devQueuePkts == null) v.devQueuePkts = 10; v.tcpBufPlain = size(v.tcpBufBytes ?? 1048576); return v; },
   sysKey: n => ({ tcpShare: 'weightUdp', tcpVariantPlain: 'tcpVariant', segment: 'mtu', tcpBufPlain: 'tcpBufBytes' }[n] || n),
   // a setting a brief may leave out, and the setting whose value it then has: each queue's own length, else the common queue length
   SYS_OWN: { queuePktsUdp: 'queuePkts', queuePktsTcp: 'queuePkts' },
@@ -64,7 +64,7 @@ Object.assign(EV, {
       ${box(id('sender', 'apps', 'UDP source'), 10, Y.u, 112, 30, 'UDP source', [v.udpRate == null ? 'constant rate' : `${R(v.udpRate)}, constant`, 'udpRate'], { rx: 15 })}${box(id('sender', 'apps', 'TCP source'), 14, Y.t, 108, 30, 'TCP source', ['always has data', ''], { rx: 15 })}
       ${box(id('sender', 'stack', 'UDP socket'), 140, Y.u, 72, 30, 'UDP socket')}${box(id('sender', 'stack', 'TCP socket'), 140, Y.t, 72, 30, 'TCP socket', [v.tcpVariantPlain || '', 'tcpVariant'])}${box(id('sender', 'stack', 'IPv4'), 228, 67, 38, 80, 'IPv4')}
       ${queue(id('sender', 'tc', 'UDP queue'), 284, Y.u, 'UDP queue', '--series-1', 'queuePktsUdp')}${queue(id('sender', 'tc', 'TCP queue'), 284, Y.t, 'TCP queue', '--series-2', 'queuePktsTcp')}${sched}
-      ${box(id('sender', 'dev', 'Point-to-point device'), 470, 85, 116, 44, 'device', [J(R(v.linkRate), 'queue 10'), 'linkRate'])}${wire}
+      ${box(id('sender', 'dev', 'Point-to-point device'), 470, 85, 116, 44, 'device', [J(R(v.linkRate), `queue ${v.devQueuePkts}`), 'linkRate'])}${wire}
       ${box(id('receiver', 'dev', 'Point-to-point device'), X + 10, 85, 72, 44, 'device', [R(v.linkRate), 'linkRate'])}${box(id('receiver', 'tc', 'Return queue'), X + 10, 138, 72, 22, 'return queue', null, { cls: ' dash', lc: 'sv' })}
       ${box(id('receiver', 'stack', 'IPv4'), X + 100, 67, 38, 80, 'IPv4')}${box(id('receiver', 'stack', 'UDP socket'), X + 154, Y.u, 70, 30, 'UDP socket')}${box(id('receiver', 'stack', 'TCP socket'), X + 154, Y.t, 70, 30, 'TCP socket')}
       ${box(id('receiver', 'apps', 'UDP sink'), X + 238, Y.u, 70, 30, 'UDP sink', null, { rx: 15 })}${box(id('receiver', 'apps', 'TCP sink'), X + 238, Y.t, 70, 30, 'TCP sink', null, { rx: 15 })}</svg>`;

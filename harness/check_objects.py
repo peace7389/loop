@@ -151,12 +151,13 @@ def main():
         if g and w:
             same(f"the {flow.upper()} queue (band {band}) takes its own length", f"qsize{flow}", f"qsize{w[0]}", w[0] == flow, "the scenario gives it")
             v = row(S("tc", f"{flow.upper()} queue"), "Room for"); same(f"the {flow.upper()} queue's card names {opt}", "{" + opt + "} packets", v, v == "{" + opt + "} packets")
-    g = find(cc, r'p2p\.SetQueue\("ns3::(\w+)<Packet>", "MaxSize", StringValue\("(\d+)p"\)\)', "the device's transmit queue")
+    # since build 7 the length is the option devQueuePkts when it is given, else the number here; objects.json writes the row as {devQueuePkts}, which the picture fills
+    g = find(cc, r'p2p\.SetQueue\("ns3::(\w+)<Packet>", "MaxSize", StringValue\(std::to_string\(devQueuePkts \? devQueuePkts : (\d+)\) \+ "p"\)\)', "the device's transmit queue")
     if g:
         for side, who in ((S, "sender"), (R, "receiver")):
-            v = row(side("dev", "Point-to-point device"), "Transmit queue"); same(f"transmit queue of the {who}'s device", f"{g[1]} packets ({g[0]})", v, v == f"{g[1]} packets ({g[0]})")
+            v = row(side("dev", "Point-to-point device"), "Transmit queue"); same(f"transmit queue of the {who}'s device: the setting, {g[1]} packets when it is not given", "{devQueuePkts} packets (" + g[0] + ")", v, v == "{devQueuePkts} packets (" + g[0] + ")" and f"v.devQueuePkts == null) v.devQueuePkts = {g[1]}" in (picture or ""))
         if picture is not None:
-            same("the device's queue, written in the picture", f"queue {g[1]}", (re.search(r"'queue \d+'", picture) or ["not found"])[0].strip("'"), f"'queue {g[1]}'" in picture)
+            same("the device's queue, written in the picture from the setting", "queue ${v.devQueuePkts}", (re.search(r"`queue \$\{v\.\w+\}`", picture) or ["not found"])[0].strip("`"), "`queue ${v.devQueuePkts}`" in picture)
     g = find(disc, r"MakeDoubleChecker<double>\(([\d.]+), ([\d.]+)\)", "the range of the ratio")
     for p in sorted((ROOT / "briefs").glob("*.json")) if g else []:
         k = json.loads(p.read_text()).get("knobs", {}).get("weightUdp")

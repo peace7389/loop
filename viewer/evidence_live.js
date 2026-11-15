@@ -20,6 +20,8 @@
 //   what just arrived  the records that were not there at the last reading are marked for a short while.
 //   the simulations    while an experiment's simulations run, the sentence also says how many of them the harness has
 //                      collected so far: the runs its index (runs/index.json) lists that no record holds yet
+//   the tiles          one tile per simulation of the experiment that is being run, read from the simulator's own files
+//                      (evidence_tiles.js)
 //   the quick reading  every two seconds the size of the ledger is asked for (a HEAD request); the session is read
 //                      again only when it has grown. The form of a turn is the harness's, told to the AI in its prompt;
 //                      what fills it, how many turns there are and when it stops are the AI's.
@@ -123,7 +125,8 @@ Object.assign(EV, {
     if (EV.off || L.busy || document.hidden || EV.s.view !== 'session' || !row.running || !h || (L.n = (L.n || 0) + 1) % 2) return;
     L.busy = true;
     const now = EV.liveNow(), sid = EV.M && EV.M.id;  // while simulations run the ledger does not grow: the index of the runs does
-    if (now && (now.phase === 'sims' || now.phase === 'baseline')) EV.get(`../sessions/${sid}/runs/index.json`).then(t => { if (t == null || !EV.M || EV.M.id !== sid) return; EV.files.index = EV_DATA.lines(t); const el = document.getElementById('live-done'), n = EV.liveDone(); if (el && el.dataset.n !== String(n)) { el.dataset.n = n; el.textContent = `· the harness has collected ${n} of them so far`; } });
+    if (now && (now.phase === 'sims' || now.phase === 'baseline')) EV.get(`../sessions/${sid}/runs/index.json`).then(t => { if (!EV.M || EV.M.id !== sid) return; if (t == null) { if (EV.tilesTick) EV.tilesTick(now, sid); return; }  // no index yet: the session's first simulations are still running
+      EV.files.index = EV_DATA.lines(t); if (EV.tilesTick) EV.tilesTick(now, sid); const el = document.getElementById('live-done'), n = EV.liveDone(); if (el && el.dataset.n !== String(n)) { el.dataset.n = n; el.textContent = `· the harness has collected ${n} of them so far`; } });
     fetch(h.url + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' }).then(r => { if (r.ok && r.headers.get('Content-Length') !== h.len && EV.live.head === h) { EV.sig = ''; return EV.load(); } }).catch(() => {}).finally(() => { L.busy = false; });
   },
 });

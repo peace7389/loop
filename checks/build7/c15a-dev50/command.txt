@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --duration=3 --events=40 --devQueuePkts=50 --out=/home/chunguck.kim/project/checks/build7/c15a-dev50
+exit 0, 26.0 s

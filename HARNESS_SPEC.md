@@ -232,8 +232,10 @@ Two nodes on one point-to-point link. Node 0 sends, node 1 receives.
 - On node 0's device the root queue disc is `ns3::LinkQueueDisc` (6.2) with two
   child `FifoQueueDisc`s, each of `--queuePkts` packets unless its own length
   is given (`--queuePktsUdp`, `--queuePktsTcp`). The device's own queue
-  is a 10-packet drop-tail, so queueing and drops happen in the queue disc,
-  per band, where they are counted.
+  is a drop-tail of 10 packets unless `--devQueuePkts` is given (both
+  devices); it never drops, because a full device queue stops the scheduler,
+  so queueing and drops happen in the queue disc, per band, where they are
+  counted.
 - Timing: traffic starts at t = 1 s. Each sender starts up to 10 ms later; the
   two offsets come from one `UniformRandomVariable`, so `--seed` (the run
   number) changes the simulation. Traffic runs for `warmup + duration` seconds.
@@ -258,6 +260,7 @@ Options and defaults:
 | `queuePktsUdp`, `queuePktsTcp` | 0: as long as `queuePkts` says | a brief: left out, fixed or knob (a whole number of at least 1) |
 | `tcpInitCwnd` | 0: ns-3's own first window, 10 segments | a brief: left out, fixed or knob (a whole number of at least 1) |
 | `tcpBufBytes` | 0: 1 MB each | a brief: left out, fixed or knob (a whole number of at least 4096) |
+| `devQueuePkts` | 0: 10 packets | a brief: left out, fixed or knob (a whole number of at least 1) |
 | `out` | (required) | the harness |
 | `warmup` (1), `tcp` (on), `udpTos` (0x10), `pcap` (off), `events` (0), `eventsAt` (0) | | the operator only, by starting the program directly |
 
@@ -271,7 +274,9 @@ own length (build 5). A queue without its own length has the common
 operator's word that values the scenario fixed should be settings where an
 experiment may turn on them (2026-11-15): `tcpInitCwnd`, TCP's first window in
 segments, and `tcpBufBytes`, the size in bytes of TCP's send buffer and of its
-receive buffer on both hosts (build 6).
+receive buffer on both hosts (build 6); `devQueuePkts`, the length of each
+device's transmit queue: the packets that wait there after the scheduler has
+chosen them (build 7).
 
 `--udpRate=0bps` leaves the UDP sender out and `--tcp=0` the TCP sender.
 `--events=MS` writes every packet-level event of a window of MS milliseconds to
@@ -343,7 +348,10 @@ setting added after build 4 that was given (6.1), and no others.
 | `link_rate_bps`, `weight_udp` | the link capacity and the ratio knob as used |
 
 `series.csv`, a sample every 0.1 s over the whole run (the measured seconds
-begin at t = 2):
+begin at t = 2). Since build 7 each sample is in the file as soon as it is
+taken (a flush after each row; the bytes are the same), so a run can be
+watched while it runs (12.1, the tiles); `metrics.json` and `params.json` are
+written when the simulation has ended:
 
 ```
 t,udp_bps,tcp_bps,cwnd,drops_band0,drops_band1,q_band0,q_band1,qmin_band0,qmin_band1
@@ -373,14 +381,17 @@ starting the built program directly into `checks/<build>/`, never through
 
 | 5 | 11-14 | Each queue may have its own length: `--queuePktsUdp`, `--queuePktsTcp` (Step C, first setting) | `checks/build5/results.json`: with the new options left out, every run of checks 1 to 11 (17 runs; `metrics.json`, `series.csv`, `params.json`, `flowmon.xml`: 68 files) is byte-identical to the build-4 program run just before the change, and checks 1 to 4 to the files in `checks/build4/`; check 12 passes |
 | 6 | 11-15 | TCP's first window and TCP's buffers may be set: `--tcpInitCwnd`, `--tcpBufBytes` | `checks/build6/results.json`: with the new options left out, every run of checks 1 to 12 (26 runs; 104 files) is byte-identical to build 5; checks 13 and 14 pass |
+| 7 | 11-15 | The device's transmit queue may be set: `--devQueuePkts`; `series.csv` is written sample by sample | `checks/build7/results.json`: with the new option left out, every run of checks 1 to 14 (38 runs; 152 files) is byte-identical to build 6; checks 15 and 16 pass |
 
-Build 6 is the current one. Both sweep tables (10.2) were made with build 4;
-builds 5 and 6 write the same files for settings that leave the new options
-out. The scripts that ran and compared the checks of a build are kept in its
-folder (`run_checks.py`, `compare.py`, `check12.py`, `check13_14.py`).
+Build 7 is the current one. Both sweep tables (10.2) were made with build 4;
+builds 5, 6 and 7 write the same files for settings that leave the new
+options out. The scripts that ran and compared the checks of a build are kept
+in its folder (`run_checks.py`, `compare.py`, `check12.py`, `check13_14.py`,
+`check15_16.py`). The packet-event recordings of check 15 (2 MB each) are not
+kept; each run's `command.txt` makes them again.
 
-The fourteen checks; 1 to 11 as measured with build 3, 12 with build 5, 13 and
-14 with build 6:
+The sixteen checks; 1 to 11 as measured with build 3, 12 with build 5, 13 and
+14 with build 6, 15 and 16 with build 7:
 
 | # | Settings | Measured | Result |
 |---|---|---|---|
@@ -399,6 +410,8 @@ The fourteen checks; 1 to 11 as measured with build 3, 12 with build 5, 13 and
 | 12 | separate queue lengths, predicted before the run: with queuePktsUdp 20 and queuePktsTcp 200 (and swapped; and under cap) no queue ever holds more than its own length and every drop happens with exactly that many waiting; both given as 100 is the default; `queuePkts` 37 is `queuePkts` 999 with both own lengths 37; one own length alone leaves the other queue at `queuePkts` | most waiting 20 and 200 (swapped: 200 and 20); in two recorded seconds 269,728 UDP drops all at 20 waiting and 4 TCP drops all at 200 (swapped: all at 200, 185 at 20; cap: 269,847 at 20, 4 at 200); the three pairs byte-identical in `metrics.json`, `series.csv`, `flowmon.xml` | pass |
 | 13 | TCP's first window, predicted before the run: with `tcpInitCwnd` 1, 4 and 40 (TCP alone, link delay 200 ms) the first congestion window recorded and the first burst that arrives are N x 1448 bytes; not given, the same with N = 10; given as 10 is the default; over 10 measured seconds it changes the goodput by less than 1 % | 1,448, 5,792 and 57,920 bytes, window and burst alike; not given 14,480; given as 10 byte-identical in `metrics.json`, `series.csv`, `flowmon.xml`; goodput with 1 against 40 segments differs by 0.0001 % | pass |
 | 14 | TCP's buffers, predicted before the run: with `tcpBufBytes` 65,536 and a round trip of 20 ms (TCP alone) the window cannot exceed the buffer, so goodput is at most 26.2 Mbps and at least 40 % of that; with 262,144 at most 104.9 Mbps and 3 to 4.5 times the first; given as 1,048,576 is the default | 26.16 Mbps (99.8 % of the bound); 104.65 Mbps (99.8 %; 4.0 times); given as 1,048,576 byte-identical in the three files | pass |
+| 15 | the device's transmit queue, predicted before the run: with the scheduler never empty (UDP offers 2 Gbps on the 1 Gbps link) the packets waiting in the sender's device queue number at most N and reach N, for `devQueuePkts` 1, 50, 200 and for 10 when it is not given; a packet waits there for the transmissions of the N packets before it, between N x 11.44 and N x 12.02 microseconds; given as 10 is the default | most waiting 1, 10, 50, 200; waits 11.44 to 12.02, 116.7 to 117.3, 585.8 to 586.4 and 2,343.9 to 2,344.4 microseconds (about 2,500 packets timed in each run, from 40 ms of packet events); given as 10 byte-identical in `metrics.json`, `series.csv`, `flowmon.xml`; `params.json` states it only when given | pass |
+| 16 | `series.csv` sample by sample, predicted before the run: 6 s after a run of 10 measured seconds was started (it takes about 25 s) its `series.csv` holds at least 5 samples and its `metrics.json` does not exist yet; the finished file is byte-identical to build 6's | 25 samples after 6 s, no `metrics.json`, the program still running; the finished file byte-identical to `checks/build6/c13c-defaults/series.csv` | pass |
 
 `harness/check_objects.py` is run with them after a change of the
 scenario. The viewer's picture of the system (12.1) states values that the
@@ -410,7 +423,7 @@ updates them when the scenario changes. The check reads `two-hosts.cc` and
 with status 1 if a value differs or can no longer be read. For a setting added
 after build 4 it checks that the scenario has the option, that the object it
 belongs to is given it, and that the object's row in `objects.json` names it.
-On 2026-11-15, with build 6: 50 values compared, 50 ok.
+On 2026-11-15, with build 7: 50 values compared, 50 ok.
 
 What checks 5a and 5b show: with short queues TCP's queue empties after a
 loss, and under share UDP then gets more than its configured part. With Cubic
@@ -438,7 +451,7 @@ account of the system.
 - every program option of the first nine rows of 6.1 is either fixed or a
   knob, never both;
 - **a setting added after build 4** (6.1: `queuePktsUdp`, `queuePktsTcp`,
-  `tcpInitCwnd`, `tcpBufBytes`) may
+  `tcpInitCwnd`, `tcpBufBytes`, `devQueuePkts`) may
   be left out, fixed or made a knob. Left out, it is in neither the brief nor
   the program's command line, so the briefs written before it and their
   sessions and sweeps are as they were. Refused: `queuePkts` as a knob while
@@ -451,7 +464,7 @@ account of the system.
 - values the program accepts; `min < max` with the default between; a meaning
   for every knob;
 - **a step** (optional, for a numeric knob: weightUdp, queuePkts, duration,
-  seed, mtu, queuePktsUdp, queuePktsTcp, tcpInitCwnd, tcpBufBytes; a whole number where the knob is one; above 0 and at most
+  seed, mtu, queuePktsUdp, queuePktsTcp, tcpInitCwnd, tcpBufBytes, devQueuePkts; a whole number where the knob is one; above 0 and at most
   `max - min`): the model's values are rounded to it, counted from the knob's
   `min`, and the rounding is recorded as a clamp (asked, used). The model
   reads it in the brief with the knob's range. Two designs that round to the
@@ -1312,7 +1325,36 @@ asks for the ledger's size (a HEAD request) and reads the session again only
 when it has grown. While an experiment's simulations run, the sentence also
 says how many of them the harness has collected so far: the runs its index
 (`runs/index.json`) lists that no record holds yet (the harness reads its
-simulations in the order it started them). The simulator itself prints nothing
+simulations in the order it started them).
+
+*The simulations as they run* (`evidence_tiles.js`; at the operator's word,
+2026-11-15: "show how it's going"; check `ev_live.py tiles`, and `real` on a
+session of the local model). While an experiment's simulations run, "What it
+needed to find out" holds, under the strip of the stage, one tile per
+simulation the simulator has to run. A tile shows the design's label and its
+run, the settings in which the design differs from the brief's defaults, how
+far the measured time has got, the goodput of the two flows over that time
+(two lines in the flows' colours, from 0 to the link's rate, over the measured
+seconds; the newest sample's values beside them; pointing at the picture reads
+the sample under the pointer in words) and, once the simulation has ended,
+the measures of its `metrics.json` (UDP goodput, TCP goodput, UDP loss), then
+that the harness has collected it. Every two seconds the page reads each
+running simulation's own `series.csv` again: the curve is that file and
+nothing else, and it grows because the simulator writes each sample as it is
+taken (build 7, 6.3). Which run is whose the page recounts by the harness's
+own rule (8.5: in the order of the design, every simulation whose settings and
+seed no earlier simulation of the session had, numbered on from the last run;
+the designs that are not run again are named in a line). The recount is
+checked: when a simulation has ended its own `params.json` says what it ran
+with, and a tile whose file names other settings than the design expected is
+named by its run and shows the file's settings; if more runs exist than the
+recount expects, every tile is named by its run alone. On two recorded
+sessions the recount equals the records at each of their 9 experiments (73
+simulations). The tiles go when the experiment's records arrive: from then on
+its simulations are in the notebook and the tables. Nothing on a tile is
+written by a model.
+
+The simulator itself prints nothing
 while it runs, and ns-3's logging is not in the optimized build; a
 simulation's detail shows instead how the simulator was started: the
 program's name (kept in `objects.json` as `program`, which `check_objects.py`
@@ -1423,7 +1465,9 @@ checks `ev_design.py`, `ev_board.py`, `ev_glance.py`).
   10 segments, buffers of 1 MB each), fixed by the operator, or left to the
   AI within a range. The picture's TCP socket shows them (first window, send
   and receive buffer), at the program's own values when the brief leaves them
-  out.
+  out. The setting of build 7, the device's transmit queue, is there in the
+  same way (not set: 10 packets); both devices' cards and the device's box in
+  the picture show its length.
 - *Conditions are chosen, not typed.* A condition of a given goal is three
   lists (the measure, by its plain name; the comparison; the value with the
   measure's unit), with as many conditions as wanted; the brief stores the
@@ -2114,6 +2158,7 @@ untracked until they say otherwise.
 | 2026-11-14 | Every new hypothesis says why it is asked (`why`, required), at the operator's word; the page shows it beside the question, and nothing where it was not recorded. |
 | 2026-11-15 | Readability, at the operator's word: cards for a hypothesis and for an arrow of the board, what a brief asks beside its name, grouping by regions, nothing changing size on a click, a test's detail in full under the headings of its card, a simulation opening inside its test, the glance in names and words, a bar for each rule against its outcome, the aim and the answer (with its reasons) on the board, the whole configuration and chosen conditions on the set-up page, toned colours with one accent for what is happening now. |
 | 2026-11-15 | Simulator build 6, at the operator's word that fixed values should be settings: TCP's first window (`tcpInitCwnd`) and TCP's buffers (`tcpBufBytes`), each left out, fixed or a knob of a brief; checks 13 and 14; the earlier checks byte-identical. |
+| 2026-11-15 | Simulator build 7, at the operator's word: the device's transmit queue as a setting (`devQueuePkts`; check 15), and `series.csv` written sample by sample (check 16), so that the page can show each simulation of a running experiment on a tile of its own, its curve growing as the simulator works. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -2139,7 +2184,7 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `loop.py` | 609 | the loop: one session; the answer format from the brief; `trim` |
-| `tools.py` | 259 | all the model can reach; the brief check; running simulations |
+| `tools.py` | 260 | all the model can reach; the brief check; running simulations |
 | `decision_rules.py` | 163 | reads and checks decision rules |
 | `schema.json` | 423 | the answer format (its params object is put in by loop.py) |
 | `prompt.txt` | 31 | the system prompt |
@@ -2149,7 +2194,7 @@ above all, so the counts understate the size.
 | `audit.py` | 88 | operator: the audit of a session's checks, verdicts, experiments and designs |
 | `score.py` | 137 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
-| `check_objects.py` | 206 | operator: the picture of the system against the scenario source |
+| `check_objects.py` | 207 | operator: the picture of the system against the scenario source |
 | `make_trace.py` | 38 | operator: packet-event recordings |
 | `move_drafts.py` | 33 | operator, used once: draft text out of old ledgers |
 
@@ -2164,7 +2209,7 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 308 | the shell: colours, styles, the list of scripts |
+| `index.html` | 318 | the shell: colours, styles, the list of scripts |
 | `evidence.js` | 185 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 177 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
@@ -2172,7 +2217,8 @@ above all, so the counts understate the size.
 | `evidence_notebook.js` | 102 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
-| `evidence_live.js` | 132 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
+| `evidence_live.js` | 135 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
+| `evidence_tiles.js` | 94 | the simulations of the experiment being run, one tile each, read from the simulator's own files |
 | `evidence_words.js` | 143 | the words that need explaining: their marks, and the box that opens beside them |
 | `evidence_system.js` | 110 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 125 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
@@ -2182,7 +2228,7 @@ above all, so the counts understate the size.
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 55 | the work as a tree; the shared selection |
-| `evidence_views.js` | 126 | View 1 (session flow) and View 2 (the board of "What it needed to find out": the hypotheses by turn and what each follows from) |
+| `evidence_views.js` | 127 | View 1 (session flow) and View 2 (the board of "What it needed to find out": the hypotheses by turn and what each follows from) |
 | `evidence_flow.js` | 109 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 105 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 69 | the test panel |
@@ -2199,7 +2245,7 @@ above all, so the counts understate the size.
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 56 | links, export, print |
 | `objects.json` | 78 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
-| `brief_editor.js` | 414 | the set-up page, “New session”: the seven blocks as forms |
+| `brief_editor.js` | 415 | the set-up page, “New session”: the seven blocks as forms |
 | `evidence_walk.js` | 61 | the guided walk: one sentence per section, from the records |
 | `brief_editor_old.js` | 237 | the brief editor of the older control page (index_full.html) |
 
