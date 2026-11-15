@@ -1,0 +1,101 @@
+{
+ "goal": "Maximize total delivered application payload goodput, udp_goodput_bps + tcp_goodput_bps, over the measured window while keeping the link utilized. I chose this because the task asks for performance of two simultaneous applications on one link, and aggregate delivered payload is a direct measure of how much useful data the link carries. If two totals are within about 1%, I treat them as nearly equal but still prefer the setting that is never lower.",
+ "recommendation": {
+  "weightUdp": 0.95
+ },
+ "expected": {
+  "udp_goodput_bps": 930072640,
+  "tcp_goodput_bps": 48199866,
+  "udp_loss_frac": 0.534963,
+  "drops_band0": 955291,
+  "drops_band1": 8,
+  "tcp_retrans": 8,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.95
+ },
+ "explanation": "The scheduler is work-conserving: when UDP offers less than its configured share, TCP uses the unused capacity, so setting UDP to 0.95 does not waste the link when UDP demand is low. When UDP demand is high, UDP delivers slightly more payload bits per configured link share than TCP, about 979 Mbps versus 964 Mbps per full share, so shifting the configured ratio toward UDP increases total payload goodput. Across tested UDP offered rates from 100Mbps to 3Gbps, queue lengths 4 to 1000, TCP variants Cubic/NewReno/BBR/Vegas, and measured durations 2s and 10s, weightUdp=0.95 is never worse than 0.5 for total payload goodput and is best among tested weights when UDP is saturated. At the default workload (udpRate=2Gbps, queuePkts=100, TcpCubic, duration=10, seed=1), weightUdp=0.95 gives about 978.27 Mbps total payload goodput versus 971.53 Mbps at 0.5, with link_util=1.0. The gain is small, about 0.7%, but monotonic toward the upper bound, so the best tested ratio is the maximum allowed UDP weight, 0.95.",
+ "holds_when": "Holds when performance means aggregate delivered payload throughput and latency/fairness are not primary. Holds for the tested UDP offered rates 100Mbps to 3Gbps, queuePkts 4 to 1000, TcpCubic/TcpNewReno/TcpBbr/TcpVegas, duration 2s to 10s, and seed=1. It also relies on the scheduler being work-conserving, which was tested.",
+ "breaks_when": "If performance means max-min fairness or TCP throughput, weightUdp around 0.5 or lower is better; at 0.95 TCP receives only about 48 Mbps. If UDP loss minimization is the goal, higher UDP weight helps relative to lower weights but loss remains high when UDP is offered above its share. If latency or queueing delay matters, queue length and scheduler behavior not measured here could change the recommendation. If TcpBic or TcpLinuxReno behave differently, or if seed variation changes TCP filling, the exact margin could change.",
+ "claims": [
+  {
+   "text": "For aggregate payload goodput, weightUdp=0.95 is at least as good as weightUdp=0.5 across tested UDP offered rates and durations.",
+   "role": "supports",
+   "evidence": [
+    "C9",
+    "C12",
+    "E4"
+   ]
+  },
+  {
+   "text": "When UDP is saturated at 2Gbps or 3Gbps, total payload goodput increases with weightUdp and is maximized at the tested upper bound 0.95.",
+   "role": "supports",
+   "evidence": [
+    "C4",
+    "C10",
+    "E1",
+    "E4"
+   ]
+  },
+  {
+   "text": "The aggregate-goodput advantage of weightUdp=0.95 is robust to queue length and TCP variant among those tested.",
+   "role": "supports",
+   "evidence": [
+    "C6",
+    "C11",
+    "E3",
+    "E4"
+   ]
+  },
+  {
+   "text": "The scheduler is work-conserving, so a large configured UDP share does not reduce total goodput when UDP demand is below that share.",
+   "role": "background",
+   "evidence": [
+    "C1",
+    "C2",
+    "V1",
+    "V2"
+   ]
+  },
+  {
+   "text": "UDP delivers slightly more payload bits per configured link share than TCP, which explains why moving weight toward UDP raises total payload goodput.",
+   "role": "background",
+   "evidence": [
+    "C13",
+    "E4"
+   ]
+  },
+  {
+   "text": "If performance means max-min fairness, weightUdp=0.5 is better because it maximizes the smaller of UDP and TCP goodput.",
+   "role": "limits",
+   "evidence": [
+    "C5",
+    "V5",
+    "E1",
+    "E4"
+   ]
+  },
+  {
+   "text": "UDP loss remains high when UDP is offered above its configured share, so weightUdp=0.95 is not a loss-minimization solution.",
+   "role": "limits",
+   "evidence": [
+    "E1",
+    "E4"
+   ]
+  },
+  {
+   "text": "Queue length can reduce TCP drops and retransmissions at weightUdp=0.95 without materially changing total goodput, so reliability-oriented tuning may adjust queuePkts separately.",
+   "role": "limits",
+   "evidence": [
+    "E3"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Seed variation beyond seed=1 was not tested.",
+  "TcpBic and TcpLinuxReno were not tested.",
+  "Latency, queueing delay, and fairness metrics were not measured.",
+  "Behavior for durations longer than 10s and for UDP offered rates between the tested points was not directly tested.",
+  "The exact scheduler behavior during startup transients and when both queues are partially filled was not fully characterized."
+ ]
+}

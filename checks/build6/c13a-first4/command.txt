@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --udpRate=0bps --linkDelay=200ms --warmup=0 --duration=3 --tcpInitCwnd=4 --out=/home/chunguck.kim/project/checks/build6/c13a-first4
+exit 0, 0.1 s

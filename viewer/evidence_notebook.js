@@ -10,6 +10,8 @@
 //   Result      the same rule with the measured numbers, and held or failed; a number opens its run     simulator, harness
 //   Conclusion  the verdict and the first sentence of its "because"; "more" shows the rest               model
 //   So next     the verdict's "next", and a link to each hypothesis that follows from this test          model
+// A turn's heading and everything of that turn (its refused parts, its exploration, its cards) stand in one bordered
+// region, with more space between two turns than inside one, so that what belongs to one turn is seen at a glance.
 // The left edge says the outcome: expected and found (held), expected and not found (failed); a failed check is a
 // result, not a warning. A void check has a neutral edge. "changed course here": the check failed and a later
 // hypothesis follows from this test (it names its check, its verdict or its simulations, or the table of its experiment). A click on a card opens the test in the detail pane, as a row of the tests list does.
@@ -58,7 +60,7 @@ Object.assign(EV, {
       ${h && h.why ? line('Why', ['model'], `<span class="lc2" title="${e(h.why)}">${e(h.why)}</span>`, st(T.hyp) < kx ? kx : st(T.hyp), 'nb-why', 'data-own="model"') : ''}
       ${line('Plan', ['model'], EV.nbPlan(T), kx, '', 'data-exact="1"')}
       ${line('Expected', ['model'], `${EV.ruleRead(T, 4)}${T.rival ? `<div class="sm lc2" title="${e(T.rival)}">${EV.term('Rival', 'rival')}: <span data-own="model">${e(T.rival)}</span></div>` : ''}`, kx)}
-      ${line('Result', ['simulator', 'harness'], c ? EV.checkRead(T, 4) + gap : wait ? here(`the simulator is working on its simulations${EV.liveTimer()}`, 'sims') : `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`, kc)}
+      ${line('Result', ['simulator', 'harness'], c ? EV.checkRead(T, 4) + EV.ruleBars(T, 3) + gap : wait ? here(`the simulator is working on its simulations${EV.liveTimer()}`, 'sims') : `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`, kc)}
       ${line('Conclusion', ['model'], v ? `${v.id} ${EV.verdictRes(v.result)}${EV.rests(v)}${EV.contradicts(v, c ? [c] : []) ? ' ' + EV.warn('disagrees with its check') : ''}${first ? ' · ' + e(open || !rest ? v.because : first) : ''}${rest ? ` <a class="noprint sm" data-act="nbmore" data-id="${e(T.id)}">${open ? 'less' : 'more'}</a>` : ''}${mis ? ' ' + EV.warn('a number differs from its measurement', `It wrote “${mis.rows[0].written}”; measured ${mis.rows[0].measured}`) : ''}` : judge ? here('not judged yet: the reply being written may judge it', 'reply') : `<span class="mut">${pending}</span>`, kv, '', v ? 'data-own="model"' : '')}
       ${line('So next', ['model'], v ? `${v.next ? e(v.next) : EV.nr}${fol.ids.length ? ` <span class="sm" data-step="${fk}">· followed by ${fol.ids.map(id => `<a data-act="open" data-t="hyp" data-id="${e(id)}">${EV_ICON.hypothesis}${e(id)}</a>`).join(', ')}${fol.via ? ` (through the table ${e(fol.via)})` : ''}</span>` : ''}` : `<span class="mut">${pending === 'not yet' ? 'not yet' : 'no verdict, so no next step'}</span>`, kv, '', v ? 'data-own="model"' : '')}
       ${marks ? `<div class="nb-marks">${marks}</div>` : ''}</div>`;
@@ -88,7 +90,7 @@ Object.assign(EV, {
       const refusedLines = t.malformed.map(m => ['the whole answer', m]).concat(t.refusals.map(m => [m.body.part === 'report' ? 'the final report' : `the part “${m.body.part}”`, m]))
         .map(([what, m]) => `<div class="nb-refused" data-act="open" data-t="log" data-id="${t.n}" data-step="${st(m.id)}" data-rec="${e(m.id)}" title="${e(why(m))}">${EV.warn('refused')} <span data-own="harness">${e(what)}:</span> <span class="lc2" data-own="harness">${e(why(m))}</span></div>`).join('');
       const slot = now && now.phase === 'reply' && now.turn === t.n ? (now.mode ? `<div class="nb-refused nb-last" data-slot="report"><span class="mut">${now.mode === 'report' ? 'The last turn: only the final report is accepted.' : 'The last turn: the simulations are used up. No new test is accepted; the final report is due.'}</span></div>` : EV.nbSlot()) : '';
-      return head + refusedLines + explore + ts.map(T => EV.nbCard(T)).join('') + slot; }).join('');
+      return `<div class="nb-group${now && now.turn === t.n ? ' nb-now-group' : ''}" data-group="${t.n}">${head + refusedLines + explore + ts.map(T => EV.nbCard(T)).join('') + slot}</div>`; }).join('');
     return `<div class="ev-card" id="s-notebook"><h2>The work, step by step <small>the notebook · one card per ${EV.term('Test', 'test')}: the question, the plan, what was expected, what was found, the conclusion and what came next</small></h2>
         <p class="sec-q">How did it test each?</p><div class="ev-bar nb-bar">${EV.replayBar()}</div>
         ${M.turns.length ? body : '<p class="sm">No record yet.</p>'}

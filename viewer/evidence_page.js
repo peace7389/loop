@@ -29,7 +29,7 @@ Object.assign(EV, {
     const kn = (M.brief && M.brief.knobs) || {}, kv = ([k, v]) => `${EV.label(k, (kn[k] || {}).meaning)} ${e(EV.adjVal(k, v))}`, rec = !R ? null : R.text ? e(R.text) : R.differ.length ? `<span data-exact="1">${R.differ.map(kv).join(', ')}</span>` : R.known ? "every knob at the brief's default" : EV.nr;
     const f = EV.stripField;
     const ended = row.running ? '<span class="pill live">running</span>' : !live ? `<span class="mut">at step ${S.step + 1} of ${M.steps.length}</span>` : m.how ? e(m.how) : `ending ${EV.nr}`;
-    return `<div class="ev-head" id="ev-head">${f('brief', EV.term('Brief', 'Brief'), M.brief ? e(M.brief.id) : EV.nr)}${f('session', EV.term('Session', 'Session'), e(M.id))}${f('how', 'How it ended', ended, live ? m.how : '')}
+    return `<div class="ev-head" id="ev-head">${f('brief', EV.term('Brief', 'Brief'), M.brief ? EV.briefName(M.brief.id) : EV.nr)}${f('session', EV.term('Session', 'Session'), e(M.id))}${f('how', 'How it ended', ended, live ? m.how : '')}
       ${f('sims', EV.term('Simulation', 'Simulations'), `${live ? m.simulations ?? (M.old ? M.sims.length : row.simulations ?? used) : used}${row.allowed ? ' of ' + row.allowed : ''}`)}
       ${f('rec', 'Recommends', rec == null ? `<span class="mut">no recommendation${M.ended && live ? '' : ' yet'}</span>` : rec, R && R.known && R.differ.length ? "The knobs of the recommendation that differ from the brief's defaults" : '')}
       ${S.op ? `<span data-by="operator" class="hf-op">${f('policy', '<i class="sw"></i>' + EV.term('Scheduling policy', 'Scheduling policy'), EV.policyText(row))}${f('gap', 'Gap to the best', EV.gapText(row) || '<span class="mut">not scored</span>')}</span>` : ''}
@@ -104,7 +104,8 @@ Object.assign(EV, {
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
         <li>A few clicks do move the page. A turn's name in “The session at a glance” brings the notebook to that turn. A row of “What it needed to find out” brings its notebook card into view.</li>
         <li>A box of “How a session is built” goes to its part of the page. So does a line of “How it worked as a researcher” that names a section. The guided walk goes from section to section.</li>
-        <li>“What it needed to find out”: the board shows each hypothesis in the column of its turn; an arrow leads to a hypothesis that follows from it, in the colour of the result that led onward. Click a box to open its test.</li>
+        <li>“What it needed to find out”: the board shows each hypothesis in the column of its turn; an arrow leads to a hypothesis that follows from it, in the colour of the result that led onward. Point at a box to read why it was asked, what it follows from and what was found; click it to open its test.</li>
+        <li>A test's detail: a box of its picture opens what it stands for directly under the picture (a simulation, the verdict, the hypothesis that followed); the test stays in view.</li>
         <li>“The same, test by test”, under the board: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
         <li>“Looking closer”: click a line to open that view. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
         <li>“The system”: click an object to see its settings beside the picture. “What this session is made of”: click a mark to open it; point at a mark to read what it is.</li>

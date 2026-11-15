@@ -251,6 +251,8 @@ main(int argc, char* argv[])
     uint32_t mtu = 1500;
     uint32_t queuePkts = 100;
     uint32_t queuePktsUdp = 0; // 0: the UDP queue is as long as queuePkts says
+    uint32_t tcpInitCwnd = 0;  // 0: TCP's first window is ns-3's own (10 segments)
+    uint32_t tcpBufBytes = 0;  // 0: TCP's send and receive buffers are 1 MB each
     uint32_t queuePktsTcp = 0; // 0: the TCP queue is as long as queuePkts says
     double duration = 10;
     uint32_t seed = 1;
@@ -272,6 +274,8 @@ main(int argc, char* argv[])
     cmd.AddValue("queuePkts", "Queue length per band in packets", queuePkts);
     cmd.AddValue("queuePktsUdp", "Length of the UDP queue alone, in packets (0 = queuePkts)", queuePktsUdp);
     cmd.AddValue("queuePktsTcp", "Length of the TCP queue alone, in packets (0 = queuePkts)", queuePktsTcp);
+    cmd.AddValue("tcpInitCwnd", "TCP's first window, in segments (0 = ns-3's own, 10)", tcpInitCwnd);
+    cmd.AddValue("tcpBufBytes", "TCP's send and receive buffer, in bytes each (0 = 1 MB)", tcpBufBytes);
     cmd.AddValue("duration", "Seconds of traffic", duration);
     cmd.AddValue("seed", "Random run number", seed);
     cmd.AddValue("weightUdp", "Part of the link configured for UDP, 0.05-0.95", weightUdp);
@@ -297,8 +301,12 @@ main(int argc, char* argv[])
                        TypeIdValue(TypeId::LookupByName("ns3::" + tcpVariant)));
     // 20 IP + 20 TCP + 12 timestamp option: a full segment is exactly one MTU-sized packet
     Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(mtu - 52));
-    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(1 << 20));
-    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(1 << 20));
+    Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(tcpBufBytes ? tcpBufBytes : (1 << 20)));
+    Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(tcpBufBytes ? tcpBufBytes : (1 << 20)));
+    if (tcpInitCwnd)
+    {
+        Config::SetDefault("ns3::TcpSocket::InitialCwnd", UintegerValue(tcpInitCwnd));
+    }
 
     NodeContainer nodes;
     nodes.Create(2);
@@ -447,6 +455,14 @@ main(int argc, char* argv[])
     if (queuePktsUdp)
     {
         pj << ", \"queuePktsUdp\": " << queuePktsUdp;
+    }
+    if (tcpInitCwnd)
+    {
+        pj << ", \"tcpInitCwnd\": " << tcpInitCwnd;
+    }
+    if (tcpBufBytes)
+    {
+        pj << ", \"tcpBufBytes\": " << tcpBufBytes;
     }
     if (queuePktsTcp)
     {

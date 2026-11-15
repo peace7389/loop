@@ -80,6 +80,22 @@ Object.assign(EV, {
     const h = EV.readHtml(T.rule, { sims: Object.fromEntries(T.sims.map(s => [s.label, s])), test: T.id, max }), word = c.result === 'held' || c.result === 'failed' ? EV.checkRes(c) : `<span class="mut">${EV.e(c.result || 'not checked')}</span>`;
     return `<span class="rr" data-rr="check" title="${EV.e(c.numbers == null ? '' : c.numbers + ' : ' + (c.recorded || c.result))}">${h || `<code>${EV.e(c.numbers ?? '')}</code>`}: ${word}</span>`;
   },
+  // Each comparison of a checked rule as one horizontal bar: the range the rule allows is shaded, a tick stands at the rule's threshold (its right side) and a
+  // dot at the measured value (its left side), in the colour of "held" inside the range and of "failed" outside. Both sides are worked out from the
+  // simulations the rule names, as the check's numbers are; nothing is drawn for a comparison whose sides cannot be worked out.
+  ruleBars(T, max) {  // max: on a notebook card, at most so many bars, then how many more stand in the test's detail
+    const tree = T.rule ? EV.readTree(T.rule) : null, c = T.check; if (!tree || !c || c.void) return ''; const e = EV.e, cmps = [], walk = n => { if (!n) return; if (n[0] === 'and' || n[0] === 'or') n[1].forEach(walk); else if (n[0] === 'all') walk(n[1]); else if (n[0] === 'cmp') cmps.push(n); }; walk(tree);
+    const sims = Object.fromEntries(T.sims.map(q => [q.label, q])), one = T.sims.length === 1 ? T.sims[0] : null, val = (name, label) => { const q = sims[label] || (label == null ? one : null); return q && q.metrics ? q.metrics[name] : undefined; };
+    const OK = { '>': (a, b) => a > b, '>=': (a, b) => a >= b, '<': (a, b) => a < b, '<=': (a, b) => a <= b, '==': (a, b) => a === b }, WORD = { '>': 'must be over', '>=': 'must be at least', '<': 'must be under', '<=': 'must be at most', '==': 'must equal' };
+    const bars = cmps.map((n, i) => { const U = EV.readUnit(n[1]) || EV.readUnit(n[3]), a = EV.readValue(n[1], val), b = EV.readValue(n[3], val); if (typeof a !== 'number' || typeof b !== 'number' || !isFinite(a) || !isFinite(b)) return '';
+      const lo = Math.min(0, a, b), hi0 = Math.max(a, b, lo + 1e-12), hi = lo + (hi0 - lo) * 1.14, pct = x => (100 * (x - lo) / (hi - lo)).toFixed(2), held = OK[n[2]](a, b), up = n[2] === '>' || n[2] === '>=', eq = n[2] === '==';
+      // a simulation's label is the model's own word: marked as such
+      const at = l => (l ? ` at <span data-own="model">${e(l)}</span>` : ''), left = n[1][0] === 'val' ? `${e(TH_DATA.PLAIN[n[1][1]] || n[1][1])}${at(n[1][2])}` : 'the left side of the rule', right = n[3][0] === 'num' ? '' : n[3][0] === 'val' ? ` (${e(TH_DATA.PLAIN[n[3][1]] || n[3][1])}${at(n[3][2])})` : ' (the right side of the rule)';
+      return `<div class="rb" data-i="${i}" data-held="${held ? 1 : 0}" data-a="${a}" data-b="${b}" data-op="${e(n[2])}"><div class="rb-l"><span>${left}</span> <b>${EV.readNum(a, U, 4)}</b> <span class="sm">· ${WORD[n[2]]} ${EV.readNum(b, U, 4)}${right}</span> ${held ? EV.res('held', 'holds') : EV.res('failed', 'does not hold')}</div>
+        <div class="rb-t"><i class="rb-ok" style="left:${eq ? pct(b) : up ? pct(b) : 0}%;width:${eq ? 0.6 : up ? (100 - pct(b)).toFixed(2) : pct(b)}%"></i><i class="rb-th" style="left:${pct(b)}%" title="the rule's threshold: ${e(String(EV.readNum(b, U, 4)).replace(/<[^>]+>/g, ''))}"></i><i class="rb-dot ${held ? 'ok' : 'bad'}" style="left:${pct(a)}%" title="measured: ${e(String(EV.readNum(a, U, 4)).replace(/<[^>]+>/g, ''))}"></i></div></div>`; }).filter(Boolean);
+    if (max && bars.length) return `<div class="rbs rbs-card" data-n="${bars.length}">${bars.slice(0, max).join('')}${bars.length > max ? `<p class="sm rb-more">and ${bars.length - max} more comparison${bars.length - max === 1 ? '' : 's'} in the test's detail</p>` : ''}</div>`;
+    return bars.length ? `<div class="rbs" data-n="${bars.length}">${bars.join('')}<p class="sm rb-key"><i class="rb-ok k"></i> what the rule allows · <i class="rb-th k"></i> the rule's threshold · <i class="rb-dot k"></i> what was measured</p></div>` : '';
+  },
   // the measured numbers alone, without the result's word; plain: as text, where a link cannot stand (inside another link)
   checkNums(T, plain) { const c = T.check; if (!c) return ''; const h = c.void ? null : EV.readHtml(T.rule, { sims: Object.fromEntries(T.sims.map(s => [s.label, s])), test: T.id, plain });
     return h ? `<span class="rr" data-rr="numbers" title="${EV.e(c.numbers ?? '')}">${h}</span>` : `<code>${EV.e(c.numbers ?? '')}</code>`; },

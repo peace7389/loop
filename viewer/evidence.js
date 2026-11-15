@@ -117,7 +117,17 @@ const EV = {
     if (a === 'view') return EV.go({ view: id });  // the chosen session stays chosen, wherever the reader goes
     if (a === 'pick') return EV.go({ view: 'session', sid: id });
     if (a === 'sort') { const h = S.home; h.dir = h.sort === id ? -h.dir : 1; h.sort = id; return EV.draw(); }
-    if (a === 'open') { S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id, test: t.dataset.test || undefined };  // test: the test a simulation was opened from
+    // inside the detail of an open test, one of that test's simulations opens within it (an inset under its sections): the test stays in view.
+    // The test's own hypothesis is already there, so its link does nothing. Everywhere else a click opens its item in the pane.
+    // (the test's picture and its sections; the trail at the head of the pane and the links inside an inset go where they say)
+    if (a === 'open' && S.view === 'session' && S.sel && S.sel.t === 'test' && EV.M && (t.closest('#p-detail .t-flow') || t.closest('#p-detail .td'))) { const T = EV.M.testById[S.sel.id], x = T && EV.M.expById[T.exp], pic = !!t.closest('.t-flow'), k = t.dataset.t, set = o => { S.inset = S.inset && S.inset.t === o.t && S.inset.id === o.id ? null : o; return EV.draw(); };
+      if (k === 'sim' && x && x.sims.some(q => q.id === id)) return set({ t: 'sim', id });
+      if (k === 'hyp' && T && id === T.hyp) return;
+      if (pic && k === 'hyp') return set({ t: 'hyp', id });      // a box of the picture: the hypothesis that followed, shown under the picture
+      if (pic && k === 'log') return set({ t: 'verdict', id });  // the verdict's box: the verdict in full, under the picture
+      if (k === 'rule' || k === 'check') return set({ t: k, id }); }  // the rule's box, the check's: in full, under the picture
+    if (a === 'open' && (t.dataset.t === 'rule' || t.dataset.t === 'check')) { S.sel = { t: 'test', id }; S.inset = { t: t.dataset.t, id }; return EV.draw(); }  // from another pane (a hypothesis with its tests): that test opens, with the rule or the check under its picture
+    if (a === 'open') { S.inset = null; S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id, test: t.dataset.test || undefined };  // test: the test a simulation was opened from
       S.item = null; return S.view !== 'session' ? EV.go({ view: 'session' }) : EV.draw(); }  // from the heat map: to the session's page (S.item: the address named no item, and must not clear this choice)
     if (a === 'step') { const o = EV.M.steps[Number(id)].open; S.sel = { t: o.t, id: o.t === 'log' ? o.turn : o.t === 'brief' ? 'brief' : o.t === 'report' ? 'report' : o.id }; return EV.draw(); }
     if (a === 'replay') return EV.replay(id);

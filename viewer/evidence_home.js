@@ -21,7 +21,7 @@ Object.assign(EV, {
   // the same as a row of Home's table: sessions, with a final report, meet the brief's conditions, largest gap to the best, not scored
   resultRow(brief) {
     const rows = EV.st.sessions.filter(x => (x.brief || '') === brief), scored = rows.filter(x => x.score), parts = scored.map(x => x.score.part).filter(v => typeof v === 'number'), run = rows.filter(x => x.running).length, none = '<span class="mut">not scored</span>';
-    return `<tr data-brief="${EV.e(brief)}"><td><b>${EV.e(brief || 'before briefs')}</b></td><td class="num">${rows.length}${run ? ` <span class="sm">· ${run} running now</span>` : ''}</td><td class="num">${rows.filter(x => x.has_report).length}</td>
+    return `<tr data-brief="${EV.e(brief)}"><td><b>${EV.briefName(brief)}</b>${brief && EV.briefSays(brief) ? `<div class="sm br-says" data-says="1">${EV.briefSays(brief)}</div>` : ''}</td><td class="num">${rows.length}${run ? ` <span class="sm">· ${run} running now</span>` : ''}</td><td class="num">${rows.filter(x => x.has_report).length}</td>
       <td class="num">${scored.length ? scored.filter(x => x.score.holds).length : none}</td><td class="num">${parts.length ? (100 * Math.max(...parts)).toFixed(2) + '%' : none}</td><td class="num">${rows.length - scored.length}</td></tr>`;
   },
   // a text that must stay on one line: cut with "…" by the style when its column is too narrow, and given in full on hover

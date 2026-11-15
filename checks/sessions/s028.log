@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s028 --brief two-hosts-open --draft on --policy share --baseline on
+session s028 (brief two-hosts-open): /home/chunguck.kim/project/sessions/s028
+stopped: session s028, done by the model, 36 simulations, 5 turns, ledger /home/chunguck.kim/project/sessions/s028/ledger.jsonl

@@ -226,7 +226,9 @@ Two nodes on one point-to-point link. Node 0 sends, node 1 receives.
 - TCP: `BulkSendApplication`, always has data, TOS 0 (priority 0). Port 10.
   Congestion control is `--tcpVariant`. Segment size is `mtu - 52` (20 IP + 20
   TCP + 12 timestamp option), so a full segment is exactly one MTU-sized
-  packet. Send and receive buffers are 1 MB.
+  packet. Send and receive buffers are 1 MB unless `--tcpBufBytes` is given;
+  TCP's first window is ns-3's own, 10 segments, unless `--tcpInitCwnd` is
+  given.
 - On node 0's device the root queue disc is `ns3::LinkQueueDisc` (6.2) with two
   child `FifoQueueDisc`s, each of `--queuePkts` packets unless its own length
   is given (`--queuePktsUdp`, `--queuePktsTcp`). The device's own queue
@@ -254,6 +256,8 @@ Options and defaults:
 | `duration` | 10 | a brief: fixed or knob |
 | `seed` | 1 | a brief: fixed or knob |
 | `queuePktsUdp`, `queuePktsTcp` | 0: as long as `queuePkts` says | a brief: left out, fixed or knob (a whole number of at least 1) |
+| `tcpInitCwnd` | 0: ns-3's own first window, 10 segments | a brief: left out, fixed or knob (a whole number of at least 1) |
+| `tcpBufBytes` | 0: 1 MB each | a brief: left out, fixed or knob (a whole number of at least 4096) |
 | `out` | (required) | the harness |
 | `warmup` (1), `tcp` (on), `udpTos` (0x10), `pcap` (off), `events` (0), `eventsAt` (0) | | the operator only, by starting the program directly |
 
@@ -263,7 +267,11 @@ each: at its default the program does what it did before the setting existed
 and writes the same files, byte for byte; `params.json` states such a setting
 only when it was given. So far: `queuePktsUdp` and `queuePktsTcp`, each queue's
 own length (build 5). A queue without its own length has the common
-`queuePkts`; once both are given, `queuePkts` has no effect.
+`queuePkts`; once both are given, `queuePkts` has no effect. Then, at the
+operator's word that values the scenario fixed should be settings where an
+experiment may turn on them (2026-11-15): `tcpInitCwnd`, TCP's first window in
+segments, and `tcpBufBytes`, the size in bytes of TCP's send buffer and of its
+receive buffer on both hosts (build 6).
 
 `--udpRate=0bps` leaves the UDP sender out and `--tcp=0` the TCP sender.
 `--events=MS` writes every packet-level event of a window of MS milliseconds to
@@ -364,13 +372,15 @@ starting the built program directly into `checks/<build>/`, never through
 | 4 | 11-11 | `udp_loss_frac` counted by packet uid (it could be slightly negative before) | `checks/build4/results.json`: checks 1 to 4 give the same value for every other metric; largest change of `udp_loss_frac` 0.000006 |
 
 | 5 | 11-14 | Each queue may have its own length: `--queuePktsUdp`, `--queuePktsTcp` (Step C, first setting) | `checks/build5/results.json`: with the new options left out, every run of checks 1 to 11 (17 runs; `metrics.json`, `series.csv`, `params.json`, `flowmon.xml`: 68 files) is byte-identical to the build-4 program run just before the change, and checks 1 to 4 to the files in `checks/build4/`; check 12 passes |
+| 6 | 11-15 | TCP's first window and TCP's buffers may be set: `--tcpInitCwnd`, `--tcpBufBytes` | `checks/build6/results.json`: with the new options left out, every run of checks 1 to 12 (26 runs; 104 files) is byte-identical to build 5; checks 13 and 14 pass |
 
-Build 5 is the current one. Both sweep tables (10.2) were made with build 4;
-build 5 writes the same files for settings that leave the new options out.
-The scripts that ran and compared the checks of build 5 are kept in its folder
-(`run_checks.py`, `compare.py`, `check12.py`).
+Build 6 is the current one. Both sweep tables (10.2) were made with build 4;
+builds 5 and 6 write the same files for settings that leave the new options
+out. The scripts that ran and compared the checks of a build are kept in its
+folder (`run_checks.py`, `compare.py`, `check12.py`, `check13_14.py`).
 
-The twelve checks; 1 to 11 as measured with build 3, 12 with build 5:
+The fourteen checks; 1 to 11 as measured with build 3, 12 with build 5, 13 and
+14 with build 6:
 
 | # | Settings | Measured | Result |
 |---|---|---|---|
@@ -387,6 +397,8 @@ The twelve checks; 1 to 11 as measured with build 3, 12 with build 5:
 | 10 | seed 1 twice, then seed 2 | seed 1 byte-identical; seed 2 differs in `series.csv`, metrics within 0.0002% | pass |
 | 11 | duration 2 and 30 against 10 | rates within 0.001%; counts under 50 events are exempt | pass (**DECISION 2026-11-11**: the exemption) |
 | 12 | separate queue lengths, predicted before the run: with queuePktsUdp 20 and queuePktsTcp 200 (and swapped; and under cap) no queue ever holds more than its own length and every drop happens with exactly that many waiting; both given as 100 is the default; `queuePkts` 37 is `queuePkts` 999 with both own lengths 37; one own length alone leaves the other queue at `queuePkts` | most waiting 20 and 200 (swapped: 200 and 20); in two recorded seconds 269,728 UDP drops all at 20 waiting and 4 TCP drops all at 200 (swapped: all at 200, 185 at 20; cap: 269,847 at 20, 4 at 200); the three pairs byte-identical in `metrics.json`, `series.csv`, `flowmon.xml` | pass |
+| 13 | TCP's first window, predicted before the run: with `tcpInitCwnd` 1, 4 and 40 (TCP alone, link delay 200 ms) the first congestion window recorded and the first burst that arrives are N x 1448 bytes; not given, the same with N = 10; given as 10 is the default; over 10 measured seconds it changes the goodput by less than 1 % | 1,448, 5,792 and 57,920 bytes, window and burst alike; not given 14,480; given as 10 byte-identical in `metrics.json`, `series.csv`, `flowmon.xml`; goodput with 1 against 40 segments differs by 0.0001 % | pass |
+| 14 | TCP's buffers, predicted before the run: with `tcpBufBytes` 65,536 and a round trip of 20 ms (TCP alone) the window cannot exceed the buffer, so goodput is at most 26.2 Mbps and at least 40 % of that; with 262,144 at most 104.9 Mbps and 3 to 4.5 times the first; given as 1,048,576 is the default | 26.16 Mbps (99.8 % of the bound); 104.65 Mbps (99.8 %; 4.0 times); given as 1,048,576 byte-identical in the three files | pass |
 
 `harness/check_objects.py` is run with them after a change of the
 scenario. The viewer's picture of the system (12.1) states values that the
@@ -398,7 +410,7 @@ updates them when the scenario changes. The check reads `two-hosts.cc` and
 with status 1 if a value differs or can no longer be read. For a setting added
 after build 4 it checks that the scenario has the option, that the object it
 belongs to is given it, and that the object's row in `objects.json` names it.
-On 2026-11-14: 46 values compared, 46 ok.
+On 2026-11-15, with build 6: 50 values compared, 50 ok.
 
 What checks 5a and 5b show: with short queues TCP's queue empties after a
 loss, and under share UDP then gets more than its configured part. With Cubic
@@ -425,7 +437,8 @@ account of the system.
 
 - every program option of the first nine rows of 6.1 is either fixed or a
   knob, never both;
-- **a setting added after build 4** (6.1: `queuePktsUdp`, `queuePktsTcp`) may
+- **a setting added after build 4** (6.1: `queuePktsUdp`, `queuePktsTcp`,
+  `tcpInitCwnd`, `tcpBufBytes`) may
   be left out, fixed or made a knob. Left out, it is in neither the brief nor
   the program's command line, so the briefs written before it and their
   sessions and sweeps are as they were. Refused: `queuePkts` as a knob while
@@ -438,7 +451,7 @@ account of the system.
 - values the program accepts; `min < max` with the default between; a meaning
   for every knob;
 - **a step** (optional, for a numeric knob: weightUdp, queuePkts, duration,
-  seed, mtu, queuePktsUdp, queuePktsTcp; a whole number where the knob is one; above 0 and at most
+  seed, mtu, queuePktsUdp, queuePktsTcp, tcpInitCwnd, tcpBufBytes; a whole number where the knob is one; above 0 and at most
   `max - min`): the model's values are rounded to it, counted from the knob's
   `min`, and the rounding is recorded as a clamp (asked, used). The model
   reads it in the brief with the knob's range. Two designs that round to the
@@ -1344,6 +1357,82 @@ and the measures taken there (the link: link rate, link delay, link use), as
 the parts of the picture where it is set or measured. `ev_words.py` checks
 it.
 
+*Readability, 2026-11-14 and 15* (**DECISIONS**, each at the operator's word;
+checks `ev_design.py`, `ev_board.py`, `ev_glance.py`).
+- *One kind of box.* Pointing at a hypothesis's box on the board (or at its
+  name in the table) opens its card: the name and how it ended, the question,
+  then six lines in a fixed order (why it asked, follows from, expected,
+  result, conclusion, led to). Pointing at an arrow or at its sign opens the
+  arrow's card: the result the later hypothesis names, with what was measured,
+  how it was judged and the AI's next step; a click opens the earlier test. An
+  arrow that passes over a column runs in the gap between two rows of boxes. A
+  brief's name has a box too: what it asks, built from its goal, the task in
+  the operator's words, the counts of its settings; the same words stand
+  beside the name on Home and in the lists of briefs.
+- *Grouping.* What belongs together stands in one region with an edge and a
+  ground of its own, with more space between two regions than inside one: the
+  seven blocks of "The setting" and of the set-up page, and each turn of the
+  notebook with its heading and all of its cards.
+- *Nothing changes size on a click.* The settings of the part chosen in the
+  picture stand in a card beside it that lies over what is below when it is
+  taller than the picture. On the set-up page every setting stands at once in
+  a row under the picture; pointing at a part sets off its settings there and
+  in block 2, and the other way round; the part's own form keeps one height.
+- *A test in full* (the detail pane): the headings of its notebook card
+  (Question, Why, Plan, Expected, Result, Conclusion, So next), each said once
+  and never cut; then its chart; folded, "The exact records" (the rule as
+  written, the check's raw numbers, the times); last the same test as one
+  picture. A simulation chosen inside an open test opens within it (an inset),
+  so the test stays in view; elsewhere a click opens its item in the pane.
+- *Section 2 in names and words.* "The session at a glance" has no shapes to
+  decode: a hypothesis is its name on a chip, tinted by how it ended as its box
+  on the board; a test is "H1 held" or "H1 failed"; the simulations of a turn
+  are a number; a verdict stands in the turn it was given; the final report is
+  the word "written". There is no row of decision rules: a rule stands with its
+  test. An empty place is the word "empty", "not checked", "not judged" or
+  "n running".
+- The brief's detail card names each setting by its plain label, with each
+  knob's range in words and where the session starts; a setting's meaning is in
+  the label's box and is not repeated.
+
+- *Rule against outcome, as a bar.* Where a decision rule compares measures
+  with numbers, the test's detail and its notebook card draw one horizontal
+  bar per comparison (`EV.ruleBars`): the scale runs over the values involved,
+  the region the rule allows is marked, and a mark stands where the simulation
+  came out; beside it the same in words. A rule the page cannot place on a
+  scale (not a comparison with a number) has no bar and stays in words.
+- *The board opens with the aim and closes with the answer.* Its first box is
+  the aim (the brief's goal with its conditions), its last the answer: what
+  the final report proposes and, after "because", its first reason in the
+  AI's words (the first claim whose role is "supports"; in a report without
+  roles its first claim). Lines run from the hypotheses the report's claims
+  cite to the answer. Pointing at the answer opens its card: Proposes,
+  Expects, then the report's claims word for word, sorted by the role the AI
+  gave them ("Because": supports, then background; "But": limits, with
+  "breaks when"); a report recorded without roles lists them as "Its claims"
+  and the page assigns none. On a board with many turns the last box says
+  only "answer"; the card is the same. Without a final report the box says
+  so and has no card.
+- *The set-up page shows the whole configuration at once.* Under the picture
+  of block 1 stands every part with all its settings (`#be-conf`), leaving out
+  what no experiment turns on (ports, addresses, counters); pointing at a part
+  sets off its settings there. The scheduling policy is shown there as chosen
+  in block 6. The two settings of build 6 (6.1) stand in block 2 and in the
+  list of all settings with three states, as each queue's own length does:
+  not set (the line says what the program then does: ns-3's first window of
+  10 segments, buffers of 1 MB each), fixed by the operator, or left to the
+  AI within a range. The picture's TCP socket shows them (first window, send
+  and receive buffer), at the program's own values when the brief leaves them
+  out.
+- *Conditions are chosen, not typed.* A condition of a given goal is three
+  lists (the measure, by its plain name; the comparison; the value with the
+  measure's unit), with as many conditions as wanted; the brief stores the
+  same text as before.
+- *Colour, sparingly.* Who produced an item is its icon in a toned-down
+  colour of its own (`--bt-*`); one accent (`--live`, a quiet teal) marks what
+  is happening now in a running session. A name and its value differ in
+  weight. A buffer's size is written as a person says it (64 kB, 1 MB).
+
 *Clicks that move the page* are stated in "How to read this page": a turn's
 name in section 2, a row of section 3, a box of the structure map, a line of
 section 6 that names a section, and the walk. No other click does.
@@ -2023,6 +2112,8 @@ untracked until they say otherwise.
 | 2026-11-14 | The board of "What it needed to find out", at the operator's word: the hypothesis map moved up, with arrows in the colour of the result that led onward; the table of the tests folded under it. |
 | 2026-11-14 | The live banner says how many simulations of the running experiment the harness has collected; a simulation's detail shows how the simulator was started. |
 | 2026-11-14 | Every new hypothesis says why it is asked (`why`, required), at the operator's word; the page shows it beside the question, and nothing where it was not recorded. |
+| 2026-11-15 | Readability, at the operator's word: cards for a hypothesis and for an arrow of the board, what a brief asks beside its name, grouping by regions, nothing changing size on a click, a test's detail in full under the headings of its card, a simulation opening inside its test, the glance in names and words, a bar for each rule against its outcome, the aim and the answer (with its reasons) on the board, the whole configuration and chosen conditions on the set-up page, toned colours with one accent for what is happening now. |
+| 2026-11-15 | Simulator build 6, at the operator's word that fixed values should be settings: TCP's first window (`tcpInitCwnd`) and TCP's buffers (`tcpBufBytes`), each left out, fixed or a knob of a brief; checks 13 and 14; the earlier checks byte-identical. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
@@ -2048,7 +2139,7 @@ above all, so the counts understate the size.
 | File | Lines | What it is |
 |---|---|---|
 | `loop.py` | 609 | the loop: one session; the answer format from the brief; `trim` |
-| `tools.py` | 258 | all the model can reach; the brief check; running simulations |
+| `tools.py` | 259 | all the model can reach; the brief check; running simulations |
 | `decision_rules.py` | 163 | reads and checks decision rules |
 | `schema.json` | 423 | the answer format (its params object is put in by loop.py) |
 | `prompt.txt` | 31 | the system prompt |
@@ -2058,7 +2149,7 @@ above all, so the counts understate the size.
 | `audit.py` | 88 | operator: the audit of a session's checks, verdicts, experiments and designs |
 | `score.py` | 137 | operator: score a session |
 | `export_session.py` | 70 | operator: export a session |
-| `check_objects.py` | 201 | operator: the picture of the system against the scenario source |
+| `check_objects.py` | 206 | operator: the picture of the system against the scenario source |
 | `make_trace.py` | 38 | operator: packet-event recordings |
 | `move_drafts.py` | 33 | operator, used once: draft text out of old ledgers |
 
@@ -2073,29 +2164,29 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 260 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 175 | the address, loading, the top bar, clicks, replay, review marks |
+| `index.html` | 308 | the shell: colours, styles, the list of scripts |
+| `evidence.js` | 185 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 177 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
-| `evidence_read.js` | 88 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
-| `evidence_notebook.js` | 100 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
+| `evidence_read.js` | 104 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
+| `evidence_notebook.js` | 102 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
 | `evidence_live.js` | 132 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
-| `evidence_words.js` | 123 | the words that need explaining: their marks, and the box that opens beside them |
-| `evidence_system.js` | 107 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
-| `evidence_glance.js` | 134 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
-| `evidence_page.js` | 128 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
+| `evidence_words.js` | 143 | the words that need explaining: their marks, and the box that opens beside them |
+| `evidence_system.js` | 110 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
+| `evidence_glance.js` | 125 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
+| `evidence_page.js` | 129 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 62 | the key moments of a session, by fixed rules: marks on the notebook (once the card “Highlights”) |
 | `evidence_best.js` | 82 | best so far |
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 55 | the work as a tree; the shared selection |
-| `evidence_views.js` | 105 | View 1 (session flow) and View 2 (the board of "What it needed to find out": the hypotheses by turn and what each follows from) |
+| `evidence_views.js` | 126 | View 1 (session flow) and View 2 (the board of "What it needed to find out": the hypotheses by turn and what each follows from) |
 | `evidence_flow.js` | 109 | View 3 (one test as a flow chart) and its chart |
-| `evidence_cards.js` | 101 | the trail, the work-log card, the brief; the model's numbers against the measurements |
-| `evidence_test.js` | 53 | the test panel |
-| `evidence_panels.js` | 101 | the experiment panel; the result panel of a simulation |
+| `evidence_cards.js` | 105 | the trail, the work-log card, the brief; the model's numbers against the measurements |
+| `evidence_test.js` | 69 | the test panel |
+| `evidence_panels.js` | 102 | the experiment panel; the result panel of a simulation |
 | `evidence_more.js` | 77 | summary, the tests list, the final report in full, the evidence sheet |
 | `evidence_top.js` | 65 | the drawings of "How to read this page" |
 | `evidence_verdicts.js` | 71 | verdicts against checks: the table of counts, in a session's summary and on Compare |
@@ -2108,7 +2199,7 @@ above all, so the counts understate the size.
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 56 | links, export, print |
 | `objects.json` | 78 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
-| `brief_editor.js` | 352 | the set-up page, “New session”: the seven blocks as forms |
+| `brief_editor.js` | 414 | the set-up page, “New session”: the seven blocks as forms |
 | `evidence_walk.js` | 61 | the guided walk: one sentence per section, from the records |
 | `brief_editor_old.js` | 237 | the brief editor of the older control page (index_full.html) |
 

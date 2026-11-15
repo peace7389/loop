@@ -1,0 +1,373 @@
+{
+ "build": 6,
+ "date": "2026-11-15",
+ "program_md5": "9aae0b31c904f5fdeff89c119bb49167",
+ "changed": "two options: --tcpInitCwnd (TCP's first window, in segments; 0 = ns-3's own, 10) and --tcpBufBytes (TCP's send and receive buffer, in bytes each; 0 = 1 MB); params.json states each only when it was given",
+ "checks_1_to_12_against_build5": {
+  "compared": "metrics.json, series.csv, params.json, flowmon.xml of every run of checks/build5 with the same command in this folder",
+  "summary": "26 runs, 104 files compared, 0 not identical",
+  "runs": {
+   "b1-was-negative": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c01-udp-alone": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c02-tcp-alone": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c03-share-w0.2": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c03-share-w0.5": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c03-share-w0.8": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c04-share-udp200m": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c05a-q4-newreno": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c05b-q4-cubic": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c06-cap-udp200m": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c07-cap-defaults": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c08-udp-default-tos": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c10-seed1-a": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c10-seed1-b": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c10-seed2": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c11-duration2": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c11-duration30": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12a-udp20-tcp200": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12b-udp200-tcp20": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12c-both100": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12c-defaults": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12d-common37": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12d-common999-own37": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12e-udp37-only": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12e-udp37-tcp100": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical",
+   "c12f-cap-udp20-tcp200": "metrics.json: identical | series.csv: identical | params.json: identical | flowmon.xml: identical"
+  }
+ },
+ "check12": {
+  "predicted_before_the_run": {
+   "12a": "queuePktsUdp 20, queuePktsTcp 200: the UDP queue never holds more than 20 packets and every UDP drop happens with exactly 20 waiting; the TCP queue never more than 200 and every TCP drop with exactly 200 waiting; the TCP queue is seen above 100 (the common default)",
+   "12b": "swapped (200, 20): the same with 200 for UDP and 20 for TCP",
+   "12c": "both given as 100 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without them (difference 0)",
+   "12d": "queuePkts 37 against queuePkts 999 with both own lengths 37: metrics.json, series.csv and flowmon.xml byte-identical (the common length has no effect once both are given)",
+   "12e": "queuePktsUdp 37 alone against queuePkts 100, queuePktsUdp 37, queuePktsTcp 100: byte-identical (a queue without its own length uses the common one)",
+   "12f": "under the other scheduling policy, (20, 200): the same limits as 12a"
+  },
+  "checks": [
+   {
+    "check": "12a",
+    "run": "c12a-udp20-tcp200",
+    "limits": {
+     "udp": 20,
+     "tcp": 200
+    },
+    "whole_run_series": {
+     "most_waiting_udp": 20,
+     "most_waiting_tcp": 199,
+     "drops_band0": 1348637,
+     "drops_band1": 20
+    },
+    "two_recorded_seconds": {
+     "most_waiting_udp": 20,
+     "most_waiting_tcp": 200,
+     "udp_drops_by_number_waiting": {
+      "20": 269728
+     },
+     "tcp_drops_by_number_waiting": {
+      "200": 4
+     }
+    },
+    "params_json": {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 100,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5,
+     "queuePktsUdp": 20,
+     "queuePktsTcp": 200
+    },
+    "pass": true
+   },
+   {
+    "check": "12b",
+    "run": "c12b-udp200-tcp20",
+    "limits": {
+     "udp": 200,
+     "tcp": 20
+    },
+    "whole_run_series": {
+     "most_waiting_udp": 200,
+     "most_waiting_tcp": 20,
+     "drops_band0": 1348637,
+     "drops_band1": 922
+    },
+    "two_recorded_seconds": {
+     "most_waiting_udp": 200,
+     "most_waiting_tcp": 20,
+     "udp_drops_by_number_waiting": {
+      "200": 269728
+     },
+     "tcp_drops_by_number_waiting": {
+      "20": 185
+     }
+    },
+    "params_json": {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 100,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5,
+     "queuePktsUdp": 200,
+     "queuePktsTcp": 20
+    },
+    "pass": true
+   },
+   {
+    "check": "12f",
+    "run": "c12f-cap-udp20-tcp200",
+    "limits": {
+     "udp": 20,
+     "tcp": 200
+    },
+    "whole_run_series": {
+     "most_waiting_udp": 20,
+     "most_waiting_tcp": 200,
+     "drops_band0": 1349234,
+     "drops_band1": 20
+    },
+    "two_recorded_seconds": {
+     "most_waiting_udp": 20,
+     "most_waiting_tcp": 200,
+     "udp_drops_by_number_waiting": {
+      "20": 269847
+     },
+     "tcp_drops_by_number_waiting": {
+      "200": 4
+     }
+    },
+    "params_json": {
+     "linkRate": "1Gbps",
+     "linkDelay": "50us",
+     "udpRate": "2Gbps",
+     "tcpVariant": "TcpCubic",
+     "mtu": 1500,
+     "queuePkts": 100,
+     "duration": 10,
+     "seed": 1,
+     "weightUdp": 0.5,
+     "queuePktsUdp": 20,
+     "queuePktsTcp": 200
+    },
+    "pass": true
+   },
+   {
+    "check": "12c",
+    "runs": [
+     "c12c-both100",
+     "c12c-defaults"
+    ],
+    "byte_identical": {
+     "metrics.json": true,
+     "series.csv": true,
+     "flowmon.xml": true
+    },
+    "params_json": [
+     {
+      "linkRate": "1Gbps",
+      "linkDelay": "50us",
+      "udpRate": "2Gbps",
+      "tcpVariant": "TcpCubic",
+      "mtu": 1500,
+      "queuePkts": 100,
+      "duration": 10,
+      "seed": 1,
+      "weightUdp": 0.5,
+      "queuePktsUdp": 100,
+      "queuePktsTcp": 100
+     },
+     {
+      "linkRate": "1Gbps",
+      "linkDelay": "50us",
+      "udpRate": "2Gbps",
+      "tcpVariant": "TcpCubic",
+      "mtu": 1500,
+      "queuePkts": 100,
+      "duration": 10,
+      "seed": 1,
+      "weightUdp": 0.5
+     }
+    ],
+    "pass": true
+   },
+   {
+    "check": "12d",
+    "runs": [
+     "c12d-common37",
+     "c12d-common999-own37"
+    ],
+    "byte_identical": {
+     "metrics.json": true,
+     "series.csv": true,
+     "flowmon.xml": true
+    },
+    "params_json": [
+     {
+      "linkRate": "1Gbps",
+      "linkDelay": "50us",
+      "udpRate": "2Gbps",
+      "tcpVariant": "TcpCubic",
+      "mtu": 1500,
+      "queuePkts": 37,
+      "duration": 10,
+      "seed": 1,
+      "weightUdp": 0.5
+     },
+     {
+      "linkRate": "1Gbps",
+      "linkDelay": "50us",
+      "udpRate": "2Gbps",
+      "tcpVariant": "TcpCubic",
+      "mtu": 1500,
+      "queuePkts": 999,
+      "duration": 10,
+      "seed": 1,
+      "weightUdp": 0.5,
+      "queuePktsUdp": 37,
+      "queuePktsTcp": 37
+     }
+    ],
+    "pass": true
+   },
+   {
+    "check": "12e",
+    "runs": [
+     "c12e-udp37-only",
+     "c12e-udp37-tcp100"
+    ],
+    "byte_identical": {
+     "metrics.json": true,
+     "series.csv": true,
+     "flowmon.xml": true
+    },
+    "params_json": [
+     {
+      "linkRate": "1Gbps",
+      "linkDelay": "50us",
+      "udpRate": "2Gbps",
+      "tcpVariant": "TcpCubic",
+      "mtu": 1500,
+      "queuePkts": 100,
+      "duration": 10,
+      "seed": 1,
+      "weightUdp": 0.5,
+      "queuePktsUdp": 37
+     },
+     {
+      "linkRate": "1Gbps",
+      "linkDelay": "50us",
+      "udpRate": "2Gbps",
+      "tcpVariant": "TcpCubic",
+      "mtu": 1500,
+      "queuePkts": 100,
+      "duration": 10,
+      "seed": 1,
+      "weightUdp": 0.5,
+      "queuePktsUdp": 37,
+      "queuePktsTcp": 100
+     }
+    ],
+    "pass": true
+   }
+  ]
+ },
+ "check13": {
+  "predicted_before_the_run": {
+   "13a": "first window 1, 4, 40 segments: the first congestion window recorded is N x 1448 bytes, and the first burst that arrives is N x 1448 bytes (N full segments before any acknowledgement)",
+   "13b": "not given: the same with N = 10, ns-3's own first window",
+   "13c": "given as 10 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without it",
+   "13d": "over 10 measured seconds on the default link the first window changes the goodput by less than 1 % (1 against 40 segments): it matters at the start only"
+  },
+  "checks": [
+   {
+    "check": "13a",
+    "run": "c13a-first1",
+    "predicted_bytes": 1448,
+    "first_window_bytes": 1448,
+    "first_burst_bytes": 1448,
+    "pass": true
+   },
+   {
+    "check": "13a",
+    "run": "c13a-first4",
+    "predicted_bytes": 5792,
+    "first_window_bytes": 5792,
+    "first_burst_bytes": 5792,
+    "pass": true
+   },
+   {
+    "check": "13a",
+    "run": "c13a-first40",
+    "predicted_bytes": 57920,
+    "first_window_bytes": 57920,
+    "first_burst_bytes": 57920,
+    "pass": true
+   },
+   {
+    "check": "13b",
+    "run": "c13b-first-not-given",
+    "predicted_bytes": 14480,
+    "first_window_bytes": 14480,
+    "first_burst_bytes": 14480,
+    "pass": true
+   },
+   {
+    "check": "13c",
+    "identical": {
+     "metrics.json": true,
+     "series.csv": true,
+     "flowmon.xml": true
+    },
+    "pass": true
+   },
+   {
+    "check": "13d",
+    "goodput_first1_bps": 964048282,
+    "goodput_first40_bps": 964047123,
+    "difference_percent": 0.0001,
+    "pass": true
+   }
+  ]
+ },
+ "check14": {
+  "predicted_before_the_run": {
+   "14a": "buffers of 65,536 bytes, round trip 20 ms: the window cannot exceed the buffer, so goodput is at most 8 x 65,536 / 0.020 = 26.2 Mbps, and at least 40 % of that",
+   "14b": "buffers of 262,144 bytes: at most 104.9 Mbps and at least 40 % of that; between 3 and 4.5 times the goodput of 14a (four times the buffer)",
+   "14c": "given as 1,048,576 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without it"
+  },
+  "checks": [
+   {
+    "check": "14a",
+    "bound_bps": 26214400.0,
+    "goodput_bps": 26163200,
+    "share_of_bound": 0.998,
+    "pass": true
+   },
+   {
+    "check": "14b",
+    "bound_bps": 104857600.0,
+    "goodput_bps": 104649114,
+    "share_of_bound": 0.998,
+    "ratio_to_14a": 4.0,
+    "pass": true
+   },
+   {
+    "check": "14c",
+    "identical": {
+     "metrics.json": true,
+     "series.csv": true,
+     "flowmon.xml": true
+    },
+    "pass": true
+   }
+  ]
+ }
+}

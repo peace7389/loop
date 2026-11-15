@@ -1,6 +1,7 @@
 // BRIEF_EDITOR: the set-up page, "New session". It has the seven blocks of a session's "The setting"
 // (evidence_setting.js), in the same order, built from the same pieces; here each block is a form:
-//   1 The network          the picture of the system; a click on a part opens its settings to set
+//   1 The network          the picture of the system; a click on a part opens its settings to set, in a place of one fixed height;
+//                          pointing at a part sets off its rows in block 2, and pointing at a row sets off its parts
 //   2 Who decides what     each setting: fixed by the operator (a value), or the AI may change it (a range, a step)
 //   3 The aim              a ready-made aim, or a target with conditions and a tolerance, or "open: the AI chooses"
 //   4 What the AI is told, is not told, and can do    the task and the description to write; the three lists, which
@@ -20,6 +21,8 @@
 //                                           flags(): the choices of blocks 6 and 7, after(): reload the page's data, go(o): to another view }
 // The editor of the older control page (index_full.html) is brief_editor_old.js.
 // ======================================================================================================
+// what a brief asks, after its name in the list of briefs (from its goal; '' until its file is read, and outside the evidence page)
+const briefAsks = b => (typeof EV !== 'undefined' && EV.briefSaysPlain && EV.briefSaysPlain(b) ? ' — ' + EV.briefSaysPlain(b) : '');
 const BRIEF_EDITOR = {
   // every setting of the program, in the order shown; every one can be fixed or opened to the AI (the answer format is built from the brief).
   // step: a numeric knob may have one; open: the range and meaning offered when a setting no brief has opened yet is switched to a knob
@@ -32,6 +35,9 @@ const BRIEF_EDITOR = {
     { k: 'queuePkts', kind: 'num', whole: true, least: 1, hint: 'packets', step: true },
     { k: 'queuePktsUdp', kind: 'num', whole: true, least: 1, hint: 'packets', step: true, as: 'queuePkts', open: { min: '4', max: '1000', meaning: 'most packets the UDP queue holds' } },
     { k: 'queuePktsTcp', kind: 'num', whole: true, least: 1, hint: 'packets', step: true, as: 'queuePkts', open: { min: '4', max: '1000', meaning: 'most packets the TCP queue holds' } },
+    // the two settings of build 6: a brief may leave them out (the program then does what it always did), fix them, or leave them to the AI
+    { k: 'tcpInitCwnd', kind: 'num', whole: true, least: 1, hint: 'segments', step: true, as: 'default', dflt: ['10', "TCP's first window is ns-3's own, 10 segments"], open: { min: '1', max: '100', meaning: "TCP's first window: the segments it sends before its first acknowledgement" } },
+    { k: 'tcpBufBytes', kind: 'num', whole: true, least: 4096, hint: 'bytes', step: true, as: 'default', dflt: ['1048576', "TCP's send and receive buffers are 1 MB each"], open: { min: '65536', max: '4194304', meaning: "TCP's send buffer and its receive buffer, in bytes each" } },
     { k: 'tcpVariant', kind: 'choice', hint: 'e.g. TcpCubic' }, { k: 'duration', kind: 'num', above: 0, hint: 'seconds', step: true },
     { k: 'seed', kind: 'num', whole: true, least: 1, hint: 'whole number', step: true }],
   // ready-made aims: [key, the aim in words, measure, direction, conditions]
@@ -46,7 +52,7 @@ const BRIEF_EDITOR = {
   CSS: `
 .be label { display: block; font-size: var(--f-text); font-weight: 600; } .be small { display: block; font-size: var(--f-sec); font-weight: 400; color: var(--text-muted); margin: 1px 0 4px; }
 .be input[type=text], .be input[type=number], .be select, .be textarea { width: 100%; padding: 4px 8px; font-weight: 400; } .be textarea { resize: vertical; line-height: 1.45; }
-.be-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px 22px; align-items: start; margin-bottom: 12px; }
+.be-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px 22px; align-items: start; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-0); padding: 9px 13px 11px; }
 .be-row { display: grid; grid-template-columns: 150px 250px minmax(0, 1fr); gap: 8px 14px; align-items: start; padding: 8px 0; border-top: 1px solid var(--grid); }
 .be-row code { display: block; font-size: var(--f-sec); color: var(--text-muted); }
 .be-sw { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; } .ev .be-sw button { font-size: var(--f-sec); padding: 3px 9px; border: 0; border-radius: 0; background: var(--surface-1); color: var(--text-secondary); }
@@ -56,6 +62,11 @@ const BRIEF_EDITOR = {
 .be .be-why { display: block; color: var(--warning); font-size: var(--f-sec); font-weight: 600; margin: 1px 0 0; } .be .be-why:empty { display: none; } .be input.bad, .be textarea.bad, .be select.bad { border-color: var(--warning); }
 .be input.chg, .be textarea.chg, .be select.chg, .be .be-sw.chg { box-shadow: inset 3px 0 0 var(--text-primary); } .be .chg-note { font-weight: 600; }
 .be-aim label { font-weight: 400; margin: 3px 0; } .be-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 6px; }
+.be-conf { display: grid; grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)); gap: 6px 8px; margin: 8px 0 2px; } .be-c { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); padding: 4px 9px 5px; font-size: var(--f-note); min-width: 0; }
+.be-c-h { margin-bottom: 2px; } .be-c-h b { font-size: var(--f-sec); } .be-c-h span { color: var(--text-muted); } .be-c-r { display: grid; grid-template-columns: 43% minmax(0, 1fr); gap: 0 6px; line-height: 1.4; } .be-c-r > span { color: var(--text-secondary); } .be-c-r > b { font-weight: 500; overflow-wrap: anywhere; } .be-c-r[data-knob] > b { font-weight: 700; }
+.be-c.wd-hot-row, .be-c.pin { border-color: var(--text-primary); box-shadow: 0 0 0 1.5px var(--text-primary); } .be-c.wd-hot-row { background: color-mix(in srgb, var(--text-primary) 8%, var(--surface-1)); }
+.be table.be-who tr.wd-hot-row td { background: color-mix(in srgb, var(--text-primary) 11%, transparent); } .be table.be-who tr.wd-hot-row td:first-child { box-shadow: inset 3px 0 0 var(--text-primary); font-weight: 700; } .be table.be-who td:first-child { padding-left: 7px; }
+.be-conds { margin-top: 4px; } .be-cond { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 3px 0; } .be-cond select { width: auto; } .be-cond input[data-cond=v] { width: 8em; } .be-cond-h { font-size: var(--f-text); } .be-condbox small { color: var(--text-secondary); font-size: var(--f-sec); }
 .be-var { display: flex; flex-wrap: wrap; gap: 6px; } .ev .be-var button { font-size: var(--f-sec); text-align: left; padding: 3px 9px; } .be-pic svg g[data-act] { cursor: pointer; }
 .be-start { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-top: 14px; } .be-start .ev-head { position: static; box-shadow: none; margin: 6px 0 10px; }
 .be-msg { margin: 8px 0 0; font-size: var(--f-text); padding: 6px 10px; border-left: 3px solid var(--border); } .be-msg ul { margin: 4px 0 0; padding-left: 18px; }
@@ -133,6 +144,14 @@ const BRIEF_EDITOR = {
     if (!B.node) {
       B.node = document.createElement('div'); B.node.className = 'be';
       B.node.addEventListener('input', B.onInput); B.node.addEventListener('change', B.onInput); B.node.addEventListener('click', B.onClick);
+      // the picture and the table of every setting ("Who decides what") set each other off: pointing at a part of the picture sets off the rows of
+      // the settings that part shows (as objects.json records them); pointing at a row sets off the parts that show that setting
+      B.node.addEventListener('mouseover', ev => { const c = s => (ev.target.closest ? ev.target.closest(s) : null), g = c('#be-pic svg g[data-id]') || c('#be-conf [data-part]'), tr = c('#be-who tr[data-row]'), id = g ? g.dataset.id || g.dataset.part : '', at = g ? 'p:' + id : tr ? 'r:' + tr.dataset.row : '';
+        if (at === B.linkAt) return; B.linkAt = at; B.node.querySelectorAll('.wd-hot-row, .ohot').forEach(el => el.classList.remove('wd-hot-row', 'ohot'));
+        const part = pid => { B.node.querySelectorAll(`#be-conf [data-part="${pid}"]`).forEach(el => el.classList.add('wd-hot-row')); B.node.querySelectorAll('#be-pic svg g[data-id]').forEach(q => { if (q.dataset.id === pid) q.classList.add('ohot'); }); };
+        if (g) { part(id); B.linkKeys(id).forEach(k => B.node.querySelectorAll(`#be-who tr[data-row="${k}"]`).forEach(r => r.classList.add('wd-hot-row'))); }
+        else if (tr) B.node.querySelectorAll('#be-pic svg g[data-id]').forEach(q => { if (B.linkKeys(q.dataset.id).includes(tr.dataset.row)) part(q.dataset.id); }); });
+      B.node.addEventListener('mouseleave', () => { B.linkAt = ''; B.node.querySelectorAll('.wd-hot-row, .ohot').forEach(el => el.classList.remove('wd-hot-row', 'ohot')); });
       B.node.addEventListener('focusin', ev => { B.typing = ev.target; }); B.node.addEventListener('focusout', ev => { if (ev.relatedTarget ? !B.node.contains(ev.relatedTarget) : B.node.isConnected) B.typing = null; });  // kept when the page's redraw took the node out
       host.appendChild(B.node);
       B.node.innerHTML = '<p class="sm">Loading the briefs…</p>';
@@ -195,7 +214,7 @@ const BRIEF_EDITOR = {
   picture() { if (EV.OB === undefined) EV.sysLoad(); return !!EV.OB; },
   // the picture as the form says now: each value in the colour of its state (drawn again as a value is typed: paint())
   picSvg() { const B = BRIEF_EDITOR, s = B.s, num = (kind, t) => (kind === 'num' && String(t).trim() !== '' && isFinite(Number(t)) ? Number(t) : String(t).trim());
-    const key = n => EV.sysOwn(n, k => !!s.set[k] && !s.set[k].off), v = EV.sysDerive(Object.fromEntries(B.SETTINGS.filter(({ k }) => !s.set[k].off).map(({ k, kind }) => [k, num(kind, s.set[k].fixed ? s.set[k].value : s.set[k].def)]))), on = EV.sysFind(s.obj) ? s.obj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
+    const key = n => EV.sysOwn(n, k => !!s.set[k] && !s.set[k].off), v = EV.sysDerive(Object.fromEntries(B.SETTINGS.filter(({ k }) => !s.set[k].off).map(({ k, kind }) => [k, num(kind, s.set[k].fixed ? s.set[k].value : s.set[k].def)]))), on = EV.sysFind(s.obj) ? s.obj : '';
     return EV.sysSvg({ v, knob: n => !s.set[key(n)] ? false : !s.set[key(n)].fixed, fixed: n => !!s.set[key(n)] && s.set[key(n)].fixed, on, act: 'beobj', pol: '<text x="432" y="162" text-anchor="middle" class="sv" id="sy-pol">policy not told to the AI</text>' }); },
   // the settings a part of the picture holds: those its rows of objects.json name (a queue: the common length, and its own)
   partSettings(id) { const B = BRIEF_EDITOR, f = EV.sysFind(id), keys = f ? [...new Set(f.o.rows.flatMap(([, text]) => [...String(text).matchAll(/\{(\w+)\}/g)].flatMap(m => { const k = EV.sysKey(m[1]); return EV.SYS_OWN[k] ? [EV.SYS_OWN[k], k] : [k]; })))] : []; return B.SETTINGS.filter(q => keys.includes(q.k)); },
@@ -205,8 +224,8 @@ const BRIEF_EDITOR = {
     return `<span class="be-sw">${q.as ? `<button data-sw="${k}" data-to="off" class="${f.off ? 'on' : ''}">not set</button>` : ''}<button data-sw="${k}" data-to="fixed" class="${!f.off && f.fixed ? 'on' : ''}">fixed by the operator</button><button data-sw="${k}" data-to="knob" class="${f.off || f.fixed ? '' : 'on'}">the AI may change it</button></span>${BRIEF_EDITOR.why('sw.' + k)}`; },
   // one roomy row of a setting: its name, the switch, every field with its own label (a part's settings under the picture; "all settings as a list")
   row(q) {
-    const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e, inp = B.inp, { k, kind, hint, step, as } = q, f = s.set[k], common = as ? EV.LABEL[as] : null, W = x => B.why(`set.${k}.${x}`);
-    const fields = f.off ? `<div class="be-f"><small class="wide" data-off="${k}">Not set: it is as long as the ${e(common)} (${e(as)}) says. The brief does not name it, and the simulations are started as before this setting existed.</small></div>` : f.fixed ? `<div class="be-f"><label><small>value</small>${inp(`set.${k}.value`, f.value, hint)}${W('value')}</label></div>`
+    const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e, inp = B.inp, { k, kind, hint, step, as } = q, f = s.set[k], common = as ? EV.LABEL[as] : null, notSet = q.dflt ? `Not set: ${q.dflt[1]}.` : `Not set: it is as long as the ${e(common)} (${e(as)}) says.`, W = x => B.why(`set.${k}.${x}`);
+    const fields = f.off ? `<div class="be-f"><small class="wide" data-off="${k}">${notSet} The brief does not name it, and the simulations are started as before this setting existed.</small></div>` : f.fixed ? `<div class="be-f"><label><small>value</small>${inp(`set.${k}.value`, f.value, hint)}${W('value')}</label></div>`
       : `<div class="be-f">${kind === 'choice' ? `<label class="wide"><small>choices, separated by commas</small>${inp(`set.${k}.choices`, f.choices, 'TcpCubic, TcpNewReno')}${W('choices')}</label>`
           : `<label><small>from</small>${inp(`set.${k}.min`, f.min, hint)}${W('min')}</label><label><small>to</small>${inp(`set.${k}.max`, f.max, hint)}${W('max')}</label>`}
          <label><small>default</small>${inp(`set.${k}.def`, f.def, hint)}${W('def')}</label>${step ? `<label title="The AI's values are rounded to it, counted from “from”; the rounding is recorded. Empty: no step."><small>step (optional)</small>${inp(`set.${k}.step`, f.step || '', 'none')}${W('step')}</label>` : ''}
@@ -214,10 +233,46 @@ const BRIEF_EDITOR = {
     return `<div class="be-row" data-row="${k}"><div><b>${e(EV.LABEL[k] || k)}</b><code>${e(k)}</code></div><div>${B.sw(q)}</div>${fields}</div>`;
   },
   // block 2: one line per setting; the switch, then a value, or a range with its default and an optional step
+  // the settings a part of the picture shows: the names in braces in its rows of objects.json (a queue's own length also stands for the common one)
+  linkKeys(id) { const f = typeof EV !== 'undefined' && EV.OB && EV.sysFind(id); if (!f) return []; const own = { tcpShare: 'weightUdp', tcpVariantPlain: 'tcpVariant', segment: 'mtu' };
+    return [...new Set(f.o.rows.flatMap(([, text]) => [...String(text).matchAll(/\{(\w+)\}/g)].flatMap(m => { const k = own[m[1]] || m[1]; return k === 'queuePktsUdp' || k === 'queuePktsTcp' ? [k, 'queuePkts'] : [k]; })))]; },
+  // block 1, under the picture: the whole configuration of the network at once, one small card per part of the picture with every value it has
+  // (objects.json), as the form has it now; a value the AI may change carries its mark. Pointing at a part of the picture sets off its card, and
+  // the other way round. The settings themselves are edited in block 2.
+  confVals() { const B = BRIEF_EDITOR, s = B.s, num = (kind, t) => (kind === 'num' && String(t).trim() !== '' && isFinite(Number(t)) ? Number(t) : String(t).trim()), key = n => EV.sysOwn(n, k => !!s.set[k] && !s.set[k].off);
+    return { v: EV.sysDerive(Object.fromEntries(B.SETTINGS.filter(({ k }) => !s.set[k].off).map(({ k, kind }) => [k, num(kind, s.set[k].fixed ? s.set[k].value : s.set[k].def)]))), knob: n => !!s.set[key(n)] && !s.set[key(n)].fixed }; },
+  CONF_SKIP: ['To', 'Port', 'Address', 'Counts', 'Reported as', 'Added by', 'Carries', 'Stores packets', 'Takes', 'Priority mark', 'Header added'],
+  confGrid() {
+    const B = BRIEF_EDITOR, e = B.ctx.e, O = EV.OB, { v, knob } = B.confVals(), of = (h, back) => (back ? O.layers.slice().reverse() : O.layers).flatMap(l => (h[l.key] || []).map((o, i) => [`${h.key}-${l.key}-${i}`, o, `${h.title.toLowerCase()} · ${l.name.toLowerCase()}`]));
+    const parts = [...of(O.hosts[0]), ['link', O.channel, 'between the two devices'], ...O.hosts.slice(1).flatMap(h => of(h, true))];  // in the order a packet meets them: the sender from its applications down, the link, the receiver from its device up
+    // only what configures the network: a row that names an address or a port, or that says what a part is for, is left out (it stands in the part's own card
+    // on a session's page); a part left without a row is left out with it
+    const rowsOf = o => o.rows.filter(([k]) => !B.CONF_SKIP.includes(k)), pol = ((typeof EV !== 'undefined' && EV.nw) || {}).policy;
+    return parts.filter(([, o]) => rowsOf(o).length).map(([id, o, where]) => `<div class="be-c${B.s.obj === id ? ' pin' : ''}" data-part="${id}"><div class="be-c-h"><b>${e(o.name)}</b> <span>${e(where)}</span></div>${rowsOf(o).map(([k, text, flag]) => { const kn = [...String(text).matchAll(/\{(\w+)\}/g)].some(m => knob(m[1]));
+      return `<div class="be-c-r"${kn ? ' data-knob="1"' : ''}><span>${e(k)}</span><b>${flag === 'op' ? `<span data-policy="${e(pol || '')}">${e(pol || 'not chosen')}</span> <i class="mut">· chosen in block 6, not told to the AI</i>` : (kn ? '✦ ' : '') + e(EV.sysFill(text, v))}</b></div>`; }).join('')}</div>`).join('');
+  },
+  // A condition is stored as the harness reads it ("udp_loss_frac <= 0.01"); the form shows it as a row built from lists, so that nobody has to know
+  // the measures' field names or the grammar: the measure by its plain name, the comparison in words, the value in the unit the page uses everywhere
+  // (rates in Mbps, fractions in per cent, counts as they are). Several rows: all must hold.
+  COND_OPS: [['<=', 'at most'], ['>=', 'at least'], ['<', 'under'], ['>', 'over'], ['==', 'equal to']],
+  condUnit: k => (/_bps$/.test(k) ? ['Mbps', 1e6] : ['udp_loss_frac', 'link_util'].includes(k) ? ['%', 0.01] : ['', 1]),
+  condParse(c) { const m = /^(\w+)\s*(<=|>=|<|>|==)\s*([-\d.eE]+)$/.exec(c.trim()); return m && BRIEF_EDITOR.OUTPUTS.includes(m[1]) ? { k: m[1], op: m[2], v: Number(m[3]) } : null; },
+  condRows() {
+    const B = BRIEF_EDITOR, e = B.ctx.e, plain = k => (typeof TH_DATA !== 'undefined' && TH_DATA.PLAIN[k]) || k, lines = B.s.conditions.split('\n').map(c => c.trim()).filter(Boolean);
+    const row = (c, i) => { const p = B.condParse(c); if (!p) return `<div class="be-cond" data-i="${i}"><input type="text" data-cond="raw" value="${e(c)}" spellcheck="false" style="flex:1"><button class="cl" data-cond-del="${i}">remove</button></div>`;
+      const [unit, f] = B.condUnit(p.k);
+      return `<div class="be-cond" data-i="${i}"><select data-cond="k" aria-label="measure">${B.OUTPUTS.map(k => `<option value="${k}"${k === p.k ? ' selected' : ''}>${e(plain(k))}</option>`).join('')}</select>
+        <select data-cond="op" aria-label="comparison">${B.COND_OPS.map(([op, w]) => `<option value="${e(op)}"${op === p.op ? ' selected' : ''}>${w}</option>`).join('')}</select>
+        <input type="text" data-cond="v" value="${e(Number((p.v / f).toPrecision(12)))}" spellcheck="false" aria-label="value"><span class="sm be-cond-u">${unit}</span><button class="cl" data-cond-del="${i}" title="remove this condition">remove</button></div>`; };
+    return `<div class="be-conds" id="be-conds">${lines.map(row).join('') || '<p class="sm" style="margin:0">No condition: every result counts.</p>'}<p style="margin:3px 0 0"><button class="cl" data-cond-add="1">add a condition</button></p></div>`;
+  },
+  // the conditions as the rows say now, back into the stored form
+  condRead() { const B = BRIEF_EDITOR; B.s.conditions = [...B.node.querySelectorAll('#be-conds .be-cond')].map(r => { const raw = r.querySelector('[data-cond=raw]'); if (raw) return raw.value.trim(); const k = r.querySelector('[data-cond=k]').value, v = r.querySelector('[data-cond=v]').value.trim(), f = B.condUnit(k)[1];
+      return `${k} ${r.querySelector('[data-cond=op]').value} ${v !== '' && isFinite(Number(v)) ? Number((Number(v) * f).toPrecision(12)) : v}`; }).filter(Boolean).join('\n'); },
   whoTable() {
     const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e, inp = B.inp, lab = t => `<span class="lab">${t}</span>`;
     const line = q => { const { k, kind, hint, step } = q, f = s.set[k], W = x => B.why(`set.${k}.${x}`);
-      const fields = f.off ? `<span class="sm" data-off="${k}">as the ${e(EV.LABEL[q.as])}</span>` : f.fixed ? `${inp(`set.${k}.value`, f.value, hint, 'w')}${W('value')}`
+      const fields = f.off ? `<span class="sm" data-off="${k}">${q.dflt ? e(q.dflt[1]) : 'as the ' + e(EV.LABEL[q.as])}</span>` : f.fixed ? `${inp(`set.${k}.value`, f.value, hint, 'w')}${W('value')}`
         : kind === 'choice' ? `${inp(`set.${k}.choices`, f.choices, 'TcpCubic, TcpNewReno', 'w')}${lab('from')}${inp(`set.${k}.def`, f.def, hint, 'w')}${W('choices')}${W('def')}`
         : `${inp(`set.${k}.min`, f.min, hint)}${lab('to')}${inp(`set.${k}.max`, f.max, hint)}${lab('from')}${inp(`set.${k}.def`, f.def, hint)}${step ? `${lab('step')}${inp(`set.${k}.step`, f.step || '', 'none')}` : ''}${W('min')}${W('max')}${W('def')}${W('step')}`;
       return `<tr data-row="${k}"><td>${EV.label(k, f.meaning)}</td><td>${B.sw(q)}</td><td>${fields}${B.why(`set.${k}.meaning`)}</td></tr>`; };
@@ -233,8 +288,8 @@ const BRIEF_EDITOR = {
       const on = EV.sysFind(s.obj) ? s.obj : EV.sysId('sender', 'tc', 'Scheduler') || 'link';
       const f = EV.sysFind(on), mine = B.partSettings(on), around = (EV.OB.around || []).map((o, i) => `<a data-act="beobj" data-id="around-${i}" style="cursor:pointer${on === 'around-' + i ? ';font-weight:700' : ''}">${e(o.name.toLowerCase())}</a>`).join(', ');
       b1 = `<div class="be-pic" id="be-pic"><div class="ev-scroll" id="be-svg">${B.picSvg()}</div>
-          <p class="sm gl-key">${EV.sysLegend()}${around ? `<span>outside a packet's path: ${around}</span>` : ''}<span>click a part to open its settings</span></p></div>
-        <p class="sm" id="be-part" style="margin:6px 0 2px"><b>${e(f.o.name)}</b> · ${mine.length ? `its setting${mine.length === 1 ? '' : 's'}:` : 'this part has no setting a brief can set.'}</p>${mine.map(B.row).join('')}`;
+          <p class="sm gl-key">${EV.sysLegend()}${around ? `<span>outside a packet's path: ${around}</span>` : ''}<span>below: every value of every part · point at a part and its card is set off · the settings are edited in block 2</span></p>
+          <div class="be-conf" id="be-conf" data-exact="1">${B.confGrid()}</div></div>`;
     }
     // 2 · who decides what
     const b2 = `${B.whoTable()}<p class="sm" style="margin-top:6px"><button class="cl" id="be-list" data-list="${s.list ? '0' : '1'}">${s.list ? 'close the list' : 'all settings as a list'}</button> the older form: one row per setting, with the line the AI reads about it</p>${s.list ? `<div id="be-rows">${B.SETTINGS.map(B.row).join('')}</div>` : ''}`;
@@ -243,8 +298,8 @@ const BRIEF_EDITOR = {
     const ready = s.goal === 'given' ? B.AIMS.find(a => a[2] === s.measure && a[3] === s.direction && JSON.stringify(a[4]) === JSON.stringify(conds)) : null, aim = s.goal === 'open' ? 'open' : ready && !s.custom ? ready[0] : 'custom';
     const radio = (v, html) => `<label><input type="radio" name="be-aim" data-aim="${v}"${aim === v ? ' checked' : ''}> ${html}</label>`;
     const b3 = `<div class="be-aim" id="be-aim">${B.AIMS.map(a => radio(a[0], `ready-made: ${e(a[1])}`)).join('')}${radio('custom', 'a target with conditions and a tolerance')}${radio('open', '<b>open</b>: the AI chooses its own aim and has to justify it')}</div>
-      ${s.goal === 'given' ? `<div class="be-two" id="be-goal"><label>Target<small>one of the measures</small>${pick('measure', s.measure, B.OUTPUTS)}</label><label>Direction<small>as large or as small as possible</small>${pick('direction', s.direction, ['max', 'min'])}</label>
-        <label style="grid-column:1/-1">Conditions<small>one per line, e.g. udp_loss_frac &lt;= 0.01; all must hold</small><textarea data-f="conditions" rows="2" spellcheck="false">${e(s.conditions)}</textarea>${B.why('conditions')}</label>
+      ${s.goal === 'given' ? `<div class="be-two" id="be-goal"><label>Target<small>the measure to make as large or as small as possible</small><select data-f="measure">${B.OUTPUTS.map(k => `<option value="${k}"${k === s.measure ? ' selected' : ''}>${e((typeof TH_DATA !== 'undefined' && TH_DATA.PLAIN[k]) || k)}</option>`).join('')}</select></label><label>Direction<small>which way is better</small><select data-f="direction"><option value="max"${s.direction === 'max' ? ' selected' : ''}>as large as possible</option><option value="min"${s.direction === 'min' ? ' selected' : ''}>as small as possible</option></select></label>
+        <div style="grid-column:1/-1" class="be-condbox"><b class="be-cond-h">Conditions</b> <small>each a measure, a comparison and a value, chosen from the lists; all must hold</small>${B.condRows()}${B.why('conditions')}</div>
         <label>Tolerance, per cent (optional)<small>two results closer than this count as equal; default: none</small>${inp('tolerance', s.tolerance || '', 'none, e.g. 1')}${B.why('tolerance')}</label></div>` : ''}<div id="be-aim-says" style="margin-top:6px"></div>`;
     // 4 · what the AI is told, is not told, and can do
     const b4 = `<div class="be-two"><label>The task<small>the question, as the AI reads it</small><textarea data-f="task" rows="4">${e(s.task)}</textarea>${B.why('task')}</label>
@@ -263,7 +318,7 @@ const BRIEF_EDITOR = {
         ${field('temperature', `<input type="number" min="0" max="2" step="0.1" data-ch="nw" data-k="temp" value="${e(nw.temp)}" placeholder="0.3">`, 'default: 0.3', 'temp')}
         ${field('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on · every knob at its default, by the harness')}</div>`;
     const blk = (i, body, cls) => EV.setBlock(i, body, { says: true, cls });
-    const top = `<div class="be-top"><label>Start from a saved brief<small>its content fills the seven blocks</small><select id="be-open">${s.from ? `<option selected value="">the set-up of session ${e(s.from)}</option>` : ''}${briefs.map(b => `<option${b === s.baseId ? ' selected' : ''}>${e(b)}</option>`).join('')}</select></label>
+    const top = `<div class="be-top"><label>Start from a saved brief<small>its content fills the seven blocks</small><select id="be-open">${s.from ? `<option selected value="">the set-up of session ${e(s.from)}</option>` : ''}${briefs.map(b => `<option value="${e(b)}"${b === s.baseId ? ' selected' : ''}>${e(b)}${briefAsks(b)}</option>`).join('')}</select></label>
         <label>Name of the new brief<small>needed once the form differs from every saved brief · letters, digits, - and _</small>${inp('id', s.id, 'e.g. two-hosts-short-queue')}${B.why('id')}</label>
         <div><label>Variations of ${e(s.baseId || s.fromBrief || 'this brief')}</label><small>each makes one change in the form and proposes a name</small><div class="be-var" id="be-var">${B.VARIATIONS.map(([k, name, , what, no]) => `<button data-var="${k}"${no(s) ? ` disabled title="${e(no(s))}"` : ` title="${e(what)}"`}>${e(name)}</button>`).join('')}</div></div></div>`;
     B.node.innerHTML = `${top}<div class="st" id="st-blocks">${blk(0, b1, 'st-wide')}${blk(1, b2)}${blk(2, b3)}${blk(3, b4, 'st-told')}<div class="st-row st-low">${blk(4, b5)}${blk(5, b6)}${blk(6, b7)}</div></div>
@@ -277,8 +332,9 @@ const BRIEF_EDITOR = {
     const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e, st = B.ctx.st || {}, $ = id => B.node.querySelector('#' + id), nw = EV.nw;
     if (!s || !s.set || !$('be-save')) return;
     const briefs = st.briefs || [];
-    if (briefs.join('|') !== B.list && document.activeElement !== $('be-open')) { B.list = briefs.join('|'); $('be-open').innerHTML = (s.from ? `<option selected value="">the set-up of session ${e(s.from)}</option>` : '') + briefs.map(b => `<option${b === s.baseId ? ' selected' : ''}>${e(b)}</option>`).join(''); }
+    if (briefs.map(b => b + briefAsks(b)).join('|') !== B.list && document.activeElement !== $('be-open')) { B.list = briefs.map(b => b + briefAsks(b)).join('|'); $('be-open').innerHTML = (s.from ? `<option selected value="">the set-up of session ${e(s.from)}</option>` : '') + briefs.map(b => `<option value="${e(b)}"${b === s.baseId ? ' selected' : ''}>${e(b)}${briefAsks(b)}</option>`).join(''); }
     const svg = $('be-svg'); if (svg) svg.innerHTML = B.picSvg();  // the picture follows the form as it is typed
+    const conf = $('be-conf'); if (conf) conf.innerHTML = B.confGrid();  // and so does the grid of the whole configuration under it
     // what cannot be used: the reason beside its field
     const bad = B.problems(), keys = Object.keys(bad);
     B.node.querySelectorAll('.be-why').forEach(el => { const w = bad[el.dataset.why] || ''; if (el.textContent !== w) el.textContent = w; });
@@ -313,6 +369,7 @@ const BRIEF_EDITOR = {
     if (t.dataset && t.dataset.aim) { if (ev.type !== 'change') return; const s = B.s, a = B.AIMS.find(q => q[0] === t.dataset.aim);  // the aim: a ready-made one fills the target and the conditions
       if (t.dataset.aim === 'open') s.goal = 'open'; else { s.goal = 'given'; s.custom = !a; if (a) { s.measure = a[2]; s.direction = a[3]; s.conditions = a[4].join('\n'); } }
       return B.draw(); }
+    if (t.dataset && t.dataset.cond) { B.condRead(); B.s.custom = true; return t.tagName === 'SELECT' && ev.type === 'change' ? B.draw() : setTimeout(B.paint, 0); }  // a row of the conditions: a list redraws the row (its unit), typing does not
     if (t.dataset && t.dataset.ch === 'nw') return setTimeout(B.paint, 0);  // blocks 6 and 7: the page's own handler takes the value; then the lists and the strip follow
     if (!f) return;
     const path = f.split('.'); let o = B.s; path.slice(0, -1).forEach(p => { o = o[p]; }); o[path[path.length - 1]] = t.value;
@@ -325,6 +382,10 @@ const BRIEF_EDITOR = {
     catch (x) { const parts = String(x.message).replace(/^brief [^:]*: /, '').split('; '); B.s.msg = { bad: true, lines: parts.length > 1 ? ['Not saved. The brief cannot be used as it is:', ...parts] : ['Not saved: ' + parts[0]] }; return false; }
   },
   async onClick(ev) {
+    const add = ev.target.closest('[data-cond-add]'), del = ev.target.closest('[data-cond-del]');  // the conditions: one more row (the first measure not yet used), or one row less
+    if (add || del) { const B = BRIEF_EDITOR, st = B.s; B.condRead(); const lines = st.conditions.split('\n').filter(Boolean);
+      if (add) { const used = lines.map(c => (B.condParse(c) || {}).k), k = ['udp_loss_frac', ...B.OUTPUTS].find(q => !used.includes(q)) || 'udp_loss_frac'; lines.push(k === 'udp_loss_frac' ? 'udp_loss_frac <= 0.01' : `${k} >= 0`); } else lines.splice(Number(del.dataset.condDel), 1);
+      st.conditions = lines.join('\n'); st.custom = true; return B.draw(); }
     const B = BRIEF_EDITOR, part = ev.target.closest('[data-act=beobj]'); if (part) { B.s.obj = part.dataset.id; return B.draw(); }  // a part of the picture: its settings open under it
     const t = ev.target.closest('button'); if (!t || t.disabled) return;
     if (t.id === 'be-list') { B.s.list = !B.s.list; return B.draw(); }
@@ -336,7 +397,8 @@ const BRIEF_EDITOR = {
       let id = `${base}-${v[2]}`.slice(0, 56), n = 1; while (briefs.includes(id)) id = `${base}-${v[2]}`.slice(0, 54) + '-' + (++n); s.id = id;
       s.msg = { lines: [`Variation “${v[1]}”: ${v[3]}. Save it as ${id}, or change the name first.`] }; return B.draw(); }
     if (t.dataset.sw) { const f = B.s.set[t.dataset.sw], q = B.SETTINGS.find(x => x.k === t.dataset.sw); f.off = t.dataset.to === 'off'; if (f.off) return B.draw();
-      if (q.as && !f.value.trim() && !f.def.trim()) { const c = B.s.set[q.as]; f.value = f.def = (c.fixed ? c.value : c.def); }
+      if (q.dflt && !f.value.trim() && !f.def.trim()) f.value = f.def = q.dflt[0];  // it starts from what the program does without it
+      else if (q.as && !f.value.trim() && !f.def.trim()) { const c = B.s.set[q.as]; f.value = f.def = (c.fixed ? c.value : c.def); }
       f.fixed = t.dataset.to === 'fixed'; if (f.fixed && !f.value.trim()) f.value = f.def; if (!f.fixed && !f.def.trim()) f.def = f.value;
       if (!f.fixed && q.open) { if (!f.min.trim()) f.min = q.open.min; if (!f.max.trim()) f.max = q.open.max; if (!f.meaning.trim()) f.meaning = q.open.meaning; }  // a setting no brief has opened yet: a range to start from
       return B.draw(); }

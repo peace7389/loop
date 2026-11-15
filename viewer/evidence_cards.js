@@ -93,9 +93,13 @@ Object.assign(EV, {
   briefCard() {
     const M = EV.M, e = EV.e, b = M.brief, x0 = M.exps.find(x => x.by === 'harness');
     if (!b) return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')}</h2><p class="sm">${EV.nr}: this session was made before briefs existed.</p>`;
-    const kv = o => `<table><tbody>${Object.entries(o || {}).map(([k, v]) => `<tr><td>${e(k)}</td><td>${e(typeof v === 'object' ? Object.entries(v).map(([a, c]) => `${a}: ${Array.isArray(c) ? c.join(', ') : c}`).join(' · ') : v)}</td></tr>`).join('')}</tbody></table>`;
+    // a setting by its plain name (what it means is in the name's box, and is not repeated here); a knob's range in words, then where the session starts
+    const fixed = `<table data-exact="1" id="bc-fixed"><tbody>${Object.entries(b.system || {}).map(([k, v]) => `<tr data-k="${e(k)}"><td>${EV.label(k)}</td><td>${e(EV.setVal(k, v))}</td></tr>`).join('')}</tbody></table>`;
+    const knobs = `<table data-exact="1" id="bc-knobs"><tbody>${Object.entries(b.knobs || {}).map(([k, s]) => `<tr data-k="${e(k)}"><td>${EV.label(k, s.meaning)}</td><td>${e(EV.setRange(k, s))}</td><td class="sm">from ${e(EV.setVal(k, s.default))}</td></tr>`).join('')}</tbody></table>`;
+    const lim = b.limits || {}, limits = `<p id="bc-limits">${[lim.simulations != null ? `<b>${e(lim.simulations)}</b> simulations in all` : '', lim.simulations_per_experiment != null ? `<b>${e(lim.simulations_per_experiment)}</b> in one experiment` : '', ...Object.entries(lim).filter(([k]) => !['simulations', 'simulations_per_experiment'].includes(k)).map(([k, v]) => `${e(k)} ${e(v)}`)].filter(Boolean).join(' · ') || EV.nr}</p>`;
+    const g = b.goal || {}, goal = g.kind === 'given' && EV.aimWords(g) ? `Find ${EV.aimWords(g)}.${g.tolerance != null ? ` <span class="sm">· tolerance ${e(g.tolerance)}%: two results closer than this count as equal</span>` : ''}` : g.kind === 'open' ? 'Open: the AI chooses its own aim and has to justify it.' : e(EV.goal(b.goal));
     return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')} ${e(b.id)} <small>written by the ${EV.term('Operator', 'operator')}</small></h2><p>${e(b.task || '')}</p>
-      <h3>Fixed settings</h3>${kv(b.system)}<h3>Knobs and ranges</h3>${kv(b.knobs)}<h3>Goal</h3><p>${e(EV.goal(b.goal))}</p><h3>Limits</h3>${kv(b.limits)}
+      <h3>Fixed by the operator</h3>${fixed}<h3>The AI may change</h3>${knobs}<h3>The aim</h3><p id="bc-goal">${goal}</p><h3>The limits</h3>${limits}
       <p class="sm">the baseline the harness ran before the first turn: ${x0 ? EV.link(x0.id) + ' · ' + x0.sims.map(s => EV.link(s.id)).join(', ') : EV.nr}</p>`;
   },
 });

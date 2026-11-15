@@ -11,6 +11,59 @@
 // running says so, and while a reply is written that may ask a new question the table ends with one empty row.
 // ======================================================================================================
 Object.assign(EV, {
+  // The card that opens when a hypothesis's box on the board is pointed at (through the box of evidence_words.js, key
+  // "h:<id>"). Made for reading at a glance: the name and how it ended; the question, larger; then labelled lines, always
+  // in this order, each a recorded text or a measured number: why it asked (the hypothesis's `why`; "not recorded" for a
+  // session from before the field), what it follows from (each result named, with its sign), what was expected (the
+  // decision rule of its last test, for reading), the result (the check's numbers in words, held or failed), the
+  // conclusion (the verdict and the first sentence of its reason), what it led to. Only what the replay's step has reached.
+  hypPop(id) {
+    const M = EV.M, e = EV.e, seen = EV.seen, h = M.hypById[id]; if (!h || !seen(h.id)) return '';
+    const st = EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open', ts = h.tests.map(q => M.testById[q]).filter(T => seen(T.exp)), T = ts[ts.length - 1] || null;
+    const c = T && T.check && seen(T.check.id) ? T.check : null, v = h.verdict && seen(h.verdict.id) ? h.verdict : null;
+    const word = ['supported', 'refuted', 'inconclusive'].includes(st) ? EV.verdictRes(st) : e(st === 'open' ? (M.ended ? 'not judged' : 'not judged yet') : st);
+    const from = [...new Set((h.follows || []).map(EV.fromLine).filter(Boolean))];
+    const led = (M.mapEdges || EV.mapEdges()).filter(x => x.from === id && x.kind !== 'weak' && seen(x.to)).map(x => e(x.to)), [first] = v ? EV.nbFirst(v.because) : [''];
+    const line = (k, body, own) => `<div class="hp-l" data-hp="${k.toLowerCase().replace(/ /g, '-')}"><span class="hp-k">${k}</span><div class="hp-v"${own ? ` data-own="${own}"` : ''}>${body}</div></div>`, none = t => `<span class="mut">${t}</span>`;
+    return `<div class="hp" data-hyp="${e(h.id)}"><p class="hp-h"><b>${e(h.id)}</b> · ${word} <span class="sm">· stated in turn ${h.turn}</span></p>
+      <p class="hp-q" data-own="model">${e(h.question || h.text)}</p>
+      ${line('Why it asked', h.why ? e(h.why) : none('not recorded: sessions before 14 November 2026 were not asked for it'), h.why ? 'model' : '')}
+      ${line('Follows from', from.length ? from.join('<br>') : h.follows ? none('nothing earlier: a first question') : none('not recorded'))}
+      ${line('Expected', T && T.rule ? EV.ruleRead(T, 4) : h.prediction ? e(h.prediction) : none('no decision rule yet'), T && T.rule ? '' : h.prediction ? 'model' : '')}
+      ${line('Result', c ? `${EV.checkRes(c)}${c.void ? '' : ' · ' + (EV.measuredWords(T) || '')}` : none(T ? (M.ended ? 'not checked' : 'not yet') : M.ended ? 'not put to a test' : 'not tested yet'))}
+      ${line('Conclusion', v ? `${EV.verdictRes(v.result)}${first ? ' · ' + e(first) : ''}` : none(M.ended ? 'no verdict was given' : 'not judged yet'), v ? 'model' : '')}
+      ${line('Led to', led.length ? '→ ' + led.join(', ') : none(M.ended ? 'no later hypothesis names its result' : 'nothing yet'))}
+      <p class="sm hp-foot">${ts.length > 1 ? `Put to ${ts.length} decision rules: the last one is shown. ` : ''}Click the box to open its test beside the page.</p></div>`;
+  },
+  // one result a hypothesis follows from, in words: a check with what was measured, a verdict, an experiment's result table, the brief
+  fromLine(f) {
+    const M = EV.M, e = EV.e, r = M.byId[f]; if (f === 'brief') return 'the brief'; if (!r) return null;
+    if (r.type === 'verdict') return `${EV.gkey(EV.vk(r.body.result))}${e(r.body.for)} was ${r.body.result === 'inconclusive' ? 'left inconclusive' : e(r.body.result)}`;
+    if (r.type === 'check') { const k = M.voidIds.has(f) ? 'void' : r.body.result, T = M.tests.find(q => q.check && q.check.id === f), m = T && k !== 'void' ? EV.measuredWords(T) : null; return `${EV.gkey(EV.ck(k))}the check of ${e(r.body.for)} ${k === 'void' ? 'was void' : e(k)}${m ? `: ${m}` : ''}`; }
+    const x = r.type === 'evidence' ? r.body.experiment || r.parent : r.type === 'simulation' ? r.parent : null; return x === 'X0' ? 'the baseline' : x ? `the results of experiment ${e(x)}` : null;
+  },
+  // the card of an arrow of the board (key "e:<from>><to>"): the result of the earlier hypothesis that the later one names, with what was measured,
+  // how it was judged and what the AI said it would do next. A dotted arrow: only that experiment's result table is named.
+  edgePop(key) {
+    const M = EV.M, e = EV.e, seen = EV.seen, [from, to] = key.split('>'), x = (M.mapEdges || EV.mapEdges()).find(q => q.from === from && q.to === to); if (!x || !seen(to)) return '';
+    const lines = [...new Set(x.ids.filter(f => f === 'brief' || seen(f)).map(EV.fromLine).filter(Boolean))], h = M.hypById[from], v = h && h.verdict && seen(h.verdict.id) && x.ids.some(f => f === h.verdict.id || (M.byId[f] || {}).type === 'check') ? h.verdict : null;
+    return `<div class="hp" data-edge="${e(key)}"><p class="hp-h"><b>${from === 'brief' ? 'the brief' : e(from)} → ${e(to)}</b> <span class="sm">· what ${e(to)} follows from</span></p>
+      <div class="hp-l" data-hp="result"><span class="hp-k">${x.kind === 'weak' ? 'It names' : 'The result'}</span><div class="hp-v">${lines.join('<br>') || '<span class="mut">not recorded</span>'}${x.kind === 'weak' ? '<br><span class="mut">only the result table of that experiment, not a check or a verdict</span>' : ''}</div></div>
+      ${v ? `<div class="hp-l" data-hp="judged"><span class="hp-k">Judged</span><div class="hp-v" data-own="model">${EV.verdictRes(v.result)} · ${e(EV.nbFirst(v.because)[0])}</div></div><div class="hp-l" data-hp="next"><span class="hp-k">Its next step</span><div class="hp-v" data-own="model">${e(v.next || 'not recorded')}</div></div>` : ''}
+      <p class="sm hp-foot">${from === 'brief' ? 'Click to open the brief beside the page.' : `Click to open the test of ${e(from)} beside the page.`}</p></div>`;
+  },
+  // the card of the answer (the last box of the board; key "a:report"): what it proposes, what it expects, and its reasons: the claims that support the
+  // recommendation and those that say how the system behaves ("because"), those that say when it would change, with "holds when" and "breaks when" ("but")
+  answerPop() {
+    const M = EV.M, e = EV.e, rep = EV.repNow(); if (!rep) return ''; const R = EV.recParts(), X = EV.expRows(rep), kn = (M.brief && M.brief.knobs) || {}, roles = M.claims.length > 0 && M.claims.every(q => q.role);
+    const adj = !R ? 'not recorded' : R.text ? e(R.text) : R.differ.map(([k, v]) => `${e(EV.LABEL[k] || k)} ${k in kn ? e(EV.adjVal(k, kn[k].default)) + ' → ' : ''}<b>${e(EV.adjVal(k, v))}</b>`).join(', ') || 'no setting changed';
+    const claim = q => `<div class="ap-c"><span data-own="model">${e(q.text)}</span> <span class="sm">${EV.claimMarks(q, EV.seen)}</span></div>`, of = r => M.claims.filter(q => q.role === r), line = (k, body) => (body ? `<div class="hp-l" data-hp="${k.toLowerCase().replace(/ /g, '-')}"><span class="hp-k">${k}</span><div class="hp-v ap-v">${body}</div></div>` : '');
+    const txt = v => (Array.isArray(v) ? v.map(q => e(q)).join(' · ') : e(v ?? ''));
+    return `<div class="hp ap"><p class="hp-h"><b>Its answer</b> <span class="sm">· the final report · ${M.claims.length} claim${M.claims.length === 1 ? '' : 's'}</span></p>
+      ${line('Proposes', adj)}${line('Expects', X && X.top.length ? X.top.map(([k, v]) => `${e(TH_DATA.PLAIN[k] || k)} ${EV.v4(k, v)}`).join(' · ') : '')}
+      ${roles ? line('Because', [...of('supports'), ...of('background')].map(claim).join('')) + line('But', of('limits').map(claim).join('') + (rep.breaks_when ? `<div class="ap-c sm">breaks when: <span data-own="model">${txt(rep.breaks_when)}</span></div>` : '')) : line('Its claims', M.claims.map(claim).join(''))}
+      <p class="sm hp-foot">Click the box to open the final report beside the page.</p></div>`;
+  },
   FIND_ROWS: 9,
   // the check's numbers in words. One comparison: "483 Mbps, not over 700 Mbps"; several: joined by "and" / "or"
   measuredWords(T) {
@@ -28,7 +81,7 @@ Object.assign(EV, {
       const out = c && c.void ? at(st(c.id), `<span class="rs" data-void="1" title="${e(EV.VOID)}">${EV.gkey('void')}void</span>${v ? ` <span class="sm" data-step="${st(v.id)}">judged ${e(v.result)}</span>` : ''}`)
         : v ? at(st(v.id), EV.verdictRes(v.result)) : at(end, `<span class="mut">${M.ended ? 'none' : 'none yet'}</span>`);
       const led = fol.ids.filter(id => first[id]).map(id => `<a data-act="findrow" data-id="${e(first[id])}" title="${e(`${id} follows from this test${fol.via ? ' (through the table ' + fol.via + ' of its experiment)' : ''}: go to its row`)}">→ ${e(id)}</a>`).join(' ');
-      return `<tr class="pick fr${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" id="fr-${e(T.id)}" data-act="find" data-id="${e(T.id)}" data-step="${st(T.exp)}"${EV.freshAttr(T.exp)}><td class="fq"><span class="fh">${e(T.hyp)}</span><span data-own="model">${q}</span>${h && h.why ? `<div class="sm fwhy lc2" title="${e(h.why)}"><span class="mut">why:</span> <span data-own="model">${e(h.why)}</span></div>` : ''}</td>
+      return `<tr class="pick fr${sel.t === 'test' && sel.id === T.id ? ' sel' : ''}" id="fr-${e(T.id)}" data-act="find" data-id="${e(T.id)}" data-step="${st(T.exp)}"${EV.freshAttr(T.exp)}><td class="fq"><span class="fh" data-wd="h:${e(T.hyp)}">${e(T.hyp)}</span><span data-own="model">${q}</span>${h && h.why ? `<div class="sm fwhy lc2" title="${e(h.why)}"><span class="mut">why:</span> <span data-own="model">${e(h.why)}</span></div>` : ''}</td>
         <td class="fo">${out}</td><td class="fm">${c ? at(st(c.id), EV.measuredWords(T)) : at(end, wait(T) ? `<span class="nowp" data-now="sims">${EV.nowDot()}its simulations are running</span>` : `<span class="mut">${T.rule ? (M.ended ? 'not checked' : 'not yet') : 'no decision rule'}</span>`)}</td>
         <td class="fl">${led ? at(fk, `${c && c.result === 'failed' ? '<span class="fturn" title="Its check failed, and a later hypothesis follows from it">changed course</span> ' : ''}${led}`) : ''}</td></tr>`; };
     const recorded = all.filter(T => EV.seen(T.exp)), more = recorded.length - shown.filter(T => EV.seen(T.exp)).length;  // "n more" counts only what is recorded by the replay's step

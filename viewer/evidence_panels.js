@@ -95,7 +95,8 @@ Object.assign(EV, {
     document.querySelectorAll('#ev canvas[data-chart]').forEach(c => { const T = c.dataset.chart === 'test' ? M.testById[c.dataset.id] : null, x = M.expById[T ? T.exp : c.dataset.id]; if (!x) return;
       if (T) EV.chart(c.id, { x, sims: c.dataset.wide ? x.sims : T.sims, rules: [{ rule: T.rule, for: T.hyp }], control: c.dataset.wide ? x.control : T.control, test: T.id });
       else EV.chart(c.id, { x, sims: x.sims, rules: x.rules, control: x.control }); });
-    if (S.sel.t === 'sim' && M.simById[S.sel.id] && await EV.timeCharts(M.simById[S.sel.id], S.cmp && M.simById[S.cmp])) EV.draw();
+    const shown = S.sel.t === 'sim' ? M.simById[S.sel.id] : S.sel.t === 'test' && S.inset && document.getElementById('td-inset') ? M.simById[S.inset.id] : null;  // the simulation whose charts over time are on the page: the open one, or the one opened inside a test
+    if (shown && await EV.timeCharts(shown, S.cmp && M.simById[S.cmp])) EV.draw();
   },
   exportChart(id, kind) { TASK_VIEW._export(id, kind); },
 });

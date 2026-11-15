@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --queuePkts=37 --out=/home/chunguck.kim/project/checks/build6/c12d-common37
+exit 0, 27.0 s

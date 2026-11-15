@@ -23,8 +23,8 @@
         {"name": "UDP socket", "cls": "UdpSocketImpl", "flow": "udp", "rows": [
           ["Send buffer", "none: nothing is held back"], ["Resends lost packets", "never"], ["Header added", "8 bytes"]]},
         {"name": "TCP socket", "cls": "{tcpVariant}", "flow": "tcp", "measured": ["tcp_retrans"], "rows": [
-          ["Congestion control", "{tcpVariantPlain}", "ai"], ["Segment payload", "{segment} bytes"], ["Send buffer", "1 MB"], ["Receive buffer", "1 MB"],
-          ["First window", "10 segments", "ns3"], ["TCP options", "timestamps, SACK, window scaling", "ns3"], ["Shortest resend timer", "1 s", "ns3"]]},
+          ["Congestion control", "{tcpVariantPlain}", "ai"], ["Segment payload", "{segment} bytes"], ["Send buffer", "{tcpBufPlain}"], ["Receive buffer", "{tcpBufPlain}"],
+          ["First window", "{tcpInitCwnd} segments", "ns3"], ["TCP options", "timestamps, SACK, window scaling", "ns3"], ["Shortest resend timer", "1 s", "ns3"]]},
         {"name": "IPv4", "cls": "Ipv4L3Protocol", "wide": true, "rows": [
           ["Address", "10.0.0.1 / 24"], ["Header added", "20 bytes"], ["Largest packet", "{mtu} bytes (larger ones would be split)"]]}
       ],
@@ -51,7 +51,7 @@
       "stack": [
         {"name": "UDP socket", "cls": "UdpSocketImpl", "flow": "udp", "rows": [["Receive buffer", "128 kB", "ns3"]]},
         {"name": "TCP socket", "cls": "{tcpVariant}", "flow": "tcp", "rows": [
-          ["Receive buffer", "1 MB"], ["Sends ACK", "every 2nd packet, or after 0.2 s", "ns3"]]},
+          ["Receive buffer", "{tcpBufPlain}"], ["Sends ACK", "every 2nd packet, or after 0.2 s", "ns3"]]},
         {"name": "IPv4", "cls": "Ipv4L3Protocol", "wide": true, "rows": [["Address", "10.0.0.2 / 24"]]}
       ],
       "tc": [

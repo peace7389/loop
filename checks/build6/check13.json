@@ -1,0 +1,58 @@
+{
+ "predicted_before_the_run": {
+  "13a": "first window 1, 4, 40 segments: the first congestion window recorded is N x 1448 bytes, and the first burst that arrives is N x 1448 bytes (N full segments before any acknowledgement)",
+  "13b": "not given: the same with N = 10, ns-3's own first window",
+  "13c": "given as 10 = the default: metrics.json, series.csv and flowmon.xml byte-identical to a run without it",
+  "13d": "over 10 measured seconds on the default link the first window changes the goodput by less than 1 % (1 against 40 segments): it matters at the start only"
+ },
+ "checks": [
+  {
+   "check": "13a",
+   "run": "c13a-first1",
+   "predicted_bytes": 1448,
+   "first_window_bytes": 1448,
+   "first_burst_bytes": 1448,
+   "pass": true
+  },
+  {
+   "check": "13a",
+   "run": "c13a-first4",
+   "predicted_bytes": 5792,
+   "first_window_bytes": 5792,
+   "first_burst_bytes": 5792,
+   "pass": true
+  },
+  {
+   "check": "13a",
+   "run": "c13a-first40",
+   "predicted_bytes": 57920,
+   "first_window_bytes": 57920,
+   "first_burst_bytes": 57920,
+   "pass": true
+  },
+  {
+   "check": "13b",
+   "run": "c13b-first-not-given",
+   "predicted_bytes": 14480,
+   "first_window_bytes": 14480,
+   "first_burst_bytes": 14480,
+   "pass": true
+  },
+  {
+   "check": "13c",
+   "identical": {
+    "metrics.json": true,
+    "series.csv": true,
+    "flowmon.xml": true
+   },
+   "pass": true
+  },
+  {
+   "check": "13d",
+   "goodput_first1_bps": 964048282,
+   "goodput_first40_bps": 964047123,
+   "difference_percent": 0.0001,
+   "pass": true
+  }
+ ]
+}

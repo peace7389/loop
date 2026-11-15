@@ -24,11 +24,13 @@ Object.assign(EV, {
     const M = EV.M, S = EV.s, b = M.brief || {}, kn = b.knobs || {}, q = S.sysSim && S.sysSim.sid === M.id ? M.simById[S.sysSim.id] : null, sim = q && EV.seen(q.id) ? q : null;
     const v = { ...(b.system || {}), ...Object.fromEntries(Object.entries(kn).map(([n, o]) => [n, o.default])), ...(sim ? sim.params : {}) };
     EV.sysDerive(v); const key = n => EV.sysOwn(n, k => k in kn || k in (b.system || {}));
-    return { v, sim, key, knob: n => key(n) in kn, fixed: n => key(n) in (b.system || {}), range: n => { const o = kn[key(n)] || {}; return o.choices ? o.choices.map(c => String(c).replace(/^Tcp/, '')).join(', ') : `${o.min} to ${TASK_VIEW._rate(o.max)}${o.step != null ? ', in steps of ' + o.step : ''}`; } };
+    return { v, sim, key, knob: n => key(n) in kn, fixed: n => key(n) in (b.system || {}), range: n => { const o = kn[key(n)] || {}; return o.choices ? o.choices.map(c => String(c).replace(/^Tcp/, '')).join(', ') : key(n) === 'tcpBufBytes' ? `${EV.setVal('tcpBufBytes', o.min)} to ${EV.setVal('tcpBufBytes', o.max)}${o.step != null ? ', in steps of ' + o.step + ' bytes' : ''}` : `${o.min} to ${TASK_VIEW._rate(o.max)}${o.step != null ? ', in steps of ' + o.step : ''}`; } };
   },
   // the values a picture shows beside the settings themselves, and the setting each of them comes from
-  sysDerive(v) { Object.entries(EV.SYS_OWN).forEach(([k, common]) => { if (v[k] == null && v[common] != null) v[k] = v[common]; }); if (typeof v.mtu === 'number') v.segment = v.mtu - 52; if (typeof v.weightUdp === 'number') v.tcpShare = +(1 - v.weightUdp).toFixed(6); if (v.tcpVariant) v.tcpVariantPlain = String(v.tcpVariant).replace(/^Tcp/, ''); return v; },
-  sysKey: n => ({ tcpShare: 'weightUdp', tcpVariantPlain: 'tcpVariant', segment: 'mtu' }[n] || n),
+  sysDerive(v) { Object.entries(EV.SYS_OWN).forEach(([k, common]) => { if (v[k] == null && v[common] != null) v[k] = v[common]; }); if (typeof v.mtu === 'number') v.segment = v.mtu - 52; if (typeof v.weightUdp === 'number') v.tcpShare = +(1 - v.weightUdp).toFixed(6); if (v.tcpVariant) v.tcpVariantPlain = String(v.tcpVariant).replace(/^Tcp/, '');
+    // the two settings of build 6, as the program has them when a brief does not give them: ns-3's first window of 10 segments, buffers of 1 MB
+    const size = n => (n % (1 << 20) === 0 ? `${n >> 20} MB` : n % (1 << 10) === 0 ? `${n >> 10} kB` : `${n} bytes`); if (v.tcpInitCwnd == null) v.tcpInitCwnd = 10; v.tcpBufPlain = size(v.tcpBufBytes ?? 1048576); return v; },
+  sysKey: n => ({ tcpShare: 'weightUdp', tcpVariantPlain: 'tcpVariant', segment: 'mtu', tcpBufPlain: 'tcpBufBytes' }[n] || n),
   // a setting a brief may leave out, and the setting whose value it then has: each queue's own length, else the common queue length
   SYS_OWN: { queuePktsUdp: 'queuePkts', queuePktsTcp: 'queuePkts' },
   // the setting a shown value comes from. given(k): whether the brief (or the form) sets k itself
@@ -87,8 +89,9 @@ Object.assign(EV, {
   objCard(id) {
     const M = EV.M, S = EV.s, e = EV.e, f = EV.sysFind(id); if (!f) return '';
     const V = EV.sysVals(), o = f.o, sim = V.sim, keysOf = t => [...String(t).matchAll(/\{(\w+)\}/g)].map(m => m[1]), short = x => TASK_VIEW._rate(String(x).replace(/^Tcp/, ''));
-    const tried = k => { const vs = [...new Set(M.sims.filter(q => EV.seen(q.id) && q.params && q.params[k] != null).map(q => q.params[k]))], num = vs.every(x => typeof x === 'number');  // the values this session's simulations used
-      return !vs.length ? '' : ` · this session tried ${vs.length === 1 ? 'one value, ' + short(vs[0]) : num ? `${vs.length} values, ${Math.min(...vs)} to ${Math.max(...vs)}` : vs.map(short).join(', ')}`; };
+    const tried = k => { const sz = x => (k === 'tcpBufBytes' ? EV.setVal(k, x) : x);  // a buffer's size as a person says it
+      const vs = [...new Set(M.sims.filter(q => EV.seen(q.id) && q.params && q.params[k] != null).map(q => q.params[k]))], num = vs.every(x => typeof x === 'number');  // the values this session's simulations used
+      return !vs.length ? '' : ` · this session tried ${vs.length === 1 ? 'one value, ' + (k === 'tcpBufBytes' ? sz(vs[0]) : short(vs[0])) : num ? `${vs.length} values, ${sz(Math.min(...vs))} to ${sz(Math.max(...vs))}` : vs.map(short).join(', ')}`; };
     const rows = o.rows.map(([k, text, flag]) => { const kn = keysOf(text).find(V.knob), fx = kn ? null : keysOf(text).find(V.fixed);
       const shown = flag === 'op' ? (S.op ? `<span data-by="operator"><i class="sw"></i>${EV.policyText(EV.files.row)}</span>` : '<span class="mut" title="Shown with the operator columns on">operator-only</span>') : e(EV.sysFill(text, V.v));
       const note = kn ? `<span data-by="model" data-set="knob"><i class="sw"></i>the AI may change it</span>: ${e(V.range(kn) + tried(V.key(kn)))}` : fx && flag !== 'op' ? '<span data-by="operator" data-set="fixed"><i class="sw"></i>fixed by the operator</span>' : flag === 'ns3' ? 'an ns-3 default' : flag === 'op' ? 'chosen by the operator, not told to the model' : '';
@@ -102,6 +105,6 @@ Object.assign(EV, {
 });
 EV.act = Object.assign(EV.act || {}, {
   sysdef() { EV.s.sysSim = null; EV.draw(); },
-  sysobj(id) { EV.s.sysObj = id; EV.draw(); },
+  sysobj(id) { EV.s.sysObj = EV.s.sysObj === id ? '' : id; EV.draw(); },  // a second click on the same part closes its card
   sysfold() { EV.store('ev-sys', EV.store('ev-sys') === '1' ? '0' : '1'); EV.draw(); },
 });

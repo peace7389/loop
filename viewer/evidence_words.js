@@ -17,6 +17,9 @@
 //               brief's goal says about it, and where in the picture it is measured
 //   a part      its card from "The setting" (EV.objCard): where it sits, what it is set to, who may change that; the
 //               scheduling policy stays operator-only there as everywhere
+// A hypothesis has a box of the same kind (key "h:<id>", EV.hypPop in evidence_find.js): pointing at its box on the board,
+// or at its name in the table under it, opens its card.
+// A brief's name has one too (key "b:<id>"): what it asks, the task in the operator's words, how many settings it opens.
 // The labels and terms the page already explains on hover (EV.label, EV.term) open the same box instead of the
 // browser's own tooltip; their title stays in the page for a reader who cannot point.
 // The picture and the words belong together: pointing at a part of the picture in "The setting" sets off, everywhere on
@@ -39,6 +42,7 @@ Object.assign(EV, {
   },
   // after the page is drawn: the words of the list are wrapped where they stand; the text is the same before and after
   wordsMark() {
+    document.querySelectorAll('#s-system .sy-det.on td, #s-system .sy-det.on > p').forEach(el => { if (!el.title && el.scrollWidth > el.clientWidth) el.title = el.textContent.replace(/\s+/g, ' ').trim(); });  // a row shortened to one line: in full on hover
     const M = EV.M, root = document.getElementById('ev'); if (!M || !root || EV.wordsOff) return; const W = EV.wdList(); if (!W.re) return;
     root.querySelectorAll(EV.WD_IN).forEach(box => {
       const tw = document.createTreeWalker(box, NodeFilter.SHOW_TEXT, { acceptNode: n => (n.nodeValue.length < 3 || !n.parentElement || n.parentElement.closest(EV.WD_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) }), nodes = [], first = new Map();
@@ -56,9 +60,25 @@ Object.assign(EV, {
     });
   },
   wdKeys(W) { return W.keys || (W.keys = Object.fromEntries(Object.values(W.both).map(k => [k, 1]))); },
+  // ---- a brief: its name is a file name and says little. What it asks, in a few words built from its goal ('' where it has none; null
+  // while its file is on its way): shown beside the name on Home, in the lists of briefs, and in its box
+  briefFile(id) { const M = EV.M; return M && M.brief && M.brief.id === id ? M.brief : EV.briefOf(id); },
+  briefSays(id) { const b = EV.briefFile(id), g = b && b.goal; return b === undefined ? null : !g ? '' : g.kind === 'open' ? 'the AI chooses its own aim' : g.kind === 'given' ? `find ${EV.aimWords(g)}` : ''; },
+  briefSaysPlain(id) { return String(EV.briefSays(id) || '').replace(/<[^>]+>/g, ''); },
+  briefName(id) { return id ? `<span class="wd" data-wd="b:${EV.e(id)}" tabindex="0">${EV.e(id)}</span>` : 'before briefs'; },
+  briefPop(id) {
+    const e = EV.e, b = EV.briefFile(id), head = `<p class="wd-h"><b>${e(id)}</b> <span class="sm">a brief: what the operator asks the AI</span></p>`; if (!b) return `${head}<p class="sm">${b === undefined ? 'reading its file…' : 'Its file cannot be read here.'}</p>`;
+    const says = EV.briefSays(id), kn = Object.keys(b.knobs || {}).length, fx = Object.keys(b.system || {}).length, lim = b.limits || {};
+    return `${head}${says ? `<p class="bp-says" data-bp="says"><b>${says[0].toUpperCase() + says.slice(1)}.</b></p>` : ''}<p class="bp-task" data-own="operator" data-bp="task">${e(b.task || '')}</p><p class="sm">the task, in the operator's words</p>
+      <p class="sm" data-bp="counts" data-knobs="${kn}" data-fixed="${fx}">${kn} setting${kn === 1 ? '' : 's'} the AI may change · ${fx} fixed by the operator${lim.simulations != null ? ` · at most ${e(lim.simulations)} simulations` : ''}</p>`;
+  },
   // ---- what the box says, by key
   wdBody(key) {
+    if (key[0] === 'b') return EV.briefPop(key.slice(2));
     const M = EV.M, e = EV.e, b = M.brief || {}, given = (M.meta && M.meta.given) || {}, [kind, name] = [key[0], key.slice(2)], head = (title, what, field) => `<p class="wd-h"><b>${e(title)}</b> <span class="sm">${what}${field ? ` · field <code>${e(field)}</code>` : ''}</span></p>`;
+    if (kind === 'h') return EV.hypPop(name);  // a hypothesis: its card (evidence_find.js)
+    if (kind === 'a') return EV.answerPop();  // the answer, the last box of the board: its proposal and its reasons
+    if (kind === 'e') return EV.edgePop(name);  // an arrow of the board: the result that led onward
     if (kind === 'd') return `${head(name, 'a word of this page')}<p>${e(EV_DEF[name] || '')}</p>`;
     if (kind === 'o') { const p = EV.WD_PARTS.find(q => q[0] === name), id = p && EV.OB ? EV.sysId(p[1], p[2], p[0]) : null; return id ? `<div class="wd-obj">${EV.objCard(id)}</div><p class="sm">from the picture in “The setting”</p>` : `${head(name, 'a part of the network')}<p class="sm">Its settings are in the picture of “The setting”.</p>`; }
     if (kind === 'k') { const kn = (b.knobs || {})[name], fixed = (b.system || {})[name], plain = EV.LABEL[name] || name;
@@ -96,8 +116,8 @@ Object.assign(EV, {
   wdLinkWord(key) { EV.wdLinkOff(); EV.wdParts().filter(q => q.keys.includes(key)).forEach(q => { const g = [...document.querySelectorAll('#s-system svg.sy g[data-id]')].find(el => el.dataset.id === q.id); if (g) g.classList.add('ohot'); }); },
   // ---- the box: one for the page, shown beside the word that is pointed at or has the keyboard's focus
   wdShow(el) {
-    const root = document.getElementById('ev'); EV.wdHide(); if (!el.isConnected || !EV.M) return;
-    const pop = document.createElement('div'); pop.id = 'wd-pop'; pop.className = 'wd-pop'; pop.setAttribute('role', 'tooltip'); pop.dataset.wd = el.dataset.wd; pop.innerHTML = EV.wdBody(el.dataset.wd); root.appendChild(pop);
+    const root = document.getElementById('ev'); EV.wdHide(); if (!el.isConnected || (!EV.M && el.dataset.wd[0] !== 'b')) return;
+    const pop = document.createElement('div'); pop.id = 'wd-pop'; pop.className = 'wd-pop'; pop.setAttribute('role', 'tooltip'); pop.dataset.wd = el.dataset.wd; pop.dataset.kind = 'ea'.includes(el.dataset.wd[0]) ? 'h' : el.dataset.wd[0]; pop.innerHTML = EV.wdBody(el.dataset.wd); if (!pop.innerHTML.trim()) return; root.appendChild(pop);
     // the browser's own tooltip of the word and of what it stands in is held back while the box is open
     EV._wdTitles = []; for (let a = el; a && a !== root; a = a.parentElement) if (a.title) { EV._wdTitles.push([a, a.title]); a.removeAttribute('title'); }
     EV._wdEl = el; EV.wdPlace();

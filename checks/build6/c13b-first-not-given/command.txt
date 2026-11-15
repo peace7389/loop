@@ -1,0 +1,2 @@
+TWOHOSTS_SCHED=share two-hosts --udpRate=0bps --linkDelay=200ms --warmup=0 --duration=3 --out=/home/chunguck.kim/project/checks/build6/c13b-first-not-given
+exit 0, 0.2 s

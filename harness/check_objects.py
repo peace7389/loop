@@ -115,15 +115,20 @@ def main():
         if picture is not None:
             same("TCP segment = mtu - N, in the picture's script", f"mtu - {g[0]}", (re.search(r"v\.mtu - \d+", picture) or ["not found"])[0], f"v.mtu - {g[0]}" in picture)
     for attr, label, places in (("SndBufSize", "Send buffer", [(S, "sender")]), ("RcvBufSize", "Receive buffer", [(S, "sender"), (R, "receiver")])):
-        g = find(cc, r'"ns3::TcpSocket::' + attr + r'", UintegerValue\(1 << (\d+)\)', f"TCP {label.lower()}")
+        # since build 6 the buffer is the option tcpBufBytes when it is given, else 1 << N; objects.json writes the row as {tcpBufPlain}, which the picture fills (1 MB when not given)
+        g = find(cc, r'"ns3::TcpSocket::' + attr + r'", UintegerValue\(tcpBufBytes \? tcpBufBytes : \(1 << (\d+)\)\)', f"TCP {label.lower()}")
         for side, who in places if g else []:
-            v = row(side("stack", "TCP socket"), label); same(f"TCP {label.lower()}, {who}", size(1 << int(g[0])), v, v == size(1 << int(g[0])))
+            v = row(side("stack", "TCP socket"), label); same(f"TCP {label.lower()}, {who}: the setting, {size(1 << int(g[0]))} when it is not given", "{tcpBufPlain}", v, v == "{tcpBufPlain}" and (re.search(r"tcpBufPlain = size\(v\.tcpBufBytes \?\? (\d+)\)", picture or "") or [0, "0"])[1] == str(1 << int(g[0])))
     g = find(cc, r'addr\.SetBase\("(\d+\.\d+\.\d+)\.0", "255\.255\.255\.0"\)', "addresses")
     if g:
         for n, H in enumerate(O["hosts"], 1):
             same(f"address of the {H['key']}", f"{g[0]}.{n}", H.get("sub"), H.get("sub") == f"{g[0]}.{n}")
             v = row(obj(O, H["key"], "stack", "IPv4"), "Address"); same(f"address of the {H['key']}, under IPv4", f"{g[0]}.{n} / 24", v, v == f"{g[0]}.{n} / 24")
-    for attr, label in (("InitialCwnd", "First window"), ("MinRto", "Shortest resend timer"), ("DelAckCount", "Sends ACK"), ("Sack", "TCP options"), ("Timestamp", "TCP options")):
+    # the first window: the option tcpInitCwnd when it is given (build 6), else ns-3's own, which objects.json and the picture state as 10 segments
+    g = find(cc, r'if \(tcpInitCwnd\)\s*\{\s*Config::SetDefault\("ns3::TcpSocket::InitialCwnd", UintegerValue\(tcpInitCwnd\)\);', "TCP first window, set only when given")
+    if g is not None:
+        v = row(S("stack", "TCP socket"), "First window"); same("TCP first window: the setting, ns-3's 10 segments when it is not given", "{tcpInitCwnd} segments", v, v == "{tcpInitCwnd} segments" and "v.tcpInitCwnd == null) v.tcpInitCwnd = 10" in (picture or ""))
+    for attr, label in (("MinRto", "Shortest resend timer"), ("DelAckCount", "Sends ACK"), ("Sack", "TCP options"), ("Timestamp", "TCP options")):
         if re.search(r'"ns3::Tcp\w+::' + attr + '"', cc):  # objects.json calls these ns-3 defaults; they are, as long as the scenario does not set them
             ROWS.append(("DIFFERS", f"{label}: an ns-3 default in objects.json", f"the scenario now sets {attr}", "flagged ns3", "viewer"))
 
