@@ -66,34 +66,67 @@ Object.assign(EV, {
   briefSays(id) { const b = EV.briefFile(id), g = b && b.goal; return b === undefined ? null : !g ? '' : g.kind === 'open' ? 'the AI chooses its own aim' : g.kind === 'given' ? `find ${EV.aimWords(g)}` : ''; },
   briefSaysPlain(id) { return String(EV.briefSays(id) || '').replace(/<[^>]+>/g, ''); },
   briefName(id) { return id ? `<span class="wd" data-wd="b:${EV.e(id)}" tabindex="0">${EV.e(id)}</span>` : 'before briefs'; },
+  // A brief's box, in the looks of every box: its name with "brief" on a chip; the facts as grey labels with their values (the aim; where the aim is open and
+  // this session's final report is recorded, the aim the AI chose, in its own words; how many settings the AI may change, how many are fixed, the limit); then,
+  // behind a bar, the task as the AI was given it.
   briefPop(id) {
-    const e = EV.e, b = EV.briefFile(id), head = `<p class="wd-h"><b>${e(id)}</b> <span class="sm">a brief: what the operator asks the AI</span></p>`; if (!b) return `${head}<p class="sm">${b === undefined ? 'reading its file…' : 'Its file cannot be read here.'}</p>`;
-    const says = EV.briefSays(id), kn = Object.keys(b.knobs || {}).length, fx = Object.keys(b.system || {}).length, lim = b.limits || {};
-    return `${head}${says ? `<p class="bp-says" data-bp="says"><b>${says[0].toUpperCase() + says.slice(1)}.</b></p>` : ''}<p class="bp-task" data-own="operator" data-bp="task">${e(b.task || '')}</p><p class="sm">the task, in the operator's words</p>
-      <p class="sm" data-bp="counts" data-knobs="${kn}" data-fixed="${fx}">${kn} setting${kn === 1 ? '' : 's'} the AI may change · ${fx} fixed by the operator${lim.simulations != null ? ` · at most ${e(lim.simulations)} simulations` : ''}</p>`;
+    const e = EV.e, b = EV.briefFile(id), head = `<p class="wd-h"><b>${e(id)}</b><span class="wd-kind">brief</span></p>`; if (!b) return `${head}<p class="sm">${b === undefined ? 'reading its file…' : 'Its file cannot be read here.'}</p>`;
+    const says = EV.briefSays(id), kn = Object.keys(b.knobs || {}).length, fx = Object.keys(b.system || {}).length, lim = b.limits || {}, pl = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    // an open aim, in the session that is open: the aim the AI chose, once its final report is recorded (at an earlier step of the replay it is not there)
+    const M = EV.M, mine = M && M.brief && M.brief.id === id && EV.s.view === 'session' && (b.goal || {}).kind === 'open', rep = mine && EV.repNow ? EV.repNow() : null, chose = rep && rep.goal ? (Array.isArray(rep.goal) ? rep.goal.join(' · ') : String(rep.goal)) : '';
+    const rows = [says ? ['The aim', `<span data-bp="says">${says[0].toUpperCase() + says.slice(1)}</span>`] : null,
+      chose ? [`<span class="st-by" data-by="model"><i class="sw"></i>The AI chose</span>`, `<span class="bp-chose" data-own="model" data-bp="chose">${e(chose)}</span><span class="bp-when">in session ${e(M.id)}, stated in its final report</span>`] : null,
+      ['The AI may change', `<span data-bp="counts" data-knobs="${kn}" data-fixed="${fx}">${pl(kn, 'setting')}</span>`], ['Fixed by the operator', pl(fx, 'setting')], lim.simulations != null ? ['Limit', `${e(lim.simulations)} simulations`] : null].filter(Boolean);
+    return `${head}<dl class="wd-kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+      <div class="wd-told"><p class="wd-src"><span class="st-by" data-by="operator"><i class="sw"></i>The task</span>, as the AI was given it</p><blockquote class="wd-q bp-task" data-own="operator" data-bp="task">${e(b.task || '')}</blockquote></div>`;
+  },
+  // ---- an experiment (one batch of simulations run together), pointed at in the glance or in the notebook: which turn, what it was for (the hypotheses it
+  // tests, or the question it explores, or that it is the harness's baseline), its simulations in words built from their settings, how many were not run
+  // again, how long they took, and how each test's check ended. Only what is recorded by the step the page is at.
+  expPop(id) {
+    const M = EV.M, e = EV.e, x = M.expById[id]; if (!x) return ''; const seen = EV.seen, sims = x.sims.filter(q => seen(q.id)), tests = M.tests.filter(T => T.exp === id), base = x.by === 'harness' || id === 'X0';
+    const ev = M.recs.find(r => r.type === 'evidence' && r.parent === id && seen(r.id)), xr = M.recs.find(r => r.id === id), took = ev && xr && ev.ts && xr.ts ? Math.round((new Date(ev.ts) - new Date(xr.ts)) / 1000) : null;
+    const designs = sims.length ? sims : (x.runs || []).map(r => ({ params: r.params || {} })), plan = designs.length ? EV.nbPlan1({ exp: id, sims: designs, labels: [], rule: 'x' }) : '', back = sims.filter(q => q.same_as).length;
+    const hypQ = h => { const o = M.hyps.find(q => q.id === h); return o ? o.question || o.text || '' : ''; };
+    const how = T => { const c = T.check && seen(T.check.id) ? T.check : null; return !T.rule ? 'no decision rule: nothing to check' : !c ? (sims.length ? 'not checked yet' : 'waits for its simulations') : c.void ? 'its check is void' : c.result === 'held' ? `${EV.res('held', 'its check held')}` : c.result === 'failed' ? `${EV.res('failed', 'its check failed')}` : e(c.result || 'not checked'); };
+    return `<p class="wd-h"><b>Experiment ${e(id)}</b> <span class="sm">${base ? 'the harness’s baseline' : 'one batch of simulations, run together'}${x.turn ? ` · turn ${e(x.turn)}` : ''}</span></p>
+      ${base ? '<p>Run by the harness before the AI’s first turn, with every setting at its default: the starting point every later result is compared with.</p>' : tests.length ? `<p class="sm" style="margin-bottom:2px">it tests</p>${tests.map(T => `<p data-xp="test" style="margin:0 0 3px"><b>${e(T.hyp)}</b> <span data-own="model">${e(hypQ(T.hyp))}</span> <span class="sm">· ${how(T)}</span></p>`).join('')}` : `<p><span class="sm">it explores, with no hypothesis to test:</span> <span data-own="model">“${e(x.question || 'not recorded')}”</span></p>`}
+      <p data-xp="sims"${sims.length ? '' : ' class="mut"'}>${plan}${sims.length ? '' : ' · not back yet'}</p>
+      ${back ? `<p class="sm" data-xp="back">${back} of them ${back === 1 ? 'has' : 'have'} the settings and seed of an earlier simulation: ${back === 1 ? 'it was' : 'they were'} not run again, the earlier result${back === 1 ? ' was' : 's were'} returned and did not count against the limit.</p>` : ''}
+      <p class="sm">${took != null ? `its results came back ${took} s after it was set up · ` : ''}click to open it: each simulation with its settings and measures</p>`;
   },
   // ---- what the box says, by key
   wdBody(key) {
     if (key[0] === 'b') return EV.briefPop(key.slice(2));
-    const M = EV.M, e = EV.e, b = M.brief || {}, given = (M.meta && M.meta.given) || {}, [kind, name] = [key[0], key.slice(2)], head = (title, what, field) => `<p class="wd-h"><b>${e(title)}</b> <span class="sm">${what}${field ? ` · field <code>${e(field)}</code>` : ''}</span></p>`;
+    // A box reads from top to bottom, and each kind of thing in it has a look of its own: the name, with its kind on a chip; one or two plain sentences that
+    // say what it is (the page's words, the largest text under the name); the facts as small grey labels with their values; then, smaller and behind a bar, the
+    // line the AI was given, with whose line it is; last, under a rule, the field's name.
+    const M = EV.M, e = EV.e, b = M.brief || {}, given = (M.meta && M.meta.given) || {}, [kind, name] = [key[0], key.slice(2)], head = (title, what) => `<p class="wd-h"><b>${e(title)}</b><span class="wd-kind">${what}</span></p>`;
+    const lead = (text, own) => { const t = String(text || '').trim(); return t ? `<p class="wd-lead"${own ? ' data-wd-says="1"' : ''}>${e(t[0].toUpperCase() + t.slice(1))}${/[.!?]$/.test(t) ? '' : '.'}</p>` : ''; };
+    const quote = (text, by, whose) => `<div class="wd-told"><p class="wd-src"><span class="st-by" data-by="${by}"><i class="sw"></i>${whose}</span>, as the AI was given it</p><blockquote class="wd-q" data-own="${by}" data-wd-says="1">${e(text)}</blockquote></div>`;
+    const facts = rows => { const r = rows.filter(Boolean); return r.length ? `<dl class="wd-kv">${r.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>` : ''; }, foot = field => `<p class="wd-foot">its name in the records: <code>${e(field)}</code></p>`;
+    if (kind === 'v') { const [value, what, line, state, says] = name.split('¦');  // a mark of a rule's bar: its value and what it is; where it was measured, or what the rule asks; whether the comparison holds
+      return `<p class="vp-v" data-wd-value="1"><b>${e(value || '')}</b> <span>${e(what || '')}</span></p>${line ? `<p class="vp-at">${e(line)}</p>` : ''}${says ? `<p class="vp-r" data-state="${e(state)}">${EV.res(state === 'held' ? 'held' : 'failed', says)}</p>` : ''}`; }
+    if (kind === 'x') return EV.expPop(name);  // an experiment: what it was for, its simulations, what came of it
     if (kind === 'h') return EV.hypPop(name);  // a hypothesis: its card (evidence_find.js)
     if (kind === 'a') return EV.answerPop();  // the answer, the last box of the board: its proposal and its reasons
     if (kind === 'e') return EV.edgePop(name);  // an arrow of the board: the result that led onward
-    if (kind === 'd') return `${head(name, 'a word of this page')}<p>${e(EV_DEF[name] || '')}</p>`;
-    if (kind === 'o') { const p = EV.WD_PARTS.find(q => q[0] === name), id = p && EV.OB ? EV.sysId(p[1], p[2], p[0]) : null; return id ? `<div class="wd-obj">${EV.objCard(id)}</div><p class="sm">from the picture in “The setting”</p>` : `${head(name, 'a part of the network')}<p class="sm">Its settings are in the picture of “The setting”.</p>`; }
+    if (kind === 'd') return `${head(name, 'word of this page')}${lead(EV_DEF[name], false)}`;
+    if (kind === 'o') { const p = EV.WD_PARTS.find(q => q[0] === name), id = p && EV.OB ? EV.sysId(p[1], p[2], p[0]) : null; return id ? `<div class="wd-obj">${EV.objCard(id)}</div><p class="sm">from the picture in “The setting”</p>` : `${head(name, 'part of the network')}<p class="sm">Its settings are in the picture of “The setting”.</p>`; }
     if (kind === 'k') { const kn = (b.knobs || {})[name], fixed = (b.system || {})[name], plain = EV.LABEL[name] || name;
-      const tried = (() => { const vs = [...new Set(M.sims.filter(q => EV.seen(q.id) && q.params && q.params[name] != null && (M.expById[q.exp] || {}).by !== 'harness').map(q => q.params[name]))], num = vs.length > 0 && vs.every(x => typeof x === 'number');
-        return !vs.length ? '' : `<p class="sm" data-wd-tried="${vs.length}">This session's own simulations tried ${vs.length === 1 ? 'one value: ' + e(EV.setVal(name, vs[0])) : num ? `${vs.length} values, from ${e(EV.setVal(name, Math.min(...vs)))} to ${e(EV.setVal(name, Math.max(...vs)))}` : `${vs.length} values: ${e(vs.map(v => EV.setVal(name, v)).join(', '))}`}.</p>`; })();
-      return `${head(plain, 'a setting', name)}${kn && kn.meaning ? `<p data-own="operator" data-wd-says="1">${e(kn.meaning)}</p><p class="sm">the brief's line about it: the words the AI was given</p>` : `<p data-wd-says="1">${e(EV.SET_SAYS[name] || '')}</p>`}
-        ${kn ? `<p data-exact="1"><span class="st-by" data-by="model"><i class="sw"></i>the AI may change it</span>: <span data-wd-range="1">${e(EV.setRange(name, kn))}</span>; the session started from <b data-wd-default="1">${e(EV.setVal(name, kn.default))}</b></p>${tried}`
-          : fixed !== undefined ? `<p data-exact="1"><span class="st-by" data-by="operator"><i class="sw"></i>fixed by the operator</span> at <b data-wd-fixed="1">${e(EV.setVal(name, fixed))}</b></p>` : ''}`; }
+      const vs = [...new Set(M.sims.filter(q => EV.seen(q.id) && q.params && q.params[name] != null && (M.expById[q.exp] || {}).by !== 'harness').map(q => q.params[name]))], num = vs.length > 0 && vs.every(x => typeof x === 'number');
+      const tried = !vs.length ? null : ['Tried here', `<span data-wd-tried="${vs.length}" data-exact="1">${vs.length === 1 ? 'one value: ' + e(EV.setVal(name, vs[0])) : num ? `${vs.length} values, from ${e(EV.setVal(name, Math.min(...vs)))} to ${e(EV.setVal(name, Math.max(...vs)))}` : `${vs.length} values: ${e(vs.map(v => EV.setVal(name, v)).join(', '))}`}</span>`];
+      return `${head(plain, 'setting')}${lead(EV.SET_SAYS[name], !(kn && kn.meaning))}
+        ${kn ? facts([['Decided by', '<span class="st-by" data-by="model"><i class="sw"></i>the AI may change it</span>'], ['Range', `<span data-wd-range="1" data-exact="1">${e(EV.setRange(name, kn))}</span>`], ['Started from', `<b data-wd-default="1" data-exact="1">${e(EV.setVal(name, kn.default))}</b>`], tried])
+          : fixed !== undefined ? facts([['Decided by', '<span class="st-by" data-by="operator"><i class="sw"></i>fixed by the operator</span>'], ['Value', `<b data-wd-fixed="1" data-exact="1">${e(EV.setVal(name, fixed))}</b>`]]) : ''}
+        ${name === 'tcpVariant' ? EV.tcpList(kn ? kn.choices || [kn.default] : fixed !== undefined ? [fixed] : []) : ''}${kn && kn.meaning ? quote(kn.meaning, 'operator', 'The brief’s line') : ''}${foot(name)}`; }
     // a measure
     const says = (given.outputs || {})[name], s0 = M.simById.S0 && EV.seen('S0') ? M.simById.S0 : null, g = b.goal || {}, cond = (g.conditions || []).find(c => new RegExp('^\\s*' + name + '\\b').test(c)), unit = /_bps$/.test(name) ? 'Mbps or Gbps' : ['udp_loss_frac', 'link_util'].includes(name) ? 'per cent' : /^drops_|retrans/.test(name) ? 'a count of packets' : '';
     const where = EV.OB ? [EV.OB.channel, ...EV.OB.hosts.flatMap(h => ['apps', 'stack', 'tc', 'dev'].flatMap(l => (h[l] || []).map(o => ({ ...o, host: h.title }))))].find(o => (o.measured || []).includes(name)) : null;
-    return `${head(TH_DATA.PLAIN[name] || name, 'a measure of each simulation', name)}${says ? `<p data-own="harness" data-wd-says="1">${e(says)}</p><p class="sm">the harness's line about it: the words the AI was given</p>` : ''}
-      <p>${unit ? `shown in ${unit}` : ''}${s0 && s0.metrics && s0.metrics[name] != null ? `${unit ? ' · ' : ''}in the baseline: <b data-wd-base="1">${EV.v4(name, s0.metrics[name])}</b>` : ''}</p>
-      ${g.kind === 'given' && g.target && g.target.measure === name ? `<p data-wd-goal="target"><span class="st-by" data-by="operator"><i class="sw"></i>the brief's target</span>: the ${g.target.direction === 'min' ? 'smallest' : 'largest'} is wanted</p>` : ''}${cond ? `<p data-wd-goal="condition"><span class="st-by" data-by="operator"><i class="sw"></i>the brief's condition</span>: ${EV.readHtml(cond) || e(cond)}</p>` : ''}
-      ${where ? `<p class="sm">measured at: ${e(where.name)}${where.host ? ', ' + e(where.host.toLowerCase()) : ''}</p>` : ''}`;
+    return `${head(TH_DATA.PLAIN[name] || name, 'measure')}${lead(EV.MEASURE_SAYS[name], false)}
+      ${facts([s0 && s0.metrics && s0.metrics[name] != null ? ['In the baseline', `<b data-wd-base="1">${EV.v4(name, s0.metrics[name])}</b>`] : null, where ? ['Measured at', `${e(where.name)}${where.host ? ', ' + e(where.host.toLowerCase()) : ''}`] : null,
+        g.kind === 'given' && g.target && g.target.measure === name ? ['<span class="st-by" data-by="operator"><i class="sw"></i>The brief’s target</span>', `<span data-wd-goal="target">the ${g.target.direction === 'min' ? 'smallest' : 'largest'} is wanted</span>`] : null,
+        cond ? ['<span class="st-by" data-by="operator"><i class="sw"></i>The brief’s condition</span>', `<span data-wd-goal="condition">${(m => (m ? `${EV.READ_WORDS[m[1]]} ${e(EV.readNum(Number(m[2]), name, 0))}` : EV.readHtml(cond) || e(cond)))(/^\s*\w+\s*(<=|>=|<|>|==)\s*([-\d.eE]+)\s*$/.exec(cond))}</span>`] : null])}${says ? quote(says, 'harness', 'The harness’s line') : ''}${foot(name)}`;
   },
   // ---- the picture and the words. The keys of a part: the settings its rows show (as this session's brief names them) and its measures
   wdOfPart(id) {
@@ -126,6 +159,9 @@ Object.assign(EV, {
   wdPlace() {
     const el = EV._wdEl, pop = document.getElementById('wd-pop'); if (!el || !pop) return; const r = el.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight) return EV.wdHide();
     const w = pop.offsetWidth, h = pop.offsetHeight, below = r.bottom + 6 + h <= innerHeight || r.top - 6 - h < 0;
+    // a box too tall to stand under its word or over it stands beside it (to the right where there is room, else to the left), so that it never lies over what it explains
+    if (r.bottom + 6 + h > innerHeight && r.top - 6 - h < 0) { const right = r.right + 8 + w <= innerWidth, left = r.left - 8 - w >= 0;
+      if (right || left) { pop.style.left = (right ? r.right + 8 : r.left - 8 - w) + 'px'; pop.style.top = Math.max(4, Math.min(r.top, innerHeight - h - 4)) + 'px'; return; } }
     pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px'; pop.style.top = Math.max(4, below ? Math.min(r.bottom + 6, innerHeight - h - 4) : r.top - 6 - h) + 'px';
   },
   wdHide() { clearTimeout(EV._wdT); const pop = document.getElementById('wd-pop'); if (pop) pop.remove(); (EV._wdTitles || []).forEach(([a, t]) => { if (a.isConnected && !a.title) a.title = t; }); EV._wdTitles = []; EV._wdEl = null; },

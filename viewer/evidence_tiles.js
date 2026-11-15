@@ -10,7 +10,11 @@
 // and seed no earlier simulation of the session had, and numbers the runs on from the last one (tools.run_many). The
 // page recounts that. When the simulation has ended its params.json says which settings it ran with; if that is not the
 // design the page expected, the tile says so and shows the file's settings.
-// The tiles go when the experiment's records arrive: from then on its simulations are in the notebook and the tables.
+// The tiles stay when the experiment's records have arrived (its simulations take seconds, the reply that follows takes minutes): until the
+// next experiment starts they show the simulations of the newest experiment as they ended, read from the records (which run each simulation
+// got) and from the same files. They go when the session ends: from then on its simulations are in the notebook and the tables.
+// Where the reader is told: the banner, the notebook's line "ns-3 is working" (with how many have ended and a link to the tiles), and a small
+// note under the banner when an experiment's simulations start (evidence_live.js).
 // Nothing here is written by a model.
 // ======================================================================================================
 Object.assign(EV, {
@@ -28,6 +32,20 @@ Object.assign(EV, {
     fresh.forEach((d, i) => { d.run = 'r' + String(first + i).padStart(3, '0'); d.differs = keys.filter(k => EV.tileNum(d.params[k]) !== EV.tileNum(dflt[k])); });
     return { key: `${M.id}/${x.id}`, exp: x.id, fresh, reused, next: 'r' + String(first + fresh.length).padStart(3, '0'), keys };
   },
+  // the simulations of the newest experiment whose records have arrived: the same tiles, from the records and the runs' own files
+  tilePlanDone() {
+    const M = EV.M, x = M.recs.filter(r => r.type === 'experiment' && M.recs.some(q => q.type === 'evidence' && q.parent === r.id)).pop(); if (!x) return null;
+    const kn = (M.brief && M.brief.knobs) || {}, keys = Object.keys(kn), dflt = Object.fromEntries(keys.map(k => [k, kn[k].default])), sims = M.sims.filter(s => s.exp === x.id);
+    const fresh = sims.filter(s => !s.same_as && s.run && s.metrics).map(s => { const p = { ...dflt, ...s.params }; return { label: s.label, params: p, run: s.run, sim: s, differs: keys.filter(k => EV.tileNum(p[k]) !== EV.tileNum(dflt[k])) }; });
+    return { key: `${M.id}/${x.id}`, exp: x.id, fresh, reused: sims.filter(s => s.same_as).map(s => s.label), next: null, keys, done: true, baseline: x.by === 'harness' || x.id === 'X0' };
+  },
+  // their measures are the records'; each curve is read once more from its file, whole
+  tilesDone(P, sid) {
+    const T = EV.tiles, base = `../sessions/${sid}/runs/`, todo = P.fresh.filter(d => { const R = T.runs[d.run] || (T.runs[d.run] = { rows: [], there: false }); R.metrics = d.sim.metrics; R.used = d.sim.params; R.collected = R.done = true; if (R.whole) return false; R.whole = true; return true; });
+    if (!todo.length) return;
+    Promise.all(todo.map(async d => { const t = await EV.get(`${base}${d.run}/series.csv`), R = T.runs[d.run]; if (t != null) { R.there = true; R.rows = t.trim().split('\n').slice(1).map(l => l.split(',').slice(0, 3).map(Number)).filter(q => q.length === 3 && q.every(Number.isFinite)); } }))
+      .then(() => { const el = document.getElementById('live-tiles'), now = EV.liveNow(); if (el && now && EV.M && EV.M.id === sid && el.dataset.exp === P.exp) el.innerHTML = EV.tilesHtml(now, true); });
+  },
   // every two seconds while simulations run (from EV.liveTick, after the index was read): each tile's files, then the tiles that changed
   tilesTick(now, sid) {
     const P = EV.tilePlan(now), T = EV.tiles; if (!P) return; if (T.key !== P.key) { T.key = P.key; T.runs = {}; T.more = false; }
@@ -42,7 +60,8 @@ Object.assign(EV, {
     Promise.all(jobs).then(() => { if (!EV.M || EV.M.id !== sid) return; const el = document.getElementById('live-tiles'); if (!el) return;
       const tmp = document.createElement('div'); tmp.innerHTML = EV.tilesHtml(now, true);
       tmp.querySelectorAll('.lt').forEach(n => { const old = el.querySelector(`.lt[data-run="${n.dataset.run}"]`); if (!old) el.querySelector('.lt-grid') ? el.querySelector('.lt-grid').appendChild(n) : (el.innerHTML = EV.tilesHtml(now, true)); else if (old.dataset.sig !== n.dataset.sig) old.replaceWith(n); });
-      const note = el.querySelector('.lt-note'), nn = tmp.querySelector('.lt-note'); if (note && nn && note.textContent !== nn.textContent) note.replaceWith(nn); });
+      const note = el.querySelector('.lt-note'), nn = tmp.querySelector('.lt-note'); if (note && nn && note.textContent !== nn.textContent) note.replaceWith(nn);
+      if (nn) document.querySelectorAll('#s-notebook .nb-sims-n').forEach(q => { q.textContent = ` · ${nn.dataset.ended} of ${nn.dataset.of} ended`; }); });  // the same count where the notebook says that ns-3 is working
   },
   // the curve of one tile: the goodput of the two flows over simulated time. x: from the first second of measured traffic to its last; y: from 0 to the link's rate
   tilePlot(d, R, top) {
@@ -74,11 +93,13 @@ Object.assign(EV, {
   },
   // inner: only the tiles' own block (what a tick compares against the page)
   tilesHtml(now, inner) {
-    if (!now || (now.phase !== 'sims' && now.phase !== 'baseline')) return ''; const P = EV.tilePlan(now); if (!P || !P.fresh.length) return '';
+    if (!now) return ''; const live = now.phase === 'sims' || now.phase === 'baseline', P = live ? EV.tilePlan(now) : EV.tilePlanDone(); if (!P || !P.fresh.length) return '';
     if (EV.tiles.key !== P.key) { EV.tiles.key = P.key; EV.tiles.runs = {}; EV.tiles.more = false; }
+    if (!live) EV.tilesDone(P, EV.M.id);
     const e = EV.e, n = P.fresh.length, ended = P.fresh.filter(d => (EV.tiles.runs[d.run] || {}).metrics).length;
     const note = `<p class="lt-note sm" data-ended="${ended}" data-of="${n}">${ended} of ${n} ended${P.reused.length ? ` · not run again, same settings and seed as an earlier simulation: ${e(P.reused.join(', '))}` : ''}${EV.tiles.more ? ' · the simulator started more runs than this page expected, so each tile is named by its run' : ''}</p>`;
-    const body = `<p class="lt-t"><b>${now.phase === 'baseline' ? 'The baseline simulation' : `The ${n} simulation${n === 1 ? '' : 's'} of ${e(P.exp)}`}, as the simulator runs ${n === 1 ? 'it' : 'them'}</b> <span class="sm">each picture is the simulation’s own series.csv, read again every 2 seconds: goodput from 0 to the link’s rate, over its measured time</span></p>${note}<div class="lt-grid">${P.fresh.map(d => EV.tileHtml(d, P)).join('')}</div>`;
+    const body = `<p class="lt-t" data-live="${live ? 1 : 0}"><b>${(live ? now.phase === 'baseline' : P.baseline) ? 'The baseline simulation' : `The ${n} simulation${n === 1 ? '' : 's'} of ${e(P.exp)}`}, as ns-3 ${live ? 'runs' : 'ran'} ${n === 1 ? 'it' : 'them'}</b> <span class="sm">${live ? 'each picture is the simulation’s own series.csv, read again every 2 seconds: goodput from 0 to the link’s rate, over its measured time'
+      : `the newest simulations: ${n === 1 ? 'it has' : 'they have'} ended and ${n === 1 ? 'its record is' : 'their records are'} in the notebook; the picture${n === 1 ? '' : 's'} stay${n === 1 ? 's' : ''} here until the next experiment starts · each is the simulation’s own series.csv: goodput from 0 to the link’s rate, over its measured time`}</span></p>${note}<div class="lt-grid">${P.fresh.map(d => EV.tileHtml(d, P)).join('')}</div>`;
     return inner ? body : `<div id="live-tiles" class="noprint" data-exp="${e(P.exp)}">${body}</div>`;
   },
   // pointing at a curve: the sample under the pointer, in words under the picture

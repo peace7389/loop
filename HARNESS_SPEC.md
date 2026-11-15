@@ -499,11 +499,11 @@ A brief is never overwritten: the page's editor saves under a new id only
 `?tab=new`; **DECISION 2026-11-14**, the operator's `READABLE_PAGE.md`, Part 3)
 is where a brief is written and a session started. It has the seven blocks of
 a session's "The setting" (12.1), in the same order, built from the same
-pieces; here each block is a form: the network (the picture of the system; a
-click on a part opens its settings), who decides what (each setting "fixed by
-the operator" with a value, or "the AI may change it" with a range, a default
-and an optional step; a setting a brief may leave out has a third state, "not
-set"), the aim (a ready-made aim, a target with conditions and a tolerance, or
+pieces; here each block is a form: the network (the picture of the system and,
+under it, one card per part with every value it has; see below), who decides
+what (each setting "fixed by the operator" with a value, or "the AI may change
+it" with a range, a default and an optional step; a setting a brief may leave
+out has a third state, "not set"; a numeric setting also has a bar), the aim (a ready-made aim, a target with conditions and a tolerance, or
 "open: the AI chooses"), what the AI is told, is not told and can do (the task
 and the description to write, the three lists, which follow the form, and
 "the exact text the AI will be given"), the limits, kept from the AI (the
@@ -513,6 +513,63 @@ that cannot be used is refused as it is typed, with the reason beside it
 (`BRIEF_EDITOR.problems`: the rules of `tools.check_brief` and of
 `control.py`'s start, said first by the page; the server checks again). Above
 Start stands the header strip the session's page will have.
+
+**A part is configured in its own card** (**DECISION 2026-11-15**, the
+operator: "I still cannot configure the scheduler and the rest on the new
+session page"; the values could be set, but only in block 2 and block 6, far
+from the part they belong to). In the cards under the picture every value
+that comes from a setting is a field (`BRIEF_EDITOR.confField`): the UDP
+rate in the UDP source's card, the ratio in the scheduler's, each queue's
+length in its queue's, the link's rate and largest packet in the devices',
+the delay in the link's, TCP's type, first window and buffers in the TCP
+socket's. The scheduler's card also chooses the scheduling policy (share,
+cap, random): the same choice as block 6, each following the other. Under
+that choice a note says what the policy does with the form's numbers
+(`BRIEF_EDITOR.policyEffect`; the operator asked whether "cap" needed more
+to be set: it does not, its two limits are the ratio times the link rate):
+"UDP at most 450 Mbps, TCP at most 550 Mbps, even when the other sends less"
+for cap, "both sending: UDP 450 Mbps, TCP 550 Mbps; what one leaves unused
+goes to the other" for share; and under cap the row of the 3,000 bytes says
+they are the most a flow may send in one go. Under the TCP type chosen in the
+TCP socket's card a note gives that type's plain line (below). A note is not
+a value: it stands under its row over the card's whole width, on a tinted
+ground, with an "i" before it (the operator: an explanation must not look
+like a set value). A field
+is the same value as in block 2 (typing in one writes the other); block 2
+keeps the ranges and the steps. The mark before a field says who decides and
+a click on it switches that: ✦ the AI may change it (the field is then the
+value it starts from), ✧ fixed by the operator; the value in the field stays
+the value. A setting a brief may leave out has an empty field that shows
+what the program does without it; a value typed there sets it (fixed), and
+emptying it leaves it out again. A queue's field sets that queue's own
+length. A row that only repeats or follows from a value set in another card
+(the scheduler's link rate, the link's capacity, TCP's segment payload) is
+shown, not set. A value that cannot be used is marked in its card with the
+reason on the field. While a field is typed in, its row is not written again
+(the cursor stays); what follows from it (TCP's share beside the ratio, the
+picture) follows. Values the scenario fixes (the packet's payload, the start
+times, the turn size, TCP's options and timers, UDP's receive buffer) are
+text: they are not options of the program.
+
+**A bar beside each numeric setting** (**DECISION 2026-11-15**, the operator:
+"set variables using a visual bar along with directly entering the value").
+In block 2 every numeric setting that is set has a bar between its switch
+and its fields (`BRIEF_EDITOR.bar`): one handle for a fixed value; for a
+setting the AI may change, the lowest and the highest value (two short
+strokes, the range shaded between them) and the value it starts from (a
+dot). The bar and the fields are the same values: dragging a handle (or the
+arrow keys) writes the field as if typed, typing moves the handle. The ends
+of a range cannot pass each other, and the starting value stays between
+them. A bar's span is the range worth dragging over (`BRIEF_EDITOR.BAR`); a
+rate, a delay, a count of packets and a buffer run in equal ratios (10 to
+100 takes as much room as 100 to 1,000), the ratio, the largest packet, the
+measured time and the seed evenly. A handle writes a round value (two digits
+of a rate or a delay, in whole Mbps, Gbps, us or ms as the harness writes
+them; a whole number of packets; a ratio in hundredths; a buffer of 1 or 1.5
+times a power of two). A value beyond the span can still be typed: the
+handle then stands at the end. A fixed bar has the operator's tone, a range
+the AI's. The TCP type (a list) and a setting that is not set have no bar.
+Check of both: `ev_usable.py cards bars`.
 
 A form that differs from every saved brief is saved under a new name before
 its session starts; a brief is never overwritten. "Start a new session from
@@ -1310,14 +1367,23 @@ is written, one empty row in section 3 and one empty card of six lines in
 the notebook. A place that is never filled stays drawn empty after the end
 ("No verdict was given", "No final report was given"). Where the work is, is
 read from the records alone: no record, the harness is preparing the session;
-an experiment without its results, the simulator is working on its
+an experiment without its results, ns-3 is working on its
 simulations; the newest record is a turn's first, the AI is writing its
 reply; anything else, the harness is preparing the next turn. The banner,
 which stays under the header strip, says it in one sentence with how long the
 newest record has been the newest (the server's `Date` against the ledger's
-`Last-Modified`), what arrived at the last reading, the switch "follow the
-work" (off unless the reader turns it on: the page does not move by itself)
-and Stop. The AI's reply arrives whole, so while it is written the mark stands
+`Last-Modified`), what arrived at the last reading, and Stop. **The page
+never moves by itself** (**DECISION 2026-11-15**, the operator: "I don't want
+you to kidnap users to the place on the page ... just show a little popup";
+the switch "follow the work" is gone). When a new turn begins, and when an
+experiment's simulations start, a small note appears under the banner at the
+right for a quarter of a minute (`EV.liveNote`): "Turn 6 has started" with
+"show it", "ns-3 is running the 5 simulations of X5" with "watch them"; the
+button takes the reader there at the reader's own click, the cross closes
+the note. And the reader's place is kept: when records arrive the page is
+drawn again and parts above may have grown, so the part that stood at the top
+of the window is put back where it stood (`EV.liveAnchor`; a part that stays
+in the window, like the banner or the detail pane, is not used for this). The AI's reply arrives whole, so while it is written the mark stands
 on every place that reply may fill, and the sentence says so; a draft is never
 read (of a draft record only its type, to say that a reply was asked for
 again). New records are marked for half a minute. Every two seconds the page
@@ -1350,9 +1416,19 @@ with, and a tile whose file names other settings than the design expected is
 named by its run and shows the file's settings; if more runs exist than the
 recount expects, every tile is named by its run alone. On two recorded
 sessions the recount equals the records at each of their 9 experiments (73
-simulations). The tiles go when the experiment's records arrive: from then on
-its simulations are in the notebook and the tables. Nothing on a tile is
-written by a model.
+simulations). **The tiles stay when the experiment's records have arrived**
+(**DECISION 2026-11-15**, the operator asked whether showing the state of the
+running simulations had been judged inappropriate: it was shown, but for the
+7 to 30 seconds an experiment's simulations take, against the minutes of the
+reply that follows, and in another part of the page than the notebook, so it
+was hardly ever seen). Until the next experiment starts the tiles show the
+simulations of the newest experiment as they ended ("as ns-3 ran them"),
+from the records (which run each simulation got) and the same files, each
+with its whole curve and its measures. While simulations run, the notebook's
+line "ns-3 is working on its simulations" says how many have ended and links
+to the tiles, and the note under the banner (above) says that they started.
+The tiles go when the session ends: from then on its simulations are in the
+notebook and the tables. Nothing on a tile is written by a model.
 
 The simulator itself prints nothing
 while it runs, and ns-3's logging is not in the optimized build; a
@@ -1403,7 +1479,7 @@ it.
 checks `ev_design.py`, `ev_board.py`, `ev_glance.py`).
 - *One kind of box.* Pointing at a hypothesis's box on the board (or at its
   name in the table) opens its card: the name and how it ended, the question,
-  then six lines in a fixed order (why it asked, follows from, expected,
+  then six lines in a fixed order (why, follows from, expected,
   result, conclusion, led to). Pointing at an arrow or at its sign opens the
   arrow's card: the result the later hypothesis names, with what was measured,
   how it was judged and the AI's next step; a click opens the earlier test. An
@@ -1417,11 +1493,11 @@ checks `ev_design.py`, `ev_board.py`, `ev_glance.py`).
   notebook with its heading and all of its cards.
 - *Nothing changes size on a click.* The settings of the part chosen in the
   picture stand in a card beside it that lies over what is below when it is
-  taller than the picture. On the set-up page every setting stands at once in
-  a row under the picture; pointing at a part sets off its settings there and
-  in block 2, and the other way round; the part's own form keeps one height.
+  taller than the picture. On the set-up page every part stands at once in a
+  card under the picture, with its values as fields (section 7); pointing at a
+  part sets off its card and its rows of block 2, and the other way round.
 - *A test in full* (the detail pane): the headings of its notebook card
-  (Question, Why, Plan, Expected, Result, Conclusion, So next), each said once
+  (Hypothesis, Why, Plan, Expected, Result, Conclusion, So next), each said once
   and never cut; then its chart; folded, "The exact records" (the rule as
   written, the check's raw numbers, the times); last the same test as one
   picture. A simulation chosen inside an open test opens within it (an inset),
@@ -1429,7 +1505,13 @@ checks `ev_design.py`, `ev_board.py`, `ev_glance.py`).
 - *Section 2 in names and words.* "The session at a glance" has no shapes to
   decode: a hypothesis is its name on a chip, tinted by how it ended as its box
   on the board; a test is "H1 held" or "H1 failed"; the simulations of a turn
-  are a number; a verdict stands in the turn it was given; the final report is
+  are "X1 · 5 simulations", with "2 not run again" under it where designs had
+  the settings and seed of earlier ones (**DECISION 2026-11-15**, the
+  operator: a bare number after the experiment could not be read), and
+  pointing at it opens the experiment's box (`EV.expPop`: the hypotheses it
+  tests with how each check ended, or the question it explores, its
+  simulations in words built from their settings, how many were not run
+  again, how long they took); a verdict stands in the turn it was given; the final report is
   the word "written". There is no row of decision rules: a rule stands with its
   test. An empty place is the word "empty", "not checked", "not judged" or
   "n running".
@@ -1443,8 +1525,84 @@ checks `ev_design.py`, `ev_board.py`, `ev_glance.py`).
   the region the rule allows is marked, and a mark stands where the simulation
   came out; beside it the same in words. A rule the page cannot place on a
   scale (not a comparison with a number) has no bar and stays in words.
+  Pointing at the dot or at the threshold opens a small box at once
+  (**DECISION 2026-11-15**, the operator, who twice asked for it "more
+  concise and understandable"): three short lines. The dot: the value, large,
+  with what it is ("865.6 Mbps  TCP goodput"); the simulation, by its
+  settings ("at UDP rate 100 Mbps"); and, with the sign of held or failed,
+  "rule: over 800 Mbps". The threshold: "800 Mbps  threshold"; "rule: TCP
+  goodput over 800 Mbps"; "measured: 865.6 Mbps". A side of a comparison is
+  never called "the left side": it is said by what it is (`EV.exprSays`):
+  "UDP goodput + TCP goodput", "the smaller of UDP goodput and TCP goodput"
+  (min), "the gap between … and …" (abs of a difference), "the smallest TCP
+  goodput of 6 simulations"; where its measures come from several
+  simulations, each is followed by the settings in which those simulations
+  differ. Each mark has a wider place to point at.
+  **One measure held between two numbers is one bar** (the operator: "both
+  are about the same variable"): "… >= 200 Mbps and … <= 300 Mbps" is drawn
+  as one band between two ticks, with one dot, and reads "must be within 200
+  Mbps to 300 Mbps" (in a rule joined by "and" throughout). The bars also
+  stand in "The decision rule, in full" of a test's detail (the operator);
+  before the rule's check is recorded they show what the rule allows, without
+  a dot, and a comparison with a measured right side is then in words.
+- *A box's parts each have a look* (**DECISION 2026-11-15**, the operator:
+  "different formats are not distinct enough to tell apart what is what",
+  then "content and design both are not easy to read"). The box of a setting
+  or a measure reads from top to bottom: its name with its kind on a chip
+  ("measure", "setting"); one or two plain sentences that say what it is, in
+  the page's words (`EV.MEASURE_SAYS`, `EV.SET_SAYS`: "How much UDP data
+  reaches the receiver each second. Lost packets do not count."); the facts
+  as small grey labels with their values on a tinted ground (in the baseline,
+  measured at, the brief's target or condition; decided by, range, started
+  from, tried here); then, smaller and behind a bar, the line the AI was
+  given, with whose line it is; last, under a rule, its name in the records.
+  A box too tall to stand under or over its word stands beside it.
+- *One word for one thing* (**DECISION 2026-11-15**, the operator: "if
+  question and hypothesis refer to the same thing, shouldn't we merge it into
+  hypothesis?"). The page calls a hypothesis a hypothesis everywhere: the
+  first line of a notebook card and of a test's detail is "Hypothesis"
+  (until then "Question"), the table and the board speak of hypotheses, a
+  running session's empty place is "the next hypothesis". What is shown
+  there is still the hypothesis in its plain wording, the record's field
+  `question`, whose name does not change. An exploration still explores a
+  question: it has no hypothesis.
+- *A brief's box* has the same looks: its name with "brief" on a chip; the
+  facts (the aim; where the aim is open and the final report is recorded, the
+  aim the AI chose, in its words, with where it was stated; how many settings
+  the AI may change, how many are fixed, the limit); then, behind a bar, the
+  task as the AI was given it.
+- *The legend's items* each stand in a border of their own inside the border
+  of their group (the operator), so that "AI", "harness", "ns-3", "operator"
+  read as four things.
+- *A hypothesis's card* (the operator: "more design for readability") has the
+  name, how it ended on a tinted badge, and the turn at the right; the
+  question; why it was asked and what it follows from; then the test on a
+  tinted ground: Expected as one short line per comparison of the rule (each
+  side in words, the first three), Result as the check's word and one line
+  per comparison with its own sign ("482 Mbps over 433.8 Mbps", "190.1 Mbps
+  not over 433.8 Mbps"); then the verdict on its badge with its first
+  sentence, and the hypotheses it led to as chips.
+- *A part's card* (the operator: "the name of the item and its value should
+  be distinct"): the part's name with its ns-3 class on a chip; each row's
+  name small and grey on a shaded ground, its value dark and heavy beside it,
+  a note about the value (who decides it, its range) small after it; what is
+  measured there as a note under the rows. The card keeps one height.
+- *The TCP types in plain words* (the operator: "simple and easy to read
+  explanation on chosen congestion control algorithms where appropriate").
+  Each type has one line of at most 22 words (`EV.TCP_SAYS`): what it reacts
+  to (loss, delay, or what it measures of the path) and what it does. The
+  lines stand under the type chosen on the set-up page, in the box of the
+  setting "TCP type" (one line for each type the brief offers or fixes), and
+  the type named in the TCP socket's card opens that box. They are the page's
+  words for the reader; the AI's brief names the types only.
 - *The board opens with the aim and closes with the answer.* Its first box is
-  the aim (the brief's goal with its conditions), its last the answer: what
+  the aim (the brief's goal with its conditions). Where the brief leaves the
+  aim open, the box says the aim the AI chose (**DECISION 2026-11-15**, the
+  operator): the goal of its final report, in its own words, cut by the
+  browser at a whole line, with "stated in its final report"; the whole text
+  is on the box's card. The AI states its aim nowhere before that report, so
+  until the report is recorded (a running session, an earlier step of the
+  replay) the box says only that the aim is open. Its last box is the answer: what
   the final report proposes and, after "because", its first reason in the
   AI's words (the first claim whose role is "supports"; in a report without
   roles its first claim). Lines run from the hypotheses the report's claims
@@ -1708,7 +1866,7 @@ number, with the small icon of who produced it:
 
 | Line | Taken from | Produced by |
 |---|---|---|
-| Question | the hypothesis's `question`; a session that recorded none: the hypothesis text | model |
+| Hypothesis | the hypothesis's plain wording (its field `question`); a session that recorded none: the hypothesis text | model |
 | Why | the hypothesis's `why`: why answering it helps reach the goal. Only where it is recorded; the line is absent otherwise | model |
 | Plan | what differs between the simulations the decision rule names, in words built from their settings ("2 simulations: UDP share of the link 0.2, 0.8 at Measured time 5"), then what they share that is not the brief's default | model's design |
 | Expected | the decision rule for reading, and its rival in one line | model |
@@ -1729,6 +1887,14 @@ number, with the small icon of who produced it:
   list does. In the replay a card can be read from the step of its experiment,
   its Result from the step of its check, its last two lines from the step of
   its verdict.
+- **A turn folds at a click on its heading** (**DECISION 2026-11-15**, the
+  operator). The heading then stands alone and names the hypotheses the turn
+  tested with how each stands; a second click opens it. Nothing else is drawn
+  again, so nothing above moves; "fold every turn" and "open every turn"
+  stand above the first turn. What a click on the heading did before (the
+  turn's own record in the pane) is the link "the turn's record" at the
+  heading's right end. Folding is kept while the page is open and is not
+  printed (a printed notebook is open).
 - **Under it, one switch, closed by default**: the same tests "as a list" (the
   tests list) or "as a tree" (the tree); one of the two at a time; the choice
   is kept over a reload. The notebook is printed; the switch is not.
@@ -1737,8 +1903,20 @@ number, with the small icon of who produced it:
 or a check is shown for reading (the notebook, the boxes of a test's flow
 chart, the work-log card, an evidence item, the highlights), the outputs stand
 by their plain names and the numbers in the units of the page:
-`tcp_goodput_bps@low_w50 > 800000000` as "TCP goodput at low_w50 > 800 Mbps",
-its check as "483 Mbps > 800 Mbps: failed". A measured number is the value of
+`tcp_goodput_bps@low_w50 > 800000000` as "TCP goodput at UDP rate 100 Mbps
+(low_w50) > 800 Mbps", its check as "483 Mbps > 800 Mbps: failed". **A
+simulation is said by its settings** (**DECISION 2026-11-15**, the operator:
+"what are these w025b things? could users understand them?"): a rule names a
+simulation by the label the AI gave it, which says little, so the page puts
+before it what that simulation is (`EV.simSays`): the settings in which the
+simulations the test's rule names differ from each other ("ratio 0.25");
+for a single simulation, the settings that are not the brief's defaults.
+They come from the experiment's own designs, which are recorded with the
+rule. The AI's label stays beside it, in grey and marked as the AI's, so that
+the exact text and the tables can still be matched. Two comparisons that hold
+one measure between two numbers read as one phrase: "UDP goodput at ratio
+0.25 within 200 Mbps to 300 Mbps", and with the numbers "245 Mbps within 200
+Mbps to 300 Mbps" (strict comparisons: "between … and …"). A measured number is the value of
 that output in the simulation the rule names (the harness's check holds the
 same value) and is shown with as many digits as it takes to tell the two
 sides of its comparison apart; a number written in the rule keeps every digit.
@@ -1950,6 +2128,10 @@ Rules of the page:
 
 - **A click never moves the page.** Whatever is chosen opens in the pane
   beside it. The one exception is the structure map's boxes, which scroll.
+- The four producers are named AI, harness, ns-3, operator (**DECISION
+  2026-11-15**, the operator: "ns-3", not "simulator", in the legend, the
+  icons' notes and the sentences of a running session; the records' field
+  stays `simulator`).
 - One fixed icon per producer, in the neutral colour (until 2026-11-14 one
   fixed colour: model violet, harness magenta, simulator green, operator
   yellow). UDP is blue and TCP orange in every chart. Never two
@@ -2158,6 +2340,7 @@ untracked until they say otherwise.
 | 2026-11-14 | Every new hypothesis says why it is asked (`why`, required), at the operator's word; the page shows it beside the question, and nothing where it was not recorded. |
 | 2026-11-15 | Readability, at the operator's word: cards for a hypothesis and for an arrow of the board, what a brief asks beside its name, grouping by regions, nothing changing size on a click, a test's detail in full under the headings of its card, a simulation opening inside its test, the glance in names and words, a bar for each rule against its outcome, the aim and the answer (with its reasons) on the board, the whole configuration and chosen conditions on the set-up page, toned colours with one accent for what is happening now. |
 | 2026-11-15 | Simulator build 6, at the operator's word that fixed values should be settings: TCP's first window (`tcpInitCwnd`) and TCP's buffers (`tcpBufBytes`), each left out, fixed or a knob of a brief; checks 13 and 14; the earlier checks byte-identical. |
+| 2026-11-15 | Usability, each at the operator's word in one morning: a part is configured in its own card on the set-up page (fields, the mark of who decides, the scheduling policy on the scheduler's card) and numeric settings have bars; the board's first box says the aim the AI chose; "ns-3" names the source; pointing at a rule bar's dot or threshold opens its value; a turn of the notebook folds at its heading; the page never moves by itself (a note says that a turn or an experiment's simulations started; the reader's place is kept) and the tiles of the newest simulations stay; a simulation in a rule is said by its settings; the glance says "5 simulations" and an experiment has a box; then, the same day: the boxes of words, hypotheses, parts and bar marks redesigned so that a name, a value, a quotation and a note each look different and say less; a side of a comparison said by what it is; one bar and one phrase for a measure held between two numbers; the bars in "The decision rule, in full"; one plain line per TCP type; a note under the scheduling policy that says what it does with the form's numbers. Check `ev_usable.py`. |
 | 2026-11-15 | Simulator build 7, at the operator's word: the device's transmit queue as a setting (`devQueuePkts`; check 15), and `series.csv` written sample by sample (check 16), so that the page can show each simulation of a running experiment on a tile of its own, its curve growing as the simulator works. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
@@ -2209,18 +2392,18 @@ above all, so the counts understate the size.
 
 | File | Lines | What it is |
 |---|---|---|
-| `index.html` | 318 | the shell: colours, styles, the list of scripts |
-| `evidence.js` | 185 | the address, loading, the top bar, clicks, replay, review marks |
+| `index.html` | 334 | the shell: colours, styles, the list of scripts |
+| `evidence.js` | 187 | the address, loading, the top bar, clicks, replay, review marks |
 | `evidence_data.js` | 177 | a session's files read into what the page draws; the definitions; derives the tests |
 | `evidence_marks.js` | 50 | the drawn marks used all over the page; a result as its sign and its word; a claim's cited checks |
-| `evidence_read.js` | 104 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
-| `evidence_notebook.js` | 102 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
+| `evidence_read.js` | 175 | decision rules and checks written for reading: plain names, the page's units, the exact text on hover |
+| `evidence_notebook.js` | 110 | the notebook: one card of six lines per test under a heading per turn; the switch to the same tests as a list or as a tree |
 | `evidence_home.js` | 70 | Home |
 | `evidence_run.js` | 49 | the New session panel |
-| `evidence_live.js` | 135 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading |
-| `evidence_tiles.js` | 94 | the simulations of the experiment being run, one tile each, read from the simulator's own files |
-| `evidence_words.js` | 143 | the words that need explaining: their marks, and the box that opens beside them |
-| `evidence_system.js` | 110 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
+| `evidence_live.js` | 159 | a running session shown as it is made: the empty places, where the work is, the time, what just arrived, the quick reading; the note of a new turn; the reader's place |
+| `evidence_tiles.js` | 115 | the simulations of the experiment being run (and of the newest one that ended), one tile each, read from the simulator's own files |
+| `evidence_words.js` | 179 | the words that need explaining: their marks, and the box that opens beside them |
+| `evidence_system.js` | 114 | "The system": the two computers with their ns-3 objects, and a card for the chosen object |
 | `evidence_glance.js` | 125 | "What this session is made of": a column per turn, a row per kind of item, one mark per item |
 | `evidence_page.js` | 129 | a session's page, top to bottom: the header strip, the Overview band, the card "The final report", the work |
 | `evidence_high.js` | 62 | the key moments of a session, by fixed rules: marks on the notebook (once the card “Highlights”) |
@@ -2228,7 +2411,7 @@ above all, so the counts understate the size.
 | `evidence_random.js` | 74 | best so far against choosing at random from the sweep's first grid: the band, the sentence, the legend (operator columns) |
 | `evidence_knob.js` | 96 | the simulations of each turn along one knob, one axis per turn; the target measure where one knob alone differs |
 | `evidence_tree.js` | 55 | the work as a tree; the shared selection |
-| `evidence_views.js` | 127 | View 1 (session flow) and View 2 (the board of "What it needed to find out": the hypotheses by turn and what each follows from) |
+| `evidence_views.js` | 136 | View 1 (session flow) and View 2 (the board of "What it needed to find out": the hypotheses by turn and what each follows from) |
 | `evidence_flow.js` | 109 | View 3 (one test as a flow chart) and its chart |
 | `evidence_cards.js` | 105 | the trail, the work-log card, the brief; the model's numbers against the measurements |
 | `evidence_test.js` | 69 | the test panel |
@@ -2245,7 +2428,7 @@ above all, so the counts understate the size.
 | `evidence_parallel.js` | 47 | the sweep as a parallel-coordinates chart |
 | `evidence_share.js` | 56 | links, export, print |
 | `objects.json` | 78 | the ns-3 objects of "The system" and what the scenario fixes about them (hand-kept; `check_objects.py` compares it with the scenario) |
-| `brief_editor.js` | 415 | the set-up page, “New session”: the seven blocks as forms |
+| `brief_editor.js` | 537 | the set-up page, “New session”: the seven blocks as forms; a part's values as fields in its card; the bars of block 2 |
 | `evidence_walk.js` | 61 | the guided walk: one sentence per section, from the records |
 | `brief_editor_old.js` | 237 | the brief editor of the older control page (index_full.html) |
 

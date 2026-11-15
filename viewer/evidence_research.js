@@ -21,9 +21,9 @@
 // ======================================================================================================
 Object.assign(EV, {
   SCHED_WORDS: /schedul|unused|left ?over|spare|borrow|work.?conserving|idle/i,
-  RS_DOES: { question: 'Asks a question before testing', first: 'Commits to a prediction first', rival: 'Makes predictions that could fail', accepts: 'Accepts a result against its expectation', course: 'Changes course because of evidence',
+  RS_DOES: { question: 'States each hypothesis in plain words', first: 'Commits to a prediction first', rival: 'Makes predictions that could fail', accepts: 'Accepts a result against its expectation', course: 'Changes course because of evidence',
              beyond: 'Looks beyond the obvious setting', repeat: 'Does not repeat itself', limits: 'States the limits of its answer', claims: 'Supports each claim', policy: 'Identified the scheduling policy', random: 'Against choosing at random' },
-  RS_RULE: { question: 'Counted: the tests whose hypothesis records a question, of all tests.', first: 'Counted: the decision rules whose experiment was recorded before every simulation the rule names first ran (a simulation returned from an earlier one first ran when that one did), of all decision rules. From the records’ timestamps.',
+  RS_RULE: { question: 'Counted: the tests whose hypothesis is recorded in plain words (as one question), of all tests.', first: 'Counted: the decision rules whose experiment was recorded before every simulation the rule names first ran (a simulation returned from an earlier one first ran when that one did), of all decision rules. From the records’ timestamps.',
              rival: 'Counted: the decision rules that name a rival, of all decision rules; then their checks by result, void checks apart.', accepts: 'Counted: the failed tests whose verdict is “refuted”, of the failed tests.',
              course: 'Counted: the hypotheses whose “follows from” names a failed check or a verdict “refuted”.', beyond: 'Counted: the knobs of the brief with more than one value across the designs of the model’s experiments, of all knobs.',
              repeat: 'Counted: the tests whose check compared a simulation with itself (void), and the simulations returned from earlier ones. Present: none of either; absent: half the tests or more are void; partly: otherwise.',
@@ -38,8 +38,8 @@ Object.assign(EV, {
     const tl = T => EV.tlink(T, e(T.hyp)), few = (list, f, n = 6) => list.slice(0, n).map(f).join(', ') + (list.length > n ? `, and ${list.length - n} more` : ''), nr = (key, why) => ({ key, word: 'not recorded', text: `not recorded${why ? ': ' + why : ''}`, n: null, of: null });
     const out = [];
     // 1 · asks a question before testing
-    out.push(!M.recs.some(r => r.type === 'hypothesis' && r.body && 'question' in r.body) ? nr('question', 'this session was recorded before hypotheses had a question') : !tests.length ? { key: 'question', word: 'absent', text: 'no test yet', n: 0, of: 0 }
-      : (() => { const n = tests.filter(T => M.hypById[T.hyp] && M.hypById[T.hyp].question).length; return { key: 'question', n, of: tests.length, word: EV.rsWord(n, tests.length), text: `${n} of ${pl(tests.length, 'test')} state their question`, links: '<a data-act="goto" data-id="s-find">what it needed to find out</a>' }; })());
+    out.push(!M.recs.some(r => r.type === 'hypothesis' && r.body && 'question' in r.body) ? nr('question', 'this session was recorded before hypotheses had a plain wording') : !tests.length ? { key: 'question', word: 'absent', text: 'no test yet', n: 0, of: 0 }
+      : (() => { const n = tests.filter(T => M.hypById[T.hyp] && M.hypById[T.hyp].question).length; return { key: 'question', n, of: tests.length, word: EV.rsWord(n, tests.length), text: `${n} of ${pl(tests.length, 'test')} state their hypothesis in plain words`, links: '<a data-act="goto" data-id="s-find">what it needed to find out</a>' }; })());
     // 2 · commits to a prediction first: the rule's record against the first run of each simulation it names
     const first = s => { const o = s.same_as && M.simById[s.same_as]; return o ? o.ts : s.ts; }, timed = rules.filter(T => T.sims.length && M.expById[T.exp].ts && T.sims.every(first));
     out.push(!rules.length ? { key: 'first', word: 'absent', text: 'no decision rule yet', n: 0, of: 0 } : !timed.length ? nr('first', 'the records carry no times')

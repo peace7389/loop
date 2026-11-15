@@ -1,0 +1,86 @@
+{
+ "goal": "Maximize max-min fairness, i.e. maximize min(udp_goodput_bps, tcp_goodput_bps), with UDP offered at its maximum 3Gbps and TCP backlogged.",
+ "recommendation": {
+  "weightUdp": 0.496,
+  "udpRate": "3Gbps"
+ },
+ "expected": {
+  "udp_goodput_bps": 485610720,
+  "tcp_goodput_bps": 485864237,
+  "udp_loss_frac": 0.838144,
+  "drops_band0": 2245230,
+  "drops_band1": 72,
+  "tcp_retrans": 72,
+  "link_util": 0.999999,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.496
+ },
+ "explanation": "Total payload goodput is almost independent of the scheduler ratio and slightly favors UDP, so a total-goodput metric would choose weightUdp=0.95 but would starve TCP to about 48 Mbps. Max-min fairness instead chooses the point where UDP and TCP payload goodputs cross. UDP payload efficiency is slightly higher than TCP payload efficiency, so the crossing is slightly below 0.50, at weightUdp=0.496. This maximizes the weaker flow at about 485.6 Mbps for both flows while keeping total payload goodput within about 0.7% of the maximum total goodput.",
+ "holds_when": "UDP is offered at or above link capacity, tested here at 3Gbps, TCP has data to send, the scheduler is work-conserving, queuePkts=100, tcpVariant=TcpCubic, duration=10s, and seed=1. At udpRate=2Gbps the same balanced behavior is observed near 0.50, but the exact optimum was refined only at 3Gbps.",
+ "breaks_when": "If performance is defined as total payload goodput, weightUdp=0.95 is better. If UDP demand is much lower than its configured share, the work-conserving scheduler makes the UDP weight less critical for total goodput. If TCP variant, queue size, or scheduler behavior changes payload efficiency or work conservation, the exact max-min optimum can shift.",
+ "claims": [
+  {
+   "text": "At udpRate=3Gbps, the max-min fair ratio is weightUdp=0.496, giving UDP goodput 485.61 Mbps and TCP goodput 485.86 Mbps.",
+   "role": "supports",
+   "evidence": [
+    "E5",
+    "C10"
+   ]
+  },
+  {
+   "text": "Choosing weightUdp=0.496 sacrifices only about 0.695% of total payload goodput relative to weightUdp=0.95 while raising the minimum flow goodput from about 48.20 Mbps to about 485.61 Mbps.",
+   "role": "supports",
+   "evidence": [
+    "E5",
+    "C11"
+   ]
+  },
+  {
+   "text": "The scheduler is work-conserving: when UDP does not use its configured share, TCP uses the spare capacity and link utilization remains about 1.0.",
+   "role": "background",
+   "evidence": [
+    "E2",
+    "C1",
+    "C2",
+    "E1",
+    "C6"
+   ]
+  },
+  {
+   "text": "When both queues are backlogged, UDP goodput scales approximately with weightUdp and TCP goodput scales approximately with 1-weightUdp.",
+   "role": "background",
+   "evidence": [
+    "E3",
+    "C3",
+    "C4"
+   ]
+  },
+  {
+   "text": "Total payload goodput is nearly flat across ratios, about 964.8 to 978.3 Mbps, and slightly favors high UDP weight, so total goodput alone would choose 0.95 and hide TCP starvation.",
+   "role": "limits",
+   "evidence": [
+    "E3",
+    "C5",
+    "C7",
+    "E4",
+    "C8",
+    "E5",
+    "C11"
+   ]
+  },
+  {
+   "text": "UDP loss remains high at the recommended ratio because UDP is offered at 3Gbps on a 1Gbps link; the ratio allocates capacity but cannot eliminate loss from over-offer.",
+   "role": "limits",
+   "evidence": [
+    "E5",
+    "E4"
+   ]
+  }
+ ],
+ "open_questions": [
+  "How queuePkts changes UDP loss and the exact max-min optimum.",
+  "How other tcpVariant choices shift the UDP/TCP payload-efficiency crossing and therefore the optimal weightUdp.",
+  "Whether weightUdp=0.496 is stable across many random seeds and longer measurement windows.",
+  "The exact optimal ratio when udpRate is below link capacity, although the work-conserving behavior suggests total goodput is less sensitive there."
+ ]
+}

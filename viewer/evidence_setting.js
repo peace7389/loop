@@ -37,6 +37,24 @@ Object.assign(EV, {
   // what each setting is, in the page's own words: shown on hover where the brief has no line about it (a fixed setting)
   SET_SAYS: { linkRate: 'the rate of the link between the two computers', linkDelay: 'the time a bit takes to cross the link, one way', mtu: 'the largest packet the link carries', udpPacketBytes: 'the size of each UDP packet; the scenario fixes it', udpRate: 'the rate at which the UDP application sends',
               weightUdp: 'the part of the link configured for UDP; TCP gets the rest', queuePkts: 'how many packets each queue holds', queuePktsUdp: 'how many packets the UDP queue holds', queuePktsTcp: 'how many packets the TCP queue holds', tcpInitCwnd: 'how many segments TCP sends before its first acknowledgement', tcpBufBytes: 'the size of TCP\'s send buffer and of its receive buffer', devQueuePkts: 'how many packets wait in a device\'s transmit queue, after the scheduler', tcpVariant: 'the congestion control of the TCP sender', duration: 'the seconds of traffic that are measured', seed: 'the random seed of a simulation' },
+  // what each measure is, in one or two plain sentences: the page's own words for a reader (the line the AI is given about a measure stays beside it, as a quotation)
+  MEASURE_SAYS: { udp_goodput_bps: 'How much UDP data reaches the receiver each second. Lost packets do not count.', tcp_goodput_bps: 'How much TCP data reaches the receiver each second. A packet sent twice counts once.',
+                  udp_loss_frac: 'The share of the UDP packets sent that never arrived.', drops_band0: 'Packets thrown away at the scheduler’s UDP queue because it was full.', drops_band1: 'Packets thrown away at the scheduler’s TCP queue because it was full.',
+                  tcp_retrans: 'How many times TCP had to send a packet again.', link_util: 'How busy the link was: the share of its capacity that carried bits.', link_rate_bps: 'The capacity of the link.', weight_udp: 'The ratio, as that simulation used it.' },
+  // The TCP types (congestion control: how a TCP sender decides how fast to send) in one plain line each: [what it reacts to, what it does].
+  // The page's own words, for the reader, wherever a TCP type is chosen or named; the AI is not given them (its brief names the types only).
+  TCP_SAYS: {
+    TcpNewReno: ['reacts to loss', 'the classic: it speeds up a little every round trip and halves its rate at a loss'],
+    TcpLinuxReno: ['reacts to loss', 'NewReno the way Linux counts it: the same slow rise, the same halving'],
+    TcpCubic: ['reacts to loss', 'the usual one on Linux: at a loss it cuts its rate by about a third, then climbs back fast'],
+    TcpBic: ['reacts to loss', 'the forerunner of Cubic: after a loss it searches for its old rate, halving the gap each time'],
+    TcpVegas: ['reacts to delay', 'it slows as soon as packets start to queue, before any is lost; gentle, so it gives way to the others'],
+    TcpBbr: ['measures the path', 'it estimates the rate the path can carry and sends at that rate; a loss alone does not slow it'],
+  },
+  tcpSays(v) { const k = /^Tcp/.test(String(v)) ? String(v) : 'Tcp' + v, s = EV.TCP_SAYS[k]; return s ? { name: k.replace(/^Tcp/, ''), reacts: s[0], says: s[1] } : null; },
+  // one line for one type; the lines of several, as a short list
+  tcpLine(v) { const t = EV.tcpSays(v); return t ? `${t.reacts}: ${t.says}` : ''; },
+  tcpList(vs) { const e = EV.e, ts = vs.map(EV.tcpSays).filter(Boolean); return ts.length ? `<div class="tcp-says" data-tcp-n="${ts.length}"><p class="sm">How a TCP sender decides how fast to send. ${ts.length === 1 ? 'This type' : 'The types'}, in the page’s words:</p>${ts.map(t => `<p class="tcp-l" data-tcp="${e(t.name)}"><b>${e(t.name)}</b> <span class="sm">${e(t.reacts)}</span><br>${e(t.says)}</p>`).join('')}</div>` : ''; },
   label(k, meaning) { return `<abbr class="st-l" title="${EV.e(`${meaning || EV.SET_SAYS[k] || ''} (field: ${k})`.trim())}">${EV.e(EV.LABEL[k] || k)}</abbr>`; },
   // a size in bytes as a person says it (65536 -> 64 kB, 1048576 -> 1 MB); one that is no whole kB stays in bytes
   bytes(n) { return n % (1 << 20) === 0 ? `${n >> 20} MB` : n % (1 << 10) === 0 ? `${n >> 10} kB` : `${n} bytes`; },
@@ -89,7 +107,7 @@ Object.assign(EV, {
   },
   // 5 · the limits (and, on a session, how many simulations were used)
   setLimits(c) { const l = c.b.limits || {}, e = EV.e;
-    return `<p><b>${e(l.simulations ?? 'not recorded')}</b> simulations in all · <b>${e(l.simulations_per_experiment ?? 'not recorded')}</b> in one experiment${c.mode === 'session' ? ` · <span id="st-used"><b>${e(c.used ?? 'not recorded')}</b> used</span>` : ''}</p>`; },
+    return `<p><b>${e(l.simulations ?? 'not recorded')}</b> simulations in all · <b>${e(l.simulations_per_experiment ?? 'not recorded')}</b> in one turn${c.mode === 'session' ? ` · <span id="st-used"><b>${e(c.used ?? 'not recorded')}</b> used</span>` : ''}</p>`; },
   // 6 · kept from the AI: the scheduling policy, only with the operator columns on
   setKept(c) {
     if (!c.op) return `<p class="mut" id="st-kept" data-shown="0">The scheduling policy: shown with the operator columns on.</p>`;
@@ -100,7 +118,7 @@ Object.assign(EV, {
     return `<table class="st-flags" data-exact="1"><tbody>${c.mode === 'session' ? `<tr data-flag="model"><td>model</td><td><b>${e(c.model || 'not recorded')}</b></td><td class="sm">taken from the model server</td></tr>` : ''}${EV.FLAGS.map(([k, name, dflt]) => `<tr data-flag="${k}"><td>${e(name)}</td><td><b>${f ? e(show(f[k])) : 'not recorded'}</b></td><td class="sm">default: ${e(dflt)}</td></tr>`).join('')}</tbody></table>`; },
   // one line that carries a folded block's content
   setLine(key, c) { const l = c.b.limits || {}, f = c.flags || {}, e = EV.e;
-    return key === 'limits' ? `${e(l.simulations ?? 'not recorded')} simulations in all, ${e(l.simulations_per_experiment ?? 'not recorded')} in one experiment${c.mode === 'session' ? `, ${e(c.used ?? 'not recorded')} used` : ''}`
+    return key === 'limits' ? `${e(l.simulations ?? 'not recorded')} simulations in all, ${e(l.simulations_per_experiment ?? 'not recorded')} in one turn${c.mode === 'session' ? `, ${e(c.used ?? 'not recorded')} used` : ''}`
       : key === 'kept' ? (c.op ? `scheduling policy ${c.policyHidden ? 'chosen by the harness: shown once the session is scored' : e(c.policy || 'not recorded')}` : 'the scheduling policy: shown with the operator columns on')
       : c.flags ? `${c.model ? e(c.model) + ' · ' : ''}draft ${e(f.draft ?? 'not recorded')} · temperature ${e(f.temperature ?? 'not recorded')} · baseline ${f.baseline === false || f.baseline === 'off' ? 'off' : 'on'}` : 'the flags: not recorded'; },
   // the frame of a block: its number, its heading, the sentence that says what it is for, its content

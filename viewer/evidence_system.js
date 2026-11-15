@@ -95,12 +95,16 @@ Object.assign(EV, {
     const rows = o.rows.map(([k, text, flag]) => { const kn = keysOf(text).find(V.knob), fx = kn ? null : keysOf(text).find(V.fixed);
       const shown = flag === 'op' ? (S.op ? `<span data-by="operator"><i class="sw"></i>${EV.policyText(EV.files.row)}</span>` : '<span class="mut" title="Shown with the operator columns on">operator-only</span>') : e(EV.sysFill(text, V.v));
       const note = kn ? `<span data-by="model" data-set="knob"><i class="sw"></i>the AI may change it</span>: ${e(V.range(kn) + tried(V.key(kn)))}` : fx && flag !== 'op' ? '<span data-by="operator" data-set="fixed"><i class="sw"></i>fixed by the operator</span>' : flag === 'ns3' ? 'an ns-3 default' : flag === 'op' ? 'chosen by the operator, not told to the model' : '';
-      return `<tr data-k="${e(kn ? V.key(kn) : fx ? V.key(fx) : '')}"><td>${e(k)}</td><td>${kn ? `<b>${shown}</b>` : shown}${note ? ` <span class="sm">· ${note}</span>` : ''}</td></tr>`; }).join('');
-    const ms = o.measured || [], names = ms.map(k => TH_DATA.PLAIN[k] || k), measured = !ms.length ? '' : sim && sim.metrics ? `<p class="sm" style="margin-top:6px">Measured here in ${EV.link(sim.id)}: ${ms.map((k, i) => `${e(names[i])} <b>${e(EV.val(k, sim.metrics[k]))}</b>`).join(' · ')}</p>`
-      : `<p class="sm" style="margin-top:6px">Measured here in every simulation: ${e(names.join(', '))}. Open a simulation and its values appear here.</p>`;
-    return `<p><b style="font-size:var(--f-card)">${e(o.name)}</b> <span class="sm">ns-3 <code>${e(EV.sysFill(o.cls, V.v))}</code></span></p>
-      <p class="sm">${e(f.where)} · ${o.flow === 'udp' ? '<i class="sw" style="background:var(--series-1)"></i>handles UDP' : o.flow === 'tcp' ? '<i class="sw" style="background:var(--series-2)"></i>handles TCP' : id === 'link' ? 'carries both flows' : id.startsWith('around') ? 'the same for both flows' : 'shared by both flows'}${f.role ? ' · ' + e(f.role) : ''}</p>
-      <table data-exact="1"><tbody>${rows}</tbody></table>${measured}`;
+      // the TCP type shown is a word with a box: the card keeps one height, so the type's plain line stands in the setting's box (pointing at the type opens it)
+      const tcp = /\{tcpVariantPlain\}/.test(text) && V.v.tcpVariant && EV.tcpSays(V.v.tcpVariant), word = tcp ? `<span class="wd tcp-word" data-wd="k:tcpVariant" data-tcp="${e(tcp.name)}" tabindex="0">${shown}</span>` : shown;
+      return `<tr data-k="${e(kn ? V.key(kn) : fx ? V.key(fx) : '')}"><td class="oc-k">${e(k)}</td><td class="oc-v"><span class="oc-val"${kn ? ' data-knob="1"' : ''}>${word}</span>${note ? ` <span class="sm oc-note">· ${note}</span>` : ''}</td></tr>`; }).join('');
+    // A part's card: its name with its ns-3 class on a chip; where it stands, small; then its rows, the NAME of each small and grey on a shaded ground, its VALUE
+    // dark and heavy beside it, a note about the value (who decides it, its range) small after it; last, what is measured here, as a note.
+    const ms = o.measured || [], names = ms.map(k => TH_DATA.PLAIN[k] || k), measured = !ms.length ? '' : sim && sim.metrics ? `<p class="sm oc-m">Measured here in ${EV.link(sim.id)}: ${ms.map((k, i) => `${e(names[i])} <b>${e(EV.val(k, sim.metrics[k]))}</b>`).join(' · ')}</p>`
+      : `<p class="sm oc-m">Measured here in every simulation: <b>${e(names.join(', '))}</b>. Open a simulation and its values appear here.</p>`;
+    return `<p class="oc-h"><b>${e(o.name)}</b><span class="oc-cls">ns-3 <code>${e(EV.sysFill(o.cls, V.v))}</code></span></p>
+      <p class="sm oc-where">${e(f.where)} · ${o.flow === 'udp' ? '<i class="sw" style="background:var(--series-1)"></i>handles UDP' : o.flow === 'tcp' ? '<i class="sw" style="background:var(--series-2)"></i>handles TCP' : id === 'link' ? 'carries both flows' : id.startsWith('around') ? 'the same for both flows' : 'shared by both flows'}${f.role ? ' · ' + e(f.role) : ''}</p>
+      <table class="oc-t" data-exact="1"><tbody>${rows}</tbody></table>${measured}`;
   },
 });
 EV.act = Object.assign(EV.act || {}, {

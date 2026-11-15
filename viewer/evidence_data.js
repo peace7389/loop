@@ -12,7 +12,7 @@ const EV_DEF = {  // the definitions, word for word; shown on hover wherever the
   'Test': 'One hypothesis put to one decision rule, using some of an experiment\'s simulations.',
   'Decision rule': 'The numeric condition, stated before the simulations, that decides whether a hypothesis is accepted or rejected.',
   'Rival': 'A competing explanation that the decision rule would rule out.',
-  'Simulation': 'One run of the network simulator with one set of knob values.',
+  'Simulation': 'One run of ns-3, the network simulator, with one set of knob values.',
   'Check': 'The harness applying a decision rule to the measured numbers: held or failed.',
   'Verdict': 'The model\'s judgment of a hypothesis after its check: supported, refuted or inconclusive.',
   'Final report': 'The model\'s answer: recommended settings, expected result, explanation, when it holds, when it breaks, and evidence for each claim.',

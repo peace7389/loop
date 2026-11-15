@@ -29,7 +29,7 @@
 // that a reply was asked for a second time.
 // ======================================================================================================
 Object.assign(EV, {
-  live: { seen: {}, ran: {}, fresh: null, head: null, tries: 0, busy: false },
+  live: { seen: {}, ran: {}, fresh: null, head: null, tries: 0, busy: false, turnOf: {}, expOf: {}, note: null, keepUntil: 0 },
   // the ledger, with the two times the server sends with it
   async liveGet(url) {
     if (EV.off) return EV.get(url);
@@ -79,7 +79,7 @@ Object.assign(EV, {
       : `${step('sims', 'simulator', 'the simulator runs its simulations', now.phase === 'sims')}${to}${step('checks', 'harness', now.phase === 'between' ? 'the harness prepares the next turn' : 'the harness checks each decision rule', now.phase === 'between')}${to}<span class="lv-step lv-next">the next turn</span>`}`);
   },
   // what the reply being written may fill: the reply arrives whole, so the page cannot say which
-  liveMay: now => (now.phase !== 'reply' ? '' : now.mode === 'report' ? 'This is the last turn: only the final report is accepted.' : now.mode === 'budget' ? 'This is the last turn, the simulations are used up: it may judge earlier tests, and the final report is due.' : 'It may judge earlier tests, ask a new question, set up a new test, or give its final report.'),
+  liveMay: now => (now.phase !== 'reply' ? '' : now.mode === 'report' ? 'This is the last turn: only the final report is accepted.' : now.mode === 'budget' ? 'This is the last turn, the simulations are used up: it may judge earlier tests, and the final report is due.' : 'It may judge earlier tests, state a new hypothesis, set up a new test, or give its final report.'),
   // what arrived at the last reading, in words, from the kinds of the new records
   liveArrived() {
     const f = EV.live.fresh, M = EV.M; if (!f || f.sid !== M.id) return '';
@@ -107,7 +107,7 @@ Object.assign(EV, {
     return `<div class="ev-card ev-bar ev-run" id="live-bar" data-phase="${now ? now.phase : S.step != null ? 'replay' : 'closing'}"${now && now.turn ? ` data-turn="${now.turn}"` : ''}><span class="pill live">running</span>
       <span class="lv-say">${now ? `<span class="lv-step on lv-ico" data-by="${now.phase === 'reply' ? 'model' : now.phase === 'sims' ? 'simulator' : 'harness'}"><i class="sw"></i></span><b id="live-say">${EV.liveSay(now)}</b>${EV.liveTimer()}${EV.liveDoneHtml(now)}${EV.liveMay(now) ? ` <span id="live-may">${EV.liveMay(now)}</span>` : ''}` : `<b id="live-say">${S.step != null ? 'The replay is at an earlier step: the newest records are greyed.' : 'The final report is in: the harness is closing the session.'}</b>`}${left ? ` <span class="sm">· ${left}</span>` : ''}
         ${arrived ? `<span class="sm" id="live-arrived">· just arrived: ${e(arrived)}</span>` : ''}</span>
-      <span class="end"><label class="sm" style="font-weight:400" title="Off: the page never moves by itself. On: when new records arrive, the notebook comes to the place where the work is."><input type="checkbox" data-ch="follow"${S.follow ? ' checked' : ''}> follow the work</label> ${stop}${EV.stopMsg ? ` <span class="bad">${e(EV.stopMsg)}</span>` : ''}</span></div>`;
+      <span class="end">${stop}${EV.stopMsg ? ` <span class="bad">${e(EV.stopMsg)}</span>` : ''}</span></div>`;
   },
   // after the page is drawn: the banner's height (the detail pane stays below it), the marks of what just arrived, and, with "follow the work" on, the place of the work
   liveAfter() {
@@ -116,7 +116,28 @@ Object.assign(EV, {
     const f = EV.live.fresh; if (f && EV.M && f.sid === EV.M.id && EV.s.step == null) { const age = (performance.now() - f.at) / 1000;
       if (age <= 30) document.querySelectorAll('#s-notebook [data-step], #s-find tr[data-step]').forEach(el => { if (f.steps.has(Number(el.dataset.step)) && !el.closest('[data-fresh]')) el.dataset.fresh = Math.round(age); });
       document.querySelectorAll('#ev [data-fresh]').forEach(el => { el.style.animationDelay = `-${el.dataset.fresh}s`; }); }
-    if (EV.s.follow && EV.live.moved !== (f && f.at) && f) { EV.live.moved = f.at; const el = document.querySelector('#s-notebook .nb-now') || document.querySelector('#s-notebook [data-fresh]'); if (el) el.scrollIntoView({ block: 'center' }); }
+    EV.liveNote();
+  },
+  // The page never moves by itself. When a new turn begins, a small note under the banner says so for a quarter of a minute; its button takes the
+  // reader to that turn in the notebook, at the reader's own click. The note is drawn again with the page, without starting afresh.
+  liveNote() {
+    const L = EV.live, M = EV.M, now = EV.liveNow(), old = document.getElementById('live-note'); if (old) old.remove(); if (!M || !now) return;
+    const was = L.turnOf[M.id]; L.turnOf[M.id] = now.turn; if (was != null && now.turn > was) L.note = { sid: M.id, turn: now.turn, until: performance.now() + 15000, fresh: true };
+    // and when an experiment's simulations start: they take seconds, and their pictures are in another part of the page
+    const sim = now.phase === 'sims' ? now.exp : null, simWas = L.expOf[M.id]; L.expOf[M.id] = sim; if (was != null && sim && sim !== simWas) L.note = { sid: M.id, exp: sim, n: now.n, until: performance.now() + 15000, fresh: true };
+    const n = L.note; if (!n || n.sid !== M.id || performance.now() > n.until) { L.note = null; return; }
+    const el = document.createElement('div'); el.id = 'live-note'; el.className = `live-note noprint${n.fresh ? ' in' : ''}`; n.fresh = false; el.setAttribute('role', 'status'); el.dataset.turn = n.turn;
+    el.innerHTML = (n.exp ? `<span class="lv-ico" data-by="simulator"><i class="sw"></i></span><span><b>ns-3 is running the ${n.n} simulation${n.n === 1 ? '' : 's'} of ${EV.e(n.exp)}</b> <span class="sm">· ${now.phase === 'sims' && now.exp === n.exp ? 'their pictures grow as they run' : 'they have ended: their pictures stay'}</span></span><button class="cl" data-act="livego" data-id="tiles" title="To the pictures of these simulations, in “What it needed to find out”">watch them</button>`
+      : `${EV.nowDot()}<span><b>Turn ${n.turn} has started</b> <span class="sm">· ${now.turn === n.turn && now.phase === 'reply' ? 'the AI is writing its reply' : 'its records are arriving'}</span></span><button class="cl" data-act="livego" data-id="${n.turn}" title="To this turn in the notebook">show it</button>`) + `<button class="cl" data-act="liveclose" data-id="1" aria-label="close this note" title="close">×</button>`; if (n.exp) el.dataset.exp = n.exp;
+    document.getElementById('ev').appendChild(el); clearTimeout(L.noteT); L.noteT = setTimeout(() => { const q = document.getElementById('live-note'); if (q) q.remove(); L.note = null; }, n.until - performance.now());
+  },
+  // the place the reader is at: the part of the page that stands at the top of the window, and how far from the top. When records arrive and the page is
+  // drawn again, parts above it may have grown; the page is then set so that this part stands where it stood (EV.draw)
+  liveAnchor() {
+    if (window.scrollY < 1) return null; const sel = el => (el.id ? '#' + el.id : el.classList.contains('nb-group') ? `#s-notebook .nb-group[data-group="${el.dataset.group}"]` : `#s-notebook .nb-card[data-id="${el.dataset.id}"]`);
+    const flows = el => { for (let a = el; a && a.id !== 'ev'; a = a.parentElement) if (/sticky|fixed/.test(getComputedStyle(a).position)) return false; return true; };  // a part that stays in the window (the header strip, the banner, the detail pane) says nothing about the reader's place
+    const all = [...document.querySelectorAll('#ev .ev-card[id], #s-notebook .nb-group[data-group], #s-notebook .nb-card[data-id]')].filter(flows).map(el => [el, el.getBoundingClientRect().top]), over = all.filter(([, t]) => t <= 160), pick = over.length ? over[over.length - 1] : all.find(([, t]) => t > 160);
+    return pick ? { sel: sel(pick[0]), top: pick[1] } : null;
   },
   // every second: the time in the sentence; every two: has the ledger grown?
   liveTick() {
@@ -127,9 +148,12 @@ Object.assign(EV, {
     const now = EV.liveNow(), sid = EV.M && EV.M.id;  // while simulations run the ledger does not grow: the index of the runs does
     if (now && (now.phase === 'sims' || now.phase === 'baseline')) EV.get(`../sessions/${sid}/runs/index.json`).then(t => { if (!EV.M || EV.M.id !== sid) return; if (t == null) { if (EV.tilesTick) EV.tilesTick(now, sid); return; }  // no index yet: the session's first simulations are still running
       EV.files.index = EV_DATA.lines(t); if (EV.tilesTick) EV.tilesTick(now, sid); const el = document.getElementById('live-done'), n = EV.liveDone(); if (el && el.dataset.n !== String(n)) { el.dataset.n = n; el.textContent = `· the harness has collected ${n} of them so far`; } });
-    fetch(h.url + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' }).then(r => { if (r.ok && r.headers.get('Content-Length') !== h.len && EV.live.head === h) { EV.sig = ''; return EV.load(); } }).catch(() => {}).finally(() => { L.busy = false; });
+    fetch(h.url + '?t=' + Date.now(), { method: 'HEAD', cache: 'no-store' }).then(r => { if (r.ok && r.headers.get('Content-Length') !== h.len && EV.live.head === h) { EV.sig = ''; EV.live.keepUntil = performance.now() + 5000; return EV.load(); } }).catch(() => {}).finally(() => { L.busy = false; });
   },
 });
-EV.chg = Object.assign(EV.chg || {}, { follow(t) { EV.s.follow = t.checked; EV.store('ev-follow', t.checked ? '1' : '0'); } });
-EV.s.follow = EV.store('ev-follow') === '1';
+EV.act = Object.assign(EV.act || {}, {
+  // the note of a new turn: its button goes to that turn in the notebook (the reader's own click), the cross closes it
+  livego(id) { const el = id === 'tiles' ? document.getElementById('live-tiles') || document.getElementById('s-find') : document.querySelector(`#s-notebook .nb-turn[data-turn="${id}"]`) || document.querySelector('#s-notebook .nb-now'); EV.act.liveclose(); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); },
+  liveclose() { clearTimeout(EV.live.noteT); EV.live.note = null; const q = document.getElementById('live-note'); if (q) q.remove(); },
+});
 if (!EV.off) setInterval(EV.liveTick, 1000);

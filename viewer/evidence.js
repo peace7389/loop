@@ -98,6 +98,7 @@ const EV = {
     const foot = EV.off ? '' : `<div class="ev-foot noprint">earlier pages: <a href="index_runs.html${S.sid ? '?session=' + e(S.sid) : ''}">runs compared</a> · <a href="index_full.html${S.sid ? '?session=' + e(S.sid) : ''}">system, packet events, older control page</a></div>`;
     if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
     const body = S.view === 'home' ? EV.homeView() : S.view === 'new' ? EV.newTab() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
+    const keep = EV.live && performance.now() < EV.live.keepUntil && S.view === 'session' && EV.liveAnchor ? EV.liveAnchor() : null;  // records of a running session arrived: the reader's place is kept
     const root = document.getElementById('ev'), inner = ['.tree', '.ev-lanes', '.ev-map', '.ev-side', '.qlist', '.gl-scroll'].map(q => { const el = root.querySelector(q); return el && [q, el.scrollTop, el.scrollLeft]; }).filter(Boolean);
     root.innerHTML = bar + body + foot + '<div id="ev-print"></div>';
     inner.forEach(([q, top, left]) => { const el = root.querySelector(q); if (el) { el.scrollTop = top; el.scrollLeft = left; } });  // the lists that scroll inside the page stay where the reader left them
@@ -106,6 +107,7 @@ const EV = {
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
     if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
     if (window.scrollY !== y) window.scrollTo(0, y);
+    if (keep) { const el = document.querySelector(keep.sel), d = el ? el.getBoundingClientRect().top - keep.top : 0; if (Math.abs(d) >= 1) window.scrollBy(0, d); }  // what the reader was looking at stands where it stood, though the page grew above it
     if (S.view === 'session') { EV.wdHide(); EV.wordsMark(); }  // the words that need explaining get their mark (evidence_words.js)
     if (S.view === 'session') EV.liveAfter();  // a running session: the banner's height, the marks of what just arrived
     if (S.view === 'session' && EV.afterWalk) EV.afterWalk();  // the guided walk: its box at the head of its section, which comes into view
