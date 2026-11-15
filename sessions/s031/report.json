@@ -1,0 +1,103 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01; performance is TCP payload goodput with UDP loss constrained to at most 1%.",
+ "recommendation": {
+  "weightUdp": 0.05,
+  "queuePkts": 100,
+  "tcpVariant": "TcpBic",
+  "duration": 30,
+  "seed": 3
+ },
+ "expected": {
+  "udp_goodput_bps": 299996853,
+  "tcp_goodput_bps": 418963616,
+  "udp_loss_frac": 9e-06,
+  "drops_band0": 7,
+  "drops_band1": 0,
+  "tcp_retrans": 0,
+  "link_util": 0.746051,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.05
+ },
+ "explanation": "The scheduler behaves as work-conserving for both UDP and TCP over the tested weightUdp range: UDP still delivers about 300 Mbps even when configured for only 5% of the link, and TCP can use UDP's unused share. TCP goodput is therefore capped by TCP congestion control/buffers at about 419 Mbps, not by the configured scheduler share. Setting weightUdp to the minimum tested value, 0.05, gives TCP the largest configured share while keeping UDP loss far below 1%. TcpBic gives the highest measured TCP goodput among tested variants and seeds, with only 7 UDP packet drops over 30 seconds. duration=30 is used to reduce startup effects, and queuePkts=100 is adequate because larger and smaller queues did not improve BBR goodput or violate UDP loss. The ratio optimum is flat: 0.05, 0.30, 0.50, and 0.95 all give essentially the same TCP goodput for BBR under the tested scheduler; 0.05 is chosen as the TCP-favoring end of that flat optimum.",
+ "holds_when": "The fixed system parameters hold: 1 Gbps link, 10 ms one-way delay, 1500-byte MTU, UDP offered load 300 Mbps, 1 MB TCP buffers, and the scheduler remains work-conserving as tested. The recommendation is based on seeds 1-3 and measured duration 30 s.",
+ "breaks_when": "If the scheduler enforces strict non-work-conserving shares, weightUdp=0.05 would starve UDP and a ratio near UDP's demand, about 0.30 for 300 Mbps, would be safer. If UDP offered load changes, the UDP-safe configured share should be at least udpRate/1Gbps. If zero UDP loss is required, TcpBbr at the same settings gives 418875392 bps with zero UDP loss. If TCP buffers, variant, or start-time distribution change, the exact TCP cap and best seed may change.",
+ "claims": [
+  {
+   "text": "The scheduler is work-conserving for both UDP and TCP over the tested weightUdp range, so TCP goodput is nearly independent of weightUdp while UDP loss stays within the 1% condition.",
+   "role": "background",
+   "evidence": [
+    "E2",
+    "C4",
+    "C5",
+    "E3",
+    "C7",
+    "E6",
+    "C13"
+   ]
+  },
+  {
+   "text": "At weightUdp=0.05, queuePkts=100, duration=30, seed=3, TcpBic gives the highest observed TCP goodput, 418963616 bps, with udp_loss_frac=0.000009 <= 0.01.",
+   "role": "supports",
+   "evidence": [
+    "E6",
+    "C14"
+   ]
+  },
+  {
+   "text": "TcpBic's advantage over TcpBbr is small but consistent across seeds 1-3, while all tested variants satisfy the UDP loss condition.",
+   "role": "supports",
+   "evidence": [
+    "E4",
+    "C10",
+    "E5",
+    "C12",
+    "E6",
+    "C14"
+   ]
+  },
+  {
+   "text": "duration=30 is preferable for measured averages because Cubic is still growing at 10 s, and BBR/Bic are practically tied between 10 s and 30 s.",
+   "role": "supports",
+   "evidence": [
+    "E1",
+    "C1",
+    "E5"
+   ]
+  },
+  {
+   "text": "queuePkts=100 is adequate: increasing to 1000 did not raise BBR goodput, and decreasing to 4 did not lower BBR goodput or violate UDP loss.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "C6",
+    "E3",
+    "C8"
+   ]
+  },
+  {
+   "text": "The best ratio is not unique under the tested work-conserving scheduler; weightUdp values 0.05, 0.30, 0.50, and 0.95 all give about 418.876 Mbps for TcpBbr and satisfy UDP loss, so 0.05 is chosen to maximize TCP's configured share.",
+   "role": "limits",
+   "evidence": [
+    "E1",
+    "E2",
+    "E3",
+    "C4",
+    "C5",
+    "C7"
+   ]
+  },
+  {
+   "text": "If zero UDP drops are required, TcpBbr at weightUdp=0.05, queuePkts=100, duration=30, seed=3 gives 418875392 bps with zero UDP loss, only about 0.02% below the recommended TcpBic result.",
+   "role": "limits",
+   "evidence": [
+    "E6"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The optimal seed among 1-1000 was not tested; seed=3 is the best among seeds 1-3.",
+  "TcpBic at weightUdp=0.30 was not run directly, although BBR showed no sensitivity to that weight.",
+  "The exact scheduler mechanism and device-queue interaction were inferred from outputs, not observed directly.",
+  "It is not known whether TcpBic's 7 UDP drops are a systematic startup artifact or would change with other seeds or durations."
+ ]
+}

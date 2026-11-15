@@ -201,6 +201,8 @@ def check_report(rep, brief, ids):
         return f"report.recommendation contains a setting the brief fixes, which cannot be recommended: {', '.join(sorted(set(rec) & set(brief['system'])))}"
     if set(rec) - set(brief["knobs"]):
         return f"report.recommendation names something that is not a knob: {', '.join(sorted(set(rec) - set(brief['knobs'])))}"
+    if [k for k in brief["knobs"] if k not in rec]:  # the answer format requires every knob (answer_format); this is the guard, as tools.clamp(design=) is for a design
+        return "report.recommendation must state a value for every knob of the brief (a knob left as it was is stated with the value it has); missing: " + ", ".join(k for k in brief["knobs"] if k not in rec)
     try:
         clamps = tools.clamp(rec)[1]
     except (ValueError, TypeError) as e:
@@ -416,12 +418,18 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
 def answer_format(schema, brief):
     """The answer format of a session: schema.json with the parts that depend on the brief put in. params: one property
     per knob of the brief, in the brief's order, all required, so that every design states every knob (a setting the
-    brief fixes is not a property); varied: the brief's knobs; runs: at most the brief's simulations per experiment."""
+    brief fixes is not a property); varied: the brief's knobs; runs: at most the brief's simulations per experiment;
+    the report's recommendation: the same properties, all required."""
     ex = schema["properties"]["experiment"]["anyOf"][0]["properties"]
     props = {k: {"type": "string", "enum": list(s["choices"])} if "choices" in s else {"type": tools.KNOB_TYPES[k]} for k, s in brief["knobs"].items()}
     ex["runs"]["items"]["properties"]["params"] = {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
     ex["runs"]["maxItems"] = brief["limits"]["simulations_per_experiment"]
     ex["varied"]["items"] = {"type": "string", "enum": list(props)}
+    # the recommendation of the final report: every knob of the brief, all required, like a design. Until 2026-11-15 it had a fixed list of six knobs, all optional,
+    # and the model server writes an object's properties in the format's order: a report that had passed over one could not name it any more, and a knob that was
+    # not in the list (tcpBufBytes) could not be recommended at all (s030: ratio, TCP type, measured time and seed recorded; UDP rate, queue length and buffers lost)
+    schema["properties"]["report"]["anyOf"][0]["properties"]["recommendation"] = {"type": "object", "properties": dict(props), "required": list(props), "additionalProperties": False,
+        "description": "the settings you recommend: a value for every knob of the brief, each within its range (a knob you leave as it was is stated with the value it has)"}
     return schema
 
 def call(q):
@@ -506,8 +514,15 @@ def main():
             since = max((i for i, r in enumerate(ledger) if r["type"] == "turn"), default=-1)  # what was added after the previous turn's record
             append(ledger, turn, "turn", ledger[-1]["id"] if ledger else None, {"simulations_left": max(0, budget - sims), "open_hypotheses": sum(v == "open" for v in states(ledger)[0].values()),
                                                                                     "added": [r["id"] for r in ledger[since + 1:]], "last_turn": mode})
+            # the last turn names the hypotheses that still need a verdict: "give your verdicts on the checked hypotheses" was read as "judge every one again"
+            # (s030: seventeen second verdicts, each refused)
+            st_now, checked_now = states(ledger)
+            waiting = sorted((h for h, v in st_now.items() if v == "open" and h in checked_now), key=lambda h: (len(h), h))
+            last_ask = (f"Give a verdict on each hypothesis that is still open and has a checked decision rule ({', '.join(waiting)}), and write the final report (report). " if waiting
+                   else "Every hypothesis that has a checked decision rule already has its verdict: write the final report (report). ") + \
+                "A hypothesis that already has a verdict is closed: do not judge it again (a second verdict for it is refused)."
             user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: " + ("used up. THIS IS THE LAST TURN: no experiment is accepted and budget_request is no longer possible. "
-                    "Give your verdicts on hypotheses whose decision rules have been checked, and write the final report (report)." if mode == "budget" else
+                    + last_ask if mode == "budget" else
                     f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
                     "write it from what the ledger holds." if mode == "report" else
                     f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). One experiment holds at most {min(per, budget - sims)} simulations.")
