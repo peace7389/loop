@@ -25,6 +25,8 @@ ROOT = Path.home() / "project"
 H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127.0.0.1:18000/v1"
 LEDGER = SID = None  # the current session's ledger and id, set in main()
 CAP = 6000  # characters of any tool result or ledger body shown to the model
+TOLERANCE = 1.0  # per cent: two results closer than this count as equal. The brief's goal may state its own (goal.tolerance); main() puts that here.
+DEFAULT_TOLERANCE = 1.0  # what a brief that states none gets
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
 NEED = "the report cannot be accepted yet: a hypothesis that has a checked decision rule needs a verdict. Still without one: "
 UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
@@ -75,6 +77,19 @@ def plan(ledger, runs, complete=True):
         out.append({"label": r["label"], "params": clean, "clamped": clamps, "key": key, "prior": prior, "twin": None if prior else next((q["label"] for q in out if q["key"] == key), None)})
     return out
 
+def decided_by_little(rule, labels, values, ledger):
+    """The comparisons of a decision rule that were decided by less than the tolerance: [{left, op, right, percent}]. A comparison of two results
+    whose sides differ by less than the tolerance is decided by nothing: its two sides count as equal. The check keeps the result the rule gives
+    (held or failed) and says beside it which comparisons were that close, so that the model, and a reader, do not take a difference of a few
+    hundredths of a per cent for a finding (s031: three checks rested on differences of 0.02 %; of the 459 checks of s001 to s031, 112 did).
+    Two results: both sides measured, or one side measured and the other a number that is an earlier result of this session written out (the
+    model often copies a result into a later rule as a number). A number the rule states of its own (a limit, a margin) is not a result."""
+    earlier = {v for q in ledger if q["type"] == "simulation" for v in (q["body"].get("metrics") or {}).values() if type(v) in (int, float) and v}
+    results = lambda kinds, a, b: kinds == ("measured", "measured") or (kinds == ("measured", "number") and b in earlier) or (kinds == ("number", "measured") and a in earlier)
+    return [{"left": a, "op": op, "right": b, "percent": round(100 * abs(a - b) / max(abs(a), abs(b)), 6)}
+            for a, op, b, kinds in decision_rules.comparisons(rule, tools.MANIFEST["outputs"], labels, values)
+            if results(kinds, a, b) and op != "==" and max(abs(a), abs(b)) > 0 and 100 * abs(a - b) / max(abs(a), abs(b)) < TOLERANCE]
+
 def experiment(ledger, turn, parent, ex, zero=False):
     """What the harness does with an experiment: record the design and the decision rules as stated; run at once all its
     simulations that have not been run before in this session (one simulation record each, a note for each one reused);
@@ -117,10 +132,11 @@ def experiment(ledger, turn, parent, ex, zero=False):
         try:
             held, numbers = decision_rules.check(d["decision_rule"], tools.MANIFEST["outputs"], labels, values)
             result = "held" if held else "failed"
+            close = decided_by_little(d["decision_rule"], labels, values, ledger)
         except decision_rules.DecisionRuleError as e:  # it was readable (validate), so: a simulation it names gave no value
-            result, numbers = "not checked", str(e)
+            result, numbers, close = "not checked", str(e), []
         append(ledger, turn, "check", xid, {"for": d["for"], "experiment": xid, "decision_rule": d["decision_rule"], "rival": d.get("rival"), "rival_predicts": d.get("rival_predicts"),
-                                            "with_numbers": numbers, "result": result})
+                                            "with_numbers": numbers, "result": result, **({"tolerance": TOLERANCE, "within_tolerance": close} if close else {})})
     return len(fresh)
 
 def baseline(ledger):
@@ -147,7 +163,14 @@ def shown(r, st):
     if t == "evidence":
         return f"of {b['experiment']}, one line per simulation (label, run id, settings changed from the defaults | measured):\n" + "\n".join("    " + l for l in b["lines"])
     if t == "check":
-        return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}"
+        # the rival stands with the result: a rule that FAILED came out as the rival explanation predicted, and that explanation is the first thing to
+        # read then (it stood only in the experiment's line, some records earlier; s031: the rival of H2 named the limit the session spent its budget around)
+        rival = "" if not b.get("rival") or b.get("rival_predicts") not in ("held", "failed") or b["result"] not in ("held", "failed") else (
+            f"  [this is what the rival explanation predicted: {flat(b['rival'])}]" if b["rival_predicts"] == b["result"]
+            else f"  [the rival explanation predicted {b['rival_predicts'].upper()} and does not fit this result: {flat(b['rival'])}]")
+        close = "".join(f"  [NOTE: {q['left']} against {q['right']}: the two sides differ by {q['percent']:.3g} %, less than the tolerance of {b['tolerance']:g} %. They count as equal: "
+                        "this comparison is decided by a difference that does not matter, so it is no evidence of a difference.]" for q in b.get("within_tolerance") or [])
+        return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}{rival}{close}"
     if t == "verdict":
         return f"on {b['for']}: {b['result']}. {flat(b['because'])} Next: {flat(b['next'])}"
     if t == "malformed":
@@ -452,7 +475,7 @@ def main():
     ap.add_argument("--temperature", type=float, default=0.3)
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the harness's own default experiment X0")
     a = ap.parse_args()
-    global LEDGER, SID
+    global LEDGER, SID, TOLERANCE
     tools.POLICY = a.policy
     schema, system = json.loads((H / "schema.json").read_text()), (H / "prompt.txt").read_text()
     model = requests.get(API + "/models", timeout=30).json()["data"][0]["id"]
@@ -463,6 +486,8 @@ def main():
     brief = tools.describe_system()  # the brief, with the descriptions of the outputs and the tools
     per = brief["limits"]["simulations_per_experiment"]
     schema = answer_format(schema, brief)
+    tol_given = type((brief.get("goal") or {}).get("tolerance")) in (int, float)   # tools.check_brief has made sure it is a number of per cent between 0 and 100
+    TOLERANCE = float(brief["goal"]["tolerance"]) if tol_given else DEFAULT_TOLERANCE
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget
     a.max_tokens = a.max_tokens or (32000 if a.draft == "on" else 3000)
     limit = brief["limits"]["simulations"]  # the most simulations the session can ever be granted
@@ -526,6 +551,8 @@ def main():
                     f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
                     "write it from what the ledger holds." if mode == "report" else
                     f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). One experiment holds at most {min(per, budget - sims)} simulations.")
+                    + f"\n\nTOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal ({'stated by the brief' if tol_given else 'the default of the harness: the brief states none'}). "
+                      "A difference inside it is not a finding, and a setting is not better for it."
                     + f"\n\nLEDGER:\n{text}")
             if pending:
                 user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)

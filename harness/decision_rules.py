@@ -146,6 +146,23 @@ def _value(node, values):
         raise DecisionRuleError("division by zero")
     return {"+": a + b, "-": a - b, "*": a * b, "/": a / b if b else 0}[node[1]]
 
+def comparisons(text, measures, labels, values):
+    """Each comparison of a decision rule with the numbers its two sides come to, in the order they stand in it:
+    [(left, op, right, (left_kind, right_kind))]. A side's kind: "measured" (it holds a measured value), "number" (one number, as written),
+    or "stated" (worked out from numbers the rule states)."""
+    out = []
+    def measured(node):
+        return node[0] == "val" or any(measured(m) for n in node[1:] for m in (n if isinstance(n, list) else [n]) if isinstance(m, tuple))
+    def walk(node):
+        if node[0] == "cmp":
+            kind = lambda n: "measured" if measured(n) else "number" if n[0] == "num" else "stated"
+            out.append((_value(node[1], values), node[2], _value(node[3], values), (kind(node[1]), kind(node[3]))))
+        else:
+            for n in node[1]:
+                walk(n)
+    walk(parse(text, measures, labels))
+    return out
+
 def check(text, measures, labels, values):
     """Evaluate a decision rule from the measured values {label: metrics}. Returns (held, the decision rule with the numbers written in)."""
     def truth(node):  # every part is evaluated, so a simulation without a value is always noticed
