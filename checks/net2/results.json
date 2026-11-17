@@ -1,0 +1,81 @@
+{
+ "program": "net (ns-3.49/scratch/net: net.cc, flow-queue-disc.{h,cc}), second build: a device's own rate and transmit queue (dev lines), a described queue on each side of a link, several flows in one queue of the scheduler (classes)",
+ "date": "2026-11-17",
+ "program_md5": "ab8e53276c355630726469c122ae1e50",
+ "built": "the two sources compiled and linked by hand with the flags and the link line the build system generated for the target scratch_net_net; the ns-3 libraries and two-hosts were not rebuilt; the program of the first build is kept beside the checks' work files",
+ "against_the_first_build": {
+  "what": "the ten networks of checks/net1 (n01 to n10) run again on the new program with the same policy",
+  "metrics_identical": true,
+  "series_identical": true,
+  "runs": 10
+ },
+ "checks": [
+  {
+   "n": 1,
+   "run": "p01-uneven-rate",
+   "what": "one TCP flow a to b; the link is 1 Gbps, the device of a 200 Mbps (dev l a rate=200Mbps)",
+   "predicted": "TCP goodput 200 Mbps x 1448/1500 = 193.07 Mbps; l_util (a's side, against a's own rate) 1.0; the way back far below",
+   "measured": {
+    "t_goodput_bps": 192809888,
+    "l_util": 1.000002,
+    "l_util_back": 0.003682
+   },
+   "met": true
+  },
+  {
+   "n": 2,
+   "run": "p02-both-ends",
+   "what": "a scheduler on each side of one link: TCP a to b held to 20 Mbps on a's side, UDP b to a (300 Mbps offered) held to 50 Mbps on b's side",
+   "predicted": "fa 20 x 1448/1500 = 19.31 Mbps; ub 50 x 1400/1428 = 49.02 Mbps, loss 1 - 49.02/300 = 0.8366; drops named l_drops_fa and l_drops_ub",
+   "measured": {
+    "fa_goodput_bps": 19307053,
+    "ub_goodput_bps": 49020160,
+    "ub_loss_frac": 0.836601,
+    "l_drops_fa": 6,
+    "l_drops_ub": 224091
+   },
+   "met": true
+  },
+  {
+   "n": 3,
+   "run": "p03-two-plain-queues",
+   "what": "a described plain queue on each side of a 100 Mbps link, UDP 150 Mbps one way and 120 Mbps the other",
+   "predicted": "each way 100 x 1400/1430 = 97.90 Mbps; losses 0.3473 and 0.1842; the two queues told apart as l_drops and l_drops_back (no name twice)",
+   "measured": {
+    "ua_goodput_bps": 97902560,
+    "ub_goodput_bps": 97902560,
+    "ua_loss_frac": 0.347313,
+    "ub_loss_frac": 0.184146,
+    "l_drops": 46515,
+    "l_drops_back": 19730
+   },
+   "met": true
+  },
+  {
+   "n": 4,
+   "run": "p04-class-of-two",
+   "what": "two UDP flows (60 Mbps each, from a and from b) share ONE queue of the scheduler on r's side of r-c (classes=udp:u1+u2), held to 50 Mbps",
+   "predicted": "the two together 50 x 1400/1428 = 49.02 Mbps (how they divide it between them is the queue's first-in-first-out, not a part)",
+   "measured": {
+    "u1_goodput_bps": 18483360,
+    "u2_goodput_bps": 30536800,
+    "sum": 49020160,
+    "lc_drops_udp": 63375
+   },
+   "met": true
+  },
+  {
+   "n": 5,
+   "run": "p05-class-and-flow",
+   "what": "the dumbbell of n08 with a second TCP flow from a: fa and fd share one queue with a part of 0.25, fb has its own with 0.75 (link r-c 100 Mbps, share)",
+   "predicted": "fa + fd together what fa had alone in n08 (24.10 Mbps); fb unchanged (72.30 Mbps)",
+   "measured": {
+    "fa_goodput_bps": 10232147,
+    "fd_goodput_bps": 13869523,
+    "sum": 24101670,
+    "fb_goodput_bps": 72302694
+   },
+   "met": true
+  }
+ ]
+}

@@ -8,8 +8,17 @@ sending side of a link a plain queue or the scheduler. A brief with "topology" i
      "flows": [{"id": "udp", "kind": "udp", "from": "sender", "to": "receiver", "rate": "2Gbps", "packet_bytes": 1400},
                {"id": "tcp", "kind": "tcp", "from": "sender", "to": "receiver", "type": "TcpCubic"}]}
 
+A link is a channel and two devices, one on each of its hosts (as in ns-3). Its line gives what the two devices have in
+common; where an end differs, or to put a queue on either or both of its sending sides, the link carries "ends":
+    "ends": {"a": {"rate": "200Mbps", "device_queue": 20, "queue": {"kind": "scheduler", "length": 100, "parts": {...}}},
+             "b": {"queue": {"kind": "fifo", "length": 50}}}
+(the older form, "queue" with "on", describes the queue of one side and is read as before; a link may have it and, in "ends", the other side's).
+A scheduler has one queue for each of its parts. A part is named after one flow (that flow has the queue to itself), or
+after a class, a group of flows that share the queue: "classes": {"udp": ["u1", "u2"]}.
+
 A setting of the network has an address, object.property: l1.rate, l1.delay, l1.mtu, l1.device_queue,
-l1.queue.length, l1.queue.parts.udp, l1.queue.largest_rate.tcp, udp.rate, udp.packet_bytes, tcp.type. A brief fixes
+l1.queue.length, l1.queue.parts.udp, l1.queue.largest_rate.tcp, udp.rate, udp.packet_bytes, tcp.type; of an end,
+l1.a.rate, l1.a.device_queue, l1.a.queue.length, l1.a.queue.parts.udp. A brief fixes
 it (the value in the description) or makes it a knob (an entry of "knobs" under that address).
 The measures are made from the network (outputs): per flow, per link, per queue.
 How a scheduler divides the link (the scheduling policy) is not part of the description."""
@@ -74,6 +83,47 @@ def ok(address, v):
         return False
 
 
+KEPT = ("duration", "seed", "queue", "parts", "ends", "classes", "largest_rate", "length", "rate", "delay", "mtu", "device_queue", "type", "packet_bytes")   # no object is named so: they are words of an address
+
+
+def ends(l):
+    """The two ends of a link as ns-3 has them: {host: {"rate", "device_queue", "queue"}}: the device of that host on the link (its rate and its
+    transmit queue: the link's, unless the end states its own) and the queue in front of it (None: not described, a plain queue of 100 packets)."""
+    e, q, out = l.get("ends") or {}, l.get("queue"), {}
+    for h in l["between"]:
+        x = e.get(h) or {}
+        out[h] = {"rate": x.get("rate", l.get("rate")), "device_queue": x.get("device_queue", l.get("device_queue")),
+                  "queue": x["queue"] if "queue" in x else ({k: v for k, v in q.items() if k != "on"} if isinstance(q, dict) and q.get("on") == h else None)}
+    return out
+
+
+def queues(t):
+    """Every described queue of the network: [(link, host, queue, address)]; address is where its settings stand: <link>.queue in the older form, <link>.<host>.queue."""
+    out = []
+    for l in t["links"]:
+        for h in l["between"]:
+            if "queue" in ((l.get("ends") or {}).get(h) or {}):
+                out.append((l, h, l["ends"][h]["queue"], f"{l['id']}.{h}.queue"))
+            elif isinstance(l.get("queue"), dict) and l["queue"].get("on") == h:
+                out.append((l, h, l["queue"], f"{l['id']}.queue"))
+    return out
+
+
+def members(q, name):
+    """The flows that wait in the queue of a scheduler's part: the class's flows, or the one flow the part is named after."""
+    return list((q.get("classes") or {}).get(name, [name]))
+
+
+def through(t):
+    """For each described queue, the flows whose packets wait in it (its host sends them on its link): {(link id, host): [flow ids]}."""
+    out = {(l["id"], h): [] for l, h, q, a in queues(t)}
+    for f in t["flows"]:
+        for link, sender in path(t, f) or []:
+            if (link, sender) in out:
+                out[(link, sender)].append(f["id"])
+    return out
+
+
 def _adjacent(t):
     adj = {h["id"]: [] for h in t["hosts"]}
     for l in t["links"]:
@@ -110,14 +160,9 @@ def path(t, flow):
 
 
 def passes(t):
-    """For each link that has a queue: the ids of the flows whose packets wait in it (they are sent on that link by the queue's host)."""
-    out = {l["id"]: [] for l in t["links"] if l.get("queue")}
-    for f in t["flows"]:
-        for link, sender in path(t, f) or []:
-            q = next(l for l in t["links"] if l["id"] == link).get("queue")
-            if q and q["on"] == sender:
-                out[link].append(f["id"])
-    return out
+    """For each link that has a queue in the older form: the ids of the flows whose packets wait in it (they are sent on that link by the queue's host)."""
+    th = through(t)
+    return {l["id"]: th[(l["id"], l["queue"]["on"])] for l in t["links"] if l.get("queue")}
 
 
 def problems(t, limits=None):
@@ -134,7 +179,7 @@ def problems(t, limits=None):
         return bad
     ids = [x["id"] for k in ("hosts", "links", "flows") for x in t[k]]
     bad += [f"the id {i} is used twice" for i in sorted({i for i in ids if ids.count(i) > 1})]
-    bad += [f"the id {i} is kept for a setting of the simulation" for i in ids if i in ("duration", "seed", "queue", "parts")]
+    bad += [f"the id {i} is kept for a setting of the simulation" for i in ids if i in KEPT]
     hosts = {h["id"] for h in t["hosts"]}
     if len(hosts) < 2 or not t["links"] or not t["flows"]:
         bad.append("a network needs at least two hosts, one link and one flow")
@@ -150,6 +195,14 @@ def problems(t, limits=None):
         for p in ("rate", "delay", "mtu", "device_queue"):
             if not ok(f"{l['id']}.{p}", l.get(p)):
                 bad.append(f"link {l['id']}: {p} = {l.get(p)!r} is not a value the program accepts")
+        e = l.get("ends")
+        if e is not None:   # a link whose two ends are described each by itself
+            if not isinstance(e, dict) or set(e) - set(b) or not all(isinstance(x, dict) and not set(x) - {"rate", "device_queue", "queue"} for x in e.values()) \
+                    or (isinstance(l.get("queue"), dict) and "queue" in (e.get(l["queue"].get("on")) or {})):
+                bad.append(f"link {l['id']}: ends describes its two devices by their hosts ({b[0]}, {b[1]}), each with rate, device_queue and queue where it has its own; one side has one queue (the older queue, or its end's)")
+                continue
+            for h, x in e.items():
+                bad += [f"link {l['id']}, the device of {h}: {p} = {x[p]!r} is not a value the program accepts" for p in ("rate", "device_queue") if p in x and not ok(f"{l['id']}.{h}.{p}", x[p])]
     if bad:
         return bad
     for f in t["flows"]:
@@ -174,28 +227,45 @@ def problems(t, limits=None):
             bad.append(f"flow {f['id']}: type must be one of {', '.join(TCP_TYPES)}")
     if bad:
         return bad
-    through = passes(t)
-    for l in t["links"]:
+    for l in t["links"]:   # the older form names the side of its queue
         q = l.get("queue")
-        if q is None:
-            continue
-        if not isinstance(q, dict) or q.get("on") not in l["between"] or q.get("kind") not in ("fifo", "scheduler") or type(q.get("length")) is not int or q["length"] < 1:
+        if q is not None and not (isinstance(q, dict) and q.get("on") in l["between"]):
             bad.append(f"the queue of link {l['id']} needs on (one of its two hosts), kind (fifo or scheduler) and length (packets, at least 1)")
+    if bad:
+        return bad
+    waits, named = through(t), {}
+    for l, h, q, a in queues(t):
+        of = f"the queue of link {l['id']}" + (f" on the side of {h}" if a.count(".") == 2 else "")
+        if not isinstance(q, dict) or q.get("kind") not in ("fifo", "scheduler") or type(q.get("length")) is not int or q["length"] < 1:
+            bad.append(f"{of} needs " + ("on (one of its two hosts), " if a.count(".") == 1 else "") + "kind (fifo or scheduler) and length (packets, at least 1)")
             continue
-        if q["kind"] == "scheduler":
-            parts, largest = q.get("parts"), q.get("largest_rate") or {}
-            if not isinstance(parts, dict) or not all(type(v) in (int, float) and v > 0 for v in parts.values()):
-                bad.append(f"the scheduler of link {l['id']} needs parts: a number above 0 for each flow that passes it")
-                continue
-            missing, extra = [f for f in through[l["id"]] if f not in parts], [f for f in parts if f not in through[l["id"]]]
-            if missing:
-                bad.append(f"the scheduler of link {l['id']} has no part for {', '.join(missing)}, which pass it")
-            if extra:
-                bad.append(f"the scheduler of link {l['id']} has a part for {', '.join(extra)}, which do not pass it ({q['on']} does not send them on this link)")
-            if not through[l["id"]]:
-                bad.append(f"no flow passes the scheduler of link {l['id']}: put it on the side that sends, or use a plain queue")
-            if not isinstance(largest, dict) or set(largest) - set(parts) or not all(ok(f"{l['id']}.queue.largest_rate.{f}", v) for f, v in largest.items()):
-                bad.append(f"the scheduler of link {l['id']}: largest_rate gives a rate above 0 for some of the flows that have a part")
+        if q["kind"] != "scheduler":
+            continue
+        sch, flows = of.replace("the queue", "the scheduler"), waits[(l["id"], h)]
+        parts, largest, classes = q.get("parts"), q.get("largest_rate") or {}, q.get("classes") or {}
+        if not isinstance(parts, dict) or not all(type(v) in (int, float) and v > 0 for v in parts.values()):
+            bad.append(f"{sch} needs parts: a number above 0 for each flow that passes it")
+            continue
+        if not isinstance(classes, dict) or not all(isinstance(k, str) and re.fullmatch(ID, k) and k not in KEPT and isinstance(v, list) and v and all(isinstance(f, str) for f in v) for k, v in classes.items()) \
+                or set(classes) - set(parts) or any(k in {f["id"] for f in t["flows"]} for k in classes):
+            bad.append(f"{sch}: classes names groups of flows that share one of its queues: a name of its own (not a flow's) that has a part, and the flows in it")
+            continue
+        held = [f for name in parts for f in members(q, name)]   # the flows the parts hold, through a class or by their own name
+        missing, extra, twice = [f for f in flows if f not in held], [f for f in dict.fromkeys(held) if f not in flows], sorted({f for f in held if held.count(f) > 1})
+        if missing:
+            bad.append(f"{sch} has no part for {', '.join(missing)}, which pass it")
+        if extra:
+            bad.append(f"{sch} has a part for {', '.join(extra)}, which do not pass it ({h} does not send them on this link)")
+        if twice:
+            bad.append(f"{sch}: {', '.join(twice)} would wait in two of its queues")
+        if not flows:
+            bad.append(f"no flow passes {sch}: put it on the side that sends, or use a plain queue")
+        if not isinstance(largest, dict) or set(largest) - set(parts) or not all(ok(f"{a}.largest_rate.{f}", v) for f, v in largest.items()):
+            bad.append(f"{sch}: largest_rate gives a rate above 0 for some of the parts")
+        again = sorted(set(parts) & named.setdefault(l["id"], set()))   # the measures of a link are named by its parts: a name stands once on a link
+        if again:
+            bad.append(f"link {l['id']}: the part {', '.join(again)} is named on both of its sides; give the two classes different names")
+        named[l["id"]] |= set(parts)
     return bad
 
 
@@ -205,13 +275,16 @@ def settings(t):
     for l in t["links"]:
         for p in ("rate", "delay", "mtu", "device_queue"):
             out[f"{l['id']}.{p}"] = l[p]
-        q = l.get("queue")
-        if q:
-            out[f"{l['id']}.queue.length"] = q["length"]
+        for h, x in (l.get("ends") or {}).items():   # what an end states of its own device
+            for p in ("rate", "device_queue"):
+                if p in x:
+                    out[f"{l['id']}.{h}.{p}"] = x[p]
+        for _, h, q, a in ((x for x in queues(t) if x[0] is l)):
+            out[f"{a}.length"] = q["length"]
             for f, v in (q.get("parts") or {}).items():
-                out[f"{l['id']}.queue.parts.{f}"] = v
+                out[f"{a}.parts.{f}"] = v
             for f, v in (q.get("largest_rate") or {}).items():
-                out[f"{l['id']}.queue.largest_rate.{f}"] = v
+                out[f"{a}.largest_rate.{f}"] = v
     for f in t["flows"]:
         if f["kind"] == "udp":
             out[f"{f['id']}.rate"], out[f"{f['id']}.packet_bytes"] = f["rate"], f["packet_bytes"]
@@ -229,6 +302,8 @@ def with_values(t, values):
         obj, rest = address.split(".", 1)
         x = next(x for k in ("links", "flows") for x in t[k] if x["id"] == obj)   # (an address that is in settings(t) names an object that is there)
         keys = rest.split(".")
+        if keys[0] in (x.get("ends") or {}):   # a setting of one end of a link: <link>.<host>....
+            x, keys = x["ends"][keys[0]], keys[1:]
         if keys[0] == "queue":
             x, keys = x["queue"], keys[1:]
         if len(keys) == 2:
@@ -249,16 +324,27 @@ def outputs(t):
             out[f"{f['id']}_retrans"] = f"TCP segments the sender of flow {f['id']} sent again"
     for l in t["links"]:
         a, b = l["between"]
-        q = l.get("queue")
-        back = a if q and q["on"] == b else b   # the side that has no described queue
-        out[f"{l['id']}_util"] = f"bits sent on link {l['id']} from {a} to {b}, divided by the link's rate"
-        out[f"{l['id']}_util_back"] = f"the same from {b} to {a}"
-        if q and q["kind"] == "scheduler":
-            for f in q["parts"]:
-                out[f"{l['id']}_drops_{f}"] = f"packets of flow {f} dropped from its queue in the scheduler of link {l['id']}"
-        else:
-            out[f"{l['id']}_drops"] = f"packets dropped from the queue in front of link {l['id']} on the side of {q['on'] if q else a}"
-        out[f"{l['id']}_drops_back"] = f"packets dropped from the plain queue in front of link {l['id']} on the side of {back}"
+        e = ends(l)
+        out[f"{l['id']}_util"] = f"bits sent on link {l['id']} from {a} to {b}, divided by the " + ("link's rate" if e[a]["rate"] == l["rate"] else f"rate of {a}'s device")
+        out[f"{l['id']}_util_back"] = f"the same from {b} to {a}" + ("" if e[b]["rate"] == l["rate"] else f", divided by the rate of {b}'s device")
+        # the drops, named as the program names them: a scheduler's by its parts; a plain queue's <link>_drops, and <link>_drops_back for the
+        # side that is not described (or, where both sides have a described plain queue, for the side of the second host)
+        given, front, back = [e[h]["queue"] is not None for h in (a, b)], {}, {}
+        for side, h in enumerate((a, b)):
+            q = e[h]["queue"]
+            if q and q["kind"] == "scheduler":
+                for name in q["parts"]:
+                    who = members(q, name)
+                    front[f"{l['id']}_drops_{name}"] = (f"packets of flow {name} dropped from its queue in the scheduler of link {l['id']}" if who == [name]
+                                                       else f"packets of the flows {', '.join(who)} dropped from the queue they share (class {name}) in the scheduler of link {l['id']} on the side of {h}")
+            elif q:
+                (back if all(given) and side == 1 else front)[f"{l['id']}_drops" + ("_back" if all(given) and side == 1 else "")] = f"packets dropped from the queue in front of link {l['id']} on the side of {h}"
+            elif any(given) or side == 1:
+                back[f"{l['id']}_drops_back"] = f"packets dropped from the plain queue in front of link {l['id']} on the side of {h}"
+            else:
+                front[f"{l['id']}_drops"] = f"packets dropped from the queue in front of link {l['id']} on the side of {h}"
+        out.update(front)
+        out.update(back)
     return out
 
 
@@ -267,20 +353,30 @@ DOES = ("add_host", "add_link", "add_flow", "add_queue", "remove")
 
 
 def sync(t):
-    """After a change: every scheduler has a part for exactly the flows that pass it. A flow that is new there gets the
-    mean of the parts that stand (0.5 where there is none); the part and the largest rate of a flow that no longer
-    passes are dropped."""
+    """After a change: every scheduler has a part for exactly the flows that pass it. A flow that is new there gets a queue of its own with the
+    mean of the parts that stand (0.5 where there is none); a flow that no longer passes leaves its queue, and a part (with its largest rate, and
+    its class) that holds no flow any more is dropped."""
     try:
-        through = passes(t)
+        waits = through(t)
     except (ValueError, KeyError, StopIteration):
         return t   # a flow with two ways, or one that names a host that is gone: problems() says so
-    for l in t["links"]:
-        q = l.get("queue")
-        if q and q.get("kind") == "scheduler":
-            old = q.get("parts") or {}
+    for l, h, q, a in queues(t):
+        if isinstance(q, dict) and q.get("kind") == "scheduler":
+            flows, old, classes = waits[(l["id"], h)], q.get("parts") or {}, {}
+            for name, fl in (q.get("classes") or {}).items():
+                left = [f for f in fl if f in flows]
+                if left and name in old:
+                    classes[name] = left
+            held = {f for fl in classes.values() for f in fl}
             fill = round(sum(old.values()) / len(old), 6) if old else 0.5
-            q["parts"] = {f: old.get(f, fill) for f in through[l["id"]]}
+            parts = {name: v for name, v in old.items() if name in classes}
+            parts.update({f: old.get(f, fill) for f in flows if f not in held})
+            q["parts"] = {k: parts[k] for k in list(old) + [k for k in parts if k not in old] if k in parts}   # the order that stood, new ones after
             q["largest_rate"] = {f: v for f, v in (q.get("largest_rate") or {}).items() if f in q["parts"]}
+            if classes or "classes" in q:
+                q["classes"] = classes
+                if not classes:
+                    q.pop("classes")
     return t
 
 
@@ -290,9 +386,10 @@ def apply(t, edits):
       add_host   id
       add_link   id, from, to (the two hosts), rate (empty: 1Gbps); delay 50us, MTU 1500, a device queue of 10 packets
       add_flow   id, kind (udp or tcp), from, to, and rate for udp (empty: 100Mbps) or type for tcp (empty: TcpCubic)
-      add_queue  id (the link), on (the host whose sending side it is), kind (scheduler or fifo; empty: scheduler); 100 packets
-      remove     kind (host, link, flow or queue) and id (a queue's id is its link's). A host goes with its links and
-                 with the flows that start or end at it.
+      add_queue  id (the link), on (the host whose sending side it is), kind (scheduler or fifo; empty: scheduler); 100 packets.
+                 A link may have one on each of its two sides.
+      remove     kind (host, link, flow or queue) and id (a queue's id is its link's; on: its side, where the link has two).
+                 A host goes with its links and with the flows that start or end at it.
     ValueError with the reason if a change cannot be made. Whether the result can be built is for problems()."""
     t = copy.deepcopy(t)
     ids = lambda: {x["id"] for k in ("hosts", "links", "flows") for x in t[k]}
@@ -317,9 +414,13 @@ def apply(t, edits):
                               else {"id": oid, "kind": "tcp", "from": e["from"], "to": e["to"], "type": e.get("type") or "TcpCubic"})
         elif do == "add_queue":
             link = next((l for l in t["links"] if l["id"] == oid), None)
-            if link is None or link.get("queue") or e.get("on") not in link["between"]:
-                raise ValueError(f"{n}: a queue is put on a link that has none (id: the link), on the side of one of its two hosts (on)")
-            link["queue"] = {"on": e["on"], "kind": e.get("kind") if e.get("kind") in ("scheduler", "fifo") else "scheduler", "length": 100, "parts": {}, "largest_rate": {}}
+            if link is None or e.get("on") not in link["between"] or ends(link)[e["on"]]["queue"] is not None:
+                raise ValueError(f"{n}: a queue is put on a side of a link that has none there (id: the link; on: one of its two hosts)")
+            new = {"kind": e.get("kind") if e.get("kind") in ("scheduler", "fifo") else "scheduler", "length": 100, "parts": {}, "largest_rate": {}}
+            if not any(x["queue"] is not None for x in ends(link).values()):
+                link["queue"] = {"on": e["on"], **new}   # the first queue of a link: the older form, as before
+            else:   # the other side's: in the link's ends (the first keeps its place and its addresses)
+                link.setdefault("ends", {}).setdefault(e["on"], {})["queue"] = new
         else:
             kind = e.get("kind")
             if kind == "host" and oid in hosts:
@@ -330,16 +431,28 @@ def apply(t, edits):
                 t["links"] = [l for l in t["links"] if l["id"] != oid]
             elif kind == "flow" and any(f["id"] == oid for f in t["flows"]):
                 t["flows"] = [f for f in t["flows"] if f["id"] != oid]
-            elif kind == "queue" and any(l["id"] == oid and l.get("queue") for l in t["links"]):
-                next(l for l in t["links"] if l["id"] == oid).pop("queue")
+            elif kind == "queue" and any(l["id"] == oid and any(x["queue"] is not None for x in ends(l).values()) for l in t["links"]):
+                link = next(l for l in t["links"] if l["id"] == oid)
+                sides = [h for h, x in ends(link).items() if x["queue"] is not None]
+                side = e.get("on") if e.get("on") in sides else sides[0] if len(sides) == 1 else None
+                if side is None:
+                    raise ValueError(f"{n}: link {oid} has a queue on each side: say which one (on: {sides[0]} or {sides[1]})")
+                if "queue" in ((link.get("ends") or {}).get(side) or {}):
+                    link["ends"][side].pop("queue")
+                    link["ends"] = {h: x for h, x in link["ends"].items() if x}
+                    if not link["ends"]:
+                        link.pop("ends")
+                else:
+                    link.pop("queue")
             else:
                 raise ValueError(f"{n}: there is no {kind} {oid!r} to remove (kind: host, link, flow or queue; a queue's id is its link's)")
     return sync(t)
 
 
 def objects(t):
-    """The objects of a network as "kind:id" (a queue by its link's id)."""
-    return {f"host:{h['id']}" for h in t["hosts"]} | {f"link:{l['id']}" for l in t["links"]} | {f"flow:{f['id']}" for f in t["flows"]} | {f"queue:{l['id']}" for l in t["links"] if l.get("queue")}
+    """The objects of a network as "kind:id" (a queue by its link's id; where the link's ends are described each by itself, by link.host)."""
+    return ({f"host:{h['id']}" for h in t["hosts"]} | {f"link:{l['id']}" for l in t["links"]} | {f"flow:{f['id']}" for f in t["flows"]}
+            | {f"queue:{l['id']}" if a.count(".") == 1 else f"queue:{l['id']}.{h}" for l, h, q, a in queues(t)})
 
 
 def structure_problems(st, t=None):
@@ -376,7 +489,7 @@ def tools_told(tools):
     columns `net` writes (two-hosts has others) and without the search of a packet trace (`net` writes none)."""
     told = {k: v for k, v in tools.items() if k != "grep_trace"}
     told["series"] = ("series(run_id, every_n): per-100ms samples of a run: t, then for each flow <flow>_bps (and <flow>_cwnd for a TCP flow), then for each "
-                      "described queue the packets waiting at the sample time (<link>_q_<flow> for a scheduler, <link>_q for a plain queue) and the packets dropped "
+                      "described queue the packets waiting at the sample time (<link>_q_<flow> for a scheduler's queue, named after its flow or its class; <link>_q for a plain queue) and the packets dropped "
                       "since traffic began (<link>_drops_<flow>, <link>_drops) (at most 100 rows; the measured seconds begin at t = 2)")
     return told
 
@@ -386,13 +499,18 @@ def text(t, run):
     lines = [f"host {h['id']}" for h in t["hosts"]]
     for l in t["links"]:
         lines.append(f"link {l['id']} {l['between'][0]} {l['between'][1]} rate={l['rate']} delay={l['delay']} mtu={l['mtu']} devq={l['device_queue']}".replace(" Mbps", "Mbps"))
-        q = l.get("queue")
-        if q:
-            s = f"queue {l['id']} {q['on']} kind={q['kind']} length={q['length']}"
+        for h, x in (l.get("ends") or {}).items():   # a device that differs from its link's line
+            own = [f"{k}={str(x[p]).replace(' ', '')}" for k, p in (("rate", "rate"), ("devq", "device_queue")) if p in x and x[p] != l[p]]
+            if own:
+                lines.append(f"dev {l['id']} {h} " + " ".join(own))
+        for _, h, q, a in (x for x in queues(t) if x[0] is l):
+            s = f"queue {l['id']} {h} kind={q['kind']} length={q['length']}"
             if q["kind"] == "scheduler":
                 s += " parts=" + ",".join(f"{f}:{v}" for f, v in q["parts"].items())
                 if q.get("largest_rate"):
                     s += " largest=" + ",".join(f"{f}:{str(v).replace(' ', '')}" for f, v in q["largest_rate"].items())
+                if q.get("classes"):
+                    s += " classes=" + ",".join(f"{k}:{'+'.join(v)}" for k, v in q["classes"].items())
             lines.append(s)
     for f in t["flows"]:
         lines.append(f"flow {f['id']} udp {f['from']} {f['to']} rate={str(f['rate']).replace(' ', '')} packet={f['packet_bytes']}" if f["kind"] == "udp"

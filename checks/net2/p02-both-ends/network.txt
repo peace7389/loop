@@ -1,0 +1,8 @@
+host a
+host b
+link l a b rate=1Gbps delay=50us mtu=1500 devq=10
+queue l a kind=scheduler length=100 parts=fa:1 largest=fa:20Mbps
+queue l b kind=scheduler length=100 parts=ub:1 largest=ub:50Mbps
+flow fa tcp a b type=TcpCubic
+flow ub udp b a rate=300Mbps packet=1400
+run duration=10 seed=1

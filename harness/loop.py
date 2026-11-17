@@ -87,7 +87,7 @@ def design_key(clean, edits):
 def edits_say(edits):
     """A list of changes in a few words, for an evidence line."""
     one = lambda e: (f"+host {e['id']}" if e["do"] == "add_host" else f"+link {e['id']} {e['from']}-{e['to']}" if e["do"] == "add_link" else f"+{e['kind']} flow {e['id']} {e['from']}>{e['to']}" if e["do"] == "add_flow"
-                     else f"+{e['kind'] or 'scheduler'} on {e['on']}'s side of {e['id']}" if e["do"] == "add_queue" else f"-{e['kind']} {e['id']}")
+                     else f"+{e['kind'] or 'scheduler'} on {e['on']}'s side of {e['id']}" if e["do"] == "add_queue" else f"-{e['kind']} {e['id']}" + (f" ({e['on']}'s side)" if e.get("kind") == "queue" and e.get("on") else ""))
     return ", ".join(one(e) for e in edits)
 
 
@@ -97,8 +97,8 @@ In this session you may also change the structure of the network. A simulation o
    - do add_host: id, a new name (at most 12 lower-case letters and digits, beginning with a letter).
    - do add_link: id, from and to (the two hosts it joins), rate (for example 1Gbps). One link for each two hosts.
    - do add_flow: id, kind (udp or tcp), from, to, and rate for udp (for example 100Mbps) or type for tcp (for example TcpCubic). A flow needs one shortest way from its sender to its receiver.
-   - do add_queue: id (the link), on (the host whose sending side of the link it is), kind (scheduler or fifo). A scheduler gives each flow that passes it a part of the link.
-   - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's). A host goes with its links and with the flows that start or end at it.
+   - do add_queue: id (the link), on (the host whose sending side of the link it is), kind (scheduler or fifo). A scheduler gives each flow that passes it a part of the link. A link may have a queue on each of its two sides.
+   - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's; where the link has a queue on each side, on says which). A host goes with its links and with the flows that start or end at it.
 The brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network."""
 
 
@@ -739,6 +739,8 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None):
             if w.get("revises"):
                 stand[w["revises"]], revised_as[w["revises"]] = "revised", new
     for h in t.get("hypotheses") or []:
+        if isinstance(h, dict) and isinstance(h.get("follows_from"), list):   # a run id stands for that run's simulation, as in a why's about (s043: three hypotheses refused for "r001")
+            h["follows_from"] = list(dict.fromkeys(of_run(a) for a in h["follows_from"]))
         if isinstance(h, dict) and not h.get("follows_from") and whys.get(h.get("from_why")):
             h["follows_from"] = list(whys[h["from_why"]]["about"])   # what the hypothesis follows from: what its why is about
         if mode == "report":

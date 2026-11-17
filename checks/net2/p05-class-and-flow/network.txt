@@ -1,0 +1,12 @@
+host a
+host b
+host r
+host c
+link la a r rate=1Gbps delay=50us mtu=1500 devq=10
+link lb b r rate=1Gbps delay=50us mtu=1500 devq=10
+link lc r c rate=100Mbps delay=1ms mtu=1500 devq=10
+queue lc r kind=scheduler length=100 parts=one:0.25,fb:0.75 classes=one:fa+fd
+flow fa tcp a c type=TcpCubic
+flow fd tcp a c type=TcpCubic
+flow fb tcp b c type=TcpCubic
+run duration=10 seed=1

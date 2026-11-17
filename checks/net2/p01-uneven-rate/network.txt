@@ -1,0 +1,6 @@
+host a
+host b
+link l a b rate=1Gbps delay=50us mtu=1500 devq=10
+dev l a rate=200Mbps
+flow t tcp a b type=TcpCubic
+run duration=10 seed=1

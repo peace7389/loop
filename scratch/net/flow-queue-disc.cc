@@ -67,7 +67,11 @@ FlowQueueDisc::SetBands(const std::vector<Band>& bands)
     for (uint32_t i = 0; i < bands.size(); i++)
     {
         m_w.push_back(bands[i].part / sum);
-        m_bandOf[bands[i].port] = i;
+        for (uint16_t port : bands[i].ports)
+        {
+            NS_ABORT_MSG_IF(m_bandOf.count(port), "a flow is in two bands of one scheduler");
+            m_bandOf[port] = i;
+        }
     }
 }
 

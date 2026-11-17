@@ -1,0 +1,8 @@
+{
+  "t_goodput_bps": 192809888,
+  "t_retrans": 27,
+  "l_util": 1.000002,
+  "l_util_back": 0.003682,
+  "l_drops": 27,
+  "l_drops_back": 0
+}

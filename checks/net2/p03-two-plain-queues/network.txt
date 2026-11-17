@@ -1,0 +1,8 @@
+host a
+host b
+link l a b rate=100Mbps delay=50us mtu=1500 devq=10
+queue l a kind=fifo length=50
+queue l b kind=fifo length=20
+flow ua udp a b rate=150Mbps packet=1400
+flow ub udp b a rate=120Mbps packet=1400
+run duration=10 seed=1

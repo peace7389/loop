@@ -1,0 +1,10 @@
+{
+  "ua_goodput_bps": 97902560,
+  "ua_loss_frac": 0.347313,
+  "ub_goodput_bps": 97902560,
+  "ub_loss_frac": 0.184146,
+  "l_util": 1.000005,
+  "l_util_back": 0.999993,
+  "l_drops": 46515,
+  "l_drops_back": 19730
+}

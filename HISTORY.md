@@ -29,6 +29,7 @@ no setting makes a meaningful improvement it should ask why rather than present 
 | 2026-11-15, day | A long run of small usability requests while sessions s029 and s030 ran (fields in the set-up cards, bars, hover boxes, one word per concept, nothing moves by itself). The session ran into its usage limit with five changes deployed by hand and nothing committed. |
 | 2026-11-15, evening | The interrupted work completed and checked; four faults it had left were found by the full run and repaired. A test's detail cut to what it is for (a rule with an "or" as either-or lines). Session s031 on the operator's brief `trap` read closely, by the operator, by Claude chat and here: it led to the three harness changes of section 4, lessons A1 to A5. |
 | 2026-11-17 | After the usage limit: the interrupted work completed (the page of 15 November checked as a whole and published; the report's parts "what limits the result" and "made no difference" tested and shown). The page shared with the lab: any account of the server through its own SSH tunnel, one session at a time, the page says who runs it. The task is now written by the harness, after the operator found that `trap`'s task contradicted its aim and settings. Briefs with the seed fixed. Two comparison arms built: the loop without the hypothesis format, and random search. A network as data (the program `net`, a drag-and-drop builder, structure the AI may change), the page on the lab network with a personal link for the professor. The chain of reasoning fixed by the answer format (guesses of why, needs, half of what is left; a guess can be looked at again or replaced); first session on it: s041. An audit of s033 and s041 at the operator's word found three defects in the chain (a test on known results, guesses never taken up, a hypothesis that need not follow from its guess): repaired, the last by a judge (a second model call). The builder redrawn on JointJS, hosts as in the two-host picture, the tools in a palette. |
+| 2026-11-17, late | The network builder reviewed against ns-3 at the operator's word ("building section should reflect ns-3 architecture") and brought nearer to it in two stages: a link is a channel and two devices, each with its own rate and transmit queue where wanted; a queue on either sending side, or both; several flows in one queue of a scheduler. Second build of `net` with five predictions met (`checks/net2`). Session s043, the first under the mandatory look-again. |
 
 ## 3. Results (headline figures only)
 
@@ -70,6 +71,13 @@ no setting makes a meaningful improvement it should ask why rather than present 
   no usable report). **On this brief the format does not change the answer**; it may save simulations, and three
   sessions an arm cannot show that. The brief is too easy to separate the arms: every setting within reach of a random
   draw is inside the tolerance.
+- **The mandatory look-again on `trap-2`** (session s043, 2026-11-17: 6 turns, 17 of 20 simulations, 6 hypotheses,
+  6 readings by the judge, none refused, a report). After every tested hypothesis the model gave a review of the guess
+  it came from before going on: 9 reviews (turn 2: two guesses refuted, one kept; turns 4 to 6: six supported or
+  kept), where s042 had skipped the review of turn 3. The recommendation and the limit are those of s033, s041 and
+  s042 (BBR, 418.9 Mbps, held by TCP's 1 MB buffer over a 20 ms round trip): the brief has one thing to find. In
+  turn 2 three hypotheses were refused because `follows_from` named a run id (r001); the harness now takes a run id
+  there as it does in `about`.
 - The seed: 53 settings were run under two or more seeds; TCP goodput differed by a median of 0.0002 %, at most 0.17 %.
   113 simulations (11 %) were spent on other seeds.
 

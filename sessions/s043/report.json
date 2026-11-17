@@ -1,0 +1,80 @@
+{
+ "goal": "Maximize tcp_goodput_bps while keeping udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpBbr",
+  "duration": 10
+ },
+ "expected": {
+  "udp_goodput_bps": 300003200,
+  "tcp_goodput_bps": 418901197,
+  "udp_loss_frac": 0.0,
+  "drops_band0": 0,
+  "drops_band1": 0,
+  "tcp_retrans": 0,
+  "link_util": 0.746044,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.5
+ },
+ "no_difference": [
+  "weightUdp",
+  "queuePkts",
+  "duration"
+ ],
+ "limit": "The result is limited by the fixed TCP socket buffer and round-trip time, not by the scheduler, queue length, or link capacity. TcpBbr reaches about 418.9 Mbps, close to 1 MB divided by about 20 ms, while link_util is only 0.746044 and there are zero drops and zero retransmissions. Changing weightUdp from 0.05 to 0.95 or queuePkts from 4 to 1000 does not change the result, and no tested TCP variant exceeds TcpBbr by more than 1%. Evidence: E2, E3, E4, C4, C5, C6, K4, K8.",
+ "explanation": "TcpBbr is best because it reaches the observed buffer/RTT ceiling within the 10 s measurement. E2 shows TcpBbr gives 418901197 bps at duration=10 and essentially the same value at duration=30, so duration is not limiting for BBR. E3 shows weightUdp=0.05 and 0.95, and queuePkts=4 and 1000, all give the same tcp_goodput_bps=418901197 with udp_loss_frac=0.0, so the scheduler is work-conserving under these loads and queue size does not create meaningful RTT or drops. E4 and C6 show that the remaining TCP variants do not beat BBR by more than 1%; TcpBic ties within tolerance, while TcpNewReno, TcpLinuxReno, and TcpVegas are lower. Therefore the default weightUdp=0.5, queuePkts=100, and duration=10 are kept as the simplest settings, and TcpBbr is recommended because it is at the ceiling and was verified stable across the scheduler and duration variations.",
+ "holds_when": "The UDP application continues to offer about 300 Mbps, the TCP buffers remain 1 MB, the one-way delay remains 10 ms so RTT is about 20 ms, the scheduler remains work-conserving, and total demand remains below the 1 Gbps link capacity. The duration should be at least about 10 s for BBR to be steady.",
+ "breaks_when": "If UDP offered load rises enough that total demand approaches or exceeds 1 Gbps, weightUdp and queuePkts could become binding and UDP loss could appear. If TCP buffers are increased, RTT is reduced, or the scheduler stops giving unused UDP share to TCP, the ceiling or the best weightUdp could change. If duration is made much shorter than 10 s, BBR may not have reached the ceiling.",
+ "claims": [
+  {
+   "text": "TcpBbr reaches about 418.9 Mbps within 10 s while keeping UDP loss at zero.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "C1"
+   ]
+  },
+  {
+   "text": "For TcpBbr, weightUdp and queuePkts do not materially change TCP goodput or UDP loss over the tested extremes.",
+   "role": "supports",
+   "evidence": [
+    "E3",
+    "C4",
+    "C5"
+   ]
+  },
+  {
+   "text": "No tested TCP variant exceeds TcpBbr by more than 1%; TcpBic is within tolerance and the other variants are lower.",
+   "role": "supports",
+   "evidence": [
+    "E4",
+    "C6"
+   ]
+  },
+  {
+   "text": "The scheduler and link are not the limiting factor at the recommendation: link utilization is only 0.746044 and there are no drops or retransmissions.",
+   "role": "background",
+   "evidence": [
+    "E2",
+    "E3"
+   ]
+  },
+  {
+   "text": "The observed ceiling is consistent with the fixed 1 MB TCP buffer and about 20 ms RTT, not with scheduler share or queue length.",
+   "role": "limits",
+   "evidence": [
+    "K4",
+    "K8",
+    "C4",
+    "C5",
+    "C6"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether TcpBbr at duration=2 would already reach the same ceiling was not tested.",
+  "Whether TcpBbr and TcpBic remain tied under different seeds was not tested.",
+  "Whether weightUdp or queuePkts become binding if UDP offered load is increased so total demand approaches 1 Gbps was not tested."
+ ]
+}

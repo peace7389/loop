@@ -6,13 +6,15 @@
 // network.txt, one object per line (words, then name=value pairs; a line that starts with # is skipped):
 //   host  <id>
 //   link  <id> <host> <host> rate=1Gbps delay=50us mtu=1500 devq=10
-//   queue <link> <host> kind=fifo|scheduler length=100 [parts=<flow>:<part>,...] [largest=<flow>:<rate>,...]
+//   dev   <link> <host> [rate=1Gbps] [devq=10]   the device of that host on that link, where it differs from the link's line
+//   queue <link> <host> kind=fifo|scheduler length=100 [parts=<name>:<part>,...] [largest=<name>:<rate>,...] [classes=<name>:<flow>+<flow>,...]
+//         a part's name is a flow (that flow has a queue of its own), or a class: several flows that share one queue of the scheduler
 //   flow  <id> udp <from> <to> rate=2Gbps packet=1400
 //   flow  <id> tcp <from> <to> type=TcpCubic
 //   tcp   [initcwnd=10] [buf=1048576]          for every TCP flow
 //   run   duration=10 seed=1 [warmup=1]
-// A link has a queue on each of its two sending sides. The side a `queue` line names gets that queue; every other
-// side gets a plain queue of 100 packets. A host with more than one link forwards.
+// A link has a queue on each of its two sending sides. A side a `queue` line names gets that queue (both sides may be
+// named); every other side gets a plain queue of 100 packets. A host with more than one link forwards.
 // How a scheduler divides the link is not in the description: it is the environment variable TWOHOSTS_SCHED.
 //
 // Written to --out: metrics.json (the measured seconds) and series.csv (a sample every 0.1 s), with these names:
@@ -67,12 +69,15 @@ struct QueueSpec
     uint32_t length = 100;
     std::vector<std::pair<std::string, double>> parts;
     std::map<std::string, std::string> largest;
+    std::map<std::string, std::vector<std::string>> classes; // a part's name -> the flows that share its queue (absent: the name is one flow)
 };
 
 struct LinkState
 {
     std::string id, a, b, rate = "1Gbps", delay = "50us";
     uint32_t mtu = 1500, devq = 10;
+    std::string rateOf[2];        // the rate of the device of a, of b, where a `dev` line gives one (empty: the link's)
+    uint32_t devqOf[2] = {0, 0}; // its transmit queue, in packets (0: the link's)
     QueueSpec q[2]; // on the side of a, on the side of b
     NetDeviceContainer devs;
     Ptr<QueueDisc> root[2];
@@ -235,6 +240,17 @@ main(int argc, char* argv[])
             l.devq = m.count("devq") ? std::stoul(m["devq"]) : l.devq;
             links.push_back(l);
         }
+        else if (what == "dev")
+        {
+            std::string lid, host;
+            ls >> lid >> host;
+            LinkState& l = linkOf(lid);
+            NS_ABORT_MSG_IF(host != l.a && host != l.b, "dev: host '" << host << "' is not on link '" << lid << "'");
+            uint32_t side = host == l.a ? 0 : 1;
+            auto m = Pairs(ls);
+            l.rateOf[side] = m.count("rate") ? m["rate"] : l.rateOf[side];
+            l.devqOf[side] = m.count("devq") ? std::stoul(m["devq"]) : l.devqOf[side];
+        }
         else if (what == "queue")
         {
             std::string lid, host;
@@ -258,6 +274,18 @@ main(int argc, char* argv[])
                 for (auto& [k, v] : List(m["largest"]))
                 {
                     q.largest[k] = v;
+                }
+            }
+            if (m.count("classes"))
+            {
+                for (auto& [k, v] : List(m["classes"]))
+                {
+                    std::stringstream fs(v);
+                    std::string f;
+                    while (std::getline(fs, f, '+'))
+                    {
+                        q.classes[k].push_back(f);
+                    }
                 }
             }
             NS_ABORT_MSG_IF(q.kind != "fifo" && q.kind != "scheduler", "queue kind must be fifo or scheduler");
@@ -335,6 +363,17 @@ main(int argc, char* argv[])
         p2p.SetChannelAttribute("Delay", StringValue(l.delay));
         p2p.SetQueue("ns3::DropTailQueue<Packet>", "MaxSize", StringValue(std::to_string(l.devq) + "p"));
         l.devs = p2p.Install(nodes.Get(ia), nodes.Get(ib));
+        for (uint32_t side = 0; side < 2; side++) // a device that differs from its link's line: its own rate, its own transmit queue
+        {
+            if (!l.rateOf[side].empty())
+            {
+                l.devs.Get(side)->SetAttribute("DataRate", StringValue(l.rateOf[side]));
+            }
+            if (l.devqOf[side])
+            {
+                DynamicCast<PointToPointNetDevice>(l.devs.Get(side))->GetQueue()->SetAttribute("MaxSize", StringValue(std::to_string(l.devqOf[side]) + "p"));
+            }
+        }
         for (uint32_t side = 0; side < 2; side++)
         {
             const QueueSpec& q = l.q[side];
@@ -359,9 +398,15 @@ main(int argc, char* argv[])
                 std::vector<FlowQueueDisc::Band> bands;
                 for (auto& [fid, part] : q.parts)
                 {
-                    NS_ABORT_MSG_IF(!portOf.count(fid), "queue of link '" << l.id << "': no flow '" << fid << "'");
+                    std::vector<uint16_t> ports; // the flows whose packets wait in this queue: the class's, or the one flow the part is named after
+                    auto cl = q.classes.find(fid);
+                    for (const std::string& f : cl == q.classes.end() ? std::vector<std::string>{fid} : cl->second)
+                    {
+                        NS_ABORT_MSG_IF(!portOf.count(f), "queue of link '" << l.id << "': no flow '" << f << "'");
+                        ports.push_back(portOf[f]);
+                    }
                     auto lr = q.largest.find(fid);
-                    bands.push_back({portOf[fid], part, DataRate(lr == q.largest.end() ? "0bps" : lr->second)});
+                    bands.push_back({ports, part, DataRate(lr == q.largest.end() ? "0bps" : lr->second)});
                 }
                 DynamicCast<FlowQueueDisc>(l.root[side])->SetBands(bands);
             }
@@ -472,7 +517,8 @@ main(int argc, char* argv[])
             }
             else
             {
-                csv << "," << l.id << "_q," << l.id << "_drops";
+                const char* back = l.q[0].given && l.q[1].given && side == 1 ? "_back" : ""; // two described plain queues on one link are told apart
+                csv << "," << l.id << "_q" << back << "," << l.id << "_drops" << back;
             }
         }
     }
@@ -564,10 +610,12 @@ main(int argc, char* argv[])
     }
     for (auto& l : links)
     {
-        double bps = double(DataRate(l.rate).GetBitRate());
-        put(l.id + "_util", (l.tx1[0] - l.tx0[0]) * 8.0 / duration / bps, 6);
-        put(l.id + "_util_back", (l.tx1[1] - l.tx0[1]) * 8.0 / duration / bps, 6);
+        double bps0 = double(DataRate(l.rateOf[0].empty() ? l.rate : l.rateOf[0]).GetBitRate());
+        double bps1 = double(DataRate(l.rateOf[1].empty() ? l.rate : l.rateOf[1]).GetBitRate());
+        put(l.id + "_util", (l.tx1[0] - l.tx0[0]) * 8.0 / duration / bps0, 6);
+        put(l.id + "_util_back", (l.tx1[1] - l.tx0[1]) * 8.0 / duration / bps1, 6);
         bool given = l.q[0].given || l.q[1].given;
+        bool both = l.q[0].given && l.q[1].given; // a described queue on each side: the plain one of b's side is "back"
         for (uint32_t side = 0; side < 2; side++)
         {
             const QueueSpec& q = l.q[side];
@@ -580,7 +628,7 @@ main(int argc, char* argv[])
             }
             else if (q.given)
             {
-                put(l.id + "_drops", double(l.drops1[side][0] - l.drops0[side][0]), 0);
+                put(l.id + (both && side == 1 ? "_drops_back" : "_drops"), double(l.drops1[side][0] - l.drops0[side][0]), 0);
             }
             else
             {

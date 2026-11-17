@@ -1,0 +1,18 @@
+{
+  "u1_goodput_bps": 18483360,
+  "u1_loss_frac": 0.691960,
+  "u2_goodput_bps": 30536800,
+  "u2_loss_frac": 0.491049,
+  "la_util": 0.061285,
+  "la_util_back": 0.000000,
+  "la_drops": 0,
+  "la_drops_back": 0,
+  "lb_util": 0.061286,
+  "lb_util_back": 0.000000,
+  "lb_drops": 0,
+  "lb_drops_back": 0,
+  "lc_util": 0.050069,
+  "lc_util_back": 0.000000,
+  "lc_drops_udp": 63375,
+  "lc_drops_back": 0
+}

@@ -430,6 +430,59 @@ loss, and under share UDP then gets more than its configured part. With Cubic
 and queues of 8 or more this does not happen on a 50 us link, because Cubic
 keeps 70% of its window after a loss.
 
+### 6.5 A network from a description: `net.cc` and `FlowQueueDisc`
+
+A brief that has a `"topology"` (section 7, at its end) is run by a second
+program, `ns-3.49/scratch/net` (`net.cc`, `flow-queue-disc.{h,cc}`; copied to
+`scratch/net/` of the repository), built by hand like `two-hosts`. It reads one
+file, `network.txt`, which `harness/network.py` (`text`) writes for each
+simulation, and builds what the file says with ns-3's own objects: a Node for
+each host, a point-to-point channel and two devices for each link, the
+internet stack, UDP and TCP applications, and in front of a device the queue
+the file describes. One line per object:
+
+    host <id>
+    link <id> <host> <host> rate=<rate> delay=<time> mtu=<bytes> devq=<packets>
+    dev <link> <host> [rate=<rate>] [devq=<packets>]
+    queue <link> <host> kind=fifo|scheduler length=<packets> [parts=<name>:<n>,...] [largest=<name>:<rate>,...] [classes=<name>:<flow>+<flow>,...]
+    flow <id> udp <from> <to> rate=<rate> packet=<bytes>
+    flow <id> tcp <from> <to> type=<TcpCubic|...>
+    tcp [initcwnd=<segments>] [buf=<bytes>]
+    run duration=<s> seed=<n>
+
+A **link is a channel and two devices**, as in ns-3. The `link` line gives
+what the two devices have in common; a `dev` line gives one device a rate or a
+transmit queue of its own (second build, 2026-11-17). A **queue** stands on
+one sending side of a link, and a link may have one on each side. Where none
+is described, packets wait in a plain queue of 100 packets. A **scheduler**
+has one queue for each of its parts. A part is named after one flow, which
+then has the queue to itself, or after a class: `classes=udp:u1+u2` puts the
+flows u1 and u2 into one queue, and they share its part of the link. How a
+scheduler divides the link (share, cap, prio) is the session's policy, given
+on the command line and never written into the brief.
+
+The measures are named from the network: per flow `<flow>_goodput_bps`, and
+`<flow>_loss_frac` (UDP) or `<flow>_retrans` (TCP); per link `<link>_util`
+and `<link>_util_back` (bits sent each way, divided by the rate of the device
+that sends them); per queue the drops: `<link>_drops_<part>` for each part of
+a scheduler, `<link>_drops` for a plain queue, `<link>_drops_back` for the
+plain queue of the other side (where both sides have a described plain queue,
+for the side of the link's second host). The series over time carries a
+column for each flow's rate, each TCP flow's window, and each queue's drops
+and length.
+
+The operator's checks, each a prediction worked out beforehand and a
+simulation: `checks/net1/` (the first build: the default network gives the
+measures of `two-hosts`; largest rates; prio; a dumbbell of three hosts with
+parts 0.25 and 0.75; ten networks) and `checks/net2/` (the second build: a
+device at 200 Mbps on a 1 Gbps link gives 192.8 Mbps of TCP goodput, 193.07
+predicted; a scheduler on each side of one link; two described plain queues
+told apart as `_drops` and `_drops_back`; two UDP flows in one queue of a
+scheduler held to 50 Mbps give 49.02 Mbps together; in the dumbbell, two TCP
+flows in one queue with the part 0.25 get together what one had alone, 24.1
+Mbps, and the third flow 72.3 Mbps). All met. The ten networks of `net1` give
+byte-identical output on the second build.
+
 ## 7. Briefs
 
 A session is started with a brief, `briefs/<id>.json`. It is the model's only
@@ -626,6 +679,50 @@ about it, stays reachable as "all settings as a list". Three ready-made
 loss allowed", "coarse ratio (steps of 0.01)", "small budget (15
 simulations)". The editor of the older control page (`index_full.html`) is
 `brief_editor_old.js`.
+
+**A brief with a network** (`"topology"`; `harness/network.py`). Instead of
+the fixed two-host system a brief can carry the network as data:
+
+    {"hosts": [{"id": "a"}, {"id": "r"}, {"id": "c"}],
+     "links": [{"id": "lc", "between": ["r", "c"], "rate": "100Mbps", "delay": "1ms", "mtu": 1500, "device_queue": 10,
+                "queue": {"on": "r", "kind": "scheduler", "length": 100, "parts": {"one": 0.25, "fb": 0.75},
+                          "largest_rate": {}, "classes": {"one": ["fa", "fd"]}},
+                "ends": {"c": {"rate": "50Mbps", "queue": {"kind": "fifo", "length": 50}}}}, ...],
+     "flows": [{"id": "fa", "kind": "tcp", "from": "a", "to": "c", "type": "TcpCubic"},
+               {"id": "ub", "kind": "udp", "from": "c", "to": "a", "rate": "80Mbps", "packet_bytes": 1400}]}
+
+At most 8 hosts, 12 links and 8 flows; one link between two hosts; a flow
+takes the shortest way in links, and a network in which a flow has two
+equally short ways is refused. A link's line gives what its two devices have
+in common. `"queue"` with `"on"` describes the queue of one sending side (the
+form of every brief before 2026-11-17, read as before). `"ends"` says, by
+host, what one end has of its own: `rate`, `device_queue`, and `queue` (the
+queue of that side, so that a link can have one on each side; a side has at
+most one). A scheduler's `classes` name groups of flows that share one of
+its queues: a name of its own (not a flow's, not used on the link's other
+side) that has a part, and the flows in it; every flow that passes the
+scheduler waits in exactly one of its queues.
+
+Every setting has an **address**, object.property: `lc.rate`, `lc.delay`,
+`lc.mtu`, `lc.device_queue`, `lc.queue.length`, `lc.queue.parts.one`,
+`lc.queue.largest_rate.fb`, `fa.type`, `ub.rate`, `ub.packet_bytes`; of an
+end, `lc.c.rate`, `lc.c.device_queue`, `lc.c.queue.length`,
+`lc.c.queue.parts.<name>`. The brief fixes a setting (its value in the
+network) or makes it a knob (an entry of `knobs` under its address). No
+object may be named like a word of an address (`network.KEPT`). The measures
+are those of section 6.5 (`network.outputs`), and the goal, the conditions
+and the report's expected values name them. `network.problems` gives every
+reason a network cannot be built, in words; `tools.check_brief` refuses the
+brief with them.
+
+With `"structure": {"may_change": true, "most": {...}, "locked": [...]}` the
+AI may change the network in the simulations it asks for (`network.apply`:
+add_host, add_link, add_flow, add_queue, remove). The first queue of a link
+is written the older way and a second one into `ends`, so that the first
+keeps its addresses; removing a queue of a link that has two names its side
+(`on`). After every change `network.sync` keeps each scheduler's parts in
+step with the flows that pass it: a new flow gets a queue of its own, and a
+class that holds no flow any more goes with its part.
 
 ## 8. The session: `loop.py`
 
@@ -2960,6 +3057,33 @@ rows, "Measured here" as a row of an object's card, the unit in a measure's
 box, a claim's click that keeps its place and claims of equal size, a value's
 box as named rows.
 
+**The network builder** (`viewer/brief_net.js`, `brief_canvas.js`,
+`evidence_net.js`; the set-up page, "A network I build"). The operator builds
+the `"topology"` of a brief (section 7) by hand: a palette of tools in four
+groups (nodes, connections, applications, traffic control) dragged onto a
+picture drawn with JointJS (`viewer/vendor`, carried by the page). A host is
+drawn simply (its sign and one mark for each application and queue) or in
+full (applications, internet stack, traffic control, as in the two-host
+picture); hosts are moved and resized freely, the picture is moved and
+zoomed, F fits it, the left and right arrows undo and redo. The chosen
+object's card stands beside the picture, and under it one card for each part
+of the network with every setting it has and what the program fixes; a
+setting is fixed by the operator (✧) or left to the AI (✦) by a click on its
+mark. Since 2026-11-17 the builder follows ns-3's own parts (section 6.5):
+- a link's card names its two devices, and each can be given a rate and a
+  transmit queue of its own ("set separately", and "same as the link again");
+- a shared queue or a scheduler can be put on either sending side of a link,
+  and on both; the first keeps the addresses `<link>.queue.…`, the second is
+  `<link>.<host>.queue.…`, as `network.apply` does it;
+- a scheduler's card asks, for each flow that passes, in which queue it
+  waits: one of its own, a shared queue that stands, or a new shared queue.
+  Flows in one queue share its part; the picture draws them into one box.
+`EV.netEnds`, `EV.netQueues`, `EV.netSettings` and `EV.netOutNames` mirror
+`network.ends`, `queues`, `settings` and `outputs`; the check `ev_build.py`
+(part `ends`) compares the two on every step, saves the network and starts a
+session on it. A session's page draws a mark for each described queue and
+says a device's own values and a shared queue in words.
+
 ### 12.2 Earlier pages, kept working
 
 | File | What it is |
@@ -3123,6 +3247,7 @@ untracked until they say otherwise.
 | 2026-11-17 | The task is written by the harness from the aim and the open settings, after the operator found that `trap`'s task contradicted both; a name in braces in the description may be a knob; three briefs with the seed fixed (`two-hosts-open-2`, `two-hosts-udp-demand-2`, `trap-2`). |
 | 2026-11-17 | The final report says what limits the result and which settings made no difference (the harness part was written on 2026-11-15 and finished now), shown on the page as "What limits the result"; the last violet edge is gone. |
 | 2026-11-17 | Two comparison arms for the question "does the hypothesis format help?": `loop.py --arm plain` (the same loop without hypotheses, decision rules and verdicts) and `random_search.py` (no model). |
+| 2026-11-17, late | The network follows ns-3's own parts (`TOPOLOGY.md`, stages N1 and N2): a link is a channel and two devices, each of which can have its own rate and transmit queue; a queue on either sending side of a link, or on both; several flows in one queue of a scheduler (a class). Second build of `net`, five predictions met (`checks/net2`), the ten earlier networks byte-identical. `network.py`, the builder and a session's page read all three; older briefs are read as before. In a hypothesis, `follows_from` may name a run id (found in s043). Session s043, the first under the mandatory look-again: a review after every tested hypothesis (9 in 6 turns). |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

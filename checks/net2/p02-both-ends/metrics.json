@@ -1,0 +1,10 @@
+{
+  "fa_goodput_bps": 19307053,
+  "fa_retrans": 9,
+  "ub_goodput_bps": 49020160,
+  "ub_loss_frac": 0.836601,
+  "l_util": 0.020027,
+  "l_util_back": 0.050446,
+  "l_drops_fa": 6,
+  "l_drops_ub": 224091
+}

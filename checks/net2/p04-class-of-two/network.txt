@@ -1,0 +1,11 @@
+host a
+host b
+host r
+host c
+link la a r rate=1Gbps delay=50us mtu=1500 devq=10
+link lb b r rate=1Gbps delay=50us mtu=1500 devq=10
+link lc r c rate=1Gbps delay=1ms mtu=1500 devq=10
+queue lc r kind=scheduler length=100 parts=udp:1 largest=udp:50Mbps classes=udp:u1+u2
+flow u1 udp a c rate=60Mbps packet=1400
+flow u2 udp b c rate=60Mbps packet=1400
+run duration=10 seed=1

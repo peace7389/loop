@@ -31,7 +31,7 @@ class FlowQueueDisc : public QueueDisc
     };
     struct Band
     {
-        uint16_t port;    // packets to or from this port belong to the band
+        std::vector<uint16_t> ports; // packets to or from one of these ports belong to the band (one flow, or several that share the queue)
         double part;      // its part of the link, above 0 (the parts are divided by their sum)
         DataRate largest; // 0: no largest rate
     };
