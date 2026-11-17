@@ -1,0 +1,99 @@
+{
+ "goal": "Maximize the smaller of UDP and TCP goodput (max-min throughput) during the measured window, with UDP offered at the default 2Gbps so both queues are backlogged. Differences below 1% are treated as equal.",
+ "recommendation": {
+  "weightUdp": 0.5,
+  "udpRate": "2Gbps",
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10,
+  "seed": 1
+ },
+ "expected": {
+  "udp_goodput_bps": 488857600,
+  "tcp_goodput_bps": 482667053,
+  "udp_loss_frac": 0.755571,
+  "drops_band0": 1349234,
+  "drops_band1": 72,
+  "tcp_retrans": 71,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.5
+ },
+ "no_difference": [
+  "seed"
+ ],
+ "limit": "At the recommendation the strict scheduler caps UDP at about 489Mbps and TCP at about 483Mbps, and link_util is 1.0. The smaller flow is TCP because UDP's delivered bits per packet opportunity are about 1.3% higher than TCP's: UDP goodput rises about 977.7Mbps per unit weightUdp, while TCP goodput falls about 965.3Mbps per unit weightUdp. Equalizing the two would require weightUdp about 0.497 and would raise the minimum by only about 0.6%, inside the 1% tolerance. Evidence: E1, E2, C2, C5, C6, V4, V5.",
+ "explanation": "The scheduler behaves strictly: each flow gets its configured packet share even if the other queue is empty (C1, C5, V4). With UDP offered above its share and TCP always backlogged, UDP goodput is approximately 977.7*weightUdp Mbps and TCP goodput is approximately 965.3*(1-weightUdp) Mbps for loss-based TCP variants (C2, E1, E3, V7). The max-min objective is maximized where these two lines cross, near weightUdp=0.497; weightUdp=0.5 is within tolerance and was directly better than 0.45 and 0.55 by more than 1% (C6, V5). Total goodput only weakly favors UDP: weightUdp=0.95 exceeds weightUdp=0.05 by about 1.4%, but exceeds weightUdp=0.5 by only about 0.7%, inside tolerance (C4, V3, E1, E2). Therefore a high UDP weight is not worth starving TCP. TcpCubic is recommended because it fills the strict TCP share, while TcpBbr and TcpVegas underfill it (E3, C8, C9, V7, V8). The default queue length avoids the queuePkts=1000 TCP reduction (E3, E4, V6).",
+ "holds_when": "UDP offered rate is at least its configured UDP share (about 978*weightUdp Mbps; the default 2Gbps satisfies this), TCP uses a loss-based variant that fills its share (TcpCubic, TcpNewReno, TcpLinuxReno, or TcpBic), queuePkts is not so large that TCP receive-buffer/RTT effects appear (tested up to 800 packets), and the measured window is steady-state.",
+ "breaks_when": "If udpRate is below the UDP share, the strict scheduler wastes the unused UDP share and the best weightUdp should be reduced to roughly udpRate/978Mbps to avoid idle link capacity. If TcpBbr or TcpVegas is used, TCP underfills its share and the minimum goodput falls. If queuePkts is raised to 1000, TCP goodput drops by about 1.44%. If performance is instead defined as minimizing UDP loss fraction or maximizing total goodput with a strict preference for the measured 1.4% UDP-efficiency gain, a higher weightUdp such as 0.95 could be chosen.",
+ "claims": [
+  {
+   "text": "The scheduler is strict: a flow cannot use the other flow's unused configured share.",
+   "role": "background",
+   "evidence": [
+    "C1",
+    "C5",
+    "V4",
+    "E1",
+    "E2"
+   ]
+  },
+  {
+   "text": "When UDP is backlogged, UDP goodput is proportional to weightUdp, and loss-based TCP variants fill the remaining share.",
+   "role": "supports",
+   "evidence": [
+    "C2",
+    "V2",
+    "E1",
+    "E3",
+    "V7"
+   ]
+  },
+  {
+   "text": "For max-min goodput at default backlogged load, weightUdp=0.5 is the robust optimum; 0.45 and 0.55 lower the minimum by more than 1%.",
+   "role": "supports",
+   "evidence": [
+    "C6",
+    "V5",
+    "E2"
+   ]
+  },
+  {
+   "text": "Total payload goodput only weakly favors UDP: weightUdp=0.95 is about 1.4% above weightUdp=0.05 but only about 0.7% above weightUdp=0.5, inside tolerance.",
+   "role": "background",
+   "evidence": [
+    "C4",
+    "V3",
+    "E1",
+    "E2"
+   ]
+  },
+  {
+   "text": "TcpCubic, TcpNewReno, TcpLinuxReno, and TcpBic fill the strict TCP share, while TcpBbr and TcpVegas underfill it.",
+   "role": "supports",
+   "evidence": [
+    "E3",
+    "C8",
+    "C9",
+    "V7",
+    "V8"
+   ]
+  },
+  {
+   "text": "Seed does not change the result, and queue length up to 800 packets does not change goodput meaningfully, but queuePkts=1000 lowers TCP goodput by 1.44%.",
+   "role": "limits",
+   "evidence": [
+    "E3",
+    "E4",
+    "C7",
+    "C10",
+    "V6"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact mechanism of the TCP goodput drop at queuePkts=1000 is not settled; the series shows a full TCP queue and cwnd near 1 MB, suggesting a receive-buffer/RTT limit, but this was not directly tested.",
+  "The theoretical max-min optimum near weightUdp=0.497 was not run, although the predicted gain over 0.5 is within tolerance.",
+  "The best weightUdp when udpRate is below the UDP share was not optimized, only shown to waste capacity under the strict scheduler."
+ ]
+}

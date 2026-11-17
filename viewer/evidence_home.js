@@ -25,6 +25,10 @@ Object.assign(EV, {
       <td class="num">${scored.length ? scored.filter(x => x.score.holds).length : none}</td><td class="num">${parts.length ? (100 * Math.max(...parts)).toFixed(2) + '%' : none}</td><td class="num">${rows.length - scored.length}</td></tr>`;
   },
   // a text that must stay on one line: cut with "…" by the style when its column is too narrow, and given in full on hover
+  // the page is shared: which session is running and who started it, in one phrase (null when the server does not say who: an older server, an exported page)
+  runningSays() { const r = ((EV.st || {}).running_now || []), you = (EV.st || {}).you; return r.length ? r.map(x => `<span id="run-who" data-id="${EV.e(x.id)}" data-by-account="${EV.e(x.by)}"><b>${EV.e(x.id)}</b> running now, started by <b>${EV.e(x.by)}</b>${x.by === you ? ' (you)' : ''}</span>`).join(' · ') : null; },
+  // why a new session cannot start now (one session runs at a time), or null when it can
+  mustWait() { const st = EV.st || {}, r = (st.running_now || [])[0]; return st.one_at_a_time && r ? `Session ${r.id} is running now, started by ${r.by}${r.by === st.you ? ' (you)' : ''}. One session runs at a time, so that nobody's work gets in another's way: a new one can start when it has ended.` : null; },
   one: (text, cls) => `<td class="one ${cls || ''}" title="${EV.e(text)}">${EV.e(text)}</td>`,
   seqCell: x => (x.seq === undefined ? EV.nr : EV.seqHtml(x.seq) + (x.held + x.failed ? ` <span class="sq-n">${EV.tally(x.held, x.failed)}</span>` : '')),
   reviewCell(x) {  // the reviewer's progress on a session, and the sign-off
@@ -44,7 +48,7 @@ Object.assign(EV, {
   },
   homeRows() {
     const e = EV.e, op = EV.s.op, rows = EV.homeList(), body = rows.map(x => `<tr class="pick${x.running ? ' run' : ''}" data-act="pick" data-id="${e(x.id)}"><td class="nb"><b>${e(x.id)}</b>${x.running ? ' ' + EV.nowDot('This session is running now') : ''}</td>${EV.one(x.brief || 'before briefs', 'w-brief')}
-      <td class="nb" data-col="started" title="${e(String(x.started || '').replace('T', ' '))}">${e(String(x.started || '').replace('T', ' ').slice(5, 16)) || EV.nr}</td>${x.running || x.how ? EV.one(x.running ? 'running now' : x.how, 'w-how') : `<td>${EV.nr}</td>`}<td class="num nb">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td>
+      <td class="nb" data-col="started" title="${e(String(x.started || '').replace('T', ' '))}">${e(String(x.started || '').replace('T', ' ').slice(5, 16)) || EV.nr}</td>${x.running && x.by ? `<td class="one w-how" data-col="how" data-by-account="${e(x.by)}" title="Running now, started by ${e(x.by)}${x.by === (EV.st || {}).you ? ' (you)' : ''}">running now · ${e(x.by)}</td>` : x.running || x.how ? EV.one(x.running ? 'running now' : x.how, 'w-how') : `<td>${EV.nr}</td>`}<td class="num nb">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td>
       <td class="sqc" data-col="seq">${EV.seqCell(x)}</td>${['returned', 'unnamed'].map(k => `<td class="num" data-col="${k}">${x[k] ? `<b>${x[k][0]}</b> of ${x[k][1]}` : EV.nr}</td>`).join('')}<td class="num" data-col="void"${x.void ? ` data-of="${x.void[1]}" title="${x.void[0]} of the ${x.void[1]} checks of this session are void: their decision rule compared a simulation with itself"` : ''}>${x.void ? (x.void[0] ? `<b>${x.void[0]}</b>` : '<span class="mut">0</span>') : '<span class="mut" title="not recorded: this session has no checks by the harness">–</span>'}</td><td class="nb" data-col="review">${EV.reviewCell(x)}</td>
       ${op ? `<td class="nb" data-col="policy">${x.policy_hidden ? '<span class="mut">hidden until the session is scored</span>' : e(x.policy || '') || EV.nr}</td><td class="num nb">${EV.gapText(x) || '<span class="mut">not scored</span>'}</td>` : ''}</tr>`).join('');
     const el = document.getElementById('home-rows'), n = document.getElementById('home-n');
@@ -58,7 +62,7 @@ Object.assign(EV, {
     // one title line with the page's one action, beside the title where the eye starts (not at the far right). Opening a session (a row below, or the top bar's list) and comparing
     // (the top bar) each have one place, so they are not repeated here
     return `<div class="ev-title"><h1>All sessions</h1>
-        <span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${running} running now` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
+        <span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${EV.runningSays() || running + ' running now'}` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
       
       <div class="ev-card"><h2>Results so far <small>one row per ${EV.term('Brief', 'brief')}, counted from the sessions and, where they exist, their scores</small></h2>
         ${briefs.length ? `<table id="home-results" style="width:auto"><thead><tr><th>${EV.term('Brief', 'brief')}</th><th class="num">sessions</th><th class="num">with a final report</th><th class="num">meet the brief's conditions</th><th class="num">largest gap to the best</th><th class="num">not scored</th></tr></thead>

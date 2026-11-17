@@ -141,6 +141,30 @@ Object.assign(EV, {
       return `<li>${side(L)} <b>${EV.READ_WORDS[n[2]]}</b> ${right}</li>`; };
     return `<div class="rr rl" data-rr="rule" title="${e(T.rule)}"><ul class="hp-list rl-list" data-exact="1" data-n="${items.length}">${items.slice(0, max || items.length).map(li).join('')}${max && items.length > max ? `<li class="hp-more">and ${items.length - max} more: in the test's detail</li>` : ''}</ul></div>`;
   },
+  // A result that was decided by less than the tolerance. Two results closer than the tolerance (the brief's goal.tolerance, or 1 %) count as equal, so a
+  // comparison of two results that differ by less is decided by nothing, whatever the rule gives. The page works this out for every test, of old sessions
+  // too, by the harness's own rule (loop.decided_by_little, which since 2026-11-15 also writes it into the check's record and tells the model): the two
+  // sides are results when both are measured, or one is measured and the other a number that is an earlier result of the session written out.
+  tolerance() { const g = ((EV.M && EV.M.brief) || {}).goal || {}; return typeof g.tolerance === 'number' ? g.tolerance : 1; },
+  closeCalls(T) {
+    const M = EV.M, tree = T && T.rule ? EV.readTree(T.rule) : null, c = T && T.check; if (!tree || !c || c.void) return [];
+    const cmps = [], walk = n => { if (!n) return; if (n[0] === 'and' || n[0] === 'or') n[1].forEach(walk); else if (n[0] === 'all') walk(n[1]); else if (n[0] === 'cmp') cmps.push(n); }; walk(tree);
+    const hasVal = n => !!n && (n[0] === 'val' || (n[0] === 'neg' || n[0] === 'grp' ? hasVal(n[1]) : n[0] === 'call' ? n[2].some(hasVal) : n[0] === 'bin' ? hasVal(n[2]) || hasVal(n[3]) : false)), kind = n => (hasVal(n) ? 'measured' : n[0] === 'num' ? 'number' : 'stated');
+    const sims = Object.fromEntries(T.sims.map(q => [q.label, q])), one = T.sims.length === 1 ? T.sims[0] : null, val = (name, label) => { const q = sims[label] || (label == null ? one : null); return q && q.metrics ? q.metrics[name] : undefined; };
+    // "earlier": every simulation recorded before this check, as the harness has it (the experiment's own simulations are recorded before its checks)
+    const at = id => M.recs.findIndex(r => r.id === id), k0 = at(c.id), earlier = new Set(); M.sims.forEach(s => { const i = at(s.id); if (s.metrics && i >= 0 && i < k0) Object.values(s.metrics).forEach(v => { if (typeof v === 'number' && v) earlier.add(v); }); });
+    const tol = EV.tolerance();
+    return cmps.map(n => { if (n[2] === '==') return null; const a = EV.readValue(n[1], val), b = EV.readValue(n[3], val), ka = kind(n[1]), kb = kind(n[3]); if (typeof a !== 'number' || typeof b !== 'number') return null;
+      const results = (ka === 'measured' && kb === 'measured') || (ka === 'measured' && kb === 'number' && earlier.has(b)) || (ka === 'number' && kb === 'measured' && earlier.has(a)), m = Math.max(Math.abs(a), Math.abs(b)); if (!results || !m) return null;
+      const pct = 100 * Math.abs(a - b) / m; return pct < tol ? { a, b, op: n[2], pct, unit: EV.readUnit(n[1]) || EV.readUnit(n[3]) } : null; }).filter(Boolean);
+  },
+  // the line that says so: in a test's detail in full, on a notebook card in a few words (short)
+  closeNote(T, short) {
+    const cs = EV.closeCalls(T); if (!cs.length) return ''; const tol = EV.tolerance(), p = x => (x < 0.001 ? 'under 0.001' : String(+x.toPrecision(2))), N = (x, q) => String(EV.readNum(x, q.unit, 6)).replace(/<[^>]+>/g, ''), q = cs[0];
+    const attrs = `data-close="${cs.length}" data-pct="${cs.map(x => x.pct.toFixed(6)).join(',')}" data-tol="${tol}"`;
+    return short ? `<p class="sm tol-note" ${attrs}>${EV.warn('decided by ' + p(q.pct) + ' %')} <span class="sm">· inside the tolerance of ${tol} %: no meaningful difference</span></p>`
+      : `<p class="tol-note" ${attrs}>${EV.warn(cs.length === 1 ? 'Decided by less than the tolerance.' : `${cs.length} comparisons decided by less than the tolerance.`)} ${cs.map(x => `${N(x.a, x)} against ${N(x.b, x)}: a difference of ${p(x.pct)} %`).join('; ')}. Two results closer than the tolerance of ${tol} % count as equal, so this result shows no meaningful difference, whichever way the rule came out.</p>`;
+  },
   // A rule with an "or" in it, as groups: the rule holds when every group holds, and a group holds when ONE of its alternatives does (an alternative is one
   // comparison, or several joined by "and"). null: the rule has no "or", cannot be read, or is nested deeper than that (it is then shown as a sentence).
   ruleGroups(T) {

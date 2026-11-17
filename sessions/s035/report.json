@@ -1,0 +1,86 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10
+ },
+ "expected": {
+  "udp_goodput_bps": 300003200,
+  "tcp_goodput_bps": 668633114,
+  "udp_loss_frac": 0.0,
+  "drops_band0": 0,
+  "drops_band1": 92,
+  "tcp_retrans": 92,
+  "link_util": 1.0,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.5
+ },
+ "no_difference": [
+  "duration"
+ ],
+ "limit": "At the recommendation, TCP is limited by UDP's actual link demand and by TCP packet overhead, not by the configured UDP share, queue size, or congestion-control variant. UDP delivers 300 Mbps payload but consumes roughly 31% of the 1 Gbps wire because of packet overhead; the scheduler gives TCP the unused UDP share, so TCP payload saturates at about 668.633 Mbps with link_util=1.0. Lowering weightUdp can steal capacity from UDP, but the UDP loss constraint stops any meaningful gain: weightUdp=0.304 gives only 670.963 Mbps, 0.35% higher and inside tolerance, with udp_loss_frac=0.007888; weightUdp=0.302 gives 672.893 Mbps but violates the condition with udp_loss_frac=0.014414. Queue sizes 4-512 and loss-based TCP variants reach the same plateau, while queuePkts=1000 lowers TCP by 1.17% and BBR/Vegas underuse the link. Evidence: E0, E1, E2, E3, C1, C4, C6, C7, C8, C9, V1, V4, V6, V7.",
+ "explanation": "The default settings lie on the TCP plateau: weightUdp=0.5 is above the UDP-demand floor, so UDP loss is zero, and the scheduler gives TCP the unused UDP share, producing the same TCP goodput as weights down to about 0.31. Since all feasible weights at or above that floor are equal within tolerance, the simplest and safest choice is the default 0.5. queuePkts=100 is also on the flat part of the queue sweep: it avoids the very high TCP retransmissions seen at queuePkts=4 and the 1.17% bufferbloat-like loss seen at queuePkts=1000. TcpCubic is tied with other loss-based variants; BBR and Vegas are worse because they do not saturate the link. duration does not affect the measured average because the system is in steady state.",
+ "holds_when": "The UDP application remains a constant 300 Mbps source, the link remains 1 Gbps with 50 us one-way delay, the scheduler redistributes unused UDP share to TCP, TCP is always backlogged, and the default seed is used.",
+ "breaks_when": "The recommendation would change if UDP rate or packet size changes the UDP wire-demand threshold, if the scheduler does not give unused UDP share to TCP, if the UDP loss tolerance is made much stricter or looser, if queuePkts is forced very large causing bufferbloat, or if a TCP variant that underuses the link is selected.",
+ "claims": [
+  {
+   "text": "The scheduler gives TCP the unused UDP share, because TCP goodput is flat at about 668.633 Mbps for weightUdp from 0.32 through 0.50 while UDP loss is zero.",
+   "role": "supports",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "The UDP loss constraint sets the practical lower bound for weightUdp near 0.31; lowering it below that gives less than a 1% TCP gain before udp_loss_frac exceeds 0.01.",
+   "role": "limits",
+   "evidence": [
+    "E1",
+    "E2",
+    "E3",
+    "C4",
+    "C9",
+    "V4"
+   ]
+  },
+  {
+   "text": "Queue sizes 4 through 512, loss-based TCP variants, and durations 2, 10, and 30 do not raise TCP goodput more than 1% over the plateau; queuePkts=1000, TcpBbr, and TcpVegas lower it.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "E3",
+    "C6",
+    "C7",
+    "C8",
+    "V6",
+    "V7"
+   ]
+  },
+  {
+   "text": "At the recommendation the link is saturated and UDP demand leaves about 69% of the wire for TCP, so TCP payload is limited by UDP's actual wire demand and packet overhead rather than by queue size or congestion control.",
+   "role": "limits",
+   "evidence": [
+    "E0",
+    "E1",
+    "E2",
+    "E3"
+   ]
+  },
+  {
+   "text": "Very small queues increase TCP drops and retransmissions without changing goodput, while a very large queue causes persistent queueing and a measurable TCP goodput loss.",
+   "role": "background",
+   "evidence": [
+    "E2",
+    "E3"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact mechanism of the 1.17% TCP goodput drop at queuePkts=1000 with zero drops is not fully settled; the series suggests persistent queueing, but a direct RTT or scheduler-interaction test was not run.",
+  "The exact UDP wire-demand threshold between weightUdp=0.305 and 0.31 is inferred from loss and throughput, not directly measured from packet-level wire overhead.",
+  "Whether other seeds shift the feasible weight boundary by a small amount was not tested."
+ ]
+}

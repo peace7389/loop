@@ -1,0 +1,102 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10
+ },
+ "expected": {
+  "tcp_goodput_bps": 668633114,
+  "udp_loss_frac": 0.0,
+  "weight_udp": 0.5
+ },
+ "no_difference": [
+  "duration"
+ ],
+ "limit": "The result is limited by saturated link capacity after UDP demand and protocol overhead. At the recommendation link_util=1.0 and udp_goodput_bps=300003200, tcp_goodput_bps=668633114, leaving about 31.36 Mbps of transmitted capacity not counted as TCP payload (E0, E2, E3, C6). Lowering weightUdp can raise tcp_goodput_bps only by dropping UDP, which violates udp_loss_frac <= 0.01 (E1, E4, C2, C9, C10).",
+ "explanation": "The scheduler behaves work-conservatively for TCP: once UDP demand is met, TCP receives the leftover link, so weightUdp values 0.31-0.60 give the same TCP goodput within tolerance (C1, V1). UDP loss appears when the configured UDP share falls below UDP's required share, about 0.31; queue size and duration do not make weightUdp=0.30 feasible (C2, C10, V2). The plateau is a saturated-link ceiling, not a TCP congestion-control or queue-drop limit: link_util=1.0, and no tested variant or queue size exceeded the plateau while satisfying the UDP loss condition (C4, C6, C9, V4, V6). TcpCubic, TcpNewReno, TcpLinuxReno and TcpBic reach the plateau, while TcpBbr and TcpVegas underutilize the link (C3, C4, V3). queuePkts 4-300 are equivalent; queuePkts=1000 lowers TCP goodput by about 1.17% without TCP drops, consistent with added queuing delay rather than loss (C5, C7, V5, V7). duration 2-30 does not change the constrained optimum (C8, V8). Therefore the default settings are already optimal within the 1% tolerance; any weightUdp >= 0.31, queuePkts 4-300, loss-based variant, and duration 2-30 is equivalent for the stated goal.",
+ "holds_when": "UDP demand remains 300 Mbps, the link remains 1 Gbps with MTU 1500, the scheduler remains work-conserving as observed, and the UDP loss constraint is udp_loss_frac <= 0.01.",
+ "breaks_when": "If UDP demand rises above about 0.31 of the link, weightUdp must increase or UDP loss will occur. If the scheduler were not work-conserving, larger weightUdp could reduce TCP goodput. If queuePkts is raised to 1000 or TcpBbr/TcpVegas is used, TCP goodput falls. If the UDP loss constraint were relaxed, lower weightUdp could give higher TCP goodput by dropping UDP.",
+ "claims": [
+  {
+   "text": "For weightUdp >= 0.31 with udp_loss_frac <= 0.01, tcp_goodput_bps is a plateau of about 668.633 Mbps; changing weightUdp from 0.31 to 0.60 changes it by less than 1%.",
+   "role": "supports",
+   "evidence": [
+    "E0",
+    "E1",
+    "E2",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "UDP loss is controlled by the configured UDP share relative to UDP demand: loss is 0 at weightUdp 0.31 and above, but 0.020944 at 0.30 and 0.184115 at 0.25.",
+   "role": "supports",
+   "evidence": [
+    "E1",
+    "E4",
+    "C2",
+    "V2"
+   ]
+  },
+  {
+   "text": "Queue size and duration cannot make weightUdp=0.30 satisfy udp_loss_frac <= 0.01; at weightUdp=0.30, queuePkts=1000 still gives udp_loss_frac=0.019615.",
+   "role": "limits",
+   "evidence": [
+    "E4",
+    "C10"
+   ]
+  },
+  {
+   "text": "The TCP ceiling is saturated-link capacity minus UDP wire occupancy and protocol overhead, not scheduler idle gaps: link_util=1.0 and tcp+udp payload leaves about 31.36 Mbps overhead.",
+   "role": "limits",
+   "evidence": [
+    "E0",
+    "E2",
+    "E3",
+    "C6",
+    "V6"
+   ]
+  },
+  {
+   "text": "No tested TCP variant or queue size exceeded the plateau while satisfying the UDP loss condition.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "C3",
+    "C4",
+    "C9",
+    "V3",
+    "V4"
+   ]
+  },
+  {
+   "text": "queuePkts 4-300 give the same TCP goodput as the default 100; queuePkts=1000 lowers TCP goodput by about 1.17% with zero TCP drops, so large queue hurts via delay rather than loss.",
+   "role": "limits",
+   "evidence": [
+    "E2",
+    "E3",
+    "C5",
+    "C7",
+    "V5",
+    "V7"
+   ]
+  },
+  {
+   "text": "duration 2-30 does not change the constrained optimum.",
+   "role": "background",
+   "evidence": [
+    "E3",
+    "C8",
+    "V8"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact split of the missing ~31.36 Mbps between UDP packet/scheduling overhead, TCP ACK overhead, and link framing was not separated.",
+  "Behavior for weightUdp above 0.60 was not tested, although the tested 0.31-0.60 range is flat.",
+  "Behavior for queuePkts between 300 and 1000 was not tested, so the onset of the large-queue penalty is not localized.",
+  "Seed/start-time sensitivity was not tested because seed is fixed by the system and not a knob."
+ ]
+}

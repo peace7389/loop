@@ -1,0 +1,117 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpBbr",
+  "duration": 10
+ },
+ "expected": {
+  "tcp_goodput_bps": 418901197,
+  "udp_loss_frac": 0.0,
+  "drops_band0": 0,
+  "drops_band1": 0,
+  "tcp_retrans": 0,
+  "link_util": 0.746044,
+  "weight_udp": 0.5
+ },
+ "no_difference": [
+  "weightUdp",
+  "queuePkts",
+  "duration"
+ ],
+ "limit": "At the recommendation, the limiting cause is the 1 MB TCP socket buffer over the 20 ms base RTT (BDP about 1 MB), which caps payload throughput at about 1 MB / 20 ms = 419.43 Mbps; measured TcpBbr goodput is 418.90 Mbps. The link is not saturated (link_util about 0.746), the scheduler's configured TCP share is not limiting (BBR is unchanged from weightUdp=0.05 to 0.95), and queue size is not limiting for BBR (queuePkts=4/100/1000 are equal within tolerance). Evidence: C14, E2, E3, E4, E5, C6, C10, C8, C9, C13.",
+ "explanation": "TcpBbr is recommended because it reaches the buffer/RTT plateau: 418.90 Mbps, versus 299.89 Mbps for default TcpCubic and lower values for Vegas/NewReno/LinuxReno. TcpBic is also at the plateau within the 1% tolerance, but BBR was tested across scheduler-share, queue-size, and duration extremes with zero UDP loss, so it is the more robust choice; the sub-1% numerical lead over Bic is not treated as meaningful. The scheduler behaves work-conservatively for these loads: UDP still has zero loss when its configured share is only 5% (C6/E2), and TCP still reaches the plateau when UDP is configured for 95% (C10/E3), so unused UDP share is available to TCP and UDP can still get its 300 Mbps when TCP is not saturating the link. Therefore weightUdp does not need tuning once the buffer/RTT limit is reached. queuePkts is neutral for BBR (C8/C9/C13), but it is not globally neutral because queuePkts=4 severely harmed TcpCubic (C3/E1); the default queue is kept as the simplest safe choice. duration=2, 10, and 30 are equal within tolerance (C7/C16/E2/E5), so the default duration is kept.",
+ "holds_when": "UDP offered load remains about 300 Mbps, link rate 1 Gbps, one-way delay 10 ms, MTU 1500 bytes, TCP send/receive buffers remain 1 MB, the receiver returns ACKs, and the scheduler remains work-conserving as observed.",
+ "breaks_when": "If the TCP buffer size or base RTT changes, the plateau changes proportionally; if the scheduler becomes strictly weighted rather than work-conserving, weightUdp could limit TCP or cause UDP loss; if UDP load increases enough to saturate the link or fill queues, queuePkts and weightUdp would matter; if a TCP variant or receiver can use more than the 1 MB buffer/RTT product, the best variant could change.",
+ "claims": [
+  {
+   "text": "TcpBbr gives the highest valid measured tcp_goodput_bps, about 418.9 Mbps, well above default TcpCubic's about 299.9 Mbps.",
+   "role": "supports",
+   "evidence": [
+    "E0",
+    "E1",
+    "C4",
+    "E4",
+    "C12",
+    "E5",
+    "C15"
+   ]
+  },
+  {
+   "text": "TcpBbr and TcpBic are equal within the 1% tolerance; BBR is chosen for zero UDP loss and broader tested robustness, not for the sub-1% numerical difference.",
+   "role": "supports",
+   "evidence": [
+    "E4",
+    "E5",
+    "C12",
+    "C15"
+   ]
+  },
+  {
+   "text": "For TcpBbr, weightUdp from 0.05 to 0.95 does not materially change tcp_goodput_bps and does not cause UDP loss.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "E3",
+    "C5",
+    "C6",
+    "C10"
+   ]
+  },
+  {
+   "text": "For TcpBbr, queuePkts from 4 to 1000 does not materially change tcp_goodput_bps and does not cause UDP loss; queuePkts=4 only harmed TcpCubic.",
+   "role": "supports",
+   "evidence": [
+    "E1",
+    "E3",
+    "E4",
+    "C3",
+    "C8",
+    "C9",
+    "C13"
+   ]
+  },
+  {
+   "text": "Duration from 2 to 30 seconds does not materially change TcpBbr goodput under the UDP-loss constraint.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "E5",
+    "C7",
+    "C16"
+   ]
+  },
+  {
+   "text": "The scheduler is work-conserving under these loads: UDP loss remains 0 at weightUdp=0.05, and TCP goodput remains at the plateau at weightUdp=0.95.",
+   "role": "background",
+   "evidence": [
+    "E2",
+    "E3",
+    "C6",
+    "C10"
+   ]
+  },
+  {
+   "text": "The plateau is limited by the 1 MB TCP buffer over the 20 ms base RTT, not by scheduler share, queue size, or link capacity: 1 MB / 20 ms = 419.43 Mbps, BBR is 418.90 Mbps, link_util is only about 0.746, and scheduler/queue changes have no effect.",
+   "role": "limits",
+   "evidence": [
+    "C14",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "C6",
+    "C10",
+    "C8",
+    "C9",
+    "C13"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Direct proof that the 1 MB socket buffer/rwnd, rather than another hidden TCP limit, caps BBR would require changing the buffer size or measuring bytes in flight/rwnd.",
+  "Why TcpCubic collapses at queuePkts=4 with zero measured drops and retransmissions is not fully explained.",
+  "Whether the sub-1% difference between TcpBbr and TcpBic is real under different seeds or longer runs."
+ ]
+}

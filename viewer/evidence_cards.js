@@ -121,7 +121,7 @@ Object.assign(EV, {
       ? `<p class="bc-who">${by('model', 'chosen by the AI')} <span class="aim-when">· stated <b>at the end</b>, in its ${M.repRec ? EV.link(M.repRec.id) : ''} final report${M.repRec ? ` (turn ${e(M.repRec.turn)})` : ''}: the harness asks for the aim only there</span></p><div id="bc-chose">${EV.repLines(chose)}</div>`
       : `<p class="sm mut" id="bc-chose" data-none="1">${M.ended && (EV.s.step == null || EV.s.step >= M.steps.length - 1) ? 'It stated no aim: the session ended without a final report.' : 'It has not stated its aim yet: it does so at the end, in its final report.'}</p>`}</div>`;
     return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')} ${e(b.id)} <small>written by the ${EV.term('Operator', 'operator')}</small></h2>${aim}
-      <h3>The task, as the AI was given it</h3><p data-own="operator">${e(b.task || '')}</p>
+      <h3>The task, as the AI was given it <small id="bc-task-by" class="sm" style="font-weight:400">${b.task && b.task === EV.taskText(b) ? 'written by the harness from the aim and the settings the AI may change' : 'written by hand in the brief'}</small></h3><p id="bc-task" data-own="${b.task && b.task === EV.taskText(b) ? 'harness' : 'operator'}">${e(b.task || '')}</p>
       <h3>Fixed by the operator</h3>${fixed}<h3>The AI may change</h3>${knobs}<h3>The limits</h3>${limits}
       <p class="sm">the baseline the harness ran before the first turn: ${x0 ? EV.link(x0.id) + ' · ' + x0.sims.map(s => EV.link(s.id)).join(', ') : EV.nr}</p>`;
   },

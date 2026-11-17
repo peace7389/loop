@@ -15,7 +15,7 @@ Object.assign(EV, {
   // brief_editor.js in a node of its own, which is kept when the page is drawn again (nothing typed is lost).
   newTab() {
     const st = EV.st, S = EV.s, running = st.sessions.filter(x => x.running).length;
-    return `<div class="ev-card" id="new-setup"><h2>New session <small>one complete attempt by the AI at one ${EV.term('Brief', 'brief')} · ${running} running now${S.from ? ` · filled from session ${EV.e(S.from)}` : ''}</small></h2>
+    return `<div class="ev-card" id="new-setup"><h2>New session <small>one complete attempt by the AI at one ${EV.term('Brief', 'brief')} · ${EV.runningSays() || running + ' running now'}${S.from ? ` · filled from session ${EV.e(S.from)}` : ''}</small></h2>
       <p class="sec-q">What will the network be, what will the AI be asked, and what will it see?</p>${EV.legendBar()}<div id="be-host"></div></div>`;
   },
   async afterNew() {

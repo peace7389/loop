@@ -80,7 +80,8 @@ const BRIEF_EDITOR = {
 .be .be-conv { display: inline-block; margin-left: 2px; vertical-align: bottom; margin-bottom: 3px; padding: 0 8px; border-radius: 6px; background: color-mix(in srgb, var(--text-primary) 6%, transparent); color: var(--text-secondary); font-size: var(--f-sec); font-weight: 600; white-space: nowrap; } .be .be-conv:empty { display: none; } .be table.be-who tr[data-row=tcpBufBytes] input[type=text] { width: 7.2em; }
 .be .be-why { display: block; color: var(--warning); font-size: var(--f-sec); font-weight: 600; margin: 1px 0 0; } .be .be-why:empty { display: none; } .be input.bad, .be textarea.bad, .be select.bad { border-color: var(--warning); }
 .be input.chg, .be textarea.chg, .be select.chg, .be .be-sw.chg { box-shadow: inset 3px 0 0 var(--text-primary); } .be .chg-note { font-weight: 600; }
-.be-aim label { font-weight: 400; margin: 3px 0; } .be-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 6px; }
+.be-aim label { font-weight: 400; margin: 3px 0; } .be-task { display: block; border: 1px dashed var(--border); border-radius: 6px; padding: 6px 8px; background: var(--surface-1); font-weight: 400; line-height: 1.45; min-height: 4.4em; } #be-task-own { display: block; margin-top: 4px; font-weight: 400; }
+.be-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 6px; }
 .be-conf { display: grid; grid-template-columns: repeat(auto-fill, minmax(218px, 1fr)); gap: 6px 8px; margin: 8px 0 2px; } .be-c { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); padding: 4px 9px 5px; font-size: var(--f-note); min-width: 0; }
 .be-c-h { margin-bottom: 2px; } .be-c-h b { font-size: var(--f-sec); } .be-c-h span { color: var(--text-muted); } .be-c-r { display: grid; grid-template-columns: 43% minmax(0, 1fr); gap: 0 6px; line-height: 1.4; } .be-c-r > span { color: var(--text-secondary); } .be-c-r > b { font-weight: 500; overflow-wrap: anywhere; } .be-c-r[data-knob] > b { font-weight: 700; }
 .be .be-c input[type=text], .be .be-c select { width: auto; max-width: 100%; padding: 0 4px; font-size: inherit; font-weight: 600; line-height: 1.3; border-radius: 4px; border-color: color-mix(in srgb, var(--text-secondary) 55%, var(--border)); background: var(--surface-0); } .be .be-c input[type=text]::placeholder { font-weight: 400; } .be .be-c select { max-width: calc(100% - 18px); padding: 0 0 0 2px; }
@@ -127,15 +128,18 @@ const BRIEF_EDITOR = {
     // each part in the order of the brief (or the session) the form was filled from, then what was added, in the order of the form: the answer format follows the order of the knobs
     const inOrder = (o, first) => Object.fromEntries([...(first || []).filter(k => k in o), ...Object.keys(o).filter(k => !(first || []).includes(k))].map(k => [k, o[k]])), [so, ko] = s.order || [];
     const goal = s.goal === 'open' ? { kind: 'open' } : { kind: 'given', target: { measure: s.measure, direction: s.direction }, conditions: s.conditions.split('\n').map(c => c.trim()).filter(Boolean), ...(String(s.tolerance || '').trim() ? { tolerance: val('num', s.tolerance) } : {}) };
-    return { id: s.id.trim(), task: s.task.trim(), description: s.description.trim(), system: inOrder(system, so), knobs: inOrder(knobs, ko), goal, limits: { simulations: val('num', s.sims), simulations_per_experiment: val('num', s.per) } };
+    return { id: s.id.trim(), description: s.description.trim(), system: inOrder(system, so), knobs: inOrder(knobs, ko), goal, limits: { simulations: val('num', s.sims), simulations_per_experiment: val('num', s.per) } };
   },
   body() { const b = BRIEF_EDITOR.toBrief(); delete b.id; return JSON.stringify(b); },   // what the form says, without the id
   same() { const B = BRIEF_EDITOR; return !!B.s.baseId && B.body() === B.s.base; },      // the form and the saved brief are the same
   // the brief as the AI will be given it: the description's {names} filled from the fixed settings, then the manifest's measures and tools
-  given() { const B = BRIEF_EDITOR, t = B.toBrief(), sys = t.system, b = { id: t.id || B.s.baseId || '', task: t.task, description: t.description, system: t.system, knobs: t.knobs, goal: t.goal, limits: t.limits }; b.description = b.description.replace(/\{(\w+)\}/g, (m, k) => (k in sys ? String(sys[k]) : m)); return { ...b, ...(B.man || {}) }; },
+  given() { const B = BRIEF_EDITOR, t = B.toBrief(), sys = t.system, b = { id: t.id || B.s.baseId || '', task: B.ownTask() || EV.taskText(t), description: t.description, system: t.system, knobs: t.knobs, goal: t.goal, limits: t.limits }; b.description = b.description.replace(/\{(\w+)\}/g, (m, k) => (k in sys ? String(sys[k]) : k in t.knobs ? `the knob ${k}` : m)); return { ...b, ...(B.man || {}) }; },
 
+  // the task of the saved brief the form was opened from, when that brief states one of its own (a brief made before 2026-11-17) and the form is still
+  // that brief: a session started on it as it is gets that text. In every other case the harness writes the task (tools.task_text; here EV.taskText)
+  ownTask() { const B = BRIEF_EDITOR, t = (B.s.task || '').trim(); return t && B.same() ? t : ''; },
   // every field of the form by its name, as typed: what "changed" is measured against
-  fields() { const B = BRIEF_EDITOR, s = B.s, o = { task: s.task, description: s.description, goal: s.goal, measure: s.measure, direction: s.direction, conditions: s.conditions, tolerance: s.tolerance, sims: s.sims, per: s.per };
+  fields() { const B = BRIEF_EDITOR, s = B.s, o = { description: s.description, goal: s.goal, measure: s.measure, direction: s.direction, conditions: s.conditions, tolerance: s.tolerance, sims: s.sims, per: s.per };
     B.SETTINGS.forEach(({ k }) => { const f = s.set[k]; o[`sw.${k}`] = f.off ? 'off' : f.fixed ? 'fixed' : 'knob'; ['value', 'min', 'max', 'def', 'step', 'choices', 'meaning'].forEach(x => { o[`set.${k}.${x}`] = f[x] || ''; }); });
     return o; },
   // which of a setting's fields count in its present state (a hidden field cannot be "changed")
@@ -224,9 +228,9 @@ const BRIEF_EDITOR = {
   problems() {
     const B = BRIEF_EDITOR, s = B.s, bad = {}, briefs = (B.ctx.st || {}).briefs || [], id = s.id.trim();
     if (id && !/^[A-Za-z0-9_-]{1,60}$/.test(id)) bad.id = 'a name is letters, digits, - and _, at most 60'; else if (id && briefs.includes(id)) bad.id = `a brief named ${id} already exists, and a brief is never overwritten: choose another name`;
-    if (!s.task.trim()) bad.task = 'the task cannot be empty'; if (!s.description.trim()) bad.description = 'the description cannot be empty';
-    const fixed = new Set(B.SETTINGS.filter(q => s.set[q.k].fixed && !s.set[q.k].off).map(q => q.k).concat('udpPacketBytes')), odd = [...new Set([...s.description.matchAll(/\{(\w+)\}/g)].map(m => m[1]))].filter(k => !fixed.has(k));
-    if (odd.length) bad.description = `{${odd[0]}} is not a fixed setting of this set-up: a name in braces is filled from a fixed setting`;
+    if (!s.description.trim()) bad.description = 'the description cannot be empty';
+    const fixed = new Set(B.SETTINGS.filter(q => !s.set[q.k].off).map(q => q.k).concat('udpPacketBytes')), odd = [...new Set([...s.description.matchAll(/\{(\w+)\}/g)].map(m => m[1]))].filter(k => !fixed.has(k));
+    if (odd.length) bad.description = `{${odd[0]}} is not a setting of this set-up: a name in braces stands for a fixed setting's value, or for “the knob …” where the AI may change it`;
     B.SETTINGS.forEach(q => { const f = s.set[q.k], p = x => `set.${q.k}.${x}`; if (f.off) return;
       if (f.fixed) { const v = B.size(q, f.value); if (v.why) bad[p('value')] = v.why; return; }
       if (!f.meaning.trim()) bad[p('meaning')] = 'a knob needs one line that says what it is: the AI reads it';
@@ -441,8 +445,8 @@ const BRIEF_EDITOR = {
         <div style="grid-column:1/-1" class="be-condbox"><b class="be-cond-h">Conditions</b> <small>each a measure, a comparison and a value, chosen from the lists; all must hold</small>${B.condRows()}${B.why('conditions')}</div>
         <label>Tolerance, per cent (optional)<small>two results closer than this count as equal; default: none</small>${inp('tolerance', s.tolerance || '', 'none, e.g. 1')}${B.why('tolerance')}</label></div>` : ''}<div id="be-aim-says" style="margin-top:6px"></div>`;
     // 4 · what the AI is told, is not told, and can do
-    const b4 = `<div class="be-two"><label>The task<small>the question, as the AI reads it</small><textarea data-f="task" rows="4">${e(s.task)}</textarea>${B.why('task')}</label>
-        <label>The description of the system<small>plain words, written by you; a setting's name in braces is filled from that fixed setting (the name: point at a setting's label)</small><textarea data-f="description" rows="4">${e(s.description)}</textarea>${B.why('description')}</label></div><div id="be-lists" style="margin-top:8px"></div>`;
+    const b4 = `<div class="be-two"><label>The task<small>the question, as the AI reads it · written by the harness from the aim and the settings the AI may change, so that it always agrees with them</small><span id="be-task" class="be-task" data-own="harness"></span><span id="be-task-own" class="sm"></span></label>
+        <label>The description of the system<small>plain words, written by you; a setting's name in braces is filled with its value where it is fixed and reads “the knob …” where the AI may change it, so the text stays true either way (the name: point at a setting's label)</small><textarea data-f="description" rows="4">${e(s.description)}</textarea>${B.why('description')}</label></div><div id="be-lists" style="margin-top:8px"></div>`;
     // 5 · the limits
     const b5 = `<div class="be-two"><label>Simulations in all<small>the most a session may run; default of the opened brief: ${e((s.orig || {}).sims || 'none')}</small>${inp('sims', s.sims, 'e.g. 40')}${B.why('sims')}</label><label>In one turn<small>the most the AI may run in a single turn (a turn holds one experiment); default of the opened brief: ${e((s.orig || {}).per || 'none')}</small>${inp('per', s.per, 'e.g. 12')}${B.why('per')}</label></div>`;
     // 6 · kept from the AI: the scheduling policy
@@ -458,7 +462,7 @@ const BRIEF_EDITOR = {
         ${field('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on · every knob at its default, by the harness')}</div>`;
     const blk = (i, body, cls) => EV.setBlock(i, body, { says: true, cls });
     const top = `<div class="be-top"><div><label>Start from a saved brief<small>its content fills the seven blocks</small><select id="be-open"${s.none ? ' disabled' : ''}>${B.openOpts(briefs)}</select></label>
-        <label class="be-none"><input type="checkbox" id="be-none"${s.none ? ' checked' : ''}><span>or start from an empty set-up<small>no saved brief: you write the task and the description, every setting starts fixed</small></span></label></div>
+        <label class="be-none"><input type="checkbox" id="be-none"${s.none ? ' checked' : ''}><span>or start from an empty set-up<small>no saved brief: you write the description, every setting starts fixed</small></span></label></div>
         <label>Name of the new brief<small>needed once the form differs from every saved brief · letters, digits, - and _</small>${inp('id', s.id, 'e.g. two-hosts-short-queue')}${B.why('id')}</label>
         <div><label>Variations of ${e(s.baseId || s.fromBrief || 'this brief')}</label><small>each makes one change in the form and proposes a name</small><div class="be-var" id="be-var">${B.VARIATIONS.map(([k, name, , what, no]) => `<button data-var="${k}"${no(s) ? ` disabled title="${e(no(s))}"` : ` title="${e(what)}"`}>${e(name)}</button>`).join('')}</div></div></div>`;
     B.node.innerHTML = `${top}<div class="st" id="st-blocks">${blk(0, b1, 'st-wide')}${blk(1, b2)}${blk(2, b3)}${blk(3, b4, 'st-told')}<div class="st-row st-low">${blk(4, b5)}${blk(5, b6)}${blk(6, b7)}</div></div>
@@ -501,10 +505,15 @@ const BRIEF_EDITOR = {
       ['sims', EV.term('Simulation', 'Simulations'), `0 of ${e(String(nw.budget).trim() || s.sims.trim() || '?')}`], ['rec', 'Recommends', '<span class="mut">no recommendation yet</span>']], 'be-head');
     const n = changed.length + runChanged.length;
     $('be-save').disabled = !!s.busy || !id || !!keys.length || same; $('be-save').textContent = s.busy === 'save' ? 'Saving…' : 'Save as new brief';
-    $('be-start').disabled = !!s.busy || !!keys.length || (!same && !id); $('be-start').textContent = s.busy === 'start' ? 'Starting…' : same ? `Start the session on ${s.baseId}` : id ? `Save as ${id} and start the session` : 'Start the session';
+    const wait = EV.mustWait ? EV.mustWait() : null;
+    // the task: the sentence the harness writes from the form as it stands; and, while the form is still a saved brief that states a task of its own, that text and what it means
+    { const tk = $('be-task'), own = $('be-task-own'), t = B.toBrief(), mine = B.ownTask(), made = EV.taskText(t);
+      if (tk) tk.textContent = made;
+      if (own) own.innerHTML = mine && mine !== made ? `<span class="warnc">The saved brief ${e(s.baseId)} states a task of its own, written by hand, and a session started on it as it is gets that text, whatever the aim and the settings say:</span> <span id="be-task-old" data-own="operator">${e(mine)}</span> <span>Save the form under a new name and the new brief gets the sentence above.</span>` : ''; }
+    $('be-start').disabled = !!s.busy || !!keys.length || (!same && !id) || !!wait; $('be-start').title = wait || ''; $('be-start').textContent = s.busy === 'start' ? 'Starting…' : same ? `Start the session on ${s.baseId}` : id ? `Save as ${id} and start the session` : 'Start the session';
     $('be-state').innerHTML = keys.length ? `<span class="warnc">${keys.length} value${keys.length === 1 ? '' : 's'} cannot be used: see the reason beside ${keys.length === 1 ? 'it' : 'each'}, above.</span>`
       : `${s.from ? `Filled from session ${e(s.from)} (brief ${e(s.fromBrief)}): <span id="be-changed" data-n="${n}" class="${n ? 'chg-note' : ''}">${n ? `${n} value${n === 1 ? '' : 's'} changed, marked with a dark edge` : 'every value is that session\'s'}</span>. ` : same ? `The form is the saved brief ${e(s.baseId)}. ` : s.none ? `The form started empty: no saved brief stands behind it<span id="be-changed" data-n="${n}">${n ? ` (${n} value${n === 1 ? '' : 's'} filled in or changed since, marked with a dark edge)` : ''}</span>. ` : `The form differs from ${e(s.baseId || 'every saved brief')}<span id="be-changed" data-n="${n}"> (${n} value${n === 1 ? '' : 's'} changed, marked with a dark edge)</span>. `}
-        ${same ? '' : id ? `It will be saved as <span data-own="operator">briefs/${e(id)}.json</span>; a saved brief is never overwritten.` : 'Give the new brief a name: a saved brief is never overwritten.'} ${running} session${running === 1 ? ' is' : 's are'} running now.`;
+        ${same ? '' : id ? `It will be saved as <span data-own="operator">briefs/${e(id)}.json</span>; a saved brief is never overwritten.` : 'Give the new brief a name: a saved brief is never overwritten.'} ${wait ? `<b id="be-wait" class="warnc">${e(wait)}</b>` : `${running} session${running === 1 ? ' is' : 's are'} running now.`}`;
     $('be-msg').innerHTML = s.msg ? `<div class="be-msg ${s.msg.bad ? 'bad' : 'ok'}">${s.msg.lines.length > 1 ? `${e(s.msg.lines[0])}<ul>${s.msg.lines.slice(1).map(l => `<li>${e(l)}</li>`).join('')}</ul>` : e(s.msg.lines[0])}</div>` : '';
   },
 

@@ -42,13 +42,33 @@ def _ok(k, v):
     except (TypeError, ValueError):
         return False
 
+def task_text(b):
+    """The task as the model reads it, written here from the brief's aim and from the settings it leaves open, so that it
+    cannot contradict them. Until 2026-11-17 the task was a text typed into the brief, and a brief made from another one
+    kept the other's text: `trap` told the model "both at maximum rate", "find the best ratio" and "say what performance
+    you chose to mean" while its UDP rate was fixed, five settings were open and its aim was given (session s031). A
+    brief that still states a task of its own keeps it (the briefs and sessions made before); a brief without one gets
+    this. The system itself is told in the description, not here; what a measure is, in the brief's list of outputs.
+    The set-up page writes the same sentence as the form changes (brief_editor.js, taskText): keep the two alike."""
+    knobs, goal = b["knobs"], b["goal"]
+    may = f"You may change {len(knobs)} setting{'' if len(knobs) == 1 else 's'} ({', '.join(knobs)}); every other setting is fixed."
+    if goal.get("kind") == "given":
+        t, conds = goal["target"], goal.get("conditions") or []
+        aim = f"Find the settings that give the {'largest' if t['direction'] == 'max' else 'smallest'} {t['measure']}"
+        return f"{aim}{', while ' + ' and '.join(c.strip() for c in conds) if conds else ''}. {may} Explain why they are best."
+    return f"No aim is given. Choose what 'performance' should mean for this system and say why; then find the settings that are best for it. {may} Explain why they are best."
+
 def check_brief(b, brief_id):
     """Every reason a brief cannot be used, or none; returns it with the {placeholders} of its description filled
-    from its own system settings. The one check for a brief: loop.py (through open_session) and control.py both use it."""
+    (a fixed setting by its value, a knob as "the knob <name>", so that one description stays true whoever decides a
+    setting) and, when it states no task of its own, with the task written by task_text.
+    The one check for a brief: loop.py (through open_session) and control.py both use it."""
     knobs, system, goal, limits = (b.get(k) if isinstance(b.get(k), dict) else {} for k in ("knobs", "system", "goal", "limits"))
     num = lambda k, v: _rate_bps(v) if k in RATES else _seconds(v) if k == "linkDelay" else v
     bad = [] if b.get("id") == brief_id and re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) else ["id must equal the file name (letters, digits, - and _)"]
-    bad += [f"'{k}' must be a text" for k in ("task", "description") if not isinstance(b.get(k), str) or not b[k].strip()]
+    bad += [f"'{k}' must be a text" for k in ("description",) if not isinstance(b.get(k), str) or not b[k].strip()]
+    if b.get("task") is not None and (not isinstance(b["task"], str) or not b["task"].strip()):
+        bad.append("'task' must be a text, or be left out: the harness then writes it from the aim and the settings")
     bad += [f"'{k}' is not a setting of the program" for k in list(knobs) + list(system) if k not in OPTIONS + EXTRA + ("udpPacketBytes",)]
     bad += [f"'{k}' is both fixed (system) and adjustable (knobs)" for k in knobs if k in system]
     bad += [f"'{k}' can only be a fixed setting (the answer format has no field for it)" for k in knobs if k in OPTIONS + EXTRA and k not in KNOBS]
@@ -87,10 +107,11 @@ def check_brief(b, brief_id):
         bad.append("goal.kind must be open or given")
     bad += [f"limits.{k} must be a whole number of at least 1" for k in ("simulations", "simulations_per_experiment") if type(limits.get(k)) is not int or limits[k] < 1]
     used = set(re.findall(r"\{(\w+)\}", b["description"])) if isinstance(b.get("description"), str) else set()
-    bad += [f"the description uses {{{k}}}, which is not one of the brief's fixed settings" for k in sorted(used - set(system))]
+    bad += [f"the description uses {{{k}}}, which is not one of the brief's settings" for k in sorted(used - set(system) - set(knobs))]
     if bad:
         raise ValueError(f"brief {brief_id}: " + "; ".join(bad))
-    return {**b, "description": re.sub(r"\{(\w+)\}", lambda m: str(system[m.group(1)]), b["description"])}
+    fill = lambda m: str(system[m.group(1)]) if m.group(1) in system else f"the knob {m.group(1)}"
+    return {**b, "task": b["task"] if b.get("task") is not None else task_text(b), "description": re.sub(r"\{(\w+)\}", fill, b["description"])}
 
 def load_brief(brief_id):
     """briefs/<id>.json, checked, with its description filled in."""

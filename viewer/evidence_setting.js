@@ -93,6 +93,11 @@ Object.assign(EV, {
     const room = card.getBoundingClientRect().bottom - parseFloat(getComputedStyle(card).paddingBottom) - p.getBoundingClientRect().top, n = Math.max(4, Math.floor((room + 1) / lh));
     p.style.webkitLineClamp = String(n); p.dataset.lines = n; if (full > n * lh + 2) p.title = p.textContent; else p.removeAttribute('title'); },
   // 4 · the three lists, built from the brief, the flags and the manifest (the outputs and the tools the harness offers)
+  // The task as the AI reads it, written from a brief's aim and the settings it leaves open. The harness writes the same sentence (tools.task_text in
+  // harness/tools.py) into every brief that states no task of its own; the set-up page shows it as the form changes. Keep the two alike, word for word.
+  taskText(b) { const kn = Object.keys((b && b.knobs) || {}), g = (b && b.goal) || {}, may = `You may change ${kn.length} setting${kn.length === 1 ? '' : 's'} (${kn.join(', ')}); every other setting is fixed.`;
+    if (g.kind === 'given') { const t = g.target || {}, c = (g.conditions || []).map(x => String(x).trim()); return `Find the settings that give the ${t.direction === 'max' ? 'largest' : 'smallest'} ${t.measure}${c.length ? ', while ' + c.join(' and ') : ''}. ${may} Explain why they are best.`; }
+    return `No aim is given. Choose what 'performance' should mean for this system and say why; then find the settings that are best for it. ${may} Explain why they are best.`; },
   setLists(c) {
     const b = c.b, e = EV.e, sys = b.system || {}, kn = b.knobs || {}, man = c.man || {}, lim = b.limits || {}, order = k => EV.SET_ORDER.filter(q => q in k), outs = Object.keys(man.outputs || {}), tools = Object.keys(man.tools || {});
     const it = (key, html, title) => `<li data-it="${key}"${title ? ` title="${e(title)}"` : ''}>${html}</li>`;

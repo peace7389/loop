@@ -45,13 +45,23 @@ Who writes what (the write-ownership rule):
 An operator run is made by the built program directly, never by tools.run, so it never reaches a session's folder: no
 tool the model has can see it. The scheduling policy reaches the simulation as the environment variable TWOHOSTS_SCHED only; the model never sees it.
 
-Who may call it. The server listens on 127.0.0.1 only (there is no option to change that). This machine is shared, so
-that alone would let any local user start runs; a POST is therefore accepted only when the connection was opened by a
-process of the user who runs this server (an SSH tunnel of that user counts), and only as application/json from this
-page (so no other web page open in the same browser can call it). Parameters go through tools.clamp, like the model's.
+Who may call it (since 2026-11-17, at the operator's word: the page is shared with the lab). The server listens on
+127.0.0.1 only (there is no option to change that), so it is reached from this machine alone: by a browser here, or
+through an SSH tunnel of somebody who has an account here. Every such account may use the page as the owner does: a POST
+is accepted from any account of this machine, as application/json from this page only (so no other web page open in
+the same browser can call it). The account is read from the connection (/proc/net/tcp; an SSH tunnel is opened by its
+user's own sshd process); a connection whose account cannot be found is refused. Three rules keep people out of each
+other's way:
+  - one session at a time: a session is not started while another is running, wherever that one was started. The
+    refusal and the page say which session is running and who started it;
+  - a running session is stopped only by the account that started it, or by the owner (the account that runs this server);
+  - every accepted POST is noted in checks/people.jsonl (time, account, what, the id it concerned). That file holds
+    account names, so it is kept out of git and out of exports.
+drafts.jsonl is given to nobody over HTTP (no page reads it). Everything else under the project folder is readable by
+every account, as before. Parameters go through tools.clamp, like the model's.
 Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the page's brief editor.
 Python standard library only."""
-import argparse, csv, http.server, itertools, json, os, random, re, shutil, signal, subprocess, sys, threading, time
+import argparse, csv, http.server, itertools, json, os, pwd, random, re, shutil, signal, socket, subprocess, sys, threading, time, urllib.parse
 from pathlib import Path
 import export_session, session_figures, tools
 
@@ -61,10 +71,12 @@ LOOP = [sys.executable, str(H / "loop.py")]
 HOST, PORT = "127.0.0.1", 8600
 LOCK, RUN_LOCK = threading.Lock(), threading.Lock()
 SESSION = {}  # the newest session started here, if any: id, proc, flags, started, log (the older control page shows this one)
-STARTED = {}  # every session started here, by id; MAX_LOOPS: most loops running at the same time, wherever they were started
-MAX_LOOPS = 6
+STARTED = {}  # every session started here, by id (with "by": the account that started it); MAX_LOOPS: most loops running at the same time, wherever they were started
+MAX_LOOPS = 1  # one session at a time since the page is shared (2026-11-17); until then 6 ran side by side
+PEOPLE, PEOPLE_LOCK = CHECKS / "people.jsonl", threading.Lock()  # who did what through the page: one line per accepted POST (account names: not in git, not in exports)
 CACHE = {}    # session id -> (file times, its row in /api/sessions)
 SWEEP = {}    # the sweep running here, if any: id, thread, stop
+SERVING = {}  # the port this server answers on (main() sets it)
 PARALLEL, SWEEP_MAX = 64, 5000  # simulations of a sweep running at the same time; most simulations one sweep may ask for
 
 
@@ -81,6 +93,50 @@ def peer_uid(peer_port, port):
         if f[1] == local and f[2] == remote:
             return int(f[7])
     return None
+
+
+def account(uid):
+    """The account name of a user id of this machine (the number as text when it has no name; None for None)."""
+    if uid is None:
+        return None
+    try:
+        return pwd.getpwuid(uid).pw_name
+    except KeyError:
+        return str(uid)
+
+
+OWNER = account(os.getuid())  # the account that runs this server: the loops it starts run under it
+
+
+def noted(who, did, result):
+    """One line in checks/people.jsonl for a POST that was carried out: when, which account, what, and the id it concerned."""
+    thing = next((result[k] for k in ("id", "stopped", "stopping", "saved", "session") if isinstance(result, dict) and isinstance(result.get(k), str)), None)
+    with PEOPLE_LOCK:
+        PEOPLE.parent.mkdir(parents=True, exist_ok=True)
+        with PEOPLE.open("a") as f:
+            f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "account": who, "did": did, "id": thing}) + "\n")
+
+
+def starters():
+    """Session id -> the account that started it through the page (from checks/people.jsonl; a session started from a terminal is not in it)."""
+    out = {}
+    if PEOPLE.is_file():
+        for line in PEOPLE.read_text().splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("did") == "/api/session" and isinstance(r.get("id"), str):
+                out.setdefault(r["id"], r.get("account"))
+    return out
+
+
+def running_now():
+    """The sessions that are running, wherever they were started: [(id, the account that started it)]. A loop started from a terminal runs
+    under the owner's account, so it is the owner's; so is one whose start is not in checks/people.jsonl."""
+    by = starters()
+    ids = sorted({i for i, x in STARTED.items() if x["proc"].poll() is None} | set(other_loops()))
+    return [(i, (STARTED.get(i) or {}).get("by") or by.get(i) or OWNER) for i in ids]
 
 
 def other_loops():
@@ -105,8 +161,10 @@ def other_loop():
     return (other_loops() or [None])[0]
 
 
-def sessions():
-    """One row per folder in sessions/, oldest first, read from the session's own files and checks/operator.jsonl."""
+def sessions(you=None):
+    """One row per folder in sessions/, oldest first, read from the session's own files and checks/operator.jsonl.
+    you: the account that asks. A row says who started the session through the page ("by"; a running session that nobody
+    started through the page is the owner's) and whether the one who asks may stop it ("can_stop")."""
     lines = lambda p: [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
     policy = {}
     for r in lines(CHECKS / "operator.jsonl"):
@@ -118,6 +176,7 @@ def sessions():
     if "?" in others and dirs:  # a loop started from a terminal without --session made the newest folder
         others.add(max(dirs, key=lambda p: p.stat().st_mtime).name)
     hidden = set(json.loads((CHECKS / "random.json").read_text())) if (CHECKS / "random.json").is_file() else set()  # sessions whose scheduling policy the harness chose
+    by = starters()
     out = []
     for d in dirs:
         led, idx, score, review = d / "ledger.jsonl", d / "runs/index.json", CHECKS / "scores" / f"{d.name}.json", CHECKS / "reviews" / f"{d.name}.json"
@@ -151,7 +210,10 @@ def sessions():
                            "signed": {"name": marks["signoff"].get("note"), "at": marks["signoff"].get("at")} if "signoff" in marks else None}})
         row = CACHE[d.name][1]
         secret = d.name in hidden and not row["score"]  # a policy the harness chose is shown only once the session is scored
-        out.append({**row, "policy": None if secret else policy.get(d.name), "policy_hidden": secret, "running": d.name in here or d.name in others, "stoppable": d.name in here})
+        running = d.name in here or d.name in others
+        who = (STARTED.get(d.name) or {}).get("by") or by.get(d.name) or (OWNER if running else None)
+        out.append({**row, "policy": None if secret else policy.get(d.name), "policy_hidden": secret, "running": running, "stoppable": d.name in here,
+                    "by": who, "can_stop": d.name in here and you in (OWNER, who)})
     return out
 
 
@@ -162,7 +224,7 @@ def tail(path, n=600):
         return ""
 
 
-def status():
+def status(you=None):
     s = None
     if SESSION:
         rc = SESSION["proc"].poll()
@@ -170,7 +232,10 @@ def status():
              "started": SESSION["started"], "output": tail(SESSION["log"])}
     count = lambda p: sum(1 for l in p.open() if l.strip()) if p.exists() else 0
     return {"control": True, "session": s, "other_loop": other_loop(), "run_busy": RUN_LOCK.locked(),
-            "sessions": sessions(), "briefs": sorted(p.stem for p in tools.BRIEFS.glob("*.json")),
+            # the page is shared: who asks, who runs the server, the sessions running now with who started each, and how somebody else reaches the page
+            "you": you, "owner": OWNER, "running_now": [{"id": i, "by": w} for i, w in running_now()], "one_at_a_time": MAX_LOOPS == 1,
+            "share": {"host": socket.getfqdn(), "port": SERVING.get("port", PORT)},
+            "sessions": sessions(you), "briefs": sorted(p.stem for p in tools.BRIEFS.glob("*.json")),
             "operator_runs": count(CHECKS / "control.jsonl"),
             "sweeps": sorted(p.name for p in (CHECKS / "sweeps").iterdir() if (p / "status.json").is_file()) if (CHECKS / "sweeps").is_dir() else []}
 
@@ -227,6 +292,8 @@ def save_brief(body):
     b = {**{k: b.get(k) for k in ("id", "task", "description", "system")},   # only the fields a brief has, in the usual order
          "knobs": {k: {x: s[x] for x in ("min", "max", "choices", "default", "step", "meaning") if x in s} if isinstance(s, dict) else s for k, s in knobs.items()},
          "goal": b.get("goal"), "limits": b.get("limits")}
+    if not (isinstance(b["task"], str) and b["task"].strip()):  # no task of its own: the harness writes it from the aim and the settings (tools.task_text), each time the brief is read
+        del b["task"]
     try:
         tools.check_brief(b, bid)
     except ValueError as e:
@@ -428,9 +495,10 @@ def export(body):
         return export_session.make(sid, body.get("operator", False), row)
 
 
-def start_session(body):
-    """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal. Several can run
-    side by side. With the scheduling policy "random" the server chooses share or cap itself and notes the session in
+def start_session(body, who=None):
+    """loop.py as a child process with the chosen flags; it then runs exactly as it does from a terminal. One session runs
+    at a time (MAX_LOOPS): while one is running, wherever it was started, a new one is refused, and the refusal says which
+    is running and who started it. who: the account that asks. With the scheduling policy "random" the server chooses share or cap itself and notes the session in
     checks/random.json: the session list then withholds its policy until the session has a score."""
     budget, draft, policy, base = body.get("budget"), body.get("draft", "on"), body.get("policy", body.get("mode", "share")), body.get("baseline", True)
     tokens, temp = body.get("max_tokens"), body.get("temperature")
@@ -447,9 +515,11 @@ def start_session(body):
         except ValueError as e:
             raise Refused(400, str(e))
     with LOCK:
-        running = {i for i, x in STARTED.items() if x["proc"].poll() is None} | set(other_loops())
+        now = running_now()
+        running = {i for i, _ in now}
         if len(running) >= MAX_LOOPS:
-            raise Refused(409, f"{len(running)} sessions are running, and at most {MAX_LOOPS} run at the same time: wait for one to end")
+            raise Refused(409, (f"session {now[0][0]} is running, started by {now[0][1]}: one session runs at a time. A new one can start when it has ended" if MAX_LOOPS == 1
+                                else f"{len(running)} sessions are running, and at most {MAX_LOOPS} run at the same time: wait for one to end"))
         if sid in running:
             raise Refused(409, f"session {sid} is running")
         if sid is None:  # a new id, also not one given to a loop that has not made its folder yet
@@ -470,7 +540,7 @@ def start_session(body):
             f.flush()
             proc = subprocess.Popen(cmd, cwd=H, stdout=f, stderr=subprocess.STDOUT, start_new_session=True)
         shown = {**flags, "policy": "chosen by the harness" if policy == "random" else chosen}  # what the page is told
-        STARTED[sid] = {"id": sid, "proc": proc, "flags": shown, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "log": log}
+        STARTED[sid] = {"id": sid, "proc": proc, "flags": shown, "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "log": log, "by": who or OWNER}
         SESSION.clear()
         SESSION.update(STARTED[sid])
     time.sleep(1.5)  # a refused flag (a budget over the loop's ceiling, say) ends the loop at once: report it now
@@ -479,13 +549,16 @@ def start_session(body):
     return {"id": sid, "pid": proc.pid, "flags": shown}
 
 
-def stop_session(body=None):
-    """Stops a session that was started here: the one named, or (the older page names none) the newest."""
+def stop_session(body=None, who=None):
+    """Stops a session that was started here: the one named, or (the older page names none) the newest. who: the account
+    that asks; only the account that started the session, or the owner, stops it."""
     with LOCK:
         sid = (body or {}).get("session") or (SESSION.get("id") if SESSION else None)
         x = STARTED.get(sid)
         if not x or x["proc"].poll() is not None:
             raise Refused(409, "no session started here is running" if not (body or {}).get("session") else f"session {sid} is not running, or was not started from this server (stop it where it was started)")
+        if who not in (OWNER, x.get("by")):
+            raise Refused(403, f"session {sid} was started by {x.get('by')}: only {x.get('by')} or {OWNER}, who runs this page, can stop it")
         proc = x["proc"]
         os.killpg(proc.pid, signal.SIGTERM)  # the loop and the simulation it may be running
         try:
@@ -509,11 +582,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def send_head(self):
+        """The file server's own step for GET and HEAD. drafts.jsonl is given to nobody: no page reads it."""
+        if urllib.parse.unquote(self.path.split("?")[0].split("#")[0]).rstrip("/").split("/")[-1].lower() == "drafts.jsonl":
+            self.send_error(404, "drafts are not given out by this server")
+            return None
+        return super().send_head()
+
     def do_GET(self):
+        you = account(peer_uid(self.client_address[1], self.server.server_address[1]))
         if self.path.split("?")[0] == "/api/status":
-            return self.answer(200, status())
+            return self.answer(200, status(you))
         if self.path.split("?")[0] == "/api/sessions":
-            return self.answer(200, sessions())
+            return self.answer(200, sessions(you))
         if self.path.split("?")[0].startswith("/api/sweep/"):
             try:
                 return self.answer(200, sweep_status(self.path.split("?")[0].split("/")[3]))
@@ -523,9 +604,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            uid = peer_uid(self.client_address[1], self.server.server_address[1])
-            if uid != os.getuid():
-                raise Refused(403, f"refused: this connection was opened by user id {uid}, and only user id {os.getuid()} may start runs here")
+            who = account(peer_uid(self.client_address[1], self.server.server_address[1]))
+            if who is None:
+                raise Refused(403, "refused: the account that opened this connection cannot be found, and everything started or changed here is noted with its account")
             origin, host = self.headers.get("Origin"), self.headers.get("Host", "")
             if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/json" or (origin and origin.split("://")[-1] != host):
                 raise Refused(403, "refused: only this server's own page may call it")
@@ -538,13 +619,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body), "/api/stop": lambda: stop_session(body), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body), "/api/judge": lambda: save_judgement(body), "/api/export": lambda: export(body)}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body, who), "/api/stop": lambda: stop_session(body, who), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body), "/api/judge": lambda: save_judgement(body), "/api/export": lambda: export(body)}.get(self.path)
             m = re.fullmatch(r"/api/sweep/([^/]+)/stop", self.path)
             if m:
                 do = lambda: stop_sweep(m.group(1))
             if not do:
                 raise Refused(404, "no such endpoint")
-            self.answer(200, do())
+            result = do()
+            noted(who, re.sub(r"/api/sweep/[^/]+/stop", "/api/sweep/stop", self.path), result)
+            self.answer(200, result)
         except Refused as e:
             self.answer(e.code, {"error": e.text})
 
@@ -553,8 +636,9 @@ def main():
     ap = argparse.ArgumentParser(description="Serve the viewer and the operator's three controls on 127.0.0.1.")
     ap.add_argument("--port", type=int, default=PORT)
     a = ap.parse_args()
+    SERVING["port"] = a.port
     srv = http.server.ThreadingHTTPServer((HOST, a.port), Handler)
-    print(f"control.py: http://{HOST}:{a.port}/viewer/  (files of {ROOT}; POST accepted from user id {os.getuid()} only)", flush=True)
+    print(f"control.py: http://{HOST}:{a.port}/viewer/  (files of {ROOT}; run by {OWNER}; every account of this machine may use the page; one session at a time)", flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

@@ -1,0 +1,2 @@
+session s038 (brief two-hosts-udp-demand-2): /home/chunguck.kim/project/sessions/s038
+stopped: session s038, simulation limit reached, no usable report, 40 simulations, 6 turns, ledger /home/chunguck.kim/project/sessions/s038/ledger.jsonl

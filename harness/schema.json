@@ -284,9 +284,20 @@
        "additionalProperties": false,
        "description": "the output values you expect at the recommendation"
       },
+      "no_difference": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "the knobs whose tested values made no meaningful difference to the goal (differences inside the tolerance); empty only if every knob you varied mattered; never a knob you did not vary"
+      },
+      "limit": {
+       "type": "string",
+       "description": "what limits the result at the recommendation, that is, why it is not better: the cause and the ledger ids that show it; if you did not find it, say so and what you would test next"
+      },
       "explanation": {
        "type": "string",
-       "description": "why this setting is best"
+       "description": "why this setting is best, building on limit and no_difference"
       },
       "holds_when": {
        "type": "string",
@@ -340,6 +351,8 @@
       "goal",
       "recommendation",
       "expected",
+      "no_difference",
+      "limit",
       "explanation",
       "holds_when",
       "breaks_when",

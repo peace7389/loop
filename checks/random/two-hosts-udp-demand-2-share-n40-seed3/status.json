@@ -1,0 +1,13 @@
+{
+ "id": "two-hosts-udp-demand-2-share-n40-seed3",
+ "brief": "two-hosts-udp-demand-2",
+ "policy": "share",
+ "total": 40,
+ "done": 40,
+ "failed": 0,
+ "running": 0,
+ "state": "done",
+ "started": "2026-11-17T13:20:11",
+ "ended": "2026-11-17T13:21:28",
+ "seconds": 76.9
+}

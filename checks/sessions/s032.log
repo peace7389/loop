@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s032 --brief two-hosts-open --draft on --policy cap --baseline on
+session s032 (brief two-hosts-open): /home/chunguck.kim/project/sessions/s032
+stopped: session s032, done by the model, 24 simulations, 5 turns, ledger /home/chunguck.kim/project/sessions/s032/ledger.jsonl

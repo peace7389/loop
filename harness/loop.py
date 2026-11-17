@@ -81,7 +81,7 @@ def decided_by_little(rule, labels, values, ledger):
     """The comparisons of a decision rule that were decided by less than the tolerance: [{left, op, right, percent}]. A comparison of two results
     whose sides differ by less than the tolerance is decided by nothing: its two sides count as equal. The check keeps the result the rule gives
     (held or failed) and says beside it which comparisons were that close, so that the model, and a reader, do not take a difference of a few
-    hundredths of a per cent for a finding (s031: three checks rested on differences of 0.02 %; of the 459 checks of s001 to s031, 112 did).
+    hundredths of a per cent for a finding (s031: three checks rested on differences of 0.02 %; of the 459 checks of s001 to s031, 75 compared two different simulations less than 1 % apart).
     Two results: both sides measured, or one side measured and the other a number that is an earlier result of this session written out (the
     model often copies a result into a later rule as a number). A number the rule states of its own (a limit, a margin) is not a result."""
     earlier = {v for q in ledger if q["type"] == "simulation" for v in (q["body"].get("metrics") or {}).values() if type(v) in (int, float) and v}
@@ -211,12 +211,30 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
 
 ROLES = ("supports", "background", "limits")  # what a claim of a final report does: a reason for the recommendation, how the system behaves, when the recommendation would change
 
-def check_report(rep, brief, ids):
-    """None if the final report can be accepted; otherwise what is wrong with it."""
+def check_report(rep, brief, ids, ledger=None):
+    """None if the final report can be accepted; otherwise what is wrong with it. ledger: the session's records, to know which knobs it varied."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
     for k in ("goal", "explanation", "holds_when", "breaks_when"):
         if not text(rep.get(k)):
             return f"report.{k} must be a text"
+    # Why the result is not better, and which settings made no meaningful difference: the two parts that keep a report from naming a "best" setting
+    # without saying what limits the result (s031 recommended a TCP type and a seed for differences of 0.02 % and never asked what held TCP at its limit).
+    if not text(rep.get("limit")):
+        return "report.limit must be a text: what limits the result at your recommendation (why it is not better) and the ledger ids that show it; if you did not find it, say so and what you would test next"
+    nd = rep.get("no_difference")
+    if not isinstance(nd, list) or not all(isinstance(k, str) for k in nd):
+        return "report.no_difference must be a list of knob names (it may be empty): the knobs whose tested values made no meaningful difference to the goal"
+    if set(nd) - set(brief["knobs"]):
+        return f"report.no_difference names something that is not a knob: {', '.join(sorted(set(nd) - set(brief['knobs'])))}"
+    if ledger is not None:
+        seen = {}
+        for q in ledger:
+            if q["type"] == "simulation":
+                for k, v in (q["body"].get("params") or {}).items():
+                    seen.setdefault(k, set()).add(json.dumps(v))
+        untested = [k for k in nd if len(seen.get(k, ())) < 2]
+        if untested:
+            return f"report.no_difference names {', '.join(untested)}, which this session never varied: a setting that was not tested cannot be said to make no difference"
     rec, exp, claims, open_q = rep.get("recommendation"), rep.get("expected"), rep.get("claims"), rep.get("open_questions")
     if not isinstance(rec, dict) or not rec:
         return "report.recommendation must give at least one knob and its value"
@@ -429,7 +447,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
         no.append(("report", "a report ends the session: give it together with done = true, or leave it null"))
     else:
         waiting = sorted((h for h in checked if st.get(h) == "open"), key=lambda h: int(h[1:]))  # tested, and not judged even by this answer
-        why = check_report(report, brief, set(kinds))  # the ledger's ids, and those of the verdicts accepted from this same answer
+        why = check_report(report, brief, set(kinds), ledger)  # the ledger's ids, and those of the verdicts accepted from this same answer
         if not why and insist and waiting and mode != "report":  # said once per session: the verdicts are asked for together with the report
             why = NEED + ", ".join(waiting) + ". Give their verdicts in the same answer as the report."
         if why:
@@ -451,9 +469,65 @@ def answer_format(schema, brief):
     # the recommendation of the final report: every knob of the brief, all required, like a design. Until 2026-11-15 it had a fixed list of six knobs, all optional,
     # and the model server writes an object's properties in the format's order: a report that had passed over one could not name it any more, and a knob that was
     # not in the list (tcpBufBytes) could not be recommended at all (s030: ratio, TCP type, measured time and seed recorded; UDP rate, queue length and buffers lost)
+    schema["properties"]["report"]["anyOf"][0]["properties"]["no_difference"]["items"] = {"type": "string", "enum": list(props)}   # the brief's knobs
     schema["properties"]["report"]["anyOf"][0]["properties"]["recommendation"] = {"type": "object", "properties": dict(props), "required": list(props), "additionalProperties": False,
         "description": "the settings you recommend: a value for every knob of the brief, each within its range (a knob you leave as it was is stated with the value it has)"}
     return schema
+
+def plain_format(schema):
+    """The answer format of the comparison arm "plain" (--arm plain): the same answer without the hypothesis format. No
+    hypotheses, no drop, no verdicts; an experiment only explores (no tests, no decision rules). Everything else, the
+    final report included, is as in the ordinary arm."""
+    for k in ("hypotheses", "drop", "verdicts"):
+        del schema["properties"][k]
+        schema["required"].remove(k)
+    ex = schema["properties"]["experiment"]["anyOf"][0]
+    ex["properties"]["kind"] = {"type": "string", "enum": ["explore"]}
+    for k in ("tests", "decision_rules"):
+        del ex["properties"][k]
+        ex["required"].remove(k)
+    return schema
+
+
+PLAIN = (  # prompt.txt -> the instructions of the arm "plain": (text as it stands in prompt.txt, what replaces it). Each must be found exactly once.
+    ("everything you have hypothesised, run, observed and concluded", "everything you have run, observed and concluded"),
+    ("Name the most important unexplained thing; your next hypothesis is about it.", "Name the most important unexplained thing; your next experiment is about it."),
+    ("\n4. experiment: at most one per turn.", "\n2. experiment: at most one per turn."),
+    ('   - kind "explore": question says what you want to find out; tests and decision_rules stay empty. Use it when you do not yet have a claim to test.', '   - kind is always "explore": question says what you want to find out.'),
+    ("\n5. After an experiment the harness appends the evidence (one line per simulation) and, for every decision rule, a check: the decision rule with the measured numbers written into it, and HELD or FAILED. You never write evidence or checks yourself.",
+     "\n3. After an experiment the harness appends the evidence (one line per simulation). You never write evidence yourself."),
+    ("\n7. requests:", "\n4. requests:"), ("\n8. budget_request:", "\n5. budget_request:"), ("\n9. done and report:", "\n6. done and report:"),
+    ("do not leave the decisive test for later than you can afford", "do not leave the decisive experiment for later than you can afford"),
+    ("(for example E3, C5)", "(for example E3)"),
+    ("(for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read)", "(for example an experiment that repeats a design you already ran)"),
+    ("A hypothesis about a cause (what makes a result what it is, what limits it) is worth more than one about which of two values is larger.", "A question about a cause (what makes a result what it is, what limits it) is worth more than one about which of two values is larger."),
+    ("State that as a hypothesis and test it, with the settings you may change and with the tools:", "Explore that, with the settings you may change and with the tools:"),
+    ("do not write a decision rule that such a difference can decide, do not build a hypothesis on it, do not spend further simulations on it,", "do not spend further simulations on it,"),
+    (' The harness marks every check that was decided by less than the tolerance; read such a check as "no difference".', ""),
+)
+PLAIN_DROP = ("2. hypotheses:", "3. drop:", '   - kind "test":', "   - decision_rules:", "6. verdicts:", "   Before the report, give a verdict")  # whole lines of prompt.txt the arm does not have, by how they begin
+
+
+def plain_prompt(text):
+    """The instructions of the arm "plain", made from prompt.txt: the lines about hypotheses, decision rules and verdicts
+    are left out and the sentences that name them are reworded; every other word is the same, so that the two arms
+    differ in the hypothesis format alone. Stops if prompt.txt has changed so that a line or sentence is not found."""
+    lines = text.split("\n")
+    for start in PLAIN_DROP:
+        hit = [i for i, l in enumerate(lines) if l.startswith(start)]
+        if len(hit) != 1:
+            raise ValueError(f"prompt.txt: {len(hit)} lines begin with {start!r}; the arm 'plain' expects one")
+        del lines[hit[0]]
+    text = "\n".join(lines)
+    for a, b in PLAIN:
+        if text.count(a) != 1:
+            raise ValueError(f"prompt.txt: {a[:50]!r}... stands {text.count(a)} times; the arm 'plain' expects once")
+        text = text.replace(a, b)
+    left = [w for w in ("hypothes", "decision rule", "decision_rule", "verdict", "HELD", "FAILED") if w in text]
+    if left:
+        raise ValueError(f"the instructions of the arm 'plain' still name: {', '.join(left)}")
+    return text
+
 
 def call(q):
     fn = tools.TOOLS.get(q.get("tool"))
@@ -473,6 +547,8 @@ def main():
     ap.add_argument("--max-tokens", type=int, help="most tokens of one answer, draft included; default 32000 with the draft (the default), 3000 without")
     ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap"], default="share", help="the scheduling policy: how the scheduler divides the link. The operator's choice, never shown to the model (--mode is its earlier name)")
     ap.add_argument("--temperature", type=float, default=0.3)
+    ap.add_argument("--arm", choices=["hypotheses", "plain"], help="hypotheses (the default): the loop as it is. plain: the same loop, model, brief, budget and final report without the hypothesis format "
+                    "(no hypotheses, decision rules or verdicts; experiments only explore), for the comparison that asks whether the format helps. An existing session keeps its own")
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the harness's own default experiment X0")
     a = ap.parse_args()
     global LEDGER, SID, TOLERANCE
@@ -486,6 +562,12 @@ def main():
     brief = tools.describe_system()  # the brief, with the descriptions of the outputs and the tools
     per = brief["limits"]["simulations_per_experiment"]
     schema = answer_format(schema, brief)
+    was = json.loads((tools.SESSION / "session.json").read_text()).get("flags", {}).get("arm", "hypotheses") if (tools.SESSION / "session.json").is_file() else None
+    if was and a.arm and a.arm != was:
+        ap.error(f"session {SID} works in the arm {was}, not {a.arm}")
+    arm = was or a.arm or "hypotheses"
+    if arm == "plain":
+        schema, system = plain_format(schema), plain_prompt(system)
     tol_given = type((brief.get("goal") or {}).get("tolerance")) in (int, float)   # tools.check_brief has made sure it is a number of per cent between 0 and 100
     TOLERANCE = float(brief["goal"]["tolerance"]) if tol_given else DEFAULT_TOLERANCE
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget
@@ -499,7 +581,7 @@ def main():
         ap.error(f"the starting budget is at most the brief's limit of {limit} simulations")
     if not meta.exists():  # the session's own record of what it was given; the scheduling policy is not in it
         meta.write_text(json.dumps({"id": SID, "brief": brief["id"], "model": model, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline}, "given": brief, "prompt": system}, indent=1) + "\n")
+                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline, **({"arm": arm} if arm != "hypotheses" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
     print(f"session {SID} (brief {brief['id']}): {tools.SESSION}", flush=True)
     ledger = load_ledger()
     if a.baseline == "on":

@@ -437,14 +437,44 @@ account of the system.
 
 ```
 { "id":          equals the file name
-  "task":        the task text
-  "description": the system in plain words; {name} is filled from "system"
+  "task":        optional, and absent from every brief made since 2026-11-17: the harness writes it (below)
+  "description": the system in plain words; {name} is filled with a fixed setting's value, or reads "the knob <name>" for a knob
   "system":      { setting: value }                      fixed for this brief
   "knobs":       { setting: {min, max, default, step?, meaning} | {choices, default, meaning} }
   "goal":        {"kind": "open"}
                | {"kind": "given", "target": {"measure", "direction": "max"|"min"}, "conditions": ["udp_loss_frac <= 0.01", ...], "tolerance"?: per cent}
   "limits":      {"simulations": 40, "simulations_per_experiment": 12} }
 ```
+
+**The task is written by the harness** (**DECISION 2026-11-17**; the operator, reading the brief `trap` on the page:
+"Is it okay that the task the AI is given stays the same regardless of settings?"). It was not. The task was a text
+typed into the brief, and a brief made from another one on the set-up page kept the other's text. `trap` told the model
+"both at maximum rate" while its UDP rate was fixed at 300 Mbps, "find the best ratio" while five settings were open,
+and "say what 'performance' you chose to mean" while its aim was given; session s031 ran on that. Now
+`tools.task_text(brief)` writes the task from the brief's aim and the settings it leaves open, and `check_brief` puts
+it into every brief that states none:
+
+- given aim: "Find the settings that give the largest tcp_goodput_bps, while udp_loss_frac <= 0.01. You may change 4
+  settings (weightUdp, queuePkts, tcpVariant, duration); every other setting is fixed. Explain why they are best."
+- open aim: "No aim is given. Choose what 'performance' should mean for this system and say why; then find the
+  settings that are best for it. You may change ... Explain why they are best."
+
+The system itself is told in the description, a measure's meaning in the list of outputs. A brief that still states a
+task of its own keeps it, and so do its sessions (every brief made before, among them `two-hosts-open`,
+`two-hosts-udp-demand`, `trap`). The set-up page has no task field: it shows the sentence as the form changes
+(`EV.taskText`, the same words; `ev_usable.py task` compares the two) and saves a brief without a task. A `task` that
+is there but empty is refused.
+
+**A name in braces in the description** stands for a fixed setting's value or, where the setting is a knob, for "the
+knob <name>", so that one description stays true whoever decides the setting ("at a constant rate ({udpRate})" reads
+"(300Mbps)" or "(the knob udpRate)"). A name that is no setting of the brief is refused. Until 2026-11-17 only a fixed
+setting could be named, and a description copied into a brief that fixed a knob went on saying "the setting udpRate".
+
+**Three briefs made on 2026-11-17** this way, each from the brief it is named after, with the seed fixed at 1 (the
+operator's decision: in 53 settings run under several seeds TCP goodput differed by at most 0.17 %, and 11 % of all
+simulations had been spent on other seeds): `two-hosts-open-2`, `two-hosts-udp-demand-2`, `trap-2`. They state no
+task and name udpRate in braces. The answer key of `two-hosts-udp-demand` serves `two-hosts-udp-demand-2` as well (its
+sweeps were made with seed 1): `checks/keys/two-hosts-udp-demand-2.json`.
 
 `tools.check_brief` is the one check, used by `loop.py` and `control.py`:
 
@@ -629,6 +659,19 @@ from an observed record.
 
 A session that ended with its report cannot be continued. `s001` (made before
 briefs) cannot be continued either.
+
+**The comparison arm "plain"** (`loop.py --arm plain`, 2026-11-17; for the open question "does the hypothesis format
+help at all?", 15 item B1 of `HISTORY.md`). The same loop, model, brief, budget, tolerance and final report, without
+the hypothesis format: the answer has no `hypotheses`, `drop` or `verdicts`, and an experiment only explores (no
+`tests`, no `decision_rules`), so the ledger of such a session holds no hypothesis, check or verdict record.
+`loop.plain_format` cuts those parts out of the answer format; `loop.plain_prompt` makes the instructions from
+`prompt.txt` each time a session starts: the lines on hypotheses, decision rules and verdicts are left out, five
+sentences that name them are reworded, and every other paragraph is the same word for word (the purpose, "ask why
+before you ask which", "tell a meaningful difference from a marginal one", the parts of the report). It stops if
+`prompt.txt` has changed so that one of those lines is not found, or if the result still names a hypothesis, a
+decision rule or a verdict. `session.json` records `flags.arm` ("plain"; the ordinary arm records nothing) and the
+instructions as given; an existing session keeps its arm. Test: `harness_checks/test_arms.py`. The page has no view
+made for such a session: it shows it as a session without hypotheses.
 
 ### 8.2 A turn
 
@@ -818,6 +861,8 @@ The budget counts simulations actually run.
 { "goal":           the goal the answer is best for (open brief: the one the model chose, and why)
   "recommendation": {knob: value}
   "expected":       {output: number}
+  "no_difference":  [knobs]   since 2026-11-15: the knobs whose tested values made no meaningful difference to the goal
+  "limit":          text      since 2026-11-15: what limits the result at the recommendation, and the ledger ids that show it
   "explanation", "holds_when", "breaks_when": texts
   "claims":         [ {text, role: supports | background | limits, evidence: [ledger ids]} ]
   "open_questions": [texts] }
@@ -847,6 +892,17 @@ not in the ledger.
 If a hypothesis with a checked decision rule still has no verdict, the report
 is refused once, with the list, and the verdicts are asked for together with
 the report; the second time it is accepted as it comes.
+
+**What limits the result, and what made no difference** (**DECISION 2026-11-15**, the operator: "The AI should not
+just optimize settings from simulations but ask why ... If any setting doesnt make meaningful improvement it should ask
+why rather than improving a marginal amount and present it as the best one"; s031 had recommended a TCP type and a
+seed for differences of 0.02 % and never asked what held TCP at its limit). The report has two required parts before
+its explanation: `no_difference`, a list of knob names (it may be empty; the answer format allows only the brief's
+knobs), and `limit`, a text. `check_report` refuses a report without a `limit`, one whose `no_difference` names
+something that is not a knob, and one that names a knob the session never varied (fewer than two values of it among
+its simulations): a setting that was not tested cannot be said to make no difference. Reports recorded before have
+neither part. Test: `harness_checks/test_tolerance.py` (the session `lim1`). The page shows both as the part "What
+limits the result" (12.1).
 
 An accepted report is a `report` record (`R1`) and `sessions/<id>/report.json`,
 and the session is over.
@@ -1136,8 +1192,8 @@ only.
 |---|---|
 | `GET /api/status` | what is running, the briefs, the sweeps, and `sessions`: one row per session (brief, counts, checks held and failed, how it ended, policy, running, the figures of `session_figures.py` (held and failed are counted without the void checks; `void` is [void checks, all checks]), and from `checks/` the score in short and the review) |
 | `GET /api/sessions` | that list alone |
-| `POST /api/session` | starts `loop.py` with the chosen flags: a new session, or with `session` a continued one. Up to 6 loops run side by side |
-| `POST /api/stop` | `{session}`: stops a session started here |
+| `POST /api/session` | starts `loop.py` with the chosen flags: a new session, or with `session` a continued one. One session runs at a time (below) |
+| `POST /api/stop` | `{session}`: stops a session started here; only for the account that started it, or the owner |
 | `POST /api/run` | `{params, policy, brief}`: one operator simulation into `checks/op-<time>/`, listed in `checks/control.jsonl` |
 | `POST /api/sweep`, `GET /api/sweep/<id>`, `POST /api/sweep/<id>/stop` | 10.2 |
 | `POST /api/judge` | 10.4 |
@@ -1150,11 +1206,55 @@ chooses share or cap, lists the session in `checks/random.json`, and leaves its
 policy out of `/api/status` until the session has a score. The page takes the
 policy only from `/api/status`.
 
-**Who may call it.** The server listens on 127.0.0.1 only. The machine is
-shared, so a POST is accepted only when the connection was opened by a process
-of the user who runs the server (looked up in `/proc/net/tcp`; that user's SSH
-tunnel counts), only as `application/json`, and only from the server's own
-page.
+**Who may call it: the page is shared** (**DECISION 2026-11-17**, the operator: "I want everybody to be able to use
+it as much as I am without too much works", and, asked which accounts: every account of this server; then "I want to
+make the least safety measure. I want the viewer to show who is running the ongoing session if any, and not allowing
+running new session during that to avoid conflicts"). The server still listens on 127.0.0.1 only, so it is reached
+from this machine alone: by a browser here, or through an SSH tunnel of somebody who has an account here
+(`ssh -N -L 48600:127.0.0.1:8600 <account>@<server>`, then `http://127.0.0.1:48600/viewer/`; the foot of every view
+shows that line with the server's name). Until 2026-11-17 a POST was accepted from the owner's account alone. Now:
+
+- **Every account may use the page as the owner does.** A POST is accepted from any account of the machine, as
+  `application/json` and from the server's own page only. The account is read from the connection
+  (`/proc/net/tcp`; a tunnel is opened by its user's own sshd process); a connection whose account cannot be found is
+  refused.
+- **One session at a time** (`MAX_LOOPS = 1`; six ran side by side before). While a session is running, wherever it
+  was started, `POST /api/session` is refused with "session s032 is running, started by <account>: one session runs
+  at a time. A new one can start when it has ended". A loop started from a terminal counts, as the owner's. The rule
+  is the server's, for starts through the page: the owner can still start loops from a terminal.
+- **A running session is stopped by the account that started it, or by the owner** (the account that runs the
+  server); anybody else is refused.
+- **Every POST that was carried out is noted** in `checks/people.jsonl`: time, account, endpoint, the id it
+  concerned. The file holds account names, so it is in `.gitignore` and in no export.
+- `GET /api/status` also gives `you` (the account that asks), `owner`, `running_now` (`[{id, by}]`),
+  `one_at_a_time` and `share` (`{host, port}`); a session's row has `by` (who started it through the page; a running
+  session nobody started there is the owner's) and `can_stop` (for the one who asks).
+- `drafts.jsonl` is given to nobody over HTTP, the owner included (GET and HEAD, also with the name written in
+  capitals or with `%2E`). Everything else under the project folder is readable by every account, as before: the
+  answer keys and sweeps under `checks/` too, so "operator-only" now means "not reachable by the model", not "hidden
+  from the people who use the page".
+
+**Looking from the network** (**DECISION 2026-11-17**, the operator: "Important : I want my professor to be able to
+view it on webbrowser on computer or mobile. Consider him has technion VPN"). A phone cannot hold an SSH tunnel, so
+the real server is started with `--network on` and then also answers on the machine's network address:
+`http://<server>:8600/viewer/`, for any browser on the campus network or its VPN. A visitor who comes that way (any
+address but 127.0.0.1) can only look: every POST is refused with "view only: ..."; only the page's own material is
+given (`viewer/`, `sessions/` without `drafts.jsonl`, `briefs/`, `trace/`, `checks/` without `people.jsonl` and
+`exports/`, `harness/manifest.json`, and the three GET endpoints), nothing else of the project folder and no listing
+of a folder; `/api/status` says `view_only` and names nobody as `you`. What such a visitor can read is what the
+public repository already holds, plus the sessions of the moment. The page then shows "view only" in the bar, its
+Start button is off with the reason, and its foot says how to use the page fully; for a user of this machine the foot
+gives the address to look from the network. At 700 px and under (a phone) a card that holds something wider than the
+screen scrolls sideways inside itself, so the page as a whole does not. Without `--network on` (the scratch copies
+of the checks) the server listens on 127.0.0.1 alone, as before. Tests: `test_shared_page.py` (a request through the
+machine's own network address), `ev_usable.py network`. Whether the server's firewall lets port 8600 through from
+the VPN has not been seen from outside.
+
+Sessions started through the page run under the owner's account and use its model server. Reviews and checklist
+judgements are one set per session, without the reviewer's account: two people who review the same session write
+into the same marks. Test: `harness_checks/test_shared_page.py` (the server run inside the test, with the account of
+each request chosen by the test); the page: `ev_usable.py shared`. A lab member's own tunnel has not been tried by
+anybody but the owner yet.
 
 An operator simulation is made by the built program directly, never by
 `tools.run`, so it never reaches a session's folder.
@@ -1285,6 +1385,17 @@ what their records are worth as tests:
 The page marks the same void checks from the ledger itself (12.1), so an
 exported session shows them without `checks/`; `session_figures.void_checks`
 is the one definition both `audit.py` and `control.py`'s rows use.
+
+### 10.9 The comparison arm "random": `random_search.py`
+
+`python3 harness/random_search.py --brief ID --policy share|cap --n N --seed K`: no model. N settings are drawn at
+random from the brief's own ranges (each knob on its own, evenly: a number between min and max, whole where the knob
+is, rounded to its step where it has one; a rate between its two rates; one of the choices), each is simulated once by
+the built program directly (as a sweep does, at most 64 at a time), and the best of them, the goal's target among the
+rows where every condition holds, stands for the "recommendation". The draw depends only on `--seed`. Written to
+`checks/random/<name>/`: `table.csv` and `result.json`. The brief's goal must be given. It answers what a session's
+budget buys without any thinking, drawn from the brief's whole ranges and not from a sweep's grid (the sweeps of
+`two-hosts-udp-demand` are dense near the optimum, so a draw from their rows is not a fair baseline: `HISTORY.md` B2).
 
 ## 11. Results so far
 
@@ -1505,6 +1616,36 @@ without roles shows its claims in one list. The counts of claims are worded
 neutrally ("cite only checks that held", ..., "cite nothing") and none is in
 the warning colour. A session without a final report says "No final report"
 here, with how it ended.
+
+A report that says what limits its result (8.6) has a fourth part, **"What limits the result"**, after the expected
+result: the report's `limit` in the AI's words and, from its `no_difference`, "Made no meaningful difference, by its
+own list: seed" (or that the list is empty). The full report in the pane has the same part. A report recorded before
+has no such part and the numbering has no gap; in the replay the part is absent until the report is recorded; a
+running session whose instructions ask for it has a seventh empty place. Check: `ev_usable.py limit` (the scripted
+session `lim1`). The claims of the full report are plain boxes: their violet left edge, a leftover of the time when
+violet meant "written by the AI" (the operator, 2026-11-17: "Is purple color applied here a remnant ...?"), is gone,
+and `ev_usable.py plain` finds no violet on a session's page but the small icons.
+
+**The shared page** (10.1, 2026-11-17). Home's title line says "s032 running now, started by <account>" and the
+running row "running now · <account>"; the set-up page's heading says the same, its Start button is off while a
+session runs and says why on the button and under it ("Session s032 is running now, started by … One session runs at
+a time …"), and it comes on again by itself when the session has ended; the running session's banner has the Stop button alone for the one who started it (its box: "You started this
+session"), "started by <account>" and the Stop button for the owner, "started by <account>" and no button for
+anybody else (its box: "Only <account> or <owner> can stop it"), and for a session started with a command in a
+terminal "started from a terminal by <account> · this page cannot stop it" (the operator, 2026-11-17, of the earlier
+wording: "What does 'it is stopped there' mean?"; the box says that the page can stop only the sessions it started).
+The banner's line of text never wraps: what does not fit is cut with an ellipsis and a note of what just arrived
+stands whole in its box. Until 2026-11-17 a note could make the banner wrap to a second line, which moved the page by
+20 px; the live view's check found it once the banner's end had become shorter (`HISTORY.md` C5). The foot of every view gives the one command that brings
+the page to somebody else's computer. With a server that says nothing of accounts (an exported page) all of this is
+absent. Check: `ev_usable.py shared`, which changes the server's answers on their way to the page (a pretended
+running session, two pretended accounts) and starts nothing.
+
+**The task on the page** (section 7, 2026-11-17). The set-up page's fourth block shows the task as the harness writes
+it from the form, in a dashed box, not a field; while the form is still a saved brief that states a task of its own,
+that text stands under it with a warning that a session started on the brief as it is gets it. The brief in the
+detail pane says under "The task, as the AI was given it" whether it was "written by the harness from the aim and the
+settings the AI may change" or "written by hand in the brief". Check: `ev_usable.py task`.
 
 *6 How it worked as a researcher:* nine lines, each a count the page makes
 from the records by a fixed rule shown on hover, with a word (present, partly,
@@ -2822,6 +2963,12 @@ untracked until they say otherwise.
     running experiment do not say which hypothesis a simulation serves.
     (d) The rules between the turns of the board are upright, the turns being
     columns; the operator's words were "horizontal borders".
+12. **Open after 2026-11-17.** (a) The shared page (10.1) has been tried by the owner alone: no other account has
+    opened a tunnel yet. Reviews and checklist judgements carry no account, so two reviewers of one session overwrite
+    each other. Every account of the machine can read `checks/` (answer keys, sweeps, `people.jsonl`).
+    (b) Sessions on the briefs made before 2026-11-17 still get those briefs' hand-written task; `trap` contradicts
+    its own aim and settings and is kept only as the record of s031. (c) The page has no view for a session of the
+    arm "plain" or for a random search: they are compared by their figures (section 11), not on the page.
 
 ## 16. History in short
 
@@ -2850,6 +2997,10 @@ untracked until they say otherwise.
 | 2026-11-15 | Completion of that evening after an interrupted session, and three more at the operator's word: the board's key as a small table of two rows with each look's sentence in a box; a light rule between the turns; a button on the table under the board, whose folding holds in Full; an exploration's box in two lines; a rule's bar at most 300 px long; an empty set-up on the set-up page. Checks for what had only been tried by hand: `ev_usable.py key board short none legend`; `test_step_c.py` counts only the briefs that state none of the later settings |
 | 2026-11-15 | The same evening, each at the operator's word: a click on a step of a running session's strip opens what is happening (the turn's work log begins with "Now": what the AI was given, which hypotheses wait for its verdict, how long its earlier replies took); the reason of a check on an unjudged box of the board; the empty set-up as a box of its own under the list of saved briefs; present, partly, absent and not yet each with a look of its own; borders in the glance's key; Home no longer wider than the window while a session runs. The prompt says that a failed check is not yet a refutation (8.9) |
 | 2026-11-15 | A test's detail cut to what it is for, at the operator's word after a measured estimate: a rule with an "or" as either-or lines in place of bars that said "does not hold" under a rule that held; the rule under "Expected" as a short list; the chain of boxes folded. Four faults of the interrupted session that its last full run had reported and nobody had read: tiles' values running out of their tiles, the first screen 18 px too tall, a stale expectation of a check, a field name in a summed-up refusal. "Not accepted" beside a turn's name, where "refused" read like "refuted" |
+| 2026-11-17 | The page shared with the lab, at the operator's word: every account of the server may use it through its own SSH tunnel; one session at a time, and the page says which is running and who started it; only that account or the owner stops it; every start, stop and saved brief noted with its account (`checks/people.jsonl`, not in git); `drafts.jsonl` given to nobody. |
+| 2026-11-17 | The task is written by the harness from the aim and the open settings, after the operator found that `trap`'s task contradicted both; a name in braces in the description may be a knob; three briefs with the seed fixed (`two-hosts-open-2`, `two-hosts-udp-demand-2`, `trap-2`). |
+| 2026-11-17 | The final report says what limits the result and which settings made no difference (the harness part was written on 2026-11-15 and finished now), shown on the page as "What limits the result"; the last violet edge is gone. |
+| 2026-11-17 | Two comparison arms for the question "does the hypothesis format help?": `loop.py --arm plain` (the same loop without hypotheses, decision rules and verdicts) and `random_search.py` (no model). |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

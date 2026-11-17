@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s033 --brief trap-2 --draft on --policy share --baseline on
+session s033 (brief trap-2): /home/chunguck.kim/project/sessions/s033
+stopped: session s033, done by the model, 15 simulations, 6 turns, ledger /home/chunguck.kim/project/sessions/s033/ledger.jsonl

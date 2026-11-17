@@ -1,0 +1,81 @@
+{
+ "session": "s036",
+ "brief": "two-hosts-udp-demand-2",
+ "scheduling_policy": "share",
+ "sweep": "sw-20261111-190100",
+ "sweep_size": 2190,
+ "goal": {
+  "target": "tcp_goodput_bps",
+  "direction": "max",
+  "conditions": [
+   "udp_loss_frac <= 0.01"
+  ],
+  "from": "the brief"
+ },
+ "best_row": {
+  "weightUdp": "0.303",
+  "queuePkts": "20",
+  "tcpVariant": "TcpNewReno",
+  "duration": "10",
+  "udp_goodput_bps": 297004960.0,
+  "tcp_goodput_bps": 671584717.0,
+  "udp_loss_frac": 0.009994,
+  "link_util": 1.000001
+ },
+ "rows_meeting_the_conditions": 1806,
+ "rows_as_good_as_the_best": 1,
+ "recommendation": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10
+ },
+ "recommendation_with_defaults": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpCubic",
+  "duration": 10
+ },
+ "at_the_recommendation": {
+  "udp_goodput_bps": 300003200,
+  "tcp_goodput_bps": 668633114,
+  "udp_loss_frac": 0.0,
+  "link_util": 1.0
+ },
+ "conditions_hold_at_the_recommendation": {
+  "udp_loss_frac <= 0.01": true
+ },
+ "gap_on_target": 2951603.0,
+ "gap_as_part_of_best": 0.004394982383138418,
+ "expected_by_the_model": {
+  "tcp_goodput_bps": 668633114,
+  "udp_loss_frac": 0.0,
+  "weight_udp": 0.5
+ },
+ "simulations_used": 25,
+ "simulations_allowed": 40,
+ "how_the_session_ended": "done by the model",
+ "left_open": [],
+ "checklist": [
+  {
+   "n": 1,
+   "item": "States the goal it optimises",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 2,
+   "item": "Finds that the setting only matters under contention / when the UDP flow uses less than its part",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 3,
+   "item": "Finds the effect of a short queue with a hard-backing-off TCP variant",
+   "judgement": "unjudged"
+  },
+  {
+   "n": 4,
+   "item": "Does not spend simulations on differences smaller than run-to-run variation",
+   "judgement": "unjudged"
+  }
+ ]
+}

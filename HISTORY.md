@@ -28,6 +28,7 @@ no setting makes a meaningful improvement it should ask why rather than present 
 | 2026-11-15, night | Simulator builds 6 and 7 (TCP's first window and buffers, the device's transmit queue, the series written sample by sample). Tiles of the simulations being run. |
 | 2026-11-15, day | A long run of small usability requests while sessions s029 and s030 ran (fields in the set-up cards, bars, hover boxes, one word per concept, nothing moves by itself). The session ran into its usage limit with five changes deployed by hand and nothing committed. |
 | 2026-11-15, evening | The interrupted work completed and checked; four faults it had left were found by the full run and repaired. A test's detail cut to what it is for (a rule with an "or" as either-or lines). Session s031 on the operator's brief `trap` read closely, by the operator, by Claude chat and here: it led to the three harness changes of section 4, lessons A1 to A5. |
+| 2026-11-17 | After the usage limit: the interrupted work completed (the page of 15 November checked as a whole and published; the report's parts "what limits the result" and "made no difference" tested and shown). The page shared with the lab: any account of the server through its own SSH tunnel, one session at a time, the page says who runs it. The task is now written by the harness, after the operator found that `trap`'s task contradicted its aim and settings. Briefs with the seed fixed. Two comparison arms built: the loop without the hypothesis format, and random search. |
 
 ## 3. Results (headline figures only)
 
@@ -37,10 +38,29 @@ no setting makes a meaningful improvement it should ask why rather than present 
 - In the 24 sessions that record what a hypothesis follows from: of 286 hypotheses stated after the first turn, 81 %
   name an earlier check or verdict, and 41 % of those a failed, refuted or inconclusive one (the model's own statement
   of what it built on); 64 % of their 414 checks held.
-- Of the 459 decision rules of all sessions, worked out again, 112 (24 %) rested on a comparison of two results less
-  than 1 % apart.
+- Of the 459 decision rules of all sessions, worked out again, 112 rested on a comparison of two results less than 1 %
+  apart. 37 of those compared a simulation with itself (the fault repaired on 2026-11-13, shown on the page as void);
+  75 (16 %) compared two different simulations.
 - Of 174 failed checks, 130 were followed by a verdict without a further test of that hypothesis (58 refuted, 72
   inconclusive).
+- **The instructions of 2026-11-15 on the corrected `trap` brief** (`trap-2`, session s033, 2026-11-17: 6 turns, 15 of
+  20 simulations). s031 on `trap` had recommended a TCP type for 0.02 % and a seed, and never asked what held TCP at
+  419 Mbps. s033 asked it as a hypothesis ("What caps BBR TCP at about 419 Mbps?", then "Is BBR's plateau the 1 MB
+  buffer divided by the 20 ms round-trip time?"), found it (1 MB / 20 ms = 419.4 Mbps; measured 418.9), listed the
+  ratio, the queue length and the measured time as making no meaningful difference, and did not prefer one TCP type
+  over another for a lead under 1 %. Three operator simulations agree with its diagnosis: with TCP's buffers at 1, 2
+  and 4 MB, TCP goodput is 418.9, 595.6 and 658.3 Mbps. One session; the brief changed too (the task sentence, no
+  seed), so this does not separate the instructions from the brief.
+- **A first control experiment** (2026-11-17, brief `two-hosts-udp-demand-2`, policy share, 40 simulations allowed):
+  three sessions with the hypothesis format (s034 to s036), three without it (`--arm plain`, s037 to s039), three
+  random searches of 40 settings each. All five sessions that gave a report recommend the same settings, the brief's
+  defaults (668.6 Mbps, 0.44 % under the best row of the sweep, inside the 1 % tolerance, as the instructions of
+  2026-11-15 ask when nothing makes a meaningful difference), and all five name the same limit: the link is full, UDP's
+  fixed 300 Mbps comes first, TCP gets what is left. The random searches reach 668.6 to 668.9 Mbps. With hypotheses:
+  35, 30 and 25 simulations, three reports. Without: 40, 40 and 33 simulations, two reports (s038 used all 40 and gave
+  no usable report). **On this brief the format does not change the answer**; it may save simulations, and three
+  sessions an arm cannot show that. The brief is too easy to separate the arms: every setting within reach of a random
+  draw is inside the tolerance.
 - The seed: 53 settings were run under two or more seeds; TCP goodput differed by a median of 0.0002 %, at most 0.17 %.
   113 simulations (11 %) were spent on other seeds.
 
@@ -61,8 +81,8 @@ explain, and says "ask why before you ask which" (spec 8.9).
 *Status:* partly. No real session had run with it when this was written.
 
 **A2. A difference of a few hundredths of a per cent gets treated as a finding unless something says it is nothing.**
-*Evidence:* s031 recommended "TcpBic" over BBR for 0.02 %, and "seed 3". 112 of 459 checks over all sessions rested on
-two results less than 1 % apart.
+*Evidence:* s031 recommended "TcpBic" over BBR for 0.02 %, and "seed 3". Over all sessions, 75 of 459 checks compared
+two different simulations whose results were less than 1 % apart.
 *What we changed:* a tolerance always holds (the brief's, or 1 %), every turn states it, and the harness marks each
 check that was decided by less than it, in the record and in the line the model reads. The result of the rule is kept.
 *Status:* the measurement is confirmed; the effect on the model is not yet seen.
@@ -83,8 +103,9 @@ buffer limit", which was the truth of the whole session. The rival stood only in
 
 **A5. The seed is not a setting, and offering it as one costs simulations and invites false conclusions.**
 *Evidence:* section 3; two reports recommended a seed.
-*What we changed:* the prompt says what a seed is for. The two base briefs still offer it (30 of 31 sessions).
-*Status:* confirmed as a measurement; the briefs are the operator's to change.
+*What we changed:* the prompt says what a seed is for. On 2026-11-17 the operator decided: new briefs with the seed
+fixed at 1 (`two-hosts-open-2`, `two-hosts-udp-demand-2`, `trap-2`); the old briefs and their sessions stay.
+*Status:* confirmed; changed for every session from now on.
 
 **A6. A short measured window turns "how fast it starts" into "how good it is".**
 *Evidence:* `trap` (10 ms link): Cubic climbs for about 12 s and is still climbing through a 10 s measurement; every
@@ -110,12 +131,26 @@ again".
 *What we changed:* the prompt says to plan for the limit from the first turn.
 *Status:* partly.
 
+**A10. A text that is typed once does not follow the settings beside it.**
+*Evidence:* the operator, reading `trap` on the page: "Is it okay that the task the AI is given stays the same
+regardless of settings?" The task said "both at maximum rate" (UDP was fixed at 300 Mbps), "find the best ratio" (five
+settings were open) and "say what 'performance' you chose to mean" (the aim was given). The set-up page had copied the
+text from the brief it started from; s031 ran on it. The description had the same fault in one place ("the setting
+udpRate" where it was fixed).
+*What we changed:* the harness writes the task from the aim and the open settings (`tools.task_text`); the set-up page
+shows that sentence and has no task field; a name in braces in the description reads as a value or as "the knob …".
+The old briefs keep their texts and say so on the set-up page.
+*Status:* confirmed for the task. A description is still typed by hand and can still say something the settings do not.
+
 ### B. Measuring and judging
 
 **B1. There is no control, so nothing shows that the hypothesis format helps.**
-*Evidence:* no session has run the same brief and budget without hypotheses, or as a random search.
-*What we changed:* nothing. Proposed: three arms on one brief, a few sessions each, scored against the answer key.
-*Status:* open, and the most important open item.
+*Evidence:* until 2026-11-17 no session had run the same brief and budget without hypotheses, or as a random search.
+*What we changed:* two comparison arms (`loop.py --arm plain`, `random_search.py`) and a first experiment (section 3).
+*Status:* a first answer, and a weak one: on `two-hosts-udp-demand-2` the three arms end in the same place, because
+there every reachable setting is inside the tolerance. The question needs a brief where the default is not already
+within 1 % of the best and where the cause is not visible in one table (`trap-2` is closer to that: its default is
+28 % under what a change of TCP type gives, and the cause is a buffer the brief does not offer as a knob).
 
 **B2. A sweep that is dense near the optimum is not a fair random baseline.**
 *Evidence:* 51 of 73 ratio values of the sweep lie between 0.300 and 0.310.
@@ -146,6 +181,14 @@ form; the pane is 2,595 characters. *Status:* confirmed.
 a hover box on every mark; one word per concept; the page never moves by itself; each kind of thing with a look of its
 own (by form, not by a colour of good and bad).
 
+**C5. A line that can grow must not be able to change the height of the bar that holds it.**
+*Evidence:* the banner of a running session wrapped to a second line when a note of what had just arrived was
+added, and the page moved by 20 px. It had always been able to; it showed when a shorter text at the banner's end
+left the line just short enough to fit before the note and not after it. The live view's own check found it in the
+full run. *What we changed:* the banner's line never wraps (the rest is cut with an ellipsis and stands in the
+note's box); the check now adds a very long note for each kind of viewer and measures the height.
+*Status:* confirmed.
+
 ### D. How the work is done
 
 **D1. A full check run is not done until its summary has been read to the last line.**
@@ -171,13 +214,34 @@ it. *Status:* confirmed.
 *Evidence:* the page was not yet verified, and Claude chat was judging a session it could not see. Commit 2343e1a holds
 the harness and s031 alone. *Status:* confirmed as a way of working.
 
+**D6. A change made in the folder the sessions run from is in use at once, tested or not.**
+*Evidence:* the report's two new parts were written into `harness/` minutes before the usage limit; for two days the
+next session started from the page would have run with them, with one test line failing (the test's fault, as it
+turned out).
+*What we changed:* harness changes are made and tested in a copy and copied in when their tests pass, as the page's
+are. *Status:* confirmed as a way of working.
+
+**D7. Sharing needs one rule per conflict, not a design.**
+*Evidence:* the operator asked that everybody in the lab can use the page "as much as I am without too much works",
+and then for "the least safety measure": see who runs the ongoing session, and no new session during it.
+*What we changed:* any account of the server may use the page through its own tunnel; one session at a time; the page
+names the session and who started it; only that account or the owner stops it; each action is noted with its account.
+*Status:* built and tested with pretended accounts; no second person has used it yet.
+
+**D8. A rule the operator sets for the page holds for the one who builds the page too.**
+*Evidence:* an hour after the operator asked for one session at a time, the six sessions of the control experiment
+were about to be started side by side from a terminal, on the reasoning that the rule was "for the page". The start
+was blocked by the tool's permission check. Asked, the operator allowed it "this once".
+*What we changed:* an exception to a rule the operator has just set is asked for, not reasoned out.
+*Status:* confirmed.
+
 ## 5. Open questions
 
 1. Does the loop help at all, against the same budget without hypotheses and against random search? (B1)
-2. Do the instructions of 2026-11-15 change what the model does? One session on a corrected `trap` brief would show
-   whether it now asks why the cap is where it is.
+2. Do the instructions of 2026-11-15 change what the model does? One session says yes (s033, section 3); a few more
+   on `trap-2`, and the same sessions without the two paragraphs, would say how often.
 3. Should the final report have fields of its own for what limits the result and for the settings that made no
    difference? (They are asked for in the explanation.)
-4. The seed in the base briefs; the warm-up as a setting; a brief's task text that does not match its aim (`trap`).
+4. The warm-up as a setting. (The seed and the task text were settled on 2026-11-17: A5, A10.)
 5. Should the page say "not accepted" everywhere, and show how a hypothesis and the simulations of its test belong
    together outside the test's detail?

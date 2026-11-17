@@ -1,0 +1,2 @@
+session s037 (brief two-hosts-udp-demand-2): /home/chunguck.kim/project/sessions/s037
+stopped: session s037, simulation limit reached, 40 simulations, 5 turns, ledger /home/chunguck.kim/project/sessions/s037/ledger.jsonl

@@ -130,11 +130,17 @@ Object.assign(EV, {
   liveBanner() {
     const M = EV.M, row = EV.files.row || {}, e = EV.e, S = EV.s, now = EV.liveNow(), m = M.meta || {};
     if (!row.running) return EV.live.ran[M.id] && !EV.off ? `<div class="ev-card ev-bar ev-run ev-ended" id="live-bar" data-phase="ended"><span class="pill">ended</span> <b>The session ended${m.how ? ': ' + e(m.how) : ''}.</b> <span class="sm">${m.how === 'simulation limit reached' ? `It used all ${e(((M.brief || {}).limits || {}).simulations ?? 'the')} simulations the brief allows; the harness then gave it one last turn for its final report. ` : ''}${M.report ? 'Its final report is in “What it proposes”.' : 'It gave no final report.'}${M.report && !M.tests.some(T => !T.verdict) ? '' : ' A place that was never filled stays drawn empty.'}</span></div>` : '';
-    const t = M.turns[M.turns.length - 1], arrived = EV.liveArrived(), stop = row.stoppable ? `<button data-act="stop"${EV.stopping ? ' disabled' : ''}>${EV.stopping ? 'Stopping…' : 'Stop'}</button>` : '<span class="sm">started from a terminal: it is stopped there</span>';
+    const t = M.turns[M.turns.length - 1], arrived = EV.liveArrived(), owner = (EV.st || {}).owner, you = (EV.st || {}).you, mine = !!row.by && row.by === you;
+    // who started it, and who can stop it (the account that started it, or the owner of the page; the server says which, "can_stop"; a server that does not say: whoever
+    // sees it). Kept short, because a longer end would make the banner wrap when a note arrives, and the page would move: the one who started it sees the Stop button
+    // alone (who started it is in its box); anybody else sees "started by <account>", with the Stop button only for the owner
+    const who = row.by && !mine ? `<span class="sm" id="live-by" data-by-account="${e(row.by)}" title="${e(row.can_stop ? `Started by ${row.by}. As the owner of the page you can stop it.` : `Started by ${row.by}. Only ${row.by} or ${owner || 'the owner of the page'} can stop it.`)}">started by <b>${e(row.by)}</b></span> ` : '';
+    const stop = !row.stoppable ? `<span class="sm"${row.by ? ` id="live-by" data-by-account="${e(row.by)}" title="Started by ${e(row.by)}, from a terminal"` : ''}>started from a terminal: it is stopped there</span>`
+      : who + ((row.can_stop ?? true) ? `<button data-act="stop"${EV.stopping ? ' disabled' : ''}${mine ? ' title="You started this session"' : ''}>${EV.stopping ? 'Stopping…' : 'Stop'}</button>` : '');
     const left = t && t.left != null ? `${t.left} simulation${t.left === 1 ? '' : 's'} left` : '';
     return `<div class="ev-card ev-bar ev-run" id="live-bar" data-phase="${now ? now.phase : S.step != null ? 'replay' : 'closing'}"${now && now.turn ? ` data-turn="${now.turn}"` : ''}><span class="pill live">running</span>
       <span class="lv-say">${now ? `<span class="lv-step on lv-ico" data-by="${now.phase === 'reply' ? 'model' : now.phase === 'sims' ? 'simulator' : 'harness'}"><i class="sw"></i></span><b id="live-say">${EV.liveSay(now)}</b>${EV.liveTimer()}${EV.liveDoneHtml(now)}${EV.liveMay(now) ? ` <span id="live-may">${EV.liveMay(now)}</span>` : ''}` : `<b id="live-say">${S.step != null ? 'The replay is at an earlier step: the newest records are greyed.' : 'The final report is in: the harness is closing the session.'}</b>`}${left ? ` <span class="sm">· ${left}</span>` : ''}
-        ${arrived ? `<span class="sm" id="live-arrived">· just arrived: ${e(arrived)}</span>` : ''}</span>
+        ${arrived ? `<span class="sm" id="live-arrived" title="Just arrived: ${e(arrived)}">· just arrived: ${e(arrived)}</span>` : ''}</span>
       <span class="end">${stop}${EV.stopMsg ? ` <span class="bad">${e(EV.stopMsg)}</span>` : ''}</span></div>`;
   },
   // after the page is drawn: the banner's height (the detail pane stays below it), the marks of what just arrived, and, with "follow the work" on, the place of the work

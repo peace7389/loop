@@ -5,3 +5,4 @@ flowmon.xml
 __pycache__/
 .pre-change/
 checks/exports/
+checks/people.jsonl
