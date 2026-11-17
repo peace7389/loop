@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 486" width="960" height="486" role="img" aria-label="Two simulated computers and one link. The sender has a UDP source and a TCP source, a queue for each, and a scheduler that divides the link between them; the receiver measures what arrives. Below: the loop the AI works in, from a result to a guess of why, a hypothesis, what it needs to know, and simulations." font-family="system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M1 1.5 8.5 5 1 8.5" fill="none" stroke="context-stroke" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+  </defs>
+  <rect x="1" y="1" width="958" height="484" rx="18" fill="#fcfcfb" stroke="#dddcd6"/>
+
+  <!-- the two computers -->
+  <rect x="34" y="52" width="500" height="232" rx="14" fill="#f4f4f2" stroke="#dddcd6"/>
+  <rect x="716" y="52" width="210" height="232" rx="14" fill="#f4f4f2" stroke="#dddcd6"/>
+  <text x="52" y="78" font-size="15" font-weight="700" fill="#0b0b0b">Sender</text>
+  <text x="734" y="78" font-size="15" font-weight="700" fill="#0b0b0b">Receiver</text>
+  <text x="516" y="78" font-size="12" fill="#686762" text-anchor="end">simulated in ns-3</text>
+
+  <!-- UDP: source, queue -->
+  <rect x="56" y="100" width="118" height="46" rx="23" fill="#2a78d6"/>
+  <text x="115" y="128" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">UDP source</text>
+  <line x1="176" y1="123" x2="226" y2="123" stroke="#2a78d6" stroke-width="3" marker-end="url(#a)"/>
+  <g fill="#2a78d6"><rect x="234" y="108" width="14" height="30" rx="3"/><rect x="252" y="108" width="14" height="30" rx="3"/><rect x="270" y="108" width="14" height="30" rx="3"/><rect x="288" y="108" width="14" height="30" rx="3" opacity=".45"/><rect x="306" y="108" width="14" height="30" rx="3" opacity=".2"/></g>
+  <text x="277" y="158" font-size="12" fill="#52514e" text-anchor="middle">UDP queue</text>
+
+  <!-- TCP: source, queue -->
+  <rect x="56" y="196" width="118" height="46" rx="23" fill="#eb6834"/>
+  <text x="115" y="224" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle">TCP source</text>
+  <line x1="176" y1="219" x2="226" y2="219" stroke="#eb6834" stroke-width="3" marker-end="url(#a)"/>
+  <g fill="#eb6834"><rect x="234" y="204" width="14" height="30" rx="3"/><rect x="252" y="204" width="14" height="30" rx="3"/><rect x="270" y="204" width="14" height="30" rx="3" opacity=".45"/><rect x="288" y="204" width="14" height="30" rx="3" opacity=".2"/><rect x="306" y="204" width="14" height="30" rx="3" opacity=".2"/></g>
+  <text x="277" y="254" font-size="12" fill="#52514e" text-anchor="middle">TCP queue</text>
+
+  <!-- the scheduler: the two queues share one link; how it divides the link is not told to the AI -->
+  <path d="M328 123 C366 123 372 160 404 166" fill="none" stroke="#2a78d6" stroke-width="3"/>
+  <path d="M328 219 C366 219 372 182 404 176" fill="none" stroke="#eb6834" stroke-width="3"/>
+  <circle cx="436" cy="171" r="34" fill="#ffffff" stroke="#0b0b0b" stroke-width="2"/>
+  <text x="436" y="182" font-size="30" font-weight="700" fill="#0b0b0b" text-anchor="middle">?</text>
+  <text x="436" y="226" font-size="13" font-weight="700" fill="#0b0b0b" text-anchor="middle">scheduler</text>
+  <text x="436" y="243" font-size="12" fill="#686762" text-anchor="middle">its policy is not told to the AI</text>
+
+  <!-- the link -->
+  <line x1="472" y1="166" x2="748" y2="166" stroke="#2a78d6" stroke-width="5" stroke-linecap="round"/>
+  <line x1="472" y1="176" x2="748" y2="176" stroke="#eb6834" stroke-width="5" stroke-linecap="round"/>
+  <rect x="566" y="134" width="118" height="22" rx="11" fill="#fcfcfb" stroke="#dddcd6"/>
+  <text x="625" y="149.5" font-size="12.5" font-weight="700" fill="#0b0b0b" text-anchor="middle">one link · 1 Gbps</text>
+
+  <!-- the receiver: what is measured -->
+  <rect x="756" y="112" width="130" height="40" rx="10" fill="#ffffff" stroke="#2a78d6" stroke-width="2"/>
+  <text x="821" y="137" font-size="13.5" font-weight="700" fill="#2a78d6" text-anchor="middle">UDP arrives</text>
+  <rect x="756" y="190" width="130" height="40" rx="10" fill="#ffffff" stroke="#eb6834" stroke-width="2"/>
+  <text x="821" y="215" font-size="13.5" font-weight="700" fill="#eb6834" text-anchor="middle">TCP arrives</text>
+  <path d="M748 166 C754 166 750 132 756 132" fill="none" stroke="#2a78d6" stroke-width="3"/>
+  <path d="M748 176 C754 176 750 210 756 210" fill="none" stroke="#eb6834" stroke-width="3"/>
+  <text x="821" y="262" font-size="12" fill="#52514e" text-anchor="middle">measured: goodput, loss</text>
+
+  <!-- what the AI may change -->
+  <g fill="#6250d6" font-size="12.5" font-weight="700">
+    <text x="115" y="94" text-anchor="middle">✦ rate</text>
+    <text x="115" y="262" text-anchor="middle">✦ TCP type</text>
+    <text x="277" y="100" text-anchor="middle">✦ queue length</text>
+    <text x="436" y="128" text-anchor="middle">✦ ratio</text>
+  </g>
+  <text x="52" y="306" font-size="12.5" fill="#6250d6" font-weight="700">✦ a setting the AI may change</text>
+
+  <!-- the loop the AI works in -->
+  <text x="480" y="345" font-size="14" fill="#0b0b0b" text-anchor="middle" font-weight="700">An AI studies this system only through simulations, and has to say why.</text>
+  <g font-size="13" font-weight="700" text-anchor="middle">
+    <rect x="52" y="372" width="118" height="38" rx="19" fill="#1baf7a"/><text x="111" y="396" fill="#ffffff">a result</text>
+    <rect x="212" y="372" width="150" height="38" rx="19" fill="#6250d6"/><text x="287" y="396" fill="#ffffff">a guess of why</text>
+    <rect x="404" y="372" width="130" height="38" rx="19" fill="#6250d6"/><text x="469" y="396" fill="#ffffff">a hypothesis</text>
+    <rect x="572" y="372" width="178" height="38" rx="19" fill="#6250d6"/><text x="661" y="396" fill="#ffffff">what it needs to know</text>
+    <rect x="788" y="372" width="120" height="38" rx="19" fill="#1baf7a"/><text x="848" y="396" fill="#ffffff">simulations</text>
+  </g>
+  <g stroke="#52514e" stroke-width="2" fill="none">
+    <line x1="174" y1="391" x2="207" y2="391" marker-end="url(#a)"/><line x1="366" y1="391" x2="399" y2="391" marker-end="url(#a)"/><line x1="538" y1="391" x2="567" y2="391" marker-end="url(#a)"/><line x1="754" y1="391" x2="783" y2="391" marker-end="url(#a)"/>
+    <path d="M848 412 C848 446 111 446 111 414" marker-end="url(#a)"/>
+  </g>
+  <text x="480" y="466" font-size="12" fill="#686762" text-anchor="middle"><tspan fill="#6250d6" font-weight="700">violet</tspan>: written by the AI · <tspan fill="#1baf7a" font-weight="700">green</tspan>: measured by the simulator</text>
+</svg>

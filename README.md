@@ -1,5 +1,7 @@
 # Two hosts, one link: an AI hypothesis loop over an ns-3 simulation
 
+<p align="center"><img src="docs/two-hosts.svg" alt="Two simulated computers and one link: a UDP and a TCP source, a queue for each, a scheduler whose policy the AI is not told, and the loop the AI works in: a result, a guess of why, a hypothesis, what it needs to know, simulations." width="900"></p>
+
 A local language model is asked a networking question about a simulated system it cannot see inside. It works only
 through a ledger: hypothesis -> prediction -> experiment (with a decision rule stated first) -> evidence from the
 simulator -> verdict. The harness runs the experiments; a viewer shows what the numbers did and why the model chose
