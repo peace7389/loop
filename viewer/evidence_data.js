@@ -15,6 +15,8 @@ const EV_DEF = {  // the definitions, word for word; shown on hover wherever the
   'Simulation': 'One run of ns-3, the network simulator, with one set of knob values.',
   'Check': 'The harness applying a decision rule to the measured numbers: held or failed.',
   'Verdict': 'The model\'s judgment of a hypothesis after its check: supported, refuted or inconclusive.',
+  'Claim': 'A statement the final report rests on, with the records it cites as evidence. It is the model\'s own statement: no person has judged it yet.',
+  'Diagnosis': 'What the model concluded about how the system behaves: the claims of its final report whose role is "background".',
   'Final report': 'The model\'s answer: recommended settings, expected result, explanation, when it holds, when it breaks, and evidence for each claim.',
   'Operator': 'The person running the project; operator-only items are never shown to the model.',
   'Scheduling policy': 'How the sender\'s scheduler divides the link between the two flows; chosen by the operator and not told to the model.',

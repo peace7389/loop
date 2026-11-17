@@ -57,9 +57,11 @@ Object.assign(EV, {
   // (supports, background, limits), which the harness requires since READABLE_PAGE.md; a report recorded without roles
   // shows its claims in one list. A session without a final report says so here, with how it ended.
   repTxt: v => (Array.isArray(v) ? v.map(q => EV.e(q)).join(' · ') : EV.e(v ?? 'not recorded')),
-  ROLES: [['supports', 'because', 'reasons for the recommendation'], ['background', 'because', 'how the system behaves'], ['limits', 'but', 'when the recommendation would change']],
+  // a claim's role, the part of the argument it stands in, and what that part says. The role "background" (how the system behaves) is shown as the DIAGNOSIS: the
+  // word is the page's, for the reader (the operator's choice, 2026-11-15); the record's role keeps its name, and the AI is still told "background"
+  ROLES: [['background', 'diagnosis', 'say how the system behaves'], ['supports', 'because', 'give reasons for the recommendation'], ['limits', 'but', 'say when the recommendation would change']],
   claimBtn(q) { const S = EV.s, e = EV.e, n = q.evidence.filter(id => (EV.marks['rec:' + id] || {}).tick).length;
-    return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}" data-role="${q.role || ''}"><b>claim ${q.n}</b><span class="ct" data-own="model">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; },
+    return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}" data-role="${q.role || ''}"><b>claim ${q.n}</b><span class="ct" data-own="model" title="${e(q.text)}">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; },
   // the setting a recommended value stands for, in the page's words and without its unit: "ratio 0.5 → 0.30295"
   adjVal: (k, v) => TASK_VIEW._rate(String(v)).replace(/^Tcp/, ''),
   proposesCard() {
@@ -73,7 +75,7 @@ Object.assign(EV, {
     const R = EV.recParts(), X = EV.expRows(rep), kn = (M.brief && M.brief.knobs) || {}, g = (M.brief && M.brief.goal) || {}, lab = k => EV.label(k, (kn[k] || {}).meaning);
     // 1 · the aim, and who set it: the brief's goal in words when the operator gave one; the goal the AI states in its report when the brief left it open
     const aim = g.kind === 'given' ? `<p id="pr-aim" data-aim="given"><b>Find ${EV.aimWords(g) || 'not recorded'}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p><p class="sm lc4" id="ov-goal" data-own="model" title="The goal as the final report states it">${txt(rep.goal)}</p>`
-      : `<p id="pr-aim" data-aim="${g.kind === 'open' ? 'open' : ''}"><span id="ov-goal" class="lc4" data-own="model">${txt(rep.goal)}</span></p><p class="sm"><span class="st-by" data-by="model"><i class="sw"></i>${g.kind === 'open' ? 'chosen by the AI' : 'as the final report states it'}</span>${g.kind === 'open' ? ' · the brief left the aim open' : M.brief ? '' : ` · the brief: ${EV.nr}`}</p>`;
+      : `<p id="pr-aim" data-aim="${g.kind === 'open' ? 'open' : ''}"><span id="ov-goal" class="lc4" data-own="model">${txt(rep.goal)}</span></p><p class="sm"><span class="st-by" data-by="model"><i class="sw"></i>${g.kind === 'open' ? 'chosen by the AI' : 'as the final report states it'}</span>${g.kind === 'open' ? ` · the brief left the aim open, and the AI states its aim here, <b class="aim-end">at the end</b>` : M.brief ? '' : ` · the brief: ${EV.nr}`}</p>`;
     // 2 · the proposed adjustment: each recommended setting that differs, beside the value the session started from (the brief's default)
     const adj = !R ? EV.nr : R.text ? e(R.text) : `<p id="ov-rec" class="pr-adj" data-exact="1">${R.differ.map(([k, v]) => `<span class="rk" data-knob="${e(k)}">${lab(k)} <b>${k in kn ? e(EV.adjVal(k, kn[k].default)) + ' → ' : ''}${e(EV.adjVal(k, v))}</b></span>`).join('<span class="pr-sep">, </span>') || (R.known ? '<span class="sm">no setting differs from where the session started</span>' : EV.nr)}</p>
       ${R.known ? `<p class="sm" id="ov-def" data-exact="1">everything else unchanged${R.same.length || R.unnamed.length ? `: ${[...R.same.map(([k, v]) => `${EV.LABEL[k] || k} ${EV.setVal(k, v)}`), ...R.unnamed.map(k => `${EV.LABEL[k] || k} ${EV.setVal(k, kn[k].default)} (not named in the report)`)].map(e).join(' · ')}` : ''}</p>` : ''}`;
@@ -81,16 +83,18 @@ Object.assign(EV, {
     const left = X ? X.all.length - X.top.length : 0;
     const exp = !X ? `<p class="lc4">${e(String(rep.expected ?? 'not recorded'))}</p>` : `<table class="xr" id="ov-exp-top"><tbody>${X.top.map(X.row).join('')}</tbody></table>${left ? `<p class="sm" id="ov-exp-more"><a data-act="open" data-t="report" data-id="report">${left} more in the final report</a></p>` : ''}`;
     // 4 and 5 · because, and but: the claims by their role; a report recorded without roles: one list
-    const roles = M.claims.length > 0 && M.claims.every(q => q.role), of = r => M.claims.filter(q => q.role === r), group = ([r, , says]) => (of(r).length ? `<p class="pr-role sm" data-role="${r}">${says}</p><div class="claims">${of(r).map(EV.claimBtn).join('')}</div>` : '');
-    const counts = `<p class="sm" id="pr-counts">${EV.claimCounts(M.claims)}${S.claim ? ` · <button data-act="print" data-id="${S.claim}">print evidence sheet for claim ${S.claim}</button>` : ''}</p>`;
+    const roles = M.claims.length > 0 && M.claims.every(q => q.role), of = r => M.claims.filter(q => q.role === r), group = ([r, , says]) => (of(r).length ? `<p class="pr-role sm" data-role="${r}">${EV.term('Claim', 'claims')} that ${says}</p><div class="claims">${of(r).map(EV.claimBtn).join('')}</div>` : '');
+    const diag = roles && of('background').length ? EV.ROLES.filter(q => q[1] === 'diagnosis').map(group).join('') : '', nb = i => i + (diag ? 1 : 0);  // the diagnosis: a part of its own, before the reasons
+    // the line of the counts, and under it the print button, which is always there (greyed until a claim is chosen): choosing a claim changes no height
+    const counts = `<p class="sm" id="pr-counts">${EV.claimCounts(M.claims)}</p><p class="sm noprint" id="pr-print"><button data-act="print" data-id="${S.claim || ''}"${S.claim ? '' : ' disabled title="Choose a claim first"'}>print the evidence sheet${S.claim ? ` of claim ${S.claim}` : ' of a claim'}</button></p>`;
     const mis = EV.moments(M).report, when = `<div class="ov-when"><h4>Holds when</h4><p data-own="model">${txt(rep.holds_when)}</p><h4>Breaks when</h4><p data-own="model">${txt(rep.breaks_when)}</p></div>`;
     const because = !M.claims.length ? '<p class="sm">The report states no claims.</p>' : roles ? (EV.ROLES.filter(q => q[1] === 'because').map(group).join('') || '<p class="sm">No claim is given as a reason.</p>') : `<p class="sm" id="pr-noroles">This report was recorded before claims had roles: its claims in one list.</p><div class="claims">${M.claims.map(EV.claimBtn).join('')}</div>`;
     const but = `${roles ? EV.ROLES.filter(q => q[1] === 'but').map(group).join('') || '<p class="sm">No claim says when the recommendation would change.</p>' : ''}${when}`;
     const blk = (n, key, title, body) => `<div class="pr-b" data-pr="${key}"><h3><span class="st-n">${n}</span>${title}</h3>${body}</div>`;
     return `<div class="ev-card" id="s-proposes">${head}<div id="s-report" data-by="model">
         ${blk(1, 'aim', 'The aim', aim)}${blk(2, 'adjust', 'The proposed adjustment', adj)}${blk(3, 'expected', 'The expected result', exp)}
-        ${blk(4, 'because', roles || !M.claims.length ? 'Because' : 'Its claims', because + counts)}${blk(5, 'but', 'But', but)}
-        <details class="pr-b" data-pr="explanation" id="pr-expl"${S.more || S.full ? ' open' : ''}><summary><h3 style="display:inline"><span class="st-n">6</span>The explanation</h3> <span class="sm">folded · the model's own words</span></summary><div id="ov-expl" data-own="model">${txt(rep.explanation)}</div></details>
+        ${diag ? `<div class="pr-b" data-pr="diagnosis"><h3><span class="st-n">4</span>${EV.term('Diagnosis', 'Its diagnosis')}</h3>${diag}</div>` : ''}${blk(nb(4), 'because', roles || !M.claims.length ? 'Because' : 'Its claims', because + counts)}${blk(nb(5), 'but', 'But', but)}
+        <details class="pr-b" data-pr="explanation" id="pr-expl"${S.more || S.full ? ' open' : ''}><summary><h3 style="display:inline"><span class="st-n">${nb(6)}</span>The explanation</h3> <span class="sm">folded · the model's own words</span></summary><div id="ov-expl" data-own="model">${txt(rep.explanation)}</div></details>
         ${mis ? `<p class="sm" data-step="${mis.step}">${EV.warn('a number in the report differs from its measurement', `It wrote “${mis.rows[0].written}”; measured ${mis.rows[0].measured}`)} · <a data-act="open" data-t="report" data-id="report">the report's numbers against the measurements</a></p>` : ''}</div>${open}${EV.shareBar()}</div>`;
   },
 
@@ -101,6 +105,7 @@ Object.assign(EV, {
         <div><h3>Who produced it</h3>${EV.legend()}<h3>The turn loop</h3>${EV.turnLoop()}</div></div>
       <h3>The words</h3><table><tbody>${Object.entries(EV_DEF).map(([k, v]) => `<tr><td style="white-space:nowrap"><b>${EV.e(k)}</b></td><td>${EV.e(v)}</td></tr>`).join('')}</tbody></table>
       <h3>Using the page</h3><ul class="sm" id="how-use" style="margin:0;padding-left:18px">
+        <li>A record's name is a letter and a number: <b>H</b> hypothesis, <b>X</b> experiment, <b>S</b> simulation, <b>E</b> result table, <b>C</b> check, <b>V</b> verdict, <b>N</b> note of the harness, <b>Q</b> request to a tool, <b>T</b> tool result, <b>R</b> final report. The number is its order in the session.</li>
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
         <li>A few clicks do move the page. A turn's name in “The session at a glance” brings the notebook to that turn. A row of “What it needed to find out” brings its notebook card into view.</li>
         <li>A box of “How a session is built” goes to its part of the page. So does a line of “How it worked as a researcher” that names a section. The guided walk goes from section to section.</li>

@@ -100,11 +100,11 @@ Object.assign(EV, {
       return `<tr data-k="${e(kn ? V.key(kn) : fx ? V.key(fx) : '')}"><td class="oc-k">${e(k)}</td><td class="oc-v"><span class="oc-val"${kn ? ' data-knob="1"' : ''}>${word}</span>${note ? ` <span class="sm oc-note">· ${note}</span>` : ''}</td></tr>`; }).join('');
     // A part's card: its name with its ns-3 class on a chip; where it stands, small; then its rows, the NAME of each small and grey on a shaded ground, its VALUE
     // dark and heavy beside it, a note about the value (who decides it, its range) small after it; last, what is measured here, as a note.
-    const ms = o.measured || [], names = ms.map(k => TH_DATA.PLAIN[k] || k), measured = !ms.length ? '' : sim && sim.metrics ? `<p class="sm oc-m">Measured here in ${EV.link(sim.id)}: ${ms.map((k, i) => `${e(names[i])} <b>${e(EV.val(k, sim.metrics[k]))}</b>`).join(' · ')}</p>`
-      : `<p class="sm oc-m">Measured here in every simulation: <b>${e(names.join(', '))}</b>. Open a simulation and its values appear here.</p>`;
+    const ms = o.measured || [], names = ms.map(k => TH_DATA.PLAIN[k] || k), measured = !ms.length ? '' : sim && sim.metrics ? `<tr class="oc-meas" data-k=""><td class="oc-k">Measured here</td><td class="oc-v">${ms.map((k, i) => `<span class="oc-val">${e(names[i])} ${e(EV.val(k, sim.metrics[k]))}</span>`).join(' · ')} <span class="sm oc-note">· in ${EV.link(sim.id)}</span></td></tr>`
+      : `<tr class="oc-meas" data-k=""><td class="oc-k">Measured here</td><td class="oc-v"><span class="oc-val">${e(names.join(', '))}</span> <span class="sm oc-note">· in every simulation: open one and its value stands here</span></td></tr>`;  // a row like the others: its name, then its value
     return `<p class="oc-h"><b>${e(o.name)}</b><span class="oc-cls">ns-3 <code>${e(EV.sysFill(o.cls, V.v))}</code></span></p>
       <p class="sm oc-where">${e(f.where)} · ${o.flow === 'udp' ? '<i class="sw" style="background:var(--series-1)"></i>handles UDP' : o.flow === 'tcp' ? '<i class="sw" style="background:var(--series-2)"></i>handles TCP' : id === 'link' ? 'carries both flows' : id.startsWith('around') ? 'the same for both flows' : 'shared by both flows'}${f.role ? ' · ' + e(f.role) : ''}</p>
-      <table class="oc-t" data-exact="1"><tbody>${rows}</tbody></table>${measured}`;
+      <table class="oc-t" data-exact="1"><tbody>${rows}${measured}</tbody></table>`;
   },
 });
 EV.act = Object.assign(EV.act || {}, {

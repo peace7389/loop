@@ -47,20 +47,68 @@ Object.assign(EV, {
     if (r.type === 'simulation') return `“${e(b.label)}” ${e(Object.entries(b.params || {}).map(([k, v]) => k + ' ' + v).join(', ').slice(0, 140))}`;
     return e(r.type);
   },
+  // ---- the final report in full, in the detail pane. The same parts, in the same order and under the same names as "What it proposes" on the page (the aim,
+  // the proposed adjustment, the expected result, its diagnosis, because, but, the explanation), each in a box of its own; here nothing is cut. Formats, one
+  // each: a setting or a measure is a row "name | value" (the name plain, the value bold, written as everywhere else on the page: "Bbr", "10 s", "83.81 %");
+  // the AI's own sentences stand one sentence a line, their special terms set off (EV.hl); a claim is a card: its number, what it cites as marks, its sentence,
+  // then one row for each record it cites (the record's link, what it is, its result, and the reviewer's tick and note at the right).
+  // a long text of the AI as lines, one sentence each (the words and their order are not changed; a list stays a list)
+  repLines(v) { const cut = t => String(t).split(/(?<=[a-z0-9)%\]][.!?])\s+(?=[A-Z(])/).reduce((o, q) => { if (o.length && /\b(?:vs|e\.g|i\.e|approx|etc|cf|resp)\.$/i.test(o[o.length - 1])) o[o.length - 1] += ' ' + q; else o.push(q); return o; }, []);
+    if (v == null || v === '') return '<p class="mut">not recorded</p>';
+    return Array.isArray(v) ? `<ul class="rp-list" data-own="model">${v.map(q => `<li>${EV.hl(q)}</li>`).join('')}</ul>` : `<div class="rp-text" data-own="model">${cut(v).map(q => `<span class="rp-s">${EV.hl(q)}</span>`).join(' ')}</div>`; },
+  // one cited record as a row: [what it is, its result as a badge, labelled lines under it]
+  evRow(id) {
+    const M = EV.M, r = M.byId[id], e = EV.e, b = r && r.body || {}, kv = (k, v) => (v ? `<div class="rp-kv"><span class="rp-k">${k}</span><div class="rp-v lc2">${v}</div></div>` : '');
+    let what = '', res = '', more = '';
+    if (!r) what = `<span class="bad">${e(id)} is not in the ledger</span>`;
+    else if (r.type === 'check') { const T = M.tests.find(q => q.check && q.check.id === id), c = M.checks.find(q => q.id === id) || { result: b.result };
+      what = `check of ${e(b.for)}`; res = EV.checkRes(c);
+      more = T ? kv('Rule', EV.ruleRead(T)) + kv('Measured', EV.checkRead(T)) : kv('Rule', `<code>${e(b.decision_rule || b.rule)}</code>`) + kv('Measured', e(b.with_numbers)); }
+    else if (r.type === 'verdict') { what = `verdict on ${e(b.for)}`; res = EV.verdictRes(b.result); more = kv('Because', b.because ? `<span data-own="model" title="${e(b.because)}">${EV.hl(b.because)}</span>` : ''); }
+    else if (r.type === 'evidence') { const n = (b.lines || []).length, x = b.experiment || r.parent; what = `result table of ${e(x)}`; res = `<span class="sm">${n} simulation${n === 1 ? '' : 's'}</span>`; }
+    else if (r.type === 'simulation') { what = `simulation “${e(b.label)}”`; more = kv('Settings', `<span data-exact="1">${Object.entries(b.params || {}).map(([k, v]) => `${e(EV.LABEL[k] || k)} <b>${e(EV.setVal(k, v))}</b>`).join(' · ')}</span>`); }
+    else what = e(r.type);
+    return `<div class="rp-ev" data-ev="${e(id)}"><span class="rp-id">${EV.link(id)}</span><div class="rp-what"><span class="rp-w">${what}</span>${res ? ` <span class="rp-res">${res}</span>` : ''}${more}</div><div class="rp-rev noprint">${EV.reviewBox('rec:' + id)}</div></div>`;
+  },
   reportBody() {
-    const M = EV.M, e = EV.e, rep = M.report, m = M.meta || {};
+    const M = EV.M, S = EV.s, e = EV.e, rep = M.report, m = M.meta || {};
     if (!rep) return `<h2>${EV_ICON.report} ${EV.term('Final report', 'Final report')}</h2><p class="sm">${EV.nr}: ${M.ended ? 'the session ended without one' + (m.how ? ` (${e(m.how)})` : '') : 'the session is still running'}.</p>`;
-    const kv = o => (o && typeof o === 'object' ? `<table><tbody>${Object.entries(o).map(([k, v]) => `<tr><td>${e(TH_DATA.KNOB[k] || TH_DATA.PLAIN[k] || k)}</td><td class="num">${e(EV.val(k, v))}</td></tr>`).join('')}</tbody></table>` : `<p>${e(o ?? 'not recorded')}</p>`);
-    const txt = v => (Array.isArray(v) ? `<ul style="margin:0;padding-left:18px">${v.map(q => `<li>${e(q)}</li>`).join('')}</ul>` : `<p>${e(v ?? 'not recorded')}</p>`);
+    const kn = (M.brief && M.brief.knobs) || {}, g = (M.brief && M.brief.goal) || {}, rec = rep.recommendation, X = EV.expRows(rep), lines = EV.repLines;
+    const same = (a, b) => (typeof a === 'number' || typeof b === 'number' ? Number(a) === Number(b) : EV.knNum(a) === EV.knNum(b) || String(a) === String(b));
+    // a block is written as [key, title, body, note, class]; they are numbered in the order shown, once all are known
+    const blk = (...q) => q, box = ([key, title, body, note, cls], i) => `<div class="rp-b${cls ? ' ' + cls : ''}" data-rp="${key}"><h3><span class="st-n">${i + 1}</span>${title}${note ? ` <small>${note}</small>` : ''}</h3>${body}</div>`;
+    // 1 · the aim, and who set it
+    const by = (who, t) => `<span class="st-by" data-by="${who}"><i class="sw"></i>${t}</span>`;
+    const aim = g.kind === 'given' ? `<p data-aim="given"><b>Find ${EV.aimWords(g) || 'not recorded'}.</b> ${by('operator', 'set by the operator')}</p><div class="rp-kv"><span class="rp-k">As the AI states it</span><div class="rp-v">${lines(rep.goal)}</div></div>`
+      : `${lines(rep.goal)}<p class="sm">${by('model', g.kind === 'open' ? 'chosen by the AI' : 'as the final report states it')}${g.kind === 'open' ? ` · the brief left the aim open, and the AI states its aim here, <b class="aim-end">at the end</b>` : ''}</p>`;
+    // 2 · the proposed adjustment: every setting the AI may change, the value the session started from beside the one it recommends; a changed one is set off
+    const keys = rec && typeof rec === 'object' ? [...EV.SET_ORDER.filter(k => k in kn || k in rec), ...Object.keys(rec).filter(k => !EV.SET_ORDER.includes(k))] : [];
+    const adjRow = k => { const has = k in rec, was = k in kn ? EV.setVal(k, kn[k].default) : null, chg = has && (!(k in kn) || !same(rec[k], kn[k].default));
+      return `<tr data-knob="${e(k)}" data-chg="${chg ? 1 : 0}"><td class="rp-n">${EV.label(k, (kn[k] || {}).meaning)}</td><td class="rp-was">${was == null ? '<span class="mut">–</span>' : e(was)}</td><td class="rp-arrow">${chg ? '→' : ''}</td><td class="rp-now">${!has ? '<span class="mut" title="The report names no value for this setting: it stays as at the start">not named</span>' : chg ? `<b>${e(EV.setVal(k, rec[k]))}</b>` : '<span class="mut">unchanged</span>'}</td></tr>`; };
+    const nchg = keys.filter(k => k in rec && (!(k in kn) || !same(rec[k], kn[k].default))).length;
+    const adj = rec == null ? '<p class="mut">not recorded</p>' : typeof rec !== 'object' ? lines(String(rec))
+      : `<table class="rp-t rp-adj" data-exact="1"><thead><tr><th>setting</th><th>at the start</th><th></th><th>it recommends</th></tr></thead><tbody>${keys.map(adjRow).join('')}</tbody></table>`;
+    // 3 · the expected result: every measure it names; the two that only repeat a setting stand last, lighter
+    const rpt = Object.entries(typeof rep.expected === 'object' && rep.expected || {}).filter(([k]) => ['link_rate_bps', 'weight_udp'].includes(k));
+    const exp = !X ? lines(rep.expected) : `<table class="rp-t rp-exp"><thead><tr><th>measure</th><th class="num">it expects</th></tr></thead><tbody>${X.all.map(X.row).join('')}${rpt.map(([k, v]) => `<tr data-k="${e(k)}" class="rp-rpt" title="This only repeats a setting"><td>${e(TH_DATA.PLAIN[k] || k)}</td><td class="num">${EV.v4(k, v)}</td></tr>`).join('')}</tbody></table>`;
+    // 4 to 6 · the claims by their part in the argument; a report recorded without roles: one list
+    const claim = c => `<div class="rp-claim${S.claim === c.n ? ' on' : ''}" data-claim="${c.n}" data-role="${e(c.role || '')}"><div class="rp-ch"><b class="rp-cn">claim ${c.n}</b><span class="rp-cm sm">${EV.claimMarks(c, EV.seen)}</span><button class="cl noprint" data-act="print" data-id="${c.n}" title="Print the evidence sheet of claim ${c.n}: everything it cites, in full, with the reviewer's marks">print its evidence sheet</button></div>
+        <p class="rp-ct" data-own="model">${EV.hl(c.text)}</p>
+        <div class="rp-evs">${c.evidence.length ? `<p class="rp-evh sm">It cites ${c.evidence.length} record${c.evidence.length === 1 ? '' : 's'}</p>${c.evidence.map(EV.evRow).join('')}` : '<p class="sm mut">It cites nothing.</p>'}</div></div>`;
+    const roles = M.claims.length > 0 && M.claims.every(q => q.role), of = r => M.claims.filter(q => q.role === r), says = r => EV.ROLES.find(q => q[0] === r)[2];
+    const group = (r, none) => (of(r).length ? of(r).map(claim).join('') : `<p class="sm mut">${none}</p>`);
+    const when = `<div class="rp-when"><div><h4>Holds when</h4>${lines(rep.holds_when)}</div><div><h4>Breaks when</h4>${lines(rep.breaks_when)}</div></div>`;
+    const claims = !M.claims.length ? [blk('claims', 'Its claims', '<p class="sm mut">The report states no claims.</p>'), blk('but', 'But', when)]
+      : roles ? [...(of('background').length ? [blk('diagnosis', EV.term('Diagnosis', 'Its diagnosis'), group('background', ''), `${EV.term('Claim', 'claims')} that ${says('background')}`)] : []),
+          blk('because', 'Because', group('supports', 'No claim is given as a reason.'), `claims that ${says('supports')}`), blk('but', 'But', group('limits', 'No claim says when the recommendation would change.') + when, `claims that ${says('limits')}`)]
+        : [blk('claims', 'Its claims', M.claims.map(claim).join(''), 'recorded before claims had roles'), blk('but', 'But', when)];
     const all = [rep.explanation, rep.holds_when, rep.breaks_when, ...(rep.claims || []).map(c => c.text)].flat().filter(Boolean).join('\n');
-    return `<h2>${EV_ICON.report} ${EV.term('Final report', 'Final report')} <small>turn ${M.repRec ? M.repRec.turn : EV.nr} · ${EV.link((M.repRec || {}).id || '')}</small></h2>
-      <div class="ev-top"><div><h3>Recommendation</h3>${kv(rep.recommendation)}</div><div><h3>Expected performance</h3>${kv(rep.expected)}</div></div>
-      <h3>Goal, as it states it</h3>${txt(rep.goal)}<h3>Explanation</h3>${txt(rep.explanation)}<h3>Holds when</h3>${txt(rep.holds_when)}<h3>Breaks when</h3>${txt(rep.breaks_when)}
-      ${rep.open_questions ? `<h3>Open questions</h3>${txt(rep.open_questions)}` : ''}
-      <h3>The report's numbers against the measurements</h3>${EV.numCheck(all, M.sims) || '<p class="sm">no number in the report names or equals a measurement</p>'}
-      <h3>Claims and their evidence</h3>${M.claims.map(c => `<div class="who" data-by="model"><p><b>claim ${c.n}</b> ${e(c.text)} <span class="sm">${EV.claimMarks(c, EV.seen)}</span></p>
-        ${c.evidence.map(id => `<div class="sm" style="margin:3px 0 0 8px">${EV.link(id)} ${EV.evLine(id)}${EV.reviewBox('rec:' + id)}</div>`).join('') || '<p class="sm">cites nothing</p>'}
-        <p class="sm"><button data-act="print" data-id="${c.n}">print the evidence sheet for claim ${c.n}</button></p></div>`).join('') || '<p class="sm">The report states no claims.</p>'}`;
+    const head = `<h2>${EV_ICON.report} ${EV.term('Final report', 'Final report')} <small>turn ${M.repRec ? M.repRec.turn : EV.nr} · ${EV.link((M.repRec || {}).id || '')}</small></h2>
+      <p class="sm rp-sum" data-exact="1">${typeof rec === 'object' && rec ? `<span class="rp-chip"><b>${nchg}</b> of ${keys.length} settings changed</span>` : ''}${X ? `<span class="rp-chip"><b>${X.all.length + rpt.length}</b> measures expected</span>` : ''}<span class="rp-chip"><b>${M.claims.length}</b> claim${M.claims.length === 1 ? '' : 's'}${M.claims.length ? ': ' + EV.CLAIM_KINDS.map(([k, t]) => [M.claims.filter(q => q.kind === k).length, t]).filter(q => q[0]).map(([c, t]) => `${c} ${t}`).join(', ') : ''}</span></p>`;
+    const B = [blk('aim', 'The aim', aim), blk('adjust', 'The proposed adjustment', adj), blk('expected', 'The expected result', exp), ...claims, blk('explanation', 'The explanation', lines(rep.explanation), 'in its own words'),
+      ...(rep.open_questions ? [blk('open', 'Open questions', lines(rep.open_questions))] : []),
+      blk('numbers', 'Its numbers against the measurements', EV.numCheck(all, M.sims) || '<p class="sm mut">No number in the report names or equals a measurement.</p>', 'compared by the page', 'rp-page')].map(box);
+    return `<div class="rp" id="rp">${head}${B[0]}<div class="rp-two">${B[1]}${B[2]}</div>${B.slice(3).join('')}</div>`;
   },
 
   // the evidence sheet of one claim: everything it cites, in full, with the reviewer's marks; printed on its own

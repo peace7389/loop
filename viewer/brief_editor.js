@@ -57,6 +57,7 @@ const BRIEF_EDITOR = {
   CSS: `
 .be label { display: block; font-size: var(--f-text); font-weight: 600; } .be small { display: block; font-size: var(--f-sec); font-weight: 400; color: var(--text-muted); margin: 1px 0 4px; }
 .be input[type=text], .be input[type=number], .be select, .be textarea { width: 100%; padding: 4px 8px; font-weight: 400; } .be textarea { resize: vertical; line-height: 1.45; }
+.be label.be-none { display: flex; align-items: flex-start; gap: 7px; margin-top: 8px; cursor: pointer; } .be label.be-none input { width: auto; margin: 3px 0 0; flex: none; } .be label.be-none small { margin-bottom: 0; }
 .be-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px 22px; align-items: start; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-0); padding: 9px 13px 11px; }
 .be-row { display: grid; grid-template-columns: 150px 250px minmax(0, 1fr); gap: 8px 14px; align-items: start; padding: 8px 0; border-top: 1px solid var(--grid); }
 .be-row code { display: block; font-size: var(--f-sec); color: var(--text-muted); }
@@ -140,6 +141,18 @@ const BRIEF_EDITOR = {
   // which of a setting's fields count in its present state (a hidden field cannot be "changed")
   live(k, x) { const f = BRIEF_EDITOR.s.set[k], q = BRIEF_EDITOR.SETTINGS.find(z => z.k === k); return f.off ? false : f.fixed ? x === 'value' : x === 'choices' ? q.kind === 'choice' : x === 'min' || x === 'max' ? q.kind !== 'choice' : x === 'step' ? !!q.step && q.kind !== 'choice' : x !== 'value'; },
 
+  // The list "Start from a saved brief": the set-up of a session when the page was opened from one, then the saved briefs. An empty set-up is a choice of another
+  // kind and has a box of its own under the list (#be-none): ticked, the list is off and says so; unticked, the form is filled again from the brief it held before.
+  openOpts(briefs) { const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e; return (s.none ? '<option selected value="">not used: the set-up starts empty</option>' : s.from ? `<option selected value="">the set-up of session ${e(s.from)}</option>` : '') + briefs.map(b => `<option value="${e(b)}"${!s.none && b === s.baseId ? ' selected' : ''}>${e(b)}${briefAsks(b)}</option>`).join(''); },
+  // An empty set-up: no saved brief behind the form. The texts are empty, the aim is open, nothing is left to the AI yet, and every setting stands fixed at the value the
+  // first brief of the project gives it (B.blankOf: its system, its knobs' defaults through B.template, its limits), so that the form is one a session could run.
+  blank() {
+    const B = BRIEF_EDITOR, t = B.blankOf || {}, view = B.s ? [B.s.list, B.s.obj] : [];
+    if (B.s && B.s.baseId) B.prev = B.s.baseId;   // the brief to go back to when the box is unticked
+    B.s = { ...B.fromBrief({ task: '', description: '', system: { ...(t.system || {}) }, knobs: {}, goal: { kind: 'open' }, limits: { ...(t.limits || {}) } }), id: B.s ? B.s.id : '', baseId: '', none: true, from: null, msg: null, busy: '', list: view[0], obj: view[1] };
+    B.s.base = ''; B.s.orig = B.fields(); B.s.origRun = { policy: 'share', budget: '', draft: 'on', tokens: '', temp: '', baseline: true };
+    B.draw();
+  },
   async open(id) {
     const B = BRIEF_EDITOR, b = await B.fetchBrief(id);
     if (!b) { B.s.msg = { bad: true, lines: [`Cannot read briefs/${id}.json.`] }; return B.draw(); }
@@ -181,7 +194,7 @@ const BRIEF_EDITOR = {
       host.appendChild(B.node);
       B.node.innerHTML = '<p class="sm">Loading the briefs…</p>';
       const first = ((ctx.st || {}).briefs || [])[0];
-      const [t, man] = await Promise.all([B.fetchBrief('two-hosts-open'), B.fetchJson('../harness/manifest.json')]); B.template = (t && t.knobs) || {}; B.man = man;   // ranges offered when a fixed setting is switched to a knob; the measures and tools the AI is given
+      const [t, man] = await Promise.all([B.fetchBrief('two-hosts-open'), B.fetchJson('../harness/manifest.json')]); B.template = (t && t.knobs) || {}; B.blankOf = t; B.man = man;   // ranges offered when a fixed setting is switched to a knob; the measures and tools the AI is given
       B.s = { baseId: '', msg: null, busy: '', id: '' }; B.was = ctx.from || null;
       if (ctx.from) await B.openFrom(ctx.from); else if (first) await B.open(((ctx.st || {}).briefs || []).includes('two-hosts-open') ? 'two-hosts-open' : first); else B.draw();
       return;
@@ -444,7 +457,8 @@ const BRIEF_EDITOR = {
         ${field('temperature', `<input type="number" min="0" max="2" step="0.1" data-ch="nw" data-k="temp" value="${e(nw.temp)}" placeholder="0.3">`, 'default: 0.3', 'temp')}
         ${field('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on · every knob at its default, by the harness')}</div>`;
     const blk = (i, body, cls) => EV.setBlock(i, body, { says: true, cls });
-    const top = `<div class="be-top"><label>Start from a saved brief<small>its content fills the seven blocks</small><select id="be-open">${s.from ? `<option selected value="">the set-up of session ${e(s.from)}</option>` : ''}${briefs.map(b => `<option value="${e(b)}"${b === s.baseId ? ' selected' : ''}>${e(b)}${briefAsks(b)}</option>`).join('')}</select></label>
+    const top = `<div class="be-top"><div><label>Start from a saved brief<small>its content fills the seven blocks</small><select id="be-open"${s.none ? ' disabled' : ''}>${B.openOpts(briefs)}</select></label>
+        <label class="be-none"><input type="checkbox" id="be-none"${s.none ? ' checked' : ''}><span>or start from an empty set-up<small>no saved brief: you write the task and the description, every setting starts fixed</small></span></label></div>
         <label>Name of the new brief<small>needed once the form differs from every saved brief · letters, digits, - and _</small>${inp('id', s.id, 'e.g. two-hosts-short-queue')}${B.why('id')}</label>
         <div><label>Variations of ${e(s.baseId || s.fromBrief || 'this brief')}</label><small>each makes one change in the form and proposes a name</small><div class="be-var" id="be-var">${B.VARIATIONS.map(([k, name, , what, no]) => `<button data-var="${k}"${no(s) ? ` disabled title="${e(no(s))}"` : ` title="${e(what)}"`}>${e(name)}</button>`).join('')}</div></div></div>`;
     B.node.innerHTML = `${top}<div class="st" id="st-blocks">${blk(0, b1, 'st-wide')}${blk(1, b2)}${blk(2, b3)}${blk(3, b4, 'st-told')}<div class="st-row st-low">${blk(4, b5)}${blk(5, b6)}${blk(6, b7)}</div></div>
@@ -459,7 +473,7 @@ const BRIEF_EDITOR = {
     const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e, st = B.ctx.st || {}, $ = id => B.node.querySelector('#' + id), nw = EV.nw;
     if (!s || !s.set || !$('be-save')) return;
     const briefs = st.briefs || [];
-    if (briefs.map(b => b + briefAsks(b)).join('|') !== B.list && document.activeElement !== $('be-open')) { B.list = briefs.map(b => b + briefAsks(b)).join('|'); $('be-open').innerHTML = (s.from ? `<option selected value="">the set-up of session ${e(s.from)}</option>` : '') + briefs.map(b => `<option value="${e(b)}"${b === s.baseId ? ' selected' : ''}>${e(b)}${briefAsks(b)}</option>`).join(''); }
+    if (briefs.map(b => b + briefAsks(b)).join('|') !== B.list && document.activeElement !== $('be-open')) { B.list = briefs.map(b => b + briefAsks(b)).join('|'); $('be-open').innerHTML = B.openOpts(briefs); }
     const svg = $('be-svg'); if (svg) svg.innerHTML = B.picSvg();  // the picture follows the form as it is typed
     B.confPaint();  // and so do the cards of the whole configuration under it
     B.barPaint();   // and the bars of block 2
@@ -489,7 +503,7 @@ const BRIEF_EDITOR = {
     $('be-save').disabled = !!s.busy || !id || !!keys.length || same; $('be-save').textContent = s.busy === 'save' ? 'Saving…' : 'Save as new brief';
     $('be-start').disabled = !!s.busy || !!keys.length || (!same && !id); $('be-start').textContent = s.busy === 'start' ? 'Starting…' : same ? `Start the session on ${s.baseId}` : id ? `Save as ${id} and start the session` : 'Start the session';
     $('be-state').innerHTML = keys.length ? `<span class="warnc">${keys.length} value${keys.length === 1 ? '' : 's'} cannot be used: see the reason beside ${keys.length === 1 ? 'it' : 'each'}, above.</span>`
-      : `${s.from ? `Filled from session ${e(s.from)} (brief ${e(s.fromBrief)}): <span id="be-changed" data-n="${n}" class="${n ? 'chg-note' : ''}">${n ? `${n} value${n === 1 ? '' : 's'} changed, marked with a dark edge` : 'every value is that session\'s'}</span>. ` : same ? `The form is the saved brief ${e(s.baseId)}. ` : `The form differs from ${e(s.baseId || 'every saved brief')}<span id="be-changed" data-n="${n}"> (${n} value${n === 1 ? '' : 's'} changed, marked with a dark edge)</span>. `}
+      : `${s.from ? `Filled from session ${e(s.from)} (brief ${e(s.fromBrief)}): <span id="be-changed" data-n="${n}" class="${n ? 'chg-note' : ''}">${n ? `${n} value${n === 1 ? '' : 's'} changed, marked with a dark edge` : 'every value is that session\'s'}</span>. ` : same ? `The form is the saved brief ${e(s.baseId)}. ` : s.none ? `The form started empty: no saved brief stands behind it<span id="be-changed" data-n="${n}">${n ? ` (${n} value${n === 1 ? '' : 's'} filled in or changed since, marked with a dark edge)` : ''}</span>. ` : `The form differs from ${e(s.baseId || 'every saved brief')}<span id="be-changed" data-n="${n}"> (${n} value${n === 1 ? '' : 's'} changed, marked with a dark edge)</span>. `}
         ${same ? '' : id ? `It will be saved as <span data-own="operator">briefs/${e(id)}.json</span>; a saved brief is never overwritten.` : 'Give the new brief a name: a saved brief is never overwritten.'} ${running} session${running === 1 ? ' is' : 's are'} running now.`;
     $('be-msg').innerHTML = s.msg ? `<div class="be-msg ${s.msg.bad ? 'bad' : 'ok'}">${s.msg.lines.length > 1 ? `${e(s.msg.lines[0])}<ul>${s.msg.lines.slice(1).map(l => `<li>${e(l)}</li>`).join('')}</ul>` : e(s.msg.lines[0])}</div>` : '';
   },
@@ -497,6 +511,13 @@ const BRIEF_EDITOR = {
   onInput(ev) {
     const B = BRIEF_EDITOR, t = ev.target, f = t.dataset && t.dataset.f;
     if (t.id === 'be-open') { if (ev.type === 'change' && t.value) { B.was = null; if (B.ctx.go && B.s.from) B.ctx.go({ from: null }); B.open(t.value); } return; }
+    if (t.id === 'be-none') {
+      if (ev.type !== 'change') return;
+      const briefs = (B.ctx.st || {}).briefs || [], back = briefs.includes(B.prev) ? B.prev : briefs.includes('two-hosts-open') ? 'two-hosts-open' : briefs[0];
+      B.was = null; if (B.ctx.go && B.s.from) B.ctx.go({ from: null });
+      if (t.checked) B.blank(); else if (back) B.open(back);
+      return;
+    }
     if (t.dataset && t.dataset.aim) { if (ev.type !== 'change') return; const s = B.s, a = B.AIMS.find(q => q[0] === t.dataset.aim);  // the aim: a ready-made one fills the target and the conditions
       if (t.dataset.aim === 'open') s.goal = 'open'; else { s.goal = 'given'; s.custom = !a; if (a) { s.measure = a[2]; s.direction = a[3]; s.conditions = a[4].join('\n'); } }
       return B.draw(); }

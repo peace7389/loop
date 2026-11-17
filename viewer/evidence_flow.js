@@ -29,6 +29,7 @@ Object.assign(EV, {
   viewTest(T) { return `<div class="t-flow" data-test="${EV.e(T.id)}"></div>`; },
   flowFit() {
     document.querySelectorAll('#ev .t-flow').forEach(el => { const T = EV.M.testById[el.dataset.test];
+      if (!el.clientWidth) return;   // inside a fold that is closed: drawn when the fold is opened
       for (let i = 0; T && i < 2 && Number(el.dataset.w) !== el.clientWidth; i++) { el.dataset.w = el.clientWidth; el.innerHTML = EV.flowSvg(T, el.clientWidth); } });  // twice: the chart's height can bring the pane a scroll bar
   },
   flowSvg(T, W) {

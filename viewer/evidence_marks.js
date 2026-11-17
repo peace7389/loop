@@ -28,10 +28,21 @@ Object.assign(EV, {
   rests: (v, short) => (v && v.voidOnly ? ` <span class="rs mut" data-rests="void" title="${EV.RESTS}: every check this verdict could rest on compared a simulation with itself">${short ? EV.gkey('void') : '· ' + EV.RESTS}</span>` : ''),
   tally: (held, failed, voids) => `<span class="rs tally" data-held="${held}" data-failed="${failed}" data-void="${voids || 0}">${EV.gkey('held')}${held}</span> <span class="rs">${EV.gkey('failed')}${failed}</span>${voids ? ` <span class="rs" title="${EV.VOID}">${EV.gkey('void')}${voids}</span>` : ''}`,
   warn: (text, title) => `<span class="warnc rs"${title ? ` title="${EV.e(title)}"` : ''}>${EV.gkey('warn')}${text || ''}</span>`,
+  // The AI's own sentence with its special terms set off, so that the eye finds them: the names of settings and measures as the records have them ("weightUdp",
+  // "link_util"), a "name=value", a TCP type's name, and a number with its unit. The words themselves are not changed: only their look.
+  hl(text) {
+    if (!EV._hl) { const esc = n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), names = [...new Set([...Object.keys(EV.LABEL || {}), ...Object.keys(TH_DATA.PLAIN || {}), 'TcpCubic', 'TcpNewReno', 'TcpLinuxReno', 'TcpBbr', 'TcpVegas', 'TcpBic'])].sort((x, y) => y.length - x.length).map(esc);
+      EV._hl = new RegExp(`\\b(?:${names.join('|')})\\b(?:=[\\w.+-]*\\w)?|\\b\\d[\\d,]*(?:\\.\\d+)?\\s?(?:Gbps|Mbps|kbps|bps|MB|kB|ms)\\b|\\b\\d[\\d,]*(?:\\.\\d+)?\\s?%`, 'g'); }
+    return EV.e(text).replace(EV._hl, m => `<b class="tk">${m}</b>`);
+  },
+  // the aim's own sign: a flag planted on a summit (what the work reaches for), drawn, in the aim's own colour (a clear blue). On the aim's box of the board and wherever the aim is named as a part
+  flag: () => '<svg class="ic-flag" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path class="m" d="M1.2 14.6 6.4 7.4l2.4 3.2 1.7-2 4.3 6Z"/><path class="p" d="M6.4 7.4V1.5"/><path class="f" d="M6.4 1.6 11.6 3.4 6.4 5.3Z"/></svg>',
+  // the answer's own sign: a small light bulb, drawn (not a character: it looks the same everywhere), in the AI's toned colour. On the answer's box of the board and on its card
+  bulb: () => '<svg class="ic-bulb" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 1.6a4.4 4.4 0 0 0-2.6 7.95c.45.35.7.85.7 1.4v.55h3.8v-.55c0-.55.25-1.05.7-1.4A4.4 4.4 0 0 0 8 1.6Z"/><path class="b" d="M6.3 13.1h3.4M6.9 14.7h2.2"/><path class="r" d="M6.8 6.2 8 7.7l1.2-1.5M8 7.7v3.2"/></svg>',
   // a claim of the final report: the checks it cites as marks, in the order cited; "no check cited"; or "cites nothing" (in plain words, not a warning).
   // seen: which records the replay shows (a check recorded later is not drawn)
   claimMarks(q, seen) { const cs = q.cites.filter(c => !seen || seen(c.id));
-    return q.kind === 'none' ? '<span class="cm" data-kind="none">cites nothing</span>' : cs.length ? `<span class="cm" data-kind="${q.kind}">${cs.map(c => `<span class="rs" data-check="${EV.e(c.id)}">${EV.gkey(EV.ck(c.result))}${EV.e(c.id)}</span>`).join(' ')}</span>` : '<span class="cm" data-kind="nocheck">no check cited</span>'; },
+    return q.kind === 'none' ? '<span class="cm" data-kind="none">cites nothing</span>' : cs.length ? `<span class="cm" data-kind="${q.kind}">${cs.map(c => `<span class="rs" data-check="${EV.e(c.id)}">${EV.gkey(EV.ck(c.result))}${EV.e(c.id)}</span>`).join(' ')}</span>` : `<span class="cm" data-kind="nocheck">no check cited${(xs => (xs.length ? ` · it cites the measured results of ${xs.map(x => EV.e(x)).join(', ')}` : ''))((q.exps || []).filter(x => !seen || seen(x)))}</span>`; },  // a claim that rests on an experiment's result table (an exploration has no check): said, so that "no check" does not read as "no evidence"
   CLAIM_KINDS: [['held', 'cite only checks that held'], ['both', 'cite checks that held and failed'], ['failed', 'cite only checks that failed'], ['nocheck', 'cite no check'], ['none', 'cite nothing']],  // worded neutrally; none is a warning
   claimCounts(claims) { const n = k => claims.filter(q => q.kind === k).length;
     return `<span id="claim-counts" data-counts="${EV.CLAIM_KINDS.map(([k]) => n(k)).join(',')}">${claims.length} claim${claims.length === 1 ? '' : 's'} · ${EV.CLAIM_KINDS.map(([k, t]) => `${n(k)} ${t}`).join(' · ')}</span>`; },

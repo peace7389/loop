@@ -70,13 +70,41 @@ Object.assign(EV, {
       : now.phase === 'reply' ? `${t}the AI is writing its reply${now.again ? ' again (its first reply could not be used)' : ''}.`
       : `${t}the harness is preparing the next turn.`;
   },
-  // the stage of a running session, as a strip of the steps of a turn: the AI writes its reply, the simulator runs its simulations, the harness checks
+  // the stage of a running session, as a strip of the steps of a turn: the AI writes its reply, ns-3 runs its simulations, the harness checks
   // each decision rule, then the next turn. The step being worked on carries its moving icon and the time. big: where a section has nothing else yet
   liveStage(now, big) {
-    if (!now) return ''; const step = (key, by, text, on) => `<span class="lv-step${on ? ' on' : ''}" data-key="${key}" data-by="${by}"><i class="sw"></i>${text}${on ? EV.liveTimer() : ''}</span>`, to = '<span class="lv-arrow">→</span>', wrap = inner => `<div class="lv-stage${big ? ' big' : ''}" data-phase="${now.phase}">${inner}</div>`;
+    // A step that has something to show opens it beside the page (the page does not move): "the AI writes its reply" opens the work log of the turn, which begins
+    // with what is happening now (EV.liveNowCard); the simulations and the checks open the turn's experiment once it is recorded. A step that has nothing yet is not a button.
+    if (!now) return ''; const x = EV.M.recs.filter(r => r.type === 'experiment' && r.turn === now.turn).pop(), go = { reply: now.turn > 0 ? ['log', now.turn] : null, baseline: x ? ['exp', x.id] : null, sims: x ? ['exp', x.id] : null, checks: x && now.phase === 'between' ? ['exp', x.id] : null };
+    const step = (key, by, text, on) => `<span class="lv-step${on ? ' on' : ''}${go[key] ? ' lv-go' : ''}" data-key="${key}" data-by="${by}"${go[key] ? ` data-act="open" data-t="${go[key][0]}" data-id="${EV.e(go[key][1])}" role="button" tabindex="0" title="${key === 'reply' ? 'Open the work log of this turn' : 'Open this experiment'}, beside the page"` : ''}><i class="sw"></i>${text}${on ? EV.liveTimer() : ''}</span>`, to = '<span class="lv-arrow">→</span>', wrap = inner => `<div class="lv-stage${big ? ' big' : ''}" data-phase="${now.phase}">${inner}</div>`;
     if (now.phase === 'start' || now.phase === 'baseline') return wrap(`<span class="lv-turn">Before turn 1</span>${step('baseline', 'harness', now.phase === 'start' ? 'the harness prepares the session' : 'the harness runs the baseline simulation', true)}${to}${step('reply', 'model', 'the AI writes its first reply', false)}`);
     return wrap(`<span class="lv-turn">Turn ${now.turn}</span>${step('reply', 'model', `the AI writes its reply${now.again ? ' again' : ''}`, now.phase === 'reply')}${to}${now.phase === 'reply' && now.mode ? '<span class="lv-step lv-next">the session ends with its final report</span>'
-      : `${step('sims', 'simulator', 'the simulator runs its simulations', now.phase === 'sims')}${to}${step('checks', 'harness', now.phase === 'between' ? 'the harness prepares the next turn' : 'the harness checks each decision rule', now.phase === 'between')}${to}<span class="lv-step lv-next">the next turn</span>`}`);
+      : `${step('sims', 'simulator', 'ns-3 runs its simulations', now.phase === 'sims')}${to}${step('checks', 'harness', now.phase === 'between' ? 'the harness prepares the next turn' : 'the harness checks each decision rule', now.phase === 'between')}${to}<span class="lv-step lv-next">the next turn</span>`}`);
+  },
+  // The work log of the turn that is being worked on begins with what is happening now. While the AI writes its reply it says: what the AI was given (the brief,
+  // its record so far, and what is new to it since its last reply: the records of that time it did not write itself), which hypotheses wait for its verdict,
+  // what the reply may bring, how many simulations are left, how long its earlier replies of this session took (from the times of the records: the turn's
+  // first record to the first record of the reply), and that the reply arrives whole. Nothing here is the AI's text, and no draft is read.
+  liveNowCard(n) {
+    const now = EV.liveNow(), M = EV.M, e = EV.e; if (!now || now.turn !== n) return '';
+    const head = (by, text) => `<h3><span class="st-by" data-by="${by}"><i class="sw"></i></span> Now · ${text}${EV.liveTimer()}</h3>`, wrap = (by, text, rows) => `<div class="lg-now" id="lg-now" data-phase="${now.phase}" data-turn="${n}">${head(by, text)}${rows.length ? `<dl class="lg-nkv">${rows.map(([k, v, key]) => `<dt>${k}</dt><dd data-ln="${key}">${v}</dd>`).join('')}</dl>` : ''}</div>`;
+    if (now.phase === 'sims') return wrap('simulator', `ns-3 runs the ${now.n} simulation${now.n === 1 ? '' : 's'} of ${EV.link(now.exp)}`, [['Collected so far', `<span data-n="${EV.liveDone()}">${EV.liveDone()} of ${now.n}</span> · the harness checks the decision rules when all are in`, 'done']]);
+    if (now.phase !== 'reply') return wrap('harness', 'the harness prepares the next turn', []);
+    const t = M.turns.find(q => q.n === n) || {}, added = (t.added || []).map(id => M.byId[id]).filter(Boolean), of = ty => added.filter(r => r.type === ty), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
+    const ck = of('check'), void_ = ck.filter(c => M.voidIds.has(c.id)).length, held = ck.filter(c => !M.voidIds.has(c.id) && c.body.result === 'held').length, failed = ck.length - void_ - held, notes = of('note'), res = of('result');
+    const fresh = [...of('evidence').map(r => `the result table ${EV.link(r.id)} of ${EV.link(r.parent)} (${pl((r.body.lines || []).length, 'simulation')})`),
+      ck.length ? `${pl(ck.length, 'check')} of its decision rules: <span data-ck="${held},${failed},${void_}">${[held ? EV.res('held', `${held} held`) : '', failed ? EV.res('failed', `${failed} failed`) : '', void_ ? `${void_} void` : ''].filter(Boolean).join(', ')}</span>` : '',
+      res.length ? `${pl(res.length, 'answer')} to what it asked for (${res.map(r => EV.link(r.id)).join(', ')})` : '', notes.length ? `${pl(notes.length, 'note')} of the harness (${notes.slice(0, 4).map(r => EV.link(r.id)).join(', ')}${notes.length > 4 ? ', …' : ''})` : ''].filter(Boolean);
+    const wait = M.hyps.filter(h => EV.seen(h.id) && h.state === 'open' && h.tests.some(q => { const c = M.testById[q].check; return c && EV.seen(c.id); }));
+    const took = M.turns.filter(q => q.n >= 1 && q.n < n && q.rec).map(q => { const i = M.recs.indexOf(q.rec), nx = M.recs.slice(i + 1).find(r => r.turn === q.n), ms = nx && nx.ts && q.rec.ts ? new Date(nx.ts) - new Date(q.rec.ts) : NaN; return isFinite(ms) && ms >= 0 ? [q.n, ms] : null; }).filter(Boolean);
+    const per = ((M.brief || {}).limits || {}).simulations_per_experiment;
+    return wrap('model', `the AI is writing its reply${now.again ? ' again' : ''}`, [
+      ['It was given', `the brief and its own record so far (${pl(M.recs.length, 'record')})<span data-new="${fresh.length}">${fresh.length ? `; new to it since its last reply: ${fresh.join('; ')}` : '; nothing new since its last reply'}</span>`, 'given'],
+      ['Waiting for its verdict', `<span data-wait="${e(wait.map(h => h.id).join(','))}">${wait.length ? `${wait.map(h => EV.link(h.id)).join(', ')} <span class="sm">· checked by the harness, not judged by the AI yet</span>` : 'no hypothesis: none has a checked decision rule and no verdict'}</span>`, 'wait'],
+      ['This reply', e(EV.liveMay(now)), 'may'],
+      ['Simulations left', `<b data-left="${t.left ?? ''}">${t.left ?? EV.nr}</b>${per && !now.mode ? ` · at most ${e(per)} in one experiment` : ''}`, 'left'],
+      ['Its earlier replies took', `<span data-took="${took.map(q => q.join(':')).join(',')}">${took.length ? took.slice(-6).map(([k, ms]) => `turn ${k}: ${EV.liveClock(ms)}`).join(' · ') : 'none yet: this is its first reply'}</span>`, 'took'],
+      ['While it writes', 'nothing of the reply can be shown: it arrives whole. When it is there, this card says what it decided and why.', 'whole']]);
   },
   // what the reply being written may fill: the reply arrives whole, so the page cannot say which
   liveMay: now => (now.phase !== 'reply' ? '' : now.mode === 'report' ? 'This is the last turn: only the final report is accepted.' : now.mode === 'budget' ? 'This is the last turn, the simulations are used up: it may judge earlier tests, and the final report is due.' : 'It may judge earlier tests, state a new hypothesis, set up a new test, or give its final report.'),
@@ -101,7 +129,7 @@ Object.assign(EV, {
   // ended on a page that saw it running: one line that says how it ended.
   liveBanner() {
     const M = EV.M, row = EV.files.row || {}, e = EV.e, S = EV.s, now = EV.liveNow(), m = M.meta || {};
-    if (!row.running) return EV.live.ran[M.id] && !EV.off ? `<div class="ev-card ev-bar ev-run ev-ended" id="live-bar" data-phase="ended"><span class="pill">ended</span> <b>The session ended${m.how ? ': ' + e(m.how) : ''}.</b> <span class="sm">${M.report ? 'Its final report is in “What it proposes”.' : 'It gave no final report.'} A place that was never filled stays drawn empty.</span></div>` : '';
+    if (!row.running) return EV.live.ran[M.id] && !EV.off ? `<div class="ev-card ev-bar ev-run ev-ended" id="live-bar" data-phase="ended"><span class="pill">ended</span> <b>The session ended${m.how ? ': ' + e(m.how) : ''}.</b> <span class="sm">${m.how === 'simulation limit reached' ? `It used all ${e(((M.brief || {}).limits || {}).simulations ?? 'the')} simulations the brief allows; the harness then gave it one last turn for its final report. ` : ''}${M.report ? 'Its final report is in “What it proposes”.' : 'It gave no final report.'}${M.report && !M.tests.some(T => !T.verdict) ? '' : ' A place that was never filled stays drawn empty.'}</span></div>` : '';
     const t = M.turns[M.turns.length - 1], arrived = EV.liveArrived(), stop = row.stoppable ? `<button data-act="stop"${EV.stopping ? ' disabled' : ''}>${EV.stopping ? 'Stopping…' : 'Stop'}</button>` : '<span class="sm">started from a terminal: it is stopped there</span>';
     const left = t && t.left != null ? `${t.left} simulation${t.left === 1 ? '' : 's'} left` : '';
     return `<div class="ev-card ev-bar ev-run" id="live-bar" data-phase="${now ? now.phase : S.step != null ? 'replay' : 'closing'}"${now && now.turn ? ` data-turn="${now.turn}"` : ''}><span class="pill live">running</span>

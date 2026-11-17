@@ -90,8 +90,8 @@ const EV = {
     const need = st.sessions.some(x => x.id === S.sid) ? '' : ' disabled title="Choose a session first"';  // the two pages of one session
     const label = x => `${x.id} · ${x.brief || 'before briefs'} · ${String(x.started || '').replace('T', ' ').slice(0, 16) || 'no record yet'} · ${x.simulations || 0} simulations · ${x.running ? 'running now' : x.how || 'ending not recorded'}`;
     const bar = EV.off ? `<div class="ev-bar"><b>Two hosts, one link: session ${e(S.sid)}</b><span><button data-act="view" data-id="session" class="${on('session')}">Session</button>${EV_EXPORT.operator ? ` <button data-act="view" data-id="operator" class="${on('operator')}">Operator</button>` : ''}</span>${EV_EXPORT.operator ? `<label style="font-weight:400"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label>` : ''}<span class="end">an exported copy · it opens without a server</span></div>`
-      : `<div class="ev-bar ev-nav"><span class="grp"><span class="cap">All sessions</span><button data-act="view" data-id="home" class="${on('home')}">Home</button><button data-act="view" data-id="compare" class="${on('compare')}">Compare sessions</button></span>
-      <span class="grp"><span class="cap" title="${e(EV_DEF.Session)}">One session</span><select data-ch="session"><option value="">choose a session…</option>${st.sessions.slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select>
+      : `<div class="ev-bar ev-nav"><span class="grp" title="Pages about all sessions"><button data-act="view" data-id="home" class="${on('home')}">Home</button><button data-act="view" data-id="compare" class="${on('compare')}">Compare sessions</button><button data-act="new" data-id="new" class="${on('new')}" title="Set up a session: the network, who decides what, the aim, what the AI is told, the limits, and start the AI on it">New session</button></span>
+      <span class="grp"><select data-ch="session" title="Choose one session to open: ${e(EV_DEF.Session)}"><option value="">choose a session…</option>${st.sessions.slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select>
       <button data-act="view" data-id="session" class="${on('session')}"${need}>Session</button><button data-act="view" data-id="operator" class="${on('operator')}"${need || ` title="${e(EV_DEF.Operator)}"`}>Operator</button></span>
       <label class="end" style="font-weight:400" title="Operator-only items: the scheduling policy, the gap to the best row of the sweep"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label></div>`;
     // the earlier pages are not part of this page's structure: one quiet line at the foot of every view
@@ -105,7 +105,7 @@ const EV = {
     if (S.view === 'session' && EV.M && !EV.off) history.replaceState(null, '', EV.address());  // the address follows the selection: it is always the link to what is open
     // flowFit (below): a test's flow chart is drawn to the width it has, once the HTML is in place
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
-    if (S.view === 'session') { EV.flowFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
+    if (S.view === 'session') { EV.flowFit(); EV.aimFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
     if (window.scrollY !== y) window.scrollTo(0, y);
     if (keep) { const el = document.querySelector(keep.sel), d = el ? el.getBoundingClientRect().top - keep.top : 0; if (Math.abs(d) >= 1) window.scrollBy(0, d); }  // what the reader was looking at stands where it stood, though the page grew above it
     if (S.view === 'session') { EV.wdHide(); EV.wordsMark(); }  // the words that need explaining get their mark (evidence_words.js)
@@ -133,7 +133,9 @@ const EV = {
       S.item = null; return S.view !== 'session' ? EV.go({ view: 'session' }) : EV.draw(); }  // from the heat map: to the session's page (S.item: the address named no item, and must not clear this choice)
     if (a === 'step') { const o = EV.M.steps[Number(id)].open; S.sel = { t: o.t, id: o.t === 'log' ? o.turn : o.t === 'brief' ? 'brief' : o.t === 'report' ? 'report' : o.id }; return EV.draw(); }
     if (a === 'replay') return EV.replay(id);
-    if (a === 'claim') { S.claim = S.claim === Number(id) ? null : Number(id); const c = EV.M.claims[Number(id) - 1]; if (S.claim && c && (c.tests[0] || c.exps[0])) S.sel = c.tests[0] ? { t: 'test', id: c.tests[0] } : { t: 'exp', id: c.exps[0] }; return EV.draw(); }
+    if (a === 'claim') { S.claim = S.claim === Number(id) ? null : Number(id); const c = EV.M.claims[Number(id) - 1]; if (S.claim && c && (c.tests[0] || c.exps[0])) S.sel = c.tests[0] ? { t: 'test', id: c.tests[0] } : { t: 'exp', id: c.exps[0] };
+      // the claim that was clicked stays exactly where it is in the window, whatever the page above it does when it is drawn again
+      const at = el => (el ? el.getBoundingClientRect().top : null), top0 = at(t.closest('button.claim')); EV.draw(); const top1 = at(document.querySelector(`#s-proposes button.claim[data-id="${Number(id)}"]`)); if (top0 != null && top1 != null && Math.abs(top1 - top0) >= 1) window.scrollBy(0, top1 - top0); return; }
     if (a === 'wide') { S.wide[id] = !S.wide[id]; return EV.draw(); }      // a test's chart over all the simulations of its experiment
     if (a === 'xchart') { S.xchart = S.xchart === id ? null : id; return EV.draw(); }  // an experiment's chart, on request
     if (a === 'path') { S.path = !S.path; return EV.draw(); }

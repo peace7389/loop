@@ -3,6 +3,12 @@
 // the result panel of a simulation in evidence_panels.js.
 // ======================================================================================================
 Object.assign(EV, {
+  // A record's name is a letter and a number: the letter says what kind of record it is, the number is its order among its kind in this session.
+  // [the kind in plain words, what such a record is, who writes it]
+  ID_SAYS: { H: ['hypothesis', 'a statement of the AI that a test can refute', 'model'], X: ['experiment', 'one batch of simulations', 'model'], S: ['simulation', 'one run of ns-3', 'simulator'],
+    E: ['result table', 'the measures of one experiment’s simulations, as the harness showed them to the AI', 'harness'], C: ['check', 'the harness’s check of one decision rule against the measurements', 'harness'],
+    V: ['verdict', 'the AI’s judgement of a hypothesis', 'model'], N: ['note', 'a note the harness wrote into the record: most often which part of an answer it refused, and why', 'harness'],
+    Q: ['request', 'a question the AI put to one of the harness’s tools', 'model'], T: ['tool result', 'what a tool answered to a request of the AI', 'harness'], U: ['turn record', 'what the AI had when a turn began', 'harness'], R: ['final report', 'the AI’s answer', 'model'] },
   // a record id as a link that opens it beside the charts
   link(id) {
     const M = EV.M, r = M.byId[id], e = EV.e; if (id === 'brief') return `<a data-act="open" data-t="brief" data-id="brief">${EV_ICON.brief} brief</a>`;
@@ -10,7 +16,9 @@ Object.assign(EV, {
     const b = r.body || {}, ct = r.type === 'check' && M.tests.find(t => t.check && t.check.id === id);  // a check opens the test it belongs to
     const to = { hypothesis: ['hyp', id], verdict: ['hyp', b.for], drop: ['hyp', b.for], experiment: ['exp', id], check: ct ? ['test', ct.id] : ['exp', r.parent], simulation: ['sim', id], report: ['report', 'report'],
       evidence: M.simById[id] ? ['sim', id] : ['exp', b.experiment || r.parent] }[r.type] || ['log', r.turn];
-    return `<a data-act="open" data-t="${to[0]}" data-id="${e(to[1])}" title="${e(r.type)}">${EV_ICON[r.type] || ''} ${e(id)}</a>`;
+    // a note, a request, a tool's result, a turn's record, a result table: their names ("N3", "E2") say nothing by themselves, so a box says what the letter stands for and what the record holds
+    const box = ['note', 'request', 'result', 'turn', 'evidence'].includes(r.type);
+    return `<a data-act="open" data-t="${to[0]}" data-id="${e(to[1])}"${box ? ` data-wd="r:${e(id)}"` : ` title="${e((EV.ID_SAYS[(/^[A-Z]+/.exec(id) || [''])[0]] || [r.type])[0])}"`}>${EV_ICON[r.type] || ''} ${e(id)}</a>`;
   },
   // where the opened item sits: Brief › Session › Turn › Experiment › Simulation, each part opens that level
   trail(sel) {
@@ -58,7 +66,7 @@ Object.assign(EV, {
   },
   numCheck(text, sims) {
     const rows = EV.numRows(EV.M, text, sims); if (!rows.length) return ''; const off = rows.filter(q => q.status === 'differs').length, e = EV.e;
-    return `<details${off ? ' open' : ''}><summary>${off ? `${EV.warn(`${off} of ${rows.length}`)} numbers differ from the measurements` : `${EV.gkey('check')}${rows.length} number${rows.length === 1 ? '' : 's'} agree with the measurements`}</summary>
+    return `<details${off ? ' open' : ''}><summary>${off ? `${EV.warn(`${off} of the ${rows.length}`)} number${rows.length === 1 ? '' : 's'} in this text differ${off === 1 ? 's' : ''} from the measurements` : `${EV.gkey('check')}${rows.length === 1 ? 'the 1 number in this text matches' : `the ${rows.length} numbers in this text match`} the measurements`}</summary>
       <table><thead><tr><th data-by="model">it wrote</th><th>measure</th><th class="num" data-by="simulator">measured</th><th></th></tr></thead><tbody>${rows.map(q => `<tr><td>${e(q.written)}</td><td>${e(q.what)}</td><td class="num">${e(q.measured)}</td>
         <td>${q.status === 'agrees' ? `${EV.gkey('check')}${EV.link(q.where)}` : q.status === 'other' ? `from another experiment: ${EV.link(q.where)}` : EV.warn('differs')}</td></tr>`).join('')}</tbody></table></details>`;
   },
@@ -75,7 +83,12 @@ Object.assign(EV, {
       <p class="sm">refusal notes it was shown: ${shown ? (shown.length ? shown.map(id => `${EV.link(id)} <span class="warnc">${e(M.byId[id].body.part || 'whole answer')}</span>: ${e(M.byId[id].body.reason || M.byId[id].body.error || '')}`).join('<br>') : 'none') : EV.nr}</p></div>`;
     const x = t.exp, fixed = x ? Object.keys(x.sims[0] ? x.sims[0].params : {}).filter(k => x.sims.every(s => JSON.stringify(s.params[k]) === JSON.stringify(x.sims[0].params[k]))) : [];
     const refused = t.malformed.map(m => `<li class="warnc" data-step="${M.recStep[m.id] ?? 0}">${EV_ICON.malformed} whole answer refused (${EV.link(m.id)}): ${e((m.body.refused || []).map(q => q.part + ': ' + q.reason).join(' | ') || m.body.error)}</li>`)
-      .concat(t.refusals.map(m => `<li class="warnc" data-step="${M.recStep[m.id] ?? 0}">${EV_ICON.malformed} refused part (${EV.link(m.id)}) ${e(m.body.part)}: ${e(m.body.reason || m.body.text)}</li>`));
+      .concat((() => { const li = m => `<li class="warnc" data-step="${M.recStep[m.id] ?? 0}">${EV_ICON.malformed} refused part (${EV.link(m.id)}) ${e(m.body.part)}: ${e(m.body.reason || m.body.text)}</li>`;
+        // as in the notebook: one answer that judges again what was judged ("H1 is not an open hypothesis", seventeen times) is one line that says how many, what and why
+        const shape = m => `${m.body.part}|${m.body.reason || m.body.text}`.replace(/\bH\d+\b/g, 'H#'), by = {}; t.refusals.filter(m => EV.seen(m.id)).forEach(m => { (by[shape(m)] = by[shape(m)] || []).push(m); });
+        const done = new Set(); return t.refusals.map(m => { const g = EV.seen(m.id) ? by[shape(m)] : null; if (!g || g.length < 3) return li(m); if (done.has(shape(m))) return ''; done.add(shape(m));
+          const ids = g.map(q => (/\bH\d+\b/.exec(q.body.part) || [])[0]).filter(Boolean), again = g.every(q => /verdict for H\d+/.test(q.body.part)) && /is not an open hypothesis/.test(g[0].body.reason || '');
+          return `<li class="lg-refs" data-n="${g.length}" data-step="${Math.min(...g.map(q => M.recStep[q.id] ?? 0))}"><details><summary><span class="warnc">${EV_ICON.malformed} <b>${g.length} parts of this answer were refused, for one reason:</b></span> ${again ? `it gave verdicts again for ${e(ids[0])}${ids.length > 1 ? ' to ' + e(ids[ids.length - 1]) : ''}, which already had theirs; the earlier verdicts stand` : `“<span data-own="harness">${e(g[0].body.part)}</span>” and ${g.length - 1} more like it: <span data-own="harness">${e(g[0].body.reason || g[0].body.text)}</span>`}. <span class="sm">Not an error of the system: the harness left these parts out and used the rest of the answer${t.report ? ', the final report' : ''}.</span></summary><ul>${g.map(li).join('')}</ul></details></li>`; }); })());
     const dec = [...t.verdicts.map(v => `<li>${EV.term('Verdict', 'verdict')} ${EV.link(v.id)} on ${EV.link(v.body.for)}: ${EV.verdictRes(v.body.result)}${EV.rests((M.hypById[v.body.for] || {}).verdict && M.hypById[v.body.for].verdict.id === v.id ? M.hypById[v.body.for].verdict : null)}</li>`),
       ...t.drops.map(d => `<li>${EV_ICON.drop} dropped ${EV.link(d.body.for)}</li>`),
       ...t.hyps.map(h => `<li>new ${EV.term('Hypothesis', 'hypothesis')} ${EV.link(h.id)}: ${e(h.text)}${h.question ? `<br><span class="sm">its question: ${e(h.question)}</span>` : ''}${h.prediction ? `<br><span class="sm">prediction: ${e(h.prediction)}</span>` : ''}<br><span class="sm">follows from: ${h.follows ? h.follows.map(EV.link).join(', ') : EV.nr}</span></li>`),
@@ -85,9 +98,11 @@ Object.assign(EV, {
     const why = [t.observations ? `<p><b>observations</b> ${e(t.observations)}</p>${EV.numCheck(t.observations, EV.simsOfTurn(n - 1))}` : `<p class="sm">observations: ${EV.nr}</p>`,
       ...t.verdicts.map(v => { const h = M.hypById[v.body.for], xs = h ? h.exps.map(id => M.expById[id]).filter(q => q.turn < n) : [], sims = xs.length ? xs[xs.length - 1].sims : [];
         return `<p><b>${v.id} because</b> ${e(v.body.because || '')}</p>${EV.numCheck(v.body.because, sims)}<p class="sm"><b>next</b> ${e(v.body.next || EV.nr)}</p>`; })];
-    return `<h2>${EV_ICON.turn} Work log, turn ${n} <small>built from the model's recorded answer and the harness's turn record</small></h2>${had}
-      <div class="who" data-by="model"><h3>2 · What it decided</h3><ul style="margin:0;padding-left:18px">${dec.join('') || '<li class="mut">nothing usable</li>'}</ul></div>
-      <div class="who" data-by="model"><h3>3 · Why, in its own words</h3>${why.join('')}</div>`;
+    // the turn that is being worked on: what is happening now stands first, and while its reply is being written the two parts the reply will fill say so
+    const live = EV.liveNowCard ? EV.liveNowCard(n) : '', writing = !!live && EV.liveNow().phase === 'reply' && !dec.length, wait = '<span class="mut" data-wait-reply="1">not there yet: the reply is being written</span>';
+    return `<h2>${EV_ICON.turn} Work log, turn ${n} <small>built from the model's recorded answer and the harness's turn record</small></h2>${live}${had}
+      <div class="who" data-by="model"><h3>2 · What it decided</h3><ul style="margin:0;padding-left:18px">${dec.join('') || (writing ? `<li style="list-style:none;margin-left:-18px">${wait}</li>` : '<li class="mut">nothing usable</li>')}</ul></div>
+      <div class="who" data-by="model"><h3>3 · Why, in its own words</h3>${writing ? `<p class="sm">${wait}</p>` : why.join('')}</div>`;
   },
 
   briefCard() {
@@ -98,8 +113,16 @@ Object.assign(EV, {
     const knobs = `<table data-exact="1" id="bc-knobs"><tbody>${Object.entries(b.knobs || {}).map(([k, s]) => `<tr data-k="${e(k)}"><td>${EV.label(k, s.meaning)}</td><td>${e(EV.setRange(k, s))}</td><td class="sm">from ${e(EV.setVal(k, s.default))}</td></tr>`).join('')}</tbody></table>`;
     const lim = b.limits || {}, limits = `<p id="bc-limits">${[lim.simulations != null ? `<b>${e(lim.simulations)}</b> simulations in all` : '', lim.simulations_per_experiment != null ? `<b>${e(lim.simulations_per_experiment)}</b> in one turn` : '', ...Object.entries(lim).filter(([k]) => !['simulations', 'simulations_per_experiment'].includes(k)).map(([k, v]) => `${e(k)} ${e(v)}`)].filter(Boolean).join(' · ') || EV.nr}</p>`;
     const g = b.goal || {}, goal = g.kind === 'given' && EV.aimWords(g) ? `Find ${EV.aimWords(g)}.${g.tolerance != null ? ` <span class="sm">· tolerance ${e(g.tolerance)}%: two results closer than this count as equal</span>` : ''}` : g.kind === 'open' ? 'Open: the AI chooses its own aim and has to justify it.' : e(EV.goal(b.goal));
-    return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')} ${e(b.id)} <small>written by the ${EV.term('Operator', 'operator')}</small></h2><p>${e(b.task || '')}</p>
-      <h3>Fixed by the operator</h3>${fixed}<h3>The AI may change</h3>${knobs}<h3>The aim</h3><p id="bc-goal">${goal}</p><h3>The limits</h3>${limits}
+    // The aim stands first, in a box of its own colour: the board's aim box opens this card, and what a reader then wants is the aim, whole. A given aim: the brief's,
+    // set by the operator. An open aim: that the brief left it open, and, once the final report is recorded (by the step the page is at), the aim the AI chose in
+    // its own words, uncut, with when it stated it (at the end: the harness asks for the aim only in the final report) and a link to that report.
+    const rep = g.kind === 'open' && EV.repNow ? EV.repNow() : null, chose = rep && rep.goal ? rep.goal : null, by = (who, t) => `<span class="st-by" data-by="${who}"><i class="sw"></i>${t}</span>`;
+    const aim = `<div class="bc-aim" id="bc-aim" data-aim="${e(g.kind || '')}"><h3>${EV.flag()}The aim</h3><p id="bc-goal">${goal}${g.kind === 'given' ? ' ' + by('operator', 'set by the operator') : ''}</p>${g.kind !== 'open' ? '' : chose
+      ? `<p class="bc-who">${by('model', 'chosen by the AI')} <span class="aim-when">· stated <b>at the end</b>, in its ${M.repRec ? EV.link(M.repRec.id) : ''} final report${M.repRec ? ` (turn ${e(M.repRec.turn)})` : ''}: the harness asks for the aim only there</span></p><div id="bc-chose">${EV.repLines(chose)}</div>`
+      : `<p class="sm mut" id="bc-chose" data-none="1">${M.ended && (EV.s.step == null || EV.s.step >= M.steps.length - 1) ? 'It stated no aim: the session ended without a final report.' : 'It has not stated its aim yet: it does so at the end, in its final report.'}</p>`}</div>`;
+    return `<h2>${EV_ICON.brief} ${EV.term('Brief', 'Brief')} ${e(b.id)} <small>written by the ${EV.term('Operator', 'operator')}</small></h2>${aim}
+      <h3>The task, as the AI was given it</h3><p data-own="operator">${e(b.task || '')}</p>
+      <h3>Fixed by the operator</h3>${fixed}<h3>The AI may change</h3>${knobs}<h3>The limits</h3>${limits}
       <p class="sm">the baseline the harness ran before the first turn: ${x0 ? EV.link(x0.id) + ' · ' + x0.sims.map(s => EV.link(s.id)).join(', ') : EV.nr}</p>`;
   },
 });

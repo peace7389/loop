@@ -72,18 +72,26 @@ Object.assign(EV, {
   setWho(c) {
     const b = c.b, e = EV.e, sys = b.system || {}, kn = b.knobs || {}, keys = EV.SET_ORDER.filter(k => k in sys || k in kn).concat(Object.keys({ ...sys, ...kn }).filter(k => !EV.SET_ORDER.includes(k)));
     const fixed = keys.filter(k => !(k in kn)), open = keys.filter(k => k in kn);
-    const row = k => (k in kn ? `<tr data-k="${e(k)}" data-set="knob"><td>${EV.label(k, kn[k].meaning)}</td><td>${e(EV.setRange(k, kn[k]))} <span class="sm" title="the value it starts from: the brief's default">from ${e(EV.SET_UNIT[k] ? String(kn[k].default) : EV.setVal(k, kn[k].default))}</span></td></tr>`
-      : `<tr data-k="${e(k)}" data-set="fixed"><td>${EV.label(k)}</td><td>${e(EV.setVal(k, sys[k]))}</td></tr>`);
-    const part = (by, words, list) => (list.length ? `<tr class="st-grp" data-by="${by}"><td colspan="2"><i class="sw"></i>${words}</td></tr>${list.map(row).join('')}` : '');
+    // A setting the AI may change has three values, each in a column of its own under its name: the lowest and the highest it may set, and the value the session
+    // starts at (the baseline's); a setting chosen from a list has the list in the place of the first two. A fixed setting has its one value.
+    const row = k => (k in kn ? `<tr data-k="${e(k)}" data-set="knob"><td>${EV.label(k, kn[k].meaning)}</td>${kn[k].choices ? `<td colspan="2" data-c="choices"><span class="st-ch" title="${e(kn[k].choices.map(c => String(c).replace(/^Tcp/, '')).join(', '))}"><span class="sm">one of</span> ${e(kn[k].choices.map(c => String(c).replace(/^Tcp/, '')).join(', '))}</span></td>` : `<td data-c="lowest">${e(EV.setVal(k, kn[k].min))}</td><td data-c="highest">${e(EV.setVal(k, kn[k].max))}${kn[k].step != null && kn[k].step !== '' ? ` <span class="sm">in steps of ${e(kn[k].step)}</span>` : ''}</td>`}<td data-c="start"><b>${e(EV.setVal(k, kn[k].default))}</b></td></tr>`
+      : `<tr data-k="${e(k)}" data-set="fixed"><td>${EV.label(k)}</td><td colspan="3" data-c="value"><b>${e(EV.setVal(k, sys[k]))}</b></td></tr>`);
+    const part = (by, words, list) => (list.length ? `<tr class="st-grp" data-by="${by}"><td colspan="4"><i class="sw"></i>${words}</td></tr>${by === 'model' ? '<tr class="st-cols"><td></td><td>lowest</td><td>highest</td><td title="The value the session starts at: the baseline simulation uses it">starts at</td></tr>' : ''}${list.map(row).join('')}` : '');
     return keys.length ? `<table class="st-who" data-exact="1"><tbody>${part('operator', 'fixed by the operator', fixed)}${part('model', 'the AI may change it', open)}</tbody></table>` : `<p class="sm">the settings: ${EV.nr}</p>`;
   },
   // 3 · the aim, and who set it. An open aim: the one the AI chose is the goal of its final report (c.chosen)
   setAim(c) {
     const g = c.b.goal || {}, e = EV.e, w = EV.aimWords(g);
-    if (g.kind === 'open') return `<p data-aim="open"><b>Open:</b> the AI chooses its own aim and has to justify it. <span class="st-by" data-by="model"><i class="sw"></i>chosen by the AI</span></p>${c.mode === 'session' ? `<p class="sm lc4" id="st-chosen">${c.chosen ? `It chose: <span data-own="model">${e(c.chosen)}</span>` : c.ended ? 'It stated no aim: there is no final report.' : 'It has not stated its aim yet.'}</p>` : ''}`;
+    if (g.kind === 'open') return `<p data-aim="open"><b>Open:</b> the AI chooses its own aim and has to justify it. <span class="st-by" data-by="model"><i class="sw"></i>chosen by the AI</span></p>${c.mode === 'session' ? `<p class="sm lc4" id="st-chosen">${c.chosen ? `<span class="aim-when">At the end, in its final report, it chose:</span> <span data-own="model">${e(c.chosen)}</span>` : c.ended ? 'It stated no aim: there is no final report.' : 'It has not stated its aim yet.'}</p>` : ''}`;
     if (!w) return `<p class="sm">the aim: ${EV.nr}</p>`;
     return `<p data-aim="given"><b>Find ${w}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p>${g.tolerance != null && g.tolerance !== '' ? `<p class="sm">Tolerance ${e(g.tolerance)} %: two results closer than this count as equal.</p>` : ''}`;
   },
+  // The cards of one row are equally tall (the row stretches them), so the aim's card has room below its two lines: the aim the AI
+  // chose is shown in as many whole lines as that room holds (never fewer than four), and in full on hover when it is still cut.
+  aimFit() { const p = document.getElementById('st-chosen'), card = p && p.closest('.st-b'); if (!p || !card) return;
+    p.style.webkitLineClamp = '4'; const cs = getComputedStyle(p), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.45, full = p.scrollHeight;
+    const room = card.getBoundingClientRect().bottom - parseFloat(getComputedStyle(card).paddingBottom) - p.getBoundingClientRect().top, n = Math.max(4, Math.floor((room + 1) / lh));
+    p.style.webkitLineClamp = String(n); p.dataset.lines = n; if (full > n * lh + 2) p.title = p.textContent; else p.removeAttribute('title'); },
   // 4 · the three lists, built from the brief, the flags and the manifest (the outputs and the tools the harness offers)
   setLists(c) {
     const b = c.b, e = EV.e, sys = b.system || {}, kn = b.knobs || {}, man = c.man || {}, lim = b.limits || {}, order = k => EV.SET_ORDER.filter(q => q in k), outs = Object.keys(man.outputs || {}), tools = Object.keys(man.tools || {});

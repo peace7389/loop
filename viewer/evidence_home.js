@@ -43,8 +43,8 @@ Object.assign(EV, {
     return EV.st.sessions.filter(x => !f || f.split(/\s+/).every(w => text(x).includes(w))).sort((a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || cmp(a, b) || a.id.localeCompare(b.id));
   },
   homeRows() {
-    const e = EV.e, op = EV.s.op, rows = EV.homeList(), body = rows.map(x => `<tr class="pick${x.running ? ' run' : ''}" data-act="pick" data-id="${e(x.id)}"><td><b>${e(x.id)}</b>${x.running ? ' <span class="pill live">running</span>' : ''}</td>${EV.one(x.brief || 'before briefs', 'w-brief')}
-      <td class="nb">${e(String(x.started || '').replace('T', ' ').slice(0, 16)) || EV.nr}</td>${x.running || x.how ? EV.one(x.running ? 'running now' : x.how, 'w-how') : `<td>${EV.nr}</td>`}<td class="num nb">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td>
+    const e = EV.e, op = EV.s.op, rows = EV.homeList(), body = rows.map(x => `<tr class="pick${x.running ? ' run' : ''}" data-act="pick" data-id="${e(x.id)}"><td class="nb"><b>${e(x.id)}</b>${x.running ? ' ' + EV.nowDot('This session is running now') : ''}</td>${EV.one(x.brief || 'before briefs', 'w-brief')}
+      <td class="nb" data-col="started" title="${e(String(x.started || '').replace('T', ' '))}">${e(String(x.started || '').replace('T', ' ').slice(5, 16)) || EV.nr}</td>${x.running || x.how ? EV.one(x.running ? 'running now' : x.how, 'w-how') : `<td>${EV.nr}</td>`}<td class="num nb">${x.simulations ?? 0}${x.allowed ? ' / ' + x.allowed : ''}</td>
       <td class="sqc" data-col="seq">${EV.seqCell(x)}</td>${['returned', 'unnamed'].map(k => `<td class="num" data-col="${k}">${x[k] ? `<b>${x[k][0]}</b> of ${x[k][1]}` : EV.nr}</td>`).join('')}<td class="num" data-col="void"${x.void ? ` data-of="${x.void[1]}" title="${x.void[0]} of the ${x.void[1]} checks of this session are void: their decision rule compared a simulation with itself"` : ''}>${x.void ? (x.void[0] ? `<b>${x.void[0]}</b>` : '<span class="mut">0</span>') : '<span class="mut" title="not recorded: this session has no checks by the harness">–</span>'}</td><td class="nb" data-col="review">${EV.reviewCell(x)}</td>
       ${op ? `<td class="nb" data-col="policy">${x.policy_hidden ? '<span class="mut">hidden until the session is scored</span>' : e(x.policy || '') || EV.nr}</td><td class="num nb">${EV.gapText(x) || '<span class="mut">not scored</span>'}</td>` : ''}</tr>`).join('');
     const el = document.getElementById('home-rows'), n = document.getElementById('home-n');
@@ -57,7 +57,7 @@ Object.assign(EV, {
     const running = all.filter(x => x.running).length;
     // one title line with the page's one action, beside the title where the eye starts (not at the far right). Opening a session (a row below, or the top bar's list) and comparing
     // (the top bar) each have one place, so they are not repeated here
-    return `<div class="ev-title"><h1>All sessions</h1>${EV.off ? '' : `<button class="big primary" data-act="new" title="Set up a session: the network, who decides what, the aim, what the AI is told, the limits, and start the AI on it">New session…</button>`}
+    return `<div class="ev-title"><h1>All sessions</h1>
         <span class="sm">${all.length} session${all.length === 1 ? '' : 's'}${running ? ` · ${running} running now` : ''} · each is one complete attempt by the AI at one ${EV.term('Brief', 'brief')}</span></div>
       
       <div class="ev-card"><h2>Results so far <small>one row per ${EV.term('Brief', 'brief')}, counted from the sessions and, where they exist, their scores</small></h2>
