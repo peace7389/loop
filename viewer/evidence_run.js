@@ -17,7 +17,13 @@ Object.assign(EV, {
     const st = EV.st, S = EV.s, running = st.sessions.filter(x => x.running).length;
     return `<div class="ev-card" id="new-setup"><h2>New session <small>one complete attempt by the AI at one ${EV.term('Brief', 'brief')} · ${EV.runningSays() || running + ' running now'}${S.from ? ` · filled from session ${EV.e(S.from)}` : ''}</small></h2>
       <p class="sec-q">What will the network be, what will the AI be asked, and what will it see?</p>${EV.legendBar()}
-      <p class="sm" id="be-kind" style="margin:8px 0 4px"><b>The system to set up</b> &nbsp; <label style="font-weight:400"><input type="radio" name="ev-kind" data-ch="kind" value="two"${EV.setupKind() === 'two' ? ' checked' : ''}> the two-host system (two hosts, one link, a UDP and a TCP flow)</label> &nbsp; <label style="font-weight:400;white-space:nowrap"><input type="radio" name="ev-kind" data-ch="kind" value="net"${EV.setupKind() === 'net' ? ' checked' : ''}> <b>a network I build</b> (hosts, links, flows, queues; drag to add and remove)</label></p>
+      <div id="be-kind" class="kind-pick" role="radiogroup" aria-label="The system to set up"><p class="kind-h"><b>The system to set up</b> <span class="sm">choose one</span></p>
+        <label class="kind-card${EV.setupKind() === 'two' ? ' on' : ''}"><input type="radio" name="ev-kind" data-ch="kind" value="two"${EV.setupKind() === 'two' ? ' checked' : ''}>
+          <svg viewBox="0 0 64 28" width="64" height="28" aria-hidden="true"><rect x="1" y="5" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="45" y="5" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="19" y1="12" x2="45" y2="12" stroke="var(--series-1)" stroke-width="2.4"/><line x1="19" y1="16" x2="45" y2="16" stroke="var(--series-2)" stroke-width="2.4"/></svg>
+          <span><b>The two-host system</b><span class="sm">ready-made: two hosts, one link, a UDP and a TCP flow</span></span></label>
+        <label class="kind-card${EV.setupKind() === 'net' ? ' on' : ''}"><input type="radio" name="ev-kind" data-ch="kind" value="net"${EV.setupKind() === 'net' ? ' checked' : ''}>
+          <svg viewBox="0 0 64 28" width="64" height="28" aria-hidden="true"><rect x="1" y="1" width="14" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="1" y="16" width="14" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="25" y="8.5" width="14" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="49" y="8.5" width="14" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"/><line x1="15" y1="6.5" x2="25" y2="12" stroke="var(--series-1)" stroke-width="2"/><line x1="15" y1="21.5" x2="25" y2="16" stroke="var(--series-2)" stroke-width="2"/><line x1="39" y1="14" x2="49" y2="14" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2"/><path d="M56 11.2v5.6M53.2 14h5.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span><b>A network I build</b><span class="sm">drag and drop: add or remove hosts, links, applications, queues</span></span></label></div>
       <div id="be-host" data-kind="${EV.setupKind()}"></div></div>`;
   },
   // which set-up page is shown: the two-host system's (brief_editor.js) or the builder of a network (brief_net.js); remembered
@@ -26,7 +32,8 @@ Object.assign(EV, {
     if (!document.getElementById('be-host')) return;
     if (EV.setupKind() === 'net') {
       if (typeof BRIEF_NET === 'undefined') { if (EV.bnBusy) return; EV.bnBusy = true;
-        await new Promise(ok => { const s = document.createElement('script'); s.src = 'brief_net.js?t=' + Date.now(); s.onload = s.onerror = ok; document.head.appendChild(s); }); }
+        // the builder draws on JointJS (vendor/joint.min.js, open source): the library first, then the drawing surface, then the builder
+        for (const f of ['vendor/joint.min.js', 'brief_canvas.js', 'brief_net.js']) await new Promise(ok => { const s = document.createElement('script'); s.src = f + (f.startsWith('vendor/') ? '' : '?t=' + Date.now()); s.onload = s.onerror = ok; document.head.appendChild(s); }); }
       if (typeof BRIEF_EDITOR === 'undefined' && !EV.beCss) { EV.beCss = true; await new Promise(ok => { const s = document.createElement('script'); s.src = 'brief_editor.js?t=' + Date.now(); s.onload = s.onerror = ok; document.head.appendChild(s); }); }  // the builder uses the form styles of the two-host set-up page
       if (typeof BRIEF_EDITOR !== 'undefined' && !document.getElementById('be-css')) { const st = document.createElement('style'); st.id = 'be-css'; st.textContent = BRIEF_EDITOR.CSS; document.head.appendChild(st); }
       const h = document.getElementById('be-host'); if (!h || typeof BRIEF_NET === 'undefined') return;

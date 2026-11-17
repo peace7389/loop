@@ -129,7 +129,7 @@ const EV = {
     // The test's own hypothesis is already there, so its link does nothing. Everywhere else a click opens its item in the pane.
     // (the test's picture and its sections; the trail at the head of the pane and the links inside an inset go where they say)
     if (a === 'open' && S.view === 'session' && S.sel && S.sel.t === 'test' && EV.M && (t.closest('#p-detail .t-flow') || t.closest('#p-detail .td'))) { const T = EV.M.testById[S.sel.id], x = T && EV.M.expById[T.exp], pic = !!t.closest('.t-flow'), k = t.dataset.t, set = o => { S.inset = S.inset && S.inset.t === o.t && S.inset.id === o.id ? null : o; return EV.draw(); };
-      if (k === 'sim' && x && x.sims.some(q => q.id === id)) return set({ t: 'sim', id });
+      if (k === 'sim' && x && (x.sims.some(q => q.id === id) || EV.hypSimIds(T).has(id))) return set({ t: 'sim', id });  // also a simulation of another test of the same hypothesis (the part “Its simulations”)
       if (k === 'hyp' && T && id === T.hyp) return;
       if (pic && k === 'hyp') return set({ t: 'hyp', id });      // a box of the picture: the hypothesis that followed, shown under the picture
       if (pic && k === 'log') return set({ t: 'verdict', id });  // the verdict's box: the verdict in full, under the picture

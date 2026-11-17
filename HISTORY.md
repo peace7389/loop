@@ -28,7 +28,7 @@ no setting makes a meaningful improvement it should ask why rather than present 
 | 2026-11-15, night | Simulator builds 6 and 7 (TCP's first window and buffers, the device's transmit queue, the series written sample by sample). Tiles of the simulations being run. |
 | 2026-11-15, day | A long run of small usability requests while sessions s029 and s030 ran (fields in the set-up cards, bars, hover boxes, one word per concept, nothing moves by itself). The session ran into its usage limit with five changes deployed by hand and nothing committed. |
 | 2026-11-15, evening | The interrupted work completed and checked; four faults it had left were found by the full run and repaired. A test's detail cut to what it is for (a rule with an "or" as either-or lines). Session s031 on the operator's brief `trap` read closely, by the operator, by Claude chat and here: it led to the three harness changes of section 4, lessons A1 to A5. |
-| 2026-11-17 | After the usage limit: the interrupted work completed (the page of 15 November checked as a whole and published; the report's parts "what limits the result" and "made no difference" tested and shown). The page shared with the lab: any account of the server through its own SSH tunnel, one session at a time, the page says who runs it. The task is now written by the harness, after the operator found that `trap`'s task contradicted its aim and settings. Briefs with the seed fixed. Two comparison arms built: the loop without the hypothesis format, and random search. |
+| 2026-11-17 | After the usage limit: the interrupted work completed (the page of 15 November checked as a whole and published; the report's parts "what limits the result" and "made no difference" tested and shown). The page shared with the lab: any account of the server through its own SSH tunnel, one session at a time, the page says who runs it. The task is now written by the harness, after the operator found that `trap`'s task contradicted its aim and settings. Briefs with the seed fixed. Two comparison arms built: the loop without the hypothesis format, and random search. A network as data (the program `net`, a drag-and-drop builder, structure the AI may change), the page on the lab network with a personal link for the professor. The chain of reasoning fixed by the answer format (guesses of why, needs, half of what is left; a guess can be looked at again or replaced); first session on it: s041. An audit of s033 and s041 at the operator's word found three defects in the chain (a test on known results, guesses never taken up, a hypothesis that need not follow from its guess): repaired, the last by a judge (a second model call). The builder redrawn on JointJS, hosts as in the two-host picture, the tools in a palette. |
 
 ## 3. Results (headline figures only)
 
@@ -51,6 +51,15 @@ no setting makes a meaningful improvement it should ask why rather than present 
   over another for a lead under 1 %. Three operator simulations agree with its diagnosis: with TCP's buffers at 1, 2
   and 4 MB, TCP goodput is 418.9, 595.6 and 658.3 Mbps. One session; the brief changed too (the task sentence, no
   seed), so this does not separate the instructions from the brief.
+- **The fixed chain of reasoning on `trap-2`** (session s041, 2026-11-17, the first real session on it: 6 turns, 11 of
+  20 simulations, ended by the model with 9 left). Turn 1: three guesses of why TCP stays near 300 Mbps (one of them
+  the 1 MB buffers), one hypothesis, an experiment of 3 simulations where the sessions before spent 12. Every
+  experiment after it lists, for each hypothesis, the simulations made for it, and they differ in one setting. It found
+  the same limit as s033 (1 MiB / 20 ms = 419.4 Mbps; BBR reaches 418.9) and recommends BBR, with the ratio and the
+  queue length as making no difference. So on this brief the chain did not change WHAT was found; it changed how the
+  budget was spent (11 simulations, none without a hypothesis; s033: 15) and how each result can be traced to a
+  reason. One session each. In turn 2 three guesses were refused because they cited a time series by its run id; the
+  harness now takes a run id for that run's simulation.
 - **A first control experiment** (2026-11-17, brief `two-hosts-udp-demand-2`, policy share, 40 simulations allowed):
   three sessions with the hypothesis format (s034 to s036), three without it (`--arm plain`, s037 to s039), three
   random searches of 40 settings each. All five sessions that gave a report recommend the same settings, the brief's
@@ -141,6 +150,63 @@ udpRate" where it was fixed).
 shows that sentence and has no task field; a name in braces in the description reads as a value or as "the knob …".
 The old briefs keep their texts and say so on the set-up page.
 *Status:* confirmed for the task. A description is still typed by hand and can still say something the settings do not.
+
+**A11. A hypothesis and its simulations were tied loosely; the tie is now a part of the answer.**
+*Evidence:* the operator, 2026-11-17: "after the AI formed a hypothesis, it clearly chooses what it needs to know and
+subsequently forms simulations. I worry that the connection is loose or just superficially implemented." Counted on
+eight sessions: of 101 decision rules 70 compared simulations that differ in one setting, 14 in several, 17 judged one
+simulation against a number; 28 of 228 test simulations were named by no rule (s035 X1: a sweep of 11, its rules name 3).
+*What we changed:* the chain is fixed by the answer format: a result, guesses of why it came out so (`whys`), which of
+them are worth verifying, a hypothesis from such a guess (`from_why`), what must be known to decide it (`needs`: the
+one setting that differs, the measure, the simulations), and only those simulations. The harness refuses a simulation
+no hypothesis needs and a comparison in which more than one setting differs. The instructions open with the role:
+not many settings tried for a slight lead, but looking into the system and asking why.
+*Status:* partly: s041 kept to it without trouble (section 3); whether it finds more than before is not shown.
+
+**A12. "Simulation limit reached" read like an error, and the budget went in three large experiments.**
+*Evidence:* the operator, 2026-11-17: "doesn't it mean the AI doesn't even know it has a limit and just extravagantly
+runs simulations?" It was told the limit every turn; 12 of 39 sessions still ended that way, typically after
+experiments of 12, 12, 12, 3 and 1.
+*What we changed:* one experiment may use at most half of the simulations that are left, said in each turn's text;
+the ending reads "all simulations used, report given in the last turn".
+*Status:* partly: s041 ended by itself with 9 of 20 left; one session.
+
+**A13. The first guesses must not fix the work.**
+*Evidence:* the operator, 2026-11-17: "I want the cause and effect in the stages of the chain strong and grounded by
+whys, but I don't want it fixed by the initially formed whys."
+*What we changed:* a guess has a standing that can change: the AI looks at an earlier guess again in the light of
+later results (`rethink`: still to verify, set aside, or refuted) or replaces it with a better one (`revises`). No new
+hypothesis may come from a guess that was stated before the latest results until it has been looked at again; a
+guess that was set aside can be taken up the same way. The page shows each guess with its standing now.
+*Status:* open: tested with a scripted session; no real session has run on it yet.
+
+**A14. "The chain did not change the finding" was the wrong sentence: the brief could not show it, and two links were hollow.**
+*Evidence:* the operator, 2026-11-17: "Look into the system to find out defects or illogical implementation." Read
+record by record, s033 and s041 end with the same recommendation because `trap-2` has one thing to find (TCP cannot
+pass 1 MB / 20 ms = 419 Mbps) and both reach it; "11 simulations instead of 15" says little, the brief allows 4 an
+experiment and the spending rule never applied. Underneath: (1) in both sessions the central hypothesis was "tested"
+by a rule on a simulation whose result was already in the ledger: it could not fail, the harness wrote "held", the
+report cited it (12 such rules in s026 to s041, all held, all cited); (2) s041 marked all 11 guesses "to verify",
+set none aside and never took up two, one of them the true cause; (3) a hypothesis did not have to follow from the
+guess it named (H2 of s041).
+*What we changed:* a decision rule that names only results already measured is refused as no test; the report waits
+once until every guess marked "to verify" has a hypothesis or a rethink; a second model call (the judge) reads each
+new hypothesis against its guess and refuses one that does not follow, when two readings agree.
+*Status:* partly: tested; on s041's nine pairs the judge refuses H2 every time and H3 once in three rounds, so it
+can be wrong at the border. Whether the chain finds more needs a brief with more than one hidden cause.
+
+**A15. The review of the step from one hypothesis to the next could be skipped without anyone noticing.**
+*Evidence:* the operator, 2026-11-17: "the most significant upgrade is making the AI review the transition between
+hypotheses. Make sure it is correctly implemented and visualize it nicely." Session s042 (the first with rethink and
+the judge: 10 guesses, 12 rethinks, 14 hypotheses, 14 readings of the judge, 12 of 20 simulations, the same ceiling)
+shows the hole in turn 3: its three rethinks named K4, K5, K6, the numbers of rethink records, were refused, and the
+harness let it go on to four new hypotheses. A rethink was required only when a hypothesis came from the old guess.
+*What we changed:* a guess whose hypothesis was just checked must be looked at again in the next answer before any new
+hypothesis or experiment is accepted, and before the report; the turn's text says so first; an id of a guess can only
+be written as Y and a number. On the page, "From one hypothesis to the next" stands under the board: one line for each
+step in five columns (the results it had, its guess, the judge's reading, the hypothesis, what its test showed), each
+turn's look-again at its head, and a turn that went on without it marked (s042, turn 3).
+*Status:* partly: tested with scripted sessions; no real session has run under the rule yet.
 
 ### B. Measuring and judging
 
@@ -243,5 +309,8 @@ was blocked by the tool's permission check. Asked, the operator allowed it "this
 3. Should the final report have fields of its own for what limits the result and for the settings that made no
    difference? (They are asked for in the explanation.)
 4. The warm-up as a setting. (The seed and the task text were settled on 2026-11-17: A5, A10.)
-5. Should the page say "not accepted" everywhere, and show how a hypothesis and the simulations of its test belong
-   together outside the test's detail?
+5. Should the page say "not accepted" everywhere? (How a hypothesis and its simulations belong together is shown
+   since 2026-11-17: "Its simulations" in the pane a hypothesis opens, "for H3" on a running simulation's tile, and
+   boxes on hover for a guess, a hypothesis and a claim.)
+6. Does the chain of A11 and A13 find more than the loop before it, or only spend less? Sessions on a brief that is
+   harder than `trap-2` would say.

@@ -119,6 +119,16 @@ Object.assign(EV, {
       const n = (rb.lines || []).length, txt = r.type === 'note' ? (rb.part ? `It refused the part “${rb.part}” of the AI’s answer: ${rb.reason || rb.text || 'no reason recorded'}` : rb.text || rb.reason || rb.error || '')
         : r.type === 'request' ? `${rb.tool || 'a tool'}${rb.args ? ' ' + JSON.stringify(rb.args) : ''}` : r.type === 'evidence' ? `${n} line${n === 1 ? '' : 's'}, one for each simulation of ${rb.experiment || r.parent || 'its experiment'}` : r.type === 'turn' ? `${rb.simulations_left ?? 'not recorded'} simulations left, ${rb.open_hypotheses ?? 'not recorded'} open hypotheses` : '';
       return `${head(name, s[0])}${lead(s[1], false)}${facts([['Its name', `<span data-rp="name"><b>${e(L)}</b> for ${e(s[0])}, number <b>${e(name.slice(L.length))}</b> of this session</span>`], who ? ['Written by', `<span class="st-by" data-by="${s[2]}"><i class="sw"></i>${who}</span>`] : null, r.turn != null ? ['When', r.turn ? `turn ${e(r.turn)}` : 'before the first turn'] : null, txt ? ['It says', `<span class="lc4" data-rp="says">${e(txt)}</span>`] : null])}`; }
+    if (kind === 'z') {  // "N not accepted" on a turn: what that means, and each part the harness left out with its reason
+      const t = M.turns.find(q => String(q.n) === name); if (!t) return '';
+      const rows = [...t.malformed.filter(m => EV.seen(m.id)).map(m => [(m.body.refused || []).map(q => q.part).join(', ') || 'the whole answer', (m.body.refused || []).map(q => q.reason).join(' · ') || m.body.error || 'it could not be read']),
+        ...t.refusals.filter(m => EV.seen(m.id)).map(m => [m.body.part, m.body.reason || m.body.text || 'no reason recorded'])], by = {};
+      rows.forEach(([part, why]) => { const k = part + '¦' + why; by[k] = (by[k] || 0) + 1; });
+      return `${head(`${rows.length} not accepted`, 'turn ' + e(name))}${lead('The harness checks each part of the AI’s answer before it uses it: a guess of why, a hypothesis, an experiment, a verdict. A part that breaks a rule of the work is left out, and the rest of the answer is used')}
+        <p class="sm">The AI is told the reason and can do that part again in its next answer. This is about the form of an answer; it is not a judgement of a hypothesis (“refuted”).</p>
+        ${facts(Object.entries(by).slice(0, 6).map(([k, n]) => { const [part, why] = k.split('¦'); return [`${e(part)}${n > 1 ? ' ×' + n : ''}`, `<span data-zp="why">${e(why.length > 230 ? why.slice(0, 228) + '…' : why)}</span>`]; }))}${Object.keys(by).length > 6 ? `<p class="sm">and ${Object.keys(by).length - 6} more kinds: open the turn to read them all</p>` : ''}`; }
+    if (kind === 'y') return EV.whyPop(name);    // a guess of why: what became of it, its hypotheses, the claims that rest on those
+    if (kind === 'c') return EV.claimPop(name);  // a claim of the final report: the hypotheses it rests on and the guesses behind them
     if (kind === 'x') return EV.expPop(name);  // an experiment: what it was for, its simulations, what came of it
     if (kind === 'h') return EV.hypPop(name);  // a hypothesis: its card (evidence_find.js)
     if (kind === 'n') return EV.namePop(name);  // a simulation's name: what its parts mean, read against the experiment's designs

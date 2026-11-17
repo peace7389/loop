@@ -18,6 +18,7 @@ Object.assign(EV, {
     if (r.type === 'check') { const T = test(t => t.check && t.check.id === item); return T ? { t: 'test', id: T.id } : { t: 'exp', id: r.parent }; }
     if (r.type === 'verdict') { const T = test(t => t.verdict && t.verdict.id === item); return T ? { t: 'test', id: T.id } : { t: 'hyp', id: b.for }; }
     if (r.type === 'simulation' || (r.type === 'evidence' && M.simById[item])) return { t: 'sim', id: item };
+    if (r.type === 'why' || r.type === 'rethink') return { t: 'why', id: r.type === 'why' ? item : b.for };
     return r.type === 'hypothesis' ? { t: 'hyp', id: item } : r.type === 'drop' ? { t: 'hyp', id: b.for } : r.type === 'experiment' ? { t: 'exp', id: item } : r.type === 'evidence' ? { t: 'exp', id: b.experiment || r.parent }
       : r.type === 'report' ? { t: 'report', id: 'report' } : { t: 'log', id: r.turn };
   },

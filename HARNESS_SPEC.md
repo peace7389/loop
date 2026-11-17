@@ -697,7 +697,8 @@ may be null or empty):
 
 ```
 { "observations":   text
-  "whys":           [ {about: [ids | "brief"], result, guess, unseen, matters, worth: "verify"|"set_aside", reason} ]
+  "rethink":        [ {id: Y id, in_light_of: [ids], now: "verify"|"set_aside"|"refuted", because} ]
+  "whys":           [ {about: [ids | run id | "brief"], result, guess, unseen, matters, worth: "verify"|"set_aside", reason, revises: Y id | null} ]
   "hypotheses":     [ {from_why: Y id, text, question, why, prediction, follows_from: [ids | "brief"] (optional)} ]
   "drop":           [ {id, why} ]
   "experiment":     { kind: "test"|"explore", tests: [H ids], question,
@@ -737,6 +738,50 @@ chain, link by link, each a part of the answer in this order:
    `structure` where the brief lets the structure change), the measure that
    decides it, and the simulations made for it;
 5. the simulations: only those a need lists.
+
+**A guess is not fixed by how it was first stated** (**DECISION 2026-11-17**, the
+operator: "strong and grounded by whys, but not fixed by the initially formed
+whys"). A why has a standing that can change (`loop.why_states`): `rethink`
+looks at an earlier why again in the light of results that came in after it
+(now verify, set_aside or refuted; ledger type `rethink`, ids `K<n>`); a new why
+may name the one it replaces (`revises`; the old one then counts as revised).
+No new hypothesis may come from a why that was stated, or last rethought,
+before the latest results: it must be rethought first, naming one of them. A
+why that was set aside is taken up the same way. The ledger text shows each
+why with its standing now and marks one that is stale.
+
+**The step from one hypothesis to the next is reviewed, and the review comes first** (**DECISION 2026-11-17**, the
+operator: "the most significant upgrade is making the AI review the transition between hypotheses; make sure it is
+correctly implemented"). `loop.tested_whys`: a why that is still marked verify and of which a hypothesis was checked
+since it was last settled is due. While a why is due, the answer's new hypotheses and its experiment are refused
+("first look again at the guesses that were just tested: Y4 (H4: C4 held; H5: C5 failed) ..."), and so is the report;
+a rethink of each in the same answer (or a new why that replaces it) lifts that. The turn's text says it first ("LOOK
+AGAIN FIRST: ..."). Found on s042: in turn 3 the model's three rethinks named K4, K5, K6 (the numbers of rethinks)
+instead of the whys, were refused, and it went on to new hypotheses unreviewed. In the answer format the id of a why
+can now only be written as Y and a number (`pattern` on `rethink.id`, `hypotheses.from_why`, `whys.revises`; the
+model server enforces it). A rethink's `now` may also be `supported`.
+
+**Choosing which guesses to verify is closed like a verdict** (**DECISION
+2026-11-17**; s041 marked all 11 whys "verify", set none aside, and never took
+up two of them, one the true cause). Before the report is accepted, every why
+whose standing is verify has led to a hypothesis or been settled by a rethink;
+otherwise the report is refused once (`loop.WAIT`), naming them, and the next
+answer is taken as it comes.
+
+**The judge** (**DECISION 2026-11-17**, the operator; `loop.judge_link`, flag
+`--judge on|off`, default on; not in the arm `plain`). The harness could only
+check that the why a hypothesis names exists (s041: H2 named a why about the
+1 MB / 20 ms cap and was about measuring 30 s instead of 10 s). A second model
+call (the session's own model, no draft, temperature 0, 400 tokens) is given
+the system's description, the knobs, the why (result, guess, unseen) and the
+hypothesis (text, prediction), and answers `{follows, because}`: would testing
+the hypothesis tell whether the guess is true? A hypothesis it finds unconnected
+is refused with its reason, but only when a second reading agrees (the judge is
+not steady on a pair at the border: on s041's nine pairs it said no to H2 in 3
+of 3 rounds and to H3 in 1 of 3). Each reading is kept: with the hypothesis
+(`judge`), and in a ledger record of type `judge` (`J<n>`, by the harness, not
+shown to the model). When the judge cannot be asked the hypothesis is accepted
+unjudged and says so. About 0.7 s a call.
 
 `prompt.txt` opens with the role in these words' sense: not to try many
 settings and keep whichever comes out slightly ahead, but to look into the
@@ -851,6 +896,15 @@ says nothing varies lists more than one simulation; a decision rule of the
 hypothesis names a simulation its need does not list, or does not name the
 need's measure; a simulation is listed by no need ("made for no hypothesis").
 The experiment record keeps `needs` (what is left of them after `trim`).
+
+**A decision rule must be able to fail** (`loop.trim`; **DECISION 2026-11-17**).
+A rule all of whose simulations equal ones already run in the session names
+only known results: it is refused as no test ("what the known results show
+belongs in a why or in observations"). Found by reading s041 and s033: both
+"tested" the limit they had already measured (H5, H14), the check could only
+hold, and the report cited it. In s026 to s041 there are 12 such rules, all
+held, all cited by a final report. A design that equals an earlier simulation
+may still be the control of a rule that also names a new one.
 
 **One experiment may use at most half of the simulations that are left**
 (`loop.spend_cap(left, per) = max(1, min(per, (left + 1) // 2))`; **DECISION
@@ -976,7 +1030,9 @@ model's answer.
 
 | Type | Id | By | Body | In the prompt |
 |---|---|---|---|---|
-| why | Y | model | about, result, guess, unseen, matters, worth, reason (since 2026-11-17) | yes |
+| why | Y | model | about, result, guess, unseen, matters, worth, reason, revises (since 2026-11-17) | yes, with its standing now |
+| rethink | K | model | for, in_light_of, now, because | yes |
+| judge | J | harness | guess, hypothesis, follows, because: one reading of the judge | no |
 | hypothesis | H | model | from_why (since 2026-11-17), text, question, why, prediction, follows_from | yes, with its current state and the why it comes from (the question and the why are not shown) |
 | drop | W | model | for, why | yes |
 | experiment | X | model (X0: harness) | kind, tests, question, varied, control, runs [{label, params, clamped}], decision_rules: what is left after `loop.trim`; `params` holds every knob of the brief (X0's is empty) | yes |

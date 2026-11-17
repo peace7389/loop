@@ -1,0 +1,75 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01 (the brief's given goal).",
+ "recommendation": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpBbr",
+  "duration": 10
+ },
+ "expected": {
+  "tcp_goodput_bps": 418901197,
+  "udp_loss_frac": 0.0,
+  "tcp_retrans": 0,
+  "link_util": 0.746044
+ },
+ "no_difference": [
+  "weightUdp",
+  "queuePkts",
+  "duration"
+ ],
+ "limit": "The fixed 1 MB (2^20) TCP receive buffer over the 20 ms minimum round-trip time (2x10 ms link delay) caps in-flight data at ~1,048,576 bytes, i.e. ~419.43 Mbps; the measured 418.90 Mbps is 99.9% of that ceiling. No knob touches these fixed resources: weightUdp down to 0.20 (TCP 80% share) leaves TCP unchanged (C11,C12), queuePkts 4-1000 leaves it unchanged (C9,C10), and duration 10->30 leaves it unchanged once plateaued (C7). BBR and BIC plateau at the same value (E2), showing the cap is the receiver window, not a variant's cwnd. Evidence: E2,E3,E4,C7,C9,C10,C11,C12.",
+ "explanation": "TcpBbr fills the receive window within the first (unmeasured) second and then sits at the window/RTT ceiling, so tcp_goodput_bps is fixed at ~418.9 Mbps regardless of weightUdp, queuePkts or duration (C7,C9,C10,C11,C12). The only lever that moves the goal is the congestion-control variant: TcpCubic is still ramping at 10 s (299.9 Mbps) and only reaches 376.5 Mbps at 30 s, whereas TcpBbr/TcpBic reach the ceiling within 10 s (E2,C4,C5,C6). Because the ceiling is set by fixed settings and UDP loss stays 0 at every tested weightUdp (C13,C14), the no-effect knobs are left at their defaults and the variant is set to TcpBbr (TcpBic ties it within tolerance).",
+ "holds_when": "Link delay 10 ms and 1 MB buffers as fixed; one backlogged TCP flow; UDP demand 300 Mbps so UDP+TCP (~719 Mbps) stay below the 1 Gbps link and the scheduler never saturates.",
+ "breaks_when": "If the receive buffer or RTT were larger the ceiling would rise; if UDP demand rose enough that UDP+TCP exceed 1 Gbps, weightUdp would bind and the recommendation would change; a loss-based variant that holds a standing queue would inflate RTT and fall below the ceiling.",
+ "claims": [
+  {
+   "text": "TcpBbr delivers ~418.9 Mbps, ~40% above TcpCubic's 10 s value, with udp_loss_frac 0.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "C4",
+    "C5"
+   ]
+  },
+  {
+   "text": "The 418.9 Mbps plateau is identical to the last digit across weightUdp 0.2/0.3/0.5 and queuePkts 4/100/1000 at duration 10.",
+   "role": "background",
+   "evidence": [
+    "E3",
+    "E4"
+   ]
+  },
+  {
+   "text": "The plateau equals the 1 MB receive buffer / 20 ms RTT ceiling (~419.43 Mbps); extra scheduler share, queue length and duration do not raise it.",
+   "role": "limits",
+   "evidence": [
+    "C7",
+    "C9",
+    "C10",
+    "C11",
+    "C12"
+   ]
+  },
+  {
+   "text": "udp_loss_frac stays 0 at weightUdp as low as 0.20 with TcpBbr, so the constraint holds at the default weight.",
+   "role": "supports",
+   "evidence": [
+    "E4",
+    "C13",
+    "C14"
+   ]
+  },
+  {
+   "text": "TcpBic ties TcpBbr at the plateau within tolerance, so the choice among fast-fill variants is not critical.",
+   "role": "background",
+   "evidence": [
+    "E2",
+    "C5"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether the untested variants (Vegas, NewReno, LinuxReno) reach the same plateau; they cannot exceed it by the receive-window argument but were not measured.",
+  "The exact source of the ~0.1% shortfall below 419.43 Mbps (residual queueing vs buffer not fully filled); a series() on a TcpBbr run would show cwnd vs in-flight bytes."
+ ]
+}

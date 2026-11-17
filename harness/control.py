@@ -630,6 +630,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=str(ROOT), **k)
 
+    def end_headers(self):
+        # a file of the page: the browser asks each time whether it has changed, so that nobody keeps reading an old copy of the page after a change
+        if not any(h.lower().startswith(b"cache-control") for h in getattr(self, "_headers_buffer", [])):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def answer(self, code, obj):
         data = json.dumps(obj).encode()
         self.send_response(code)

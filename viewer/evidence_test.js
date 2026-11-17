@@ -25,7 +25,7 @@ Object.assign(EV, {
     // chart; then, folded, the exact records (the rule as written, the check's raw numbers, the times); last the same test as one picture, whose
     // boxes shorten long texts (each stands in full above).
     const sec = (k, body, step, own) => `<div class="td-l" data-td="${k === 'Verdict' ? 'conclusion' : k.toLowerCase().replace(' ', '-')}"${step != null ? ` data-step="${step}"` : ''}><span class="td-k">${k}</span><div class="td-v"${own ? ` data-own="${own}"` : ''}>${body}</div></div>`, fol = EV.followers(T), kf = Math.max(kv, ...fol.ids.map(id => M.recStep[id] ?? 0));
-    const ins = S.sel && S.sel.t === 'test' && S.sel.id === T.id && S.inset && S.inset.t === 'sim' && x.sims.some(q => q.id === S.inset.id) && EV.seen(S.inset.id) ? S.inset.id : null;  // a simulation opened inside this test
+    const ins = S.sel && S.sel.t === 'test' && S.sel.id === T.id && S.inset && S.inset.t === 'sim' && (x.sims.some(q => q.id === S.inset.id) || EV.hypSimIds(T).has(S.inset.id)) && EV.seen(S.inset.id) ? S.inset.id : null;  // a simulation opened inside this test
     const sameText = same.map(k => `${EV.LABEL[k] || k} ${EV.setVal(k, T.sims[0].params[k])}`).join(' · ') || 'nothing';
     const here = S.sel && S.sel.t === 'test' && S.sel.id === T.id ? S.inset : null, insHyp = here && here.t === 'hyp' && M.hypById[here.id] && EV.seen(here.id) ? here.id : null, insV = here && here.t === 'verdict' && v && EV.seen(v.id);
     const inset = ins ? `<div class="td-inset" id="td-inset" data-sim="${e(ins)}"><p class="sm td-inset-h">One simulation of this test, opened here <button class="cl noprint" data-act="insetoff" style="float:right">close</button></p>${EV.simPanel(ins)}</div>`
@@ -53,14 +53,45 @@ Object.assign(EV, {
   testPanel(id) {
     const M = EV.M, e = EV.e, T = M.testById[id]; if (!T) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
     const h = M.hypById[T.hyp], more = h ? h.tests.filter(q => q !== id && EV.seen(M.testById[q].exp)) : [];
+    const why = h && h.from_why ? (M.whyById || {})[h.from_why] : null;  // the informed guess this hypothesis comes from (sessions since 2026-11-17)
     // The head says the outcome at once: the harness's check and the AI's verdict, each on a badge (only what is recorded by the step the page is at). The hypothesis
     // stands by its plain wording; its full statement, its prediction and what it follows from are one click away (folded), for they are long and say the same again.
     const c = T.check && EV.seen(T.check.id) ? T.check : null, v = T.verdict && EV.seen(T.verdict.id) ? T.verdict : null;
     const full = `<p>${EV.link(T.hyp)} <span data-own="model">${e(h ? h.text : '')}</span></p>
           <p class="sm">its prediction: <span data-own="model">${e((h && h.prediction) || 'not recorded')}</span></p><p class="sm">follows from: ${h && h.follows ? h.follows.map(EV.link).join(', ') || 'nothing earlier' : EV.nr}${more.length ? ' · this hypothesis was also tested in ' + more.map(q => EV.tlink(M.testById[q], e(M.testById[q].exp))).join(', ') : ''}</p>`;
     return `<h2 class="td-head">${EV_ICON.test} ${EV.term('Test', 'Test')} of ${e(T.hyp)}${c ? ` <span class="hp-badge ck-${c.void ? 'void' : e(c.result)}" data-head="check">${EV.checkRes(c)}</span>` : ''}${v ? ` <span class="hp-badge ${EV.stCls(v.result)}" data-head="verdict">${EV.verdictRes(v.result)}</span>` : ''} <small>experiment ${e(T.exp)} · turn ${T.turn}</small></h2>
-      <div class="td td-top"><div class="td-l" data-td="question"><span class="td-k">Hypothesis</span><div class="td-v">${h && h.question ? `<p class="hq-line">${EV.question(h)}</p><details class="td-fold" id="td-full"><summary><span class="td-fold-s">its full statement, its prediction, what it follows from</span></summary>${full}</details>` : full}</div></div>
-        <div class="td-l" data-td="why"><span class="td-k">Why</span><div class="td-v"${h && h.why ? ' data-own="model"' : ''}>${h && h.why ? e(h.why) : '<span class="mut">not recorded: sessions before 14 November 2026 were not asked for it</span>'}</div></div></div>${EV.testBody(T)}`;
+      <div class="td td-top">${why ? `<div class="td-l" data-td="guess"><span class="td-k">Its guess</span><div class="td-v"><p>${EV.whyLink(h.from_why)} <span data-own="model">${e(why.result)} <b>Why?</b> ${e(why.guess)}</span></p><p class="sm">not visible in the measures: ${e(why.unseen)} · for the goal: ${e(why.matters)} · ${e(why.reason)} (${e(h.from_why)}, about ${(why.about || []).map(a => (a === 'brief' ? 'the brief' : EV.link(a))).join(', ')})</p>${h.judge ? `<p class="sm" data-judge="${h.judge.follows === true ? 'yes' : 'unjudged'}" title="A second model call (the judge) read the guess and the hypothesis. It can be wrong."><span class="st-by" data-by="harness"><i class="sw"></i>the judge</span> ${h.judge.follows === true ? 'the hypothesis follows from this guess:' : ''} ${e(h.judge.because)}</p>` : ''}</div></div>` : ''}<div class="td-l" data-td="question"><span class="td-k">Hypothesis</span><div class="td-v">${h && h.question ? `<p class="hq-line">${EV.question(h)}</p><details class="td-fold" id="td-full"><summary><span class="td-fold-s">its full statement, its prediction, what it follows from</span></summary>${full}</details>` : full}</div></div>
+        <div class="td-l" data-td="why"><span class="td-k">Why</span><div class="td-v"${h && h.why ? ' data-own="model"' : ''}>${h && h.why ? e(h.why) : '<span class="mut">not recorded: sessions before 14 November 2026 were not asked for it</span>'}</div></div>
+        ${T.need ? `<div class="td-l" data-td="need"><span class="td-k">Needs to know</span><div class="td-v" data-own="model"><p>${e(T.need.to_know)}</p><p class="sm">${T.need.varies === 'none' ? 'decided by one simulation against a number it states' : `between its simulations only ${e(T.need.varies === 'structure' ? 'the structure' : TH_DATA.KNOB[T.need.varies] || T.need.varies)} differs`} · decided by ${e(TH_DATA.PLAIN[T.need.measure] || T.need.measure)} · the simulations made for it: ${e((T.need.simulations || []).join(', '))}</p></div></div>` : ''}
+        ${EV.hypSims(T)}</div>${EV.testBody(T)}`;
+  },
+
+  // Every simulation made for the hypothesis of a test, over all its tests (2026-11-17, the operator: a click on a hypothesis shows its simulations):
+  // those its need lists (sessions that record needs) and those its decision rules name. One row each: { s, x: its experiment, tests: the tests whose rule names it, need }.
+  hypRows(T) {
+    const M = EV.M, h = M.hypById[T.hyp], rows = [], at = {}; if (!h) return rows;
+    h.tests.map(q => M.testById[q]).filter(q => q && EV.seen(q.exp)).forEach(q => { const x = M.expById[q.exp], listed = q.need ? (q.need.simulations || []).map(l => x.sims.find(s => s.label === l)).filter(Boolean) : [];
+      [...listed, ...q.sims].forEach(s => { const r = at[s.id] || (rows.push(at[s.id] = { s, x, tests: [], need: false }), at[s.id]); if (listed.includes(s)) r.need = true; if (q.sims.includes(s) && !r.tests.includes(q)) r.tests.push(q); }); });
+    return rows;
+  },
+  hypSimIds(T) { return new Set(EV.hypRows(T).map(r => r.s.id)); },
+  // the part "Its simulations" of a test's pane: a table of them (what differs between them, the measures its rules judge, the rule each is compared in);
+  // a click on one opens that simulation in full inside the pane. Below it, said plainly, the simulations of the same experiments that no decision rule names.
+  hypSims(T) {
+    const M = EV.M, S = EV.s, e = EV.e, rows = EV.hypRows(T); if (!rows.length) return '';
+    const h = M.hypById[T.hyp], all = h.tests.map(q => M.testById[q]).filter(q => q && EV.seen(q.exp)), sims = rows.map(r => r.s), vary = EV.varying(sims), xs = [...new Set(rows.map(r => r.x))];
+    const ms = [...new Set(all.flatMap(q => EV.measuresOf(q.rule)).concat(all.filter(q => q.need).map(q => q.need.measure)))].filter(k => k && sims.some(s => (s.metrics || {})[k] != null));
+    const show = (k, val) => { const [u, f] = EV.unit(k); return typeof val !== 'number' ? '–' : (+f(val).toPrecision(7)).toLocaleString('en-US') + (u ? ' ' + u : ''); };
+    const used = r => r.tests.length ? r.tests.map(q => { const c = q.check && EV.seen(q.check.id) ? q.check : null, words = c ? `${c.id} ${c.void ? 'void' : c.result}` : 'its rule';
+      return q === T ? `<span title="the decision rule of the test shown here">${e(words)} · this test</span>` : `<a data-act="open" data-t="test" data-id="${e(q.id)}" title="${e(`another test of ${T.hyp}, in experiment ${q.exp}: open it`)}">${e(words)}</a>`; }).join(', ')
+      : '<span class="mut" title="its need lists this simulation, but no decision rule names it">listed by its need only</span>';
+    const k = Math.max(0, ...rows.map(r => M.recStep[r.x.id] ?? 0));
+    // the simulations of those experiments that no decision rule (of any hypothesis) names and no need lists: they decided nothing
+    const loose = xs.flatMap(x => x.sims.filter(s => EV.seen(s.id) && !M.tests.some(q => q.exp === x.id && (q.sims.includes(s) || (q.need && (q.need.simulations || []).includes(s.label))))).map(s => ({ s, x })));
+    return `<div class="td-l" data-td="its-simulations" data-step="${k}"><span class="td-k">Its simulations</span><div class="td-v"><p class="sm">The ${rows.length === 1 ? 'one simulation' : rows.length + ' simulations'} made for ${e(T.hyp)}${all.length > 1 ? `, over its ${all.length} tests` : ''}${xs.length > 1 ? ` in ${xs.length} experiments` : ''}. Click one to open it here in full.</p>
+      <div class="hs-wrap"><table class="tt hs" id="hs-${e(T.id)}"><thead><tr><th>simulation</th>${xs.length > 1 ? '<th>experiment</th>' : ''}${vary.map(c => `<th class="num">${e(TH_DATA.KNOB[c] || c)} <span class="warnc" title="differs between these simulations">≠</span></th>`).join('')}${ms.map(c => `<th class="num">${e(TH_DATA.PLAIN[c] || c)}</th>`).join('')}<th>compared in</th></tr></thead><tbody>
+      ${rows.map(r => { const s = r.s, got = EV.seen(s.id); return `<tr data-sim="${e(s.id)}" data-step="${M.recStep[s.id] ?? 0}"${S.inset && S.inset.t === 'sim' && S.inset.id === s.id ? ' class="sel"' : ''}><td><a data-act="open" data-t="sim" data-id="${e(s.id)}" data-test="${e(T.id)}">${EV.gkey(s.same_as ? 'sim-returned' : 'sim')}${e(s.id)}</a> ${e(s.label)}</td>${xs.length > 1 ? `<td>${e(r.x.id)} <span class="mut">· turn ${r.x.turn}</span></td>` : ''}${vary.map(c => `<td class="num dv">${e(s.params[c] ?? '–')}</td>`).join('')}${ms.map(c => `<td class="num">${got ? show(c, (s.metrics || {})[c]) : ''}</td>`).join('')}<td>${used(r)}</td></tr>`; }).join('')}</tbody></table></div>
+      ${loose.length ? `<p class="sm" id="hs-loose">${xs.length > 1 ? 'Those experiments' : 'Experiment ' + e(xs[0].id)} also ran ${loose.length === 1 ? 'one simulation' : loose.length + ' simulations'} that no decision rule names, so ${loose.length === 1 ? 'it' : 'they'} decided no hypothesis: ${loose.slice(0, 12).map(q => `<a data-act="open" data-t="sim" data-id="${e(q.s.id)}" data-loose="1">${e(q.s.id)}</a> ${e(q.s.label)}`).join(', ')}${loose.length > 12 ? `, and ${loose.length - 12} more` : ''}.</p>` : ''}</div></div>`;
   },
 
   // a hypothesis (opened from the map or a card): its statement, then View 3 of each of its tests

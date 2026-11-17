@@ -88,14 +88,20 @@ Object.assign(EV, {
       // the three places are there from the start (a value that is not known yet is a dash, with the reason in its box), so that a tile keeps its height
       // from waiting to ended and nothing under the tiles moves; where three do not fit in one line of a narrow tile they wrap inside it (they ran out of it)
       : `${val('--series-1', N.a[0], 'udp_bps', last ? last[1] : null)}${N.b ? val('--series-2', N.b[0], 'tcp_bps', last ? last[2] : null) : ''}${N.loss ? val('', N.loss[0], N.loss[1], null) : ''}`.replace(/<b>–<\/b>/g, `<b class="mut" title="${last ? 'Known when the simulation has ended' : 'No sample yet'}">–</b>`);
-    const sig = `${state}|${rows.length}|${other ? 1 : 0}|${EV.tiles.more ? 1 : 0}`;
+    // what the simulation is for (2026-11-17, the operator: pointing at a simulation shows the hypothesis it serves): the hypotheses whose need lists it or
+    // whose decision rule names it; an exploring experiment has none, and says so; a simulation of a test that no rule names says that
+    const mine = other || EV.tiles.more ? [] : M.tests.filter(q => q.exp === P.exp && ((q.labels || []).includes(d.label) || (!(q.labels || []).length && P.fresh.length + P.reused.length === 1) || (q.need && (q.need.simulations || []).includes(d.label)))), hyps = [...new Set(mine.map(q => q.hyp))];  // by the plan (the labels a rule names): while it runs its simulations are not recorded yet
+    const xk = (M.expById[P.exp] || {}).kind, forSay = hyps.length ? hyps.map(h => { const q = mine.find(t => t.hyp === h), hh = M.hypById[h]; return `<a data-act="open" data-t="test" data-id="${e(q.id)}" title="${e(hh ? hh.question || hh.text : h)}">${EV_ICON.hypothesis}${e(h)}</a>`; }).join(', ')
+      : other || EV.tiles.more ? '' : xk === 'explore' ? '<span class="mut" title="This experiment explores: it tests no hypothesis">exploring · no hypothesis</span>' : '<span class="mut" title="No decision rule of this experiment names this simulation">no hypothesis names it</span>';
+    const sig = `${state}|${rows.length}|${other ? 1 : 0}|${EV.tiles.more ? 1 : 0}|${hyps.join(',')}`;
     // running or ended, at a glance: a badge at the right of the tile's name (the accent colour while it runs, grey once it has ended), a strip that fills as the
     // measured time passes, and the tile itself (a heavy accent edge on a bright ground while it runs; quiet once ended; a dashed edge while it waits)
     const badge = { waiting: 'waiting', started: 'starting', running: 'running', ended: 'ended', collected: 'ended' }[state], prog = R.metrics ? 100 : last && dur ? Math.round(100 * Math.min(1, Math.max(0, (last[0] - 1) / dur))) : 0;
-    return `<div class="lt" data-run="${e(d.run)}" data-label="${e(other || EV.tiles.more ? '' : d.label)}" data-state="${state}" data-rows="${rows.length}" data-sig="${sig}">
+    return `<div class="lt" data-run="${e(d.run)}" data-label="${e(other || EV.tiles.more ? '' : d.label)}" data-state="${state}" data-rows="${rows.length}" data-sig="${sig}" data-hyps="${e(hyps.join(' '))}">
       <p class="lt-h"><span class="lt-ico" data-by="simulator"><i class="sw"></i></span><b${other || EV.tiles.more ? '' : ` class="lt-name" data-wd="n:${e(P.exp)}:${e(d.label)}" tabindex="0"`}>${other || EV.tiles.more ? e(d.run) : e(d.label)}</b>${other || EV.tiles.more ? '' : ` <span class="sm" title="The run: the folder of this simulation's files">${e(d.run)}</span>`}<span class="lt-badge" data-b="${badge}">${badge}</span></p>
       <div class="lt-prog" data-p="${prog}" title="${badge === 'ended' ? 'It has ended' : `${prog} % of its measured time has passed`}"><i style="width:${prog}%"></i></div>
       ${says ? `<p class="lt-state sm">${says}</p>` : ''}
+      ${forSay ? `<div class="lt-row" data-row="for"><span class="lt-lab" title="The hypothesis this simulation was made for">for</span><p class="lt-for sm">${forSay}</p></div>` : ''}
       <div class="lt-row" data-row="set"><span class="lt-lab">set</span><p class="lt-set sm">${other ? '<span title="The settings its own params.json names: not those of the design the page expected for this run">its own file says: </span>' : ''}${shown}</p></div>
       <div class="lt-fig"><span class="lt-top sm" title="The top line of the picture: the rate of the link">${EV.v4('link_rate_bps', top)}</span>${EV.tilePlot(d, R, top)}<p class="lt-xax sm" title="The measured time of the simulation: the picture fills from left to right as the simulator gets on"><span>0 s</span><span>measured time</span><span>${dur} s</span></p></div>
       <div class="lt-row lt-out" data-row="measured"><span class="lt-lab">${R.metrics ? 'measured' : 'now'}</span><p class="lt-vals sm">${vals}</p></div><p class="lt-read sm" data-say="${e(!R.metrics && last ? 'the newest sample' : '')}">${!R.metrics && last ? 'the newest sample' : ''}</p></div>`;
@@ -122,3 +128,19 @@ Object.assign(EV, {
     const tile = svg.closest('.lt'), read = tile.querySelector('.lt-read'); svg.querySelector('.lt-x').style.display = 'none'; read.textContent = read.dataset.say; },
 });
 if (!EV.off) { document.addEventListener('mousemove', EV.tileHover); document.addEventListener('mouseout', EV.tileLeave); }
+
+// Pointing at a simulation (its tile, or its row in a table of simulations) marks the hypothesis it is for wherever that hypothesis stands: its box on the
+// board, its row in the list of tests, its card in the notebook, its mark in the overview. Nothing is drawn again and nothing moves: one class is set and taken away.
+EV.hypHot = function (hyps) {
+  const M = EV.M, on = new Set(hyps || []), key = [...on].join(' '); if (key === EV._hypHot || !M) return; EV._hypHot = key;
+  const hypOf = el => (el.dataset.t === 'hyp' ? el.dataset.id : el.dataset.t === 'test' ? (M.testById[el.dataset.id] || {}).hyp : null);
+  document.querySelectorAll('#s-map [data-act=open][data-t], #s-notebook .nb-card[data-t=test], #s-find tr[data-act=find], #s-made a.gm[data-t=hyp], #s-made a.gm[data-t=test]').forEach(el => {
+    const h = el.dataset.act === 'find' ? (M.testById[el.dataset.id] || {}).hyp : hypOf(el); el.classList.toggle('hyp-hot', !!h && on.has(h)); });
+};
+document.getElementById('ev').addEventListener('mouseover', ev => {
+  const t = ev.target.closest ? ev.target.closest('.lt[data-hyps], tr[data-sim]') : null; if (!t) return EV.hypHot([]);
+  if (t.dataset.hyps != null) return EV.hypHot(t.dataset.hyps.split(' ').filter(Boolean));
+  const M = EV.M, s = M && M.simById[t.dataset.sim]; if (!s) return EV.hypHot([]);
+  EV.hypHot([...new Set(M.tests.filter(q => q.exp === s.exp && (q.sims.includes(s) || (q.need && (q.need.simulations || []).includes(s.label)))).map(q => q.hyp))]);
+});
+document.getElementById('ev').addEventListener('mouseleave', () => EV.hypHot([]));

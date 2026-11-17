@@ -3,8 +3,9 @@
 <p align="center"><img src="docs/two-hosts.svg" alt="Two simulated computers and one link: a UDP and a TCP source, a queue for each, a scheduler whose policy the AI is not told, and the loop the AI works in: a result, a guess of why, a hypothesis, what it needs to know, simulations." width="900"></p>
 
 A local language model is asked a networking question about a simulated system it cannot see inside. It works only
-through a ledger: hypothesis -> prediction -> experiment (with a decision rule stated first) -> evidence from the
-simulator -> verdict. The harness runs the experiments; a viewer shows what the numbers did and why the model chose
+through a ledger, along a fixed chain: a result -> its informed guesses of why it came out so (whys) -> the ones worth
+verifying -> hypothesis and prediction -> what it needs to know to decide it -> only the simulations that need asks
+for (with a decision rule stated first) -> evidence from the simulator -> verdict. The harness runs the experiments; a viewer shows what the numbers did and why the model chose
 each run. This repository is a snapshot of the working folder (`~/project` on the research server).
 
 ## What is where
@@ -15,7 +16,8 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` | The operator's two plans the viewer was built from: what the evidence page must show, and how one page serves the whole cycle of work |
 | `scratch/two-hosts/` | The ns-3 scenario: `two-hosts.cc` and the scheduler `link-queue-disc.{h,cc}` (a copy; it is built inside an ns-3.49 tree) |
 | `briefs/<id>.json` | A brief: the assignment a person writes before a session. A plain-language description of the system (the task sentence is written by the harness from the aim and the open settings, `tools.task_text`; a brief made before 2026-11-17 states its own), the fixed settings (`system`), the settings the model may change (`knobs`: any option of the program, each with a range and a default, a numeric one optionally with a `step` its values are rounded to), the goal (open, or a target with conditions and optionally a `tolerance` in per cent) and the limits |
-| `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, does what its answer asks. A turn may state hypotheses, drop them, give verdicts and design one experiment of several simulations, run at once. `--brief <id>` chooses the brief of a new session, `--session <id>` the session (default: a new id `sNNN`) |
+| `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, does what its answer asks. A turn may state whys and hypotheses, drop them, give verdicts and design one experiment of several simulations, run at once; each simulation must serve a tested hypothesis, and one experiment may use at most half of the simulations that are left. `--brief <id>` chooses the brief of a new session, `--session <id>` the session (default: a new id `sNNN`) |
+| `viewer/vendor/joint.min.js` | JointJS 4.3.4 (`@joint/core`), the open-source diagram library the network builder draws on; unchanged, with its licence (MPL-2.0) beside it in `joint.LICENSE.txt` |
 | `harness/decision_rules.py` | The decision rules of a test experiment: comparisons the model states before the simulations run (`measure@label > 1.1 * measure@other AND ...`), read and checked by the harness itself. Each comes with a rival explanation under which it would fail; one that would hold under the rival too is refused |
 | `harness/tools.py` | Everything the model can reach: read-only tools and `run()`. Every path is inside the current session's folder; a run id is accepted only if that session's own index lists it |
 | `harness/manifest.json`, `prompt.txt`, `schema.json` | What is the same for every brief (the outputs and the tools, described), the prompt, the answer format. The format's `params` object is built from the session's brief when the session starts: one property per knob, all required, so every design states every knob |

@@ -92,9 +92,9 @@ Object.assign(EV, {
     const rpt = Object.entries(typeof rep.expected === 'object' && rep.expected || {}).filter(([k]) => ['link_rate_bps', 'weight_udp'].includes(k));
     const exp = !X ? lines(rep.expected) : `<table class="rp-t rp-exp"><thead><tr><th>measure</th><th class="num">it expects</th></tr></thead><tbody>${X.all.map(X.row).join('')}${rpt.map(([k, v]) => `<tr data-k="${e(k)}" class="rp-rpt" title="This only repeats a setting"><td>${e(TH_DATA.PLAIN[k] || k)}</td><td class="num">${EV.v4(k, v)}</td></tr>`).join('')}</tbody></table>`;
     // 4 to 6 · the claims by their part in the argument; a report recorded without roles: one list
-    const claim = c => `<div class="rp-claim${S.claim === c.n ? ' on' : ''}" data-claim="${c.n}" data-role="${e(c.role || '')}"><div class="rp-ch"><b class="rp-cn">claim ${c.n}</b><span class="rp-cm sm">${EV.claimMarks(c, EV.seen)}</span><button class="cl noprint" data-act="print" data-id="${c.n}" title="Print the evidence sheet of claim ${c.n}: everything it cites, in full, with the reviewer's marks">print its evidence sheet</button></div>
+    const claim = c => `<div class="rp-claim${S.claim === c.n ? ' on' : ''}" data-claim="${c.n}" data-role="${e(c.role || '')}"><div class="rp-ch"><b class="rp-cn" data-wd="c:${c.n}">claim ${c.n}</b><span class="rp-cm sm">${EV.claimMarks(c, EV.seen)}</span><button class="cl noprint" data-act="print" data-id="${c.n}" title="Print the evidence sheet of claim ${c.n}: everything it cites, in full, with the reviewer's marks">print its evidence sheet</button></div>
         <p class="rp-ct" data-own="model">${EV.hl(c.text)}</p>
-        <div class="rp-evs">${c.evidence.length ? `<p class="rp-evh sm">It cites ${c.evidence.length} record${c.evidence.length === 1 ? '' : 's'}</p>${c.evidence.map(EV.evRow).join('')}` : '<p class="sm mut">It cites nothing.</p>'}</div></div>`;
+        ${c.evidence.length ? `<details class="rp-evs" data-cites="${c.n}"${(EV.citesOpen[`${M.id}:${c.n}`] ?? EV.store('ev-cites') === '1') ? ' open' : ''}><summary class="rp-evh sm" title="Click: show or hide the records this claim cites, each with the reviewer's tick and note">It cites ${c.evidence.length} record${c.evidence.length === 1 ? '' : 's'} <span class="mut">· ${c.evidence.map(e).join(', ')}</span></summary>${c.evidence.map(EV.evRow).join('')}</details>` : '<div class="rp-evs"><p class="sm mut">It cites nothing.</p></div>'}</div>`;
     const roles = M.claims.length > 0 && M.claims.every(q => q.role), of = r => M.claims.filter(q => q.role === r), says = r => EV.ROLES.find(q => q[0] === r)[2];
     const group = (r, none) => (of(r).length ? of(r).map(claim).join('') : `<p class="sm mut">${none}</p>`);
     const when = `<div class="rp-when"><div><h4>Holds when</h4>${lines(rep.holds_when)}</div><div><h4>Breaks when</h4>${lines(rep.breaks_when)}</div></div>`;
@@ -126,3 +126,10 @@ Object.assign(EV, {
     window.print();
   },
 });
+
+// A claim's citations and the review queue's list are folded until asked for (2026-11-17, the operator: hidden by default, for simplicity). Which are open
+// is kept while the page is open (citations) or in the browser (the queue), so that drawing the page again does not close what the reader opened.
+EV.citesOpen = EV.citesOpen || {};
+document.getElementById('ev').addEventListener('toggle', ev => { const d = ev.target; if (!d || !d.matches) return;
+  if (d.matches('details.rp-evs[data-cites]') && EV.M) { EV.citesOpen[`${EV.M.id}:${d.dataset.cites}`] = d.open; EV.store('ev-cites', d.open ? '1' : '0'); }
+  else if (d.matches('details#q-fold')) EV.store('ev-qlist', d.open ? '1' : '0'); }, true);

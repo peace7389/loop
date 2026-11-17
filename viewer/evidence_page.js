@@ -61,7 +61,7 @@ Object.assign(EV, {
   // word is the page's, for the reader (the operator's choice, 2026-11-15); the record's role keeps its name, and the AI is still told "background"
   ROLES: [['background', 'diagnosis', 'say how the system behaves'], ['supports', 'because', 'give reasons for the recommendation'], ['limits', 'but', 'say when the recommendation would change']],
   claimBtn(q) { const S = EV.s, e = EV.e, n = q.evidence.filter(id => (EV.marks['rec:' + id] || {}).tick).length;
-    return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}" data-role="${q.role || ''}"><b>claim ${q.n}</b><span class="ct" data-own="model" title="${e(q.text)}">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; },
+    return `<button class="chip claim${S.claim === q.n ? ' on' : ''}" data-act="claim" data-id="${q.n}" data-kind="${q.kind}" data-role="${q.role || ''}" data-wd="c:${q.n}"><b>claim ${q.n}</b><span class="ct" data-own="model">${e(q.text)}</span><span class="sm cl-ev">${EV.claimMarks(q, EV.seen)}${q.evidence.length ? ` · ${q.evidence.length} evidence item${q.evidence.length === 1 ? '' : 's'}` : ''}${n ? ` · ${n} reviewed` : ''}</span></button>`; },
   // the setting a recommended value stands for, in the page's words and without its unit: "ratio 0.5 → 0.30295"
   adjVal: (k, v) => TASK_VIEW._rate(String(v)).replace(/^Tcp/, ''),
   proposesCard() {

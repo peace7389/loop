@@ -31,7 +31,7 @@ Object.assign(EV, {
   SET_ORDER: ['linkRate', 'linkDelay', 'mtu', 'udpPacketBytes', 'udpRate', 'weightUdp', 'queuePkts', 'queuePktsUdp', 'queuePktsTcp', 'tcpVariant', 'tcpInitCwnd', 'tcpBufBytes', 'devQueuePkts', 'duration', 'seed'],
   SET_UNIT: { mtu: 'bytes', udpPacketBytes: 'bytes', queuePkts: 'packets', queuePktsUdp: 'packets', queuePktsTcp: 'packets', tcpInitCwnd: 'segments', devQueuePkts: 'packets', duration: 's' },
   POLICY_SAYS: { share: 'a flow may use what the other leaves unused', cap: 'each flow is held to its configured part of the link', random: 'the harness chooses share or cap and records it under checks/' },
-  FLAGS: [['budget', 'simulations allowed at the start', "the brief's limit"], ['draft', 'draft before the answer', 'on'], ['max_tokens', 'most tokens of one answer', '32000 with a draft, 3000 without'], ['temperature', 'temperature', '0.3'], ['baseline', 'baseline simulation first', 'on']],
+  FLAGS: [['budget', 'simulations allowed at the start', "the brief's limit"], ['draft', 'draft before the answer', 'on'], ['max_tokens', 'most tokens of one answer', '32000 with a draft, 3000 without'], ['temperature', 'temperature', '0.3'], ['baseline', 'baseline simulation first', 'on'], ['judge', 'a second model call judges whether each new hypothesis follows from its guess', 'on']],
   // the tools of the harness in plain words (a tool the manifest names and this list does not is shown by its own name)
   TOOL_SAYS: { describe_system: 'read the brief again', metrics: "ask for a simulation's measures", series: 'ask for its series (a sample every 0.1 s)', grep_trace: 'search its flow record', list_runs: 'list its simulations so far' },
   // what each setting is, in the page's own words: shown on hover where the brief has no line about it (a fixed setting)
@@ -130,13 +130,17 @@ Object.assign(EV, {
   setRuns(c) { const f = c.flags, e = EV.e, show = v => (v === true ? 'on' : v === false ? 'off' : v == null ? 'the default' : String(v));
     return `<table class="st-flags" data-exact="1"><tbody>${c.mode === 'session' ? `<tr data-flag="model"><td>model</td><td><b>${e(c.model || 'not recorded')}</b></td><td class="sm">taken from the model server</td></tr>` : ''}${EV.FLAGS.map(([k, name, dflt]) => `<tr data-flag="${k}"><td>${e(name)}</td><td><b>${f ? e(show(f[k])) : 'not recorded'}</b></td><td class="sm">default: ${e(dflt)}</td></tr>`).join('')}</tbody></table>`; },
   // one line that carries a folded block's content
-  setLine(key, c) { const l = c.b.limits || {}, f = c.flags || {}, e = EV.e;
+  setLine(key, c) { const l = c.b.limits || {}, f = c.flags || {}, e = EV.e, b = c.b, kn = Object.keys(b.knobs || {}), nf = Object.keys({ ...EV.netFixed(b), ...(b.system || {}) }).length, g = b.goal || {}, w = EV.aimWords(g);
+    // blocks 2 to 4 are folded to one line as well until asked for (2026-11-17, the operator: hidden by default)
+    if (key === 'who') return `${kn.length} setting${kn.length === 1 ? '' : 's'} the AI may change: ${kn.map(k => e(EV.LABEL[k] || (TH_DATA.KNOB || {})[k] || k)).join(', ') || 'none'} · ${nf} fixed by the operator`;
+    if (key === 'aim') return g.kind === 'open' ? 'open: the AI chooses its own aim' : w ? `find ${w}` : `the aim: ${EV.nr}`;
+    if (key === 'told') return 'told: the task, the system’s description, the settings, the goal, the limits, its own record · not told: the scheduling policy, the code, the operator’s checks';
     return key === 'limits' ? `${e(l.simulations ?? 'not recorded')} simulations in all, ${e(l.simulations_per_experiment ?? 'not recorded')} in one turn${c.mode === 'session' ? `, ${e(c.used ?? 'not recorded')} used` : ''}`
       : key === 'kept' ? (c.op ? `scheduling policy ${c.policyHidden ? 'chosen by the harness: shown once the session is scored' : e(c.policy || 'not recorded')}` : 'the scheduling policy: shown with the operator columns on')
       : c.flags ? `${c.model ? e(c.model) + ' · ' : ''}draft ${e(f.draft ?? 'not recorded')} · temperature ${e(f.temperature ?? 'not recorded')} · baseline ${f.baseline === false || f.baseline === 'off' ? 'off' : 'on'}` : 'the flags: not recorded'; },
   // the frame of a block: its number, its heading, the sentence that says what it is for, its content
   setBlock(i, body, o) { const [key, head, says, comp] = EV.SET_BLOCKS[i], e = EV.e; o = o || {};
-    return `<div class="st-b${o.cls ? ' ' + o.cls : ''}" data-block="${key}" data-comp="${comp}"${key === 'kept' ? ' data-by="operator"' : ''}><h3 class="st-h" title="${e(says)}"><span class="st-n">${i + 1}</span><span class="st-t">${e(head)}</span>${o.fold != null ? ` <button class="cl noprint" data-act="setfold" data-id="${key}">${o.fold ? 'open' : 'fold'}</button>` : ''}${o.extra || ''}</h3>${o.fold ? `<p class="st-line" data-exact="1">${o.line}</p>` : `${o.says ? `<p class="st-says sm">${e(says)}</p>` : ''}${body}`}</div>`; },
+    return `<div class="st-b${o.cls ? ' ' + o.cls : ''}" data-block="${key}" data-comp="${comp}"${key === 'kept' ? ' data-by="operator"' : ''}><h3 class="st-h" title="${e(says)}">${o.nonum ? '' : `<span class="st-n">${i + 1}</span>`}<span class="st-t">${e(head)}</span>${o.fold != null ? ` <button class="cl noprint" data-act="setfold" data-id="${key}">${o.fold ? 'open' : 'fold'}</button>` : ''}${o.extra || ''}</h3>${o.fold ? `<p class="st-line" data-exact="1">${o.line}</p>` : `${o.says ? `<p class="st-says sm">${e(says)}</p>` : ''}${body}`}</div>`; },
 
   // ---- what a session's records say of its setting
   setCtx() {
@@ -166,16 +170,21 @@ Object.assign(EV, {
     const pic = NT ? netPic() : !O ? `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`
       : `<div class="sy-row"><div><div class="ev-scroll">${EV.sysSvg({ v: V.v, knob: V.knob, fixed: V.fixed, on, act: 'sysobj', pol })}</div>
           <p class="sm gl-key">${M.brief ? EV.sysLegend() : ''}${(O.around || []).length ? `<span>outside a packet's path: ${(O.around || []).map((o, i) => `<a data-act="sysobj" data-id="around-${i}"${on === 'around-' + i ? ' style="font-weight:700"' : ''}>${e(o.name.toLowerCase())}</a>`).join(', ')}</span>` : ''}</p></div><div class="sy-side"><div class="sy-det${on ? ' on' : ''}">${on ? `${EV.objCard(on)}<p class="sy-det-h sm noprint"><button class="cl" data-act="sysobj" data-id="">close</button></p>` : '<p class="sm mut" id="sy-hint">Click a part of the picture to see its settings, what the AI may change there, and what is measured there.</p>'}</div></div></div>`;
-    const open = k => S.full || (S.setOpen || {})[k], line = (i, key, body) => EV.setBlock(i, body(), { fold: S.full ? null : !open(key), line: EV.setLine(key, c) });
-    const none = `<p class="sm">${EV.nr}: this session was made before briefs existed.</p>`, has = !!M.brief;
+    // Blocks 2 to 7 are not shown at all, or shown in full: one button under the picture (2026-11-17, the operator: "hidden altogether or shown in full").
+    // The browser remembers which. The full view (for print and review) always has them.
+    const all = S.full || EV.store('ev-setall') === '1', none = `<p class="sm">${EV.nr}: this session was made before briefs existed.</p>`, has = !!M.brief;
+    const rest = !all ? '' : `<div class="st-row">${EV.setBlock(1, has ? EV.setWho(c) : none)}${EV.setBlock(2, has ? EV.setAim(c) : none)}${EV.setBlock(3, has ? EV.setLists(c) : none, { cls: 'st-told' })}</div>
+        <div class="st-row st-low">${EV.setBlock(4, has ? EV.setLimits(c) : none)}${EV.setBlock(5, EV.setKept(c))}${EV.setBlock(6, EV.setRuns(c))}</div>`;
+    // the button stands right under the picture, before the blocks it shows: it stays where it is when they come and go, so that a reader can go back
+    // and forth without moving the pointer. The picture's block carries its number 1 only while the others are there to count with it.
+    const more = S.full ? '' : `<p class="sm noprint" id="st-more"><button class="cl" data-act="setall" aria-expanded="${all ? 'true' : 'false'}">${all ? 'hide the rest' : 'show the rest'}</button>${all ? '' : ' <span>who decides what · the aim · what the AI is told and can do · the limits · what is kept from the AI · how the AI runs</span>'}</p>`;
     return `<div class="ev-card noprint" id="s-system">${head}<div class="st" id="st-blocks">
-        ${EV.setBlock(0, pic, { cls: 'st-wide' })}
-        <div class="st-row">${EV.setBlock(1, has ? EV.setWho(c) : none)}${EV.setBlock(2, has ? EV.setAim(c) : none)}${EV.setBlock(3, has ? EV.setLists(c) : none, { cls: 'st-told' })}</div>
-        <div class="st-row st-low">${line(4, 'limits', () => (has ? EV.setLimits(c) : none))}${line(5, 'kept', () => EV.setKept(c))}${line(6, 'runs', () => EV.setRuns(c))}</div></div>
+        ${EV.setBlock(0, pic, { cls: 'st-wide', nonum: !all })}${more}${rest}</div>
       </div>`;
   },
 });
 EV.act = Object.assign(EV.act || {}, {
   setfold(id) { const S = EV.s; S.setOpen = S.setOpen || {}; S.setOpen[id] = !S.setOpen[id]; EV.draw(); },
+  setall() { EV.store('ev-setall', EV.store('ev-setall') === '1' ? '0' : '1'); EV.draw(); },
   setagain() { EV.go({ view: 'new', from: EV.s.sid }); },
 });

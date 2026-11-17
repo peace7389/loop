@@ -28,16 +28,17 @@ CAP = 6000  # characters of any tool result or ledger body shown to the model
 TOLERANCE = 1.0  # per cent: two results closer than this count as equal. The brief's goal may state its own (goal.tolerance); main() puts that here.
 DEFAULT_TOLERANCE = 1.0  # what a brief that states none gets
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
-NEED = "the report cannot be accepted yet: a hypothesis that has a checked decision rule needs a verdict. Still without one: "
+WAIT = "the report cannot be accepted yet: "   # said once per session; the answer after it is taken as it comes
+NEED = WAIT + "a hypothesis that has a checked decision rule needs a verdict. Still without one: "
 UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
-PREFIX = {"hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
+PREFIX = {"why": "Y", "rethink": "K", "judge": "J", "hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
           "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T", "turn": "U"}
 # who produced the content of a record, written into it as "by": the model (what it wrote), the simulator (what was
 # measured), the harness (what it computed, found or decided itself), the operator (the person; no record type is theirs yet)
 SOURCES = ("model", "harness", "simulator", "operator")
-BY = {"draft": "model", "hypothesis": "model", "drop": "model", "experiment": "model", "verdict": "model", "report": "model",
+BY = {"draft": "model", "why": "model", "rethink": "model", "judge": "harness", "hypothesis": "model", "drop": "model", "experiment": "model", "verdict": "model", "report": "model",
       "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness", "request": "model", "result": "harness", "turn": "harness"}
-HIDDEN = ("draft", "scratch", "simulation", "request", "result", "turn")  # kept on disk, not replayed: what the model wrote before its answer, and the
+HIDDEN = ("draft", "scratch", "simulation", "request", "result", "turn", "judge")  # kept on disk, not replayed: what the model wrote before its answer, and the
                                              # simulation records (the evidence record has one line for each of them)
 # ---- a brief with a network whose structure the model may change (TOPOLOGY.md, stage 5): a simulation may carry "structure", a list of changes
 # against the brief's network (network.apply); it is then run on the changed network, which has measures of its own
@@ -101,6 +102,75 @@ In this session you may also change the structure of the network. A simulation o
 The brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network."""
 
 
+def spend_cap(left, per):
+    """The most new simulations one experiment may run when `left` are left: half of them (rounded up), and never more than the
+    brief allows in one experiment. Until 2026-11-17 an experiment could take all that was left, and a session often spent three
+    experiments of the largest size and had three simulations for the comparison that decided its answer (s012: 12, 12, 12, 3, 1)."""
+    return max(1, min(per, (left + 1) // 2))
+
+
+def needs_problem(ex, brief, planned, full=True):
+    """None if a test's needs tie each tested hypothesis to simulations that can decide it; otherwise what is wrong (2026-11-17, the
+    operator: "after the AI formed a hypothesis, it clearly chooses what it needs to know and subsequently forms simulations").
+    For each tested hypothesis one need: what must be known, the one knob that differs between the simulations made for it, the
+    measure that decides it, those simulations. Checked here: the simulations of a need differ in that knob and in nothing else;
+    the hypothesis's decision rules name only those simulations and that measure; every simulation is made for some hypothesis.
+    planned: plan()'s rows of the experiment's designs (their clamped settings and their changes of structure).
+    full False: the experiment as it was sent, before trim(): only that each need is there and readable. What its simulations
+    differ in, what its rules name and whether a simulation serves no hypothesis are judged on what trim() leaves, like the budget."""
+    text = lambda v: isinstance(v, str) and bool(v.strip())
+    tests, needs, rules = ex.get("tests") or [], ex.get("needs"), ex.get("decision_rules") or []
+    row = {r["label"]: r for r in planned}
+    if not isinstance(needs, list) or sorted(n.get("for") for n in needs if isinstance(n, dict)) != sorted(tests) or len(needs) != len(tests):
+        return "a test experiment needs one entry in needs for each hypothesis it tests (for: the hypothesis), written before the simulations: what you must know to decide it"
+    used = set()
+    for n in needs:
+        h, sims, varies = n["for"], n.get("simulations"), n.get("varies")
+        if not text(n.get("to_know")) or not text(n.get("measure")):
+            return f"the need of {h} must say to_know (what you must know to decide {h}, in one sentence) and measure (the output that decides it)"
+        if not isinstance(sims, list) or not sims or len(set(sims)) != len(sims) or set(sims) - set(row):
+            return f"the need of {h} must list its simulations: labels of this experiment's designs, each once"
+        if varies not in (*brief["knobs"], "none", *(["structure"] if may_change(brief) else [])):
+            return f"the need of {h}: varies must be a knob of the brief, or none (a single simulation against a number you state)"
+        if not full:
+            continue
+        differ = sorted({k for a in sims for b in sims for k in brief["knobs"] if row[a]["params"].get(k) != row[b]["params"].get(k)})
+        other_net = any(row[a]["structure"] != row[b]["structure"] for a in sims for b in sims)
+        if varies == "none":
+            if len(sims) != 1:
+                return f"the need of {h} says nothing varies, so it is decided by one simulation against a number; it lists {len(sims)}. Name the knob that varies between them, or keep one"
+        elif len(sims) < 2:
+            return f"the need of {h} says `{varies}` varies but lists one simulation: a comparison needs at least two that differ in `{varies}`"
+        elif varies == "structure":
+            if differ or not other_net:
+                return (f"the need of {h} says the structure varies, but its simulations " + (f"also differ in {', '.join(differ)}" if differ else "all have the same structure")
+                        + ": make them differ in the structure and in nothing else")
+        else:
+            if differ != [varies] or other_net:
+                extra = [k for k in differ if k != varies] + (["the structure"] if other_net else [])
+                return (f"the need of {h} says its simulations differ only in `{varies}`, but they " + (f"also differ in {', '.join(extra)}" if extra else f"all have the same `{varies}`")
+                        + f": change the designs so that `{varies}` alone differs between them (a difference in the measure then has one possible cause), or test that in another hypothesis")
+        outs = {k: v for r in planned for k, v in outputs_of(r["structure"], brief).items()}
+        for d in rules:
+            if d.get("for") != h:
+                continue
+            try:
+                named = decision_rules.pairs(d.get("decision_rule"), outs, list(row))
+            except decision_rules.DecisionRuleError:
+                continue   # said by the check of the rule itself
+            stray = sorted({l for _, l in named} - set(sims))
+            if stray:
+                return f"the decision rule for {h} names `{stray[0]}`, which is not one of the simulations its need lists ({', '.join(sims)}): a rule is decided by the simulations made for its hypothesis"
+            if n["measure"] not in {m for m, _ in named}:
+                return f"the decision rule for {h} does not name `{n['measure']}`, the measure its need says decides it"
+        used |= set(sims)
+    idle = [l for l in row if l not in used] if full else []
+    if idle:
+        return (f"simulation `{idle[0]}` is made for no hypothesis: no need lists it" + (f" (nor {', '.join('`' + l + '`' for l in idle[1:4])})" if idle[1:] else "")
+                + ". Run only what a hypothesis needs: remove it, or say which hypothesis needs it and why")
+    return None
+
+
 def evidence_measures():
     """The measures of an evidence line: the session's, without the two of two-hosts that only repeat a setting."""
     return [k for k in tools.outputs() if k not in ("link_rate_bps", "weight_udp")]
@@ -127,6 +197,49 @@ def states(ledger):
         elif r["type"] == "drop":
             st[r["body"]["for"]] = "dropped"
     return st, {r["body"]["for"] for r in ledger if r["type"] == "check" and r["body"]["result"] in ("held", "failed")}
+
+def why_states(ledger):
+    """Every why's standing now: {id: {"worth": verify | set_aside | refuted | revised, "at": the place in the ledger of the record that last settled
+    it, "as": the why that revised it}}. A why is not fixed by how it was first stated (2026-11-17, the operator: "I want the cause and effect in the
+    stages of the chain strong and grounded by whys, but I don't want it fixed by the initially formed whys"): a rethink changes its standing, and a
+    later why may revise it."""
+    out = {}
+    for i, r in enumerate(ledger):
+        b = r["body"]
+        if r["type"] == "why":
+            out[r["id"]] = {"worth": b["worth"], "at": i}
+            if b.get("revises") in out and b["revises"] != r["id"]:
+                out[b["revises"]] = {"worth": "revised", "at": i, "as": r["id"]}
+        elif r["type"] == "rethink" and b.get("for") in out:
+            out[b["for"]] = {"worth": b["now"], "at": i}
+    return out
+
+
+def tested_whys(ledger):
+    """The guesses that were just tested and not yet looked at again: {why: ["H4: C4 held", ...]}. A why is in it when it is still marked
+    verify and a decision rule of a hypothesis that comes from it was checked after the why was last settled (stated, rethought or replaced).
+    This is the review of the step from one hypothesis to the next (2026-11-17, the operator: "the most significant upgrade"; s042, turn 3: the
+    model's three rethinks named K4, K5, K6 instead of the whys, were refused, and it went on to new hypotheses without the review)."""
+    ws, from_why, out = why_states(ledger), {r["id"]: r["body"].get("from_why") for r in ledger if r["type"] == "hypothesis"}, {}
+    for i, r in enumerate(ledger):
+        y = from_why.get(r["body"].get("for")) if r["type"] == "check" else None
+        if y in ws and ws[y]["worth"] == "verify" and i > ws[y]["at"]:
+            out.setdefault(y, []).append(f"{r['body']['for']}: {r['id']} {r['body']['result']}")
+    return out
+
+
+def look_again(due):
+    """The words for the guesses that are due: Y4 (H4: C4 held; H5: C5 failed), Y5 (H6: C6 held)."""
+    return ", ".join(f"{y} ({'; '.join(v)})" for y, v in sorted(due.items(), key=lambda q: int(q[0][1:])))
+
+
+def since(ledger, at):
+    """The results recorded after place `at` of the ledger: ids of evidence tables, checks and verdicts."""
+    return [r["id"] for r in ledger[at + 1:] if r["type"] in ("evidence", "check", "verdict")]
+
+
+STANDING = {"verify": "worth verifying", "set_aside": "set aside", "refuted": "refuted", "supported": "supported", "revised": "revised"}
+
 
 def plan(ledger, runs, complete=True):
     """Each simulation an experiment asks for: its clamped params, and whether it has to be run. A simulation with the same
@@ -164,6 +277,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
     runs, stated = plan(ledger, ex["runs"], complete=not zero), ex.get("decision_rules") or []
     xid = append(ledger, turn, "experiment", parent, {"kind": ex["kind"], "tests": ex.get("tests") or [], "question": ex.get("question") or "", "varied": ex.get("varied") or [],
                                                       "control": ex.get("control") or None, "runs": [{k: r[k] for k in ("label", "params", "clamped") + (("structure",) if r["structure"] else ())} for r in runs], "decision_rules": stated,
+                                                      **({"needs": ex["needs"]} if ex.get("needs") else {}),
                                                       **({"observations": ex["observations"]} if ex.get("observations") else {})},
                  rid="X0" if zero else None, by="harness" if zero else None)
     fresh = [r for r in runs if not r["prior"] and not r["twin"]]
@@ -219,8 +333,15 @@ def baseline(ledger):
 def shown(r, st):
     """One record's body as the prompt shows it. The full body stays in ledger.jsonl."""
     b, t, flat = r["body"], r["type"], lambda v: " ".join(str(v).split())
+    if t == "why":
+        w = st.get(r["id"]) if isinstance(st.get(r["id"]), dict) else {"worth": b["worth"]}   # its standing now, which a rethink or a later why may have changed
+        now = STANDING[w["worth"]] + (f" as {w['as']}" if w.get("as") else "") + (f"; stated before the results of {', '.join(w['stale'][:3])}: rethink it before a new hypothesis comes from it" if w.get("stale") else "") + ("; no hypothesis has come from it yet" if w.get("idle") else "")
+        return (f"[{now}] " + (f"revises {b['revises']}: " if b.get("revises") else "") + f"about {', '.join(b['about'])}: {flat(b['result'])} | guess: {flat(b['guess'])} | not visible: {flat(b['unseen'])} "
+                f"| for the goal: {flat(b['matters'])} | {flat(b['reason'])}")
+    if t == "rethink":
+        return f"of {b['for']} in the light of {', '.join(b['in_light_of'])}: now {STANDING[b['now']]}. {flat(b['because'])}"
     if t == "hypothesis":
-        return f"({st.get(r['id'], 'open')}) {flat(b['text'])}" + (f" | prediction: {flat(b['prediction'])}" if b.get("prediction") else "")
+        return f"({st.get(r['id'], 'open')}) " + (f"from {b['from_why']}: " if b.get("from_why") else "") + f"{flat(b['text'])}" + (f" | prediction: {flat(b['prediction'])}" if b.get("prediction") else "")
     if t == "drop":
         return f"{b['for']}: {flat(b['why'])}"
     if t == "experiment":
@@ -249,7 +370,9 @@ def shown(r, st):
 
 def render(ledger):
     """The ledger as text for the prompt: one line per record, and in an evidence record one line per simulation."""
-    st = states(ledger)[0]
+    st = dict(states(ledger)[0])
+    for y, w in why_states(ledger).items():   # a why with its standing now, and whether results have come in since it was last settled
+        st[y] = {**w, "stale": since(ledger, w["at"]) if w["worth"] == "verify" else [], "idle": w["worth"] == "verify" and not any(r["type"] == "hypothesis" and r["body"].get("from_why") == y for r in ledger)}
     return "\n".join(f"[{r['id']}] turn {r['turn']} {r['type']} " + shown(r, st)[:CAP] for r in ledger if r["type"] not in HIDDEN) or "(empty)"
 
 class ModelServerError(RuntimeError):
@@ -278,6 +401,39 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
     r = post(API + "/chat/completions", body, 1800)
     ch = r["choices"][0]
     return ch["message"].get("content") or "", ch["message"].get("reasoning") or "", ch.get("finish_reason"), r.get("usage", {})
+
+# ---- the judge (2026-11-17, the operator's decision): a second model call that reads one guess of why and one hypothesis said to come from it, and says whether
+# testing the hypothesis would tell if the guess is true. The harness could only check that the guess exists (s041: H2 named a guess about the 1 MB / 20 ms
+# cap and was about measuring for 30 s instead of 10 s). A hypothesis the judge finds unconnected is refused, with the judge's reason. The judge can be wrong:
+# its reading is kept with the hypothesis (and, for a refused one, in a record of its own) so that a person can see it.
+JUDGE = ("You check one step of a researcher's reasoning about a simulated network. You are given a RESULT, the researcher's GUESS of why it came out so, and a HYPOTHESIS "
+         "the researcher says comes from that guess. Decide one thing: would testing the hypothesis tell whether the guess is true? It does when the hypothesis is a consequence "
+         "of the guess: if the guess is true the hypothesis should hold, and if the hypothesis is refuted the guess becomes less likely. It does not when the hypothesis is about "
+         "another cause or another setting than the guess, or when it would come out the same whether the guess is true or not. A hypothesis may test only one consequence of "
+         "the guess: that is enough. The RESULT is only the background the guess was made on: judge the hypothesis against the GUESS, not against the result. Do not judge "
+         "whether the guess or the hypothesis is correct, only whether the one follows from the other. Answer with follows (true or "
+         "false) and because: one plain sentence of at most 30 words.")
+JUDGE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["follows", "because"],
+                "properties": {"follows": {"type": "boolean"}, "because": {"type": "string"}}}
+
+
+def judge_link(model, brief, why, hyp):
+    """(follows, because): whether testing hypothesis hyp would tell if the guess why is true, as a second model call sees it. Raises when the model
+    cannot be asked or its answer cannot be read; the caller then accepts the hypothesis unjudged and records that. A "no" is asked for twice: only
+    two readings that agree refuse a hypothesis."""
+    user = (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:1500]}\nThe settings the researcher may change: {', '.join(brief['knobs'])}\n\n"
+            f"THE RESULT: {why['result']}\nTHE GUESS of why it came out so: {why['guess']}\nWhat would make it so, not directly visible: {why['unseen']}\n\n"
+            f"THE HYPOTHESIS said to come from this guess: {hyp['text']}\nIts prediction: {hyp.get('prediction') or 'not stated'}\n\nWould testing this hypothesis tell whether the guess is true?")
+    def read():
+        d = json.loads(ask(model, JUDGE, user, JUDGE_SCHEMA, False, 0, 400)[0])
+        return bool(d["follows"]), " ".join(str(d["because"]).split())
+    follows, because = read()
+    if not follows:   # a refusal costs the model a turn and the judge is not steady on a pair at the border (s041 H3: no, then yes): it refuses only when a second reading agrees
+        again, because2 = read()
+        if again:
+            return True, f"read twice. The second reading: {because2} The first found no link: {because}"
+    return follows, because
+
 
 ROLES = ("supports", "background", "limits")  # what a claim of a final report does: a reason for the recommendation, how the system behaves, when the recommendation would change
 
@@ -362,11 +518,15 @@ def experiment_problem(ex, brief, ledger, left, st):
     has = {r["label"]: outputs_of(edits_of(r, brief), brief) for r in runs}   # the measures each simulation will have
     every = {k: v for o in has.values() for k, v in o.items()}
     try:
-        fresh = sum(1 for r in plan(ledger, runs, complete=left is not None) if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
+        planned = plan(ledger, runs, complete=left is not None)
+        fresh = sum(1 for r in planned if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
     except (ValueError, TypeError) as e:
         return f"a simulation has a setting that cannot be read: {e}"
     if left is not None and fresh > left:
         return f"the experiment needs {fresh} new simulations but only {left} are left in the budget"
+    if left is not None and fresh > spend_cap(left, per):
+        return (f"the experiment needs {fresh} new simulations; with {left} left, one experiment may run at most {spend_cap(left, per)} (half of what is left), "
+                "so that something remains for what its results raise. Keep the simulations that decide your hypotheses and leave the others out")
     if ex.get("control") not in (None, "", *labels) or set(ex.get("varied") or []) - set(brief["knobs"]):
         return "control must be the label of one of the simulations (or null), and varied must name knobs"
     tests, rs = ex.get("tests") or [], ex.get("decision_rules") or []
@@ -387,9 +547,12 @@ def experiment_problem(ex, brief, ledger, left, st):
                 return f"the decision rule for {r['for']} needs a rival (a competing explanation of how the system behaves) and rival_predicts (held or failed)"
             if r["rival_predicts"] == "held":
                 return "this decision rule would hold under the rival too; choose simulations where the two explanations give different results"
+        why = needs_problem(ex, brief, planned, full=left is not None)
+        if why:
+            return why
     elif ex.get("kind") == "explore":
-        if not text(ex.get("question")) or tests or rs:
-            return "an explore experiment needs a question, and has no tests and no decision rules"
+        if not text(ex.get("question")) or tests or rs or ex.get("needs"):
+            return "an explore experiment needs a question, and has no tests, no needs and no decision rules"
     else:
         return "experiment.kind must be test or explore"
     return None
@@ -439,6 +602,18 @@ def trim(ex, brief, ledger):
         if i not in refused and gone:
             refused.add(i)
             cuts.append((f"decision rule for {d['for']}", f"this decision rule names `{gone[0]}`, a design that was refused; change the designs or the rule"))
+    # a decision rule all of whose simulations were already run earlier in the session can only repeat what is known: it cannot fail, so it is no test
+    # (2026-11-17: 12 such rules in s026 to s041, all "held", all cited as evidence by the final report; s041 H5 and s033 H14 "tested" the limit they
+    # had already measured). The design that equals an earlier simulation may still stand as the control of a rule that also names a new one.
+    try:
+        prior = {r["label"]: r["prior"]["id"] for r in plan(ledger, kept, complete=False) if r["prior"]}
+    except (ValueError, TypeError):
+        prior = {}
+    for i, d in enumerate(rules):
+        if i not in refused and named[i] and all(l in prior for l in named[i]):
+            refused.add(i)
+            cuts.append((f"decision rule for {d['for']}", f"this decision rule names only results that are already in the ledger ({', '.join(f'{l} = {prior[l]}' for l in dict.fromkeys(named[i]))}), so it cannot fail and is no test. "
+                                                          "What the known results show belongs in a why or in observations; a test needs a simulation whose result you do not know yet"))
     if not cuts:
         return ex, []
     still = {l for i in range(len(rules)) if i not in refused for l in named[i]}
@@ -452,16 +627,18 @@ def trim(ex, brief, ledger):
         return None, cuts + [("experiment", "no design of this experiment is left, so nothing is run")]
     if ex.get("kind") == "test" and not tests:
         return None, cuts + [("experiment", "no decision rule of this experiment is left, so nothing is run")]
-    return {**ex, "runs": kept, "decision_rules": rules, "tests": tests, "control": ex.get("control") if ex.get("control") in [r["label"] for r in kept] else None}, cuts
+    left_labels = {r["label"] for r in kept}   # what is left of the needs: those of the hypotheses still tested, with the designs that are still run
+    needs = [{**n, "simulations": [l for l in n.get("simulations") or [] if l in left_labels]} for n in ex.get("needs") or [] if isinstance(n, dict) and n.get("for") in tests]
+    return {**ex, "runs": kept, "decision_rules": rules, "tests": tests, "needs": needs, "control": ex.get("control") if ex.get("control") in left_labels else None}, cuts
 
-def sort_out(t, brief, ledger, left, mode=None, insist=True):
+def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None):
     """The parts of an answer that can be used, and the parts that cannot, each with the reason: (ok, refused).
     ok = {verdicts, drop, hypotheses, experiment, report, budget_request}; refused = [(part, reason), ...].
     A refused part is left out and the rest is accepted. mode: None for an ordinary turn; "budget" for the last turn
     after the budget is used up (no experiment); "report" for a last turn that accepts only the final report."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
     st, checked = states(ledger)
-    ok, no = {"verdicts": [], "drop": [], "hypotheses": [], "experiment": None, "report": None, "budget_request": None}, []
+    ok, no = {"verdicts": [], "drop": [], "rethink": [], "whys": [], "hypotheses": [], "experiment": None, "report": None, "budget_request": None}, []
     only = "this last turn accepts only the final report"
     for v in t.get("verdicts") or []:
         part = f"verdict for {v.get('for')}"
@@ -490,9 +667,93 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
     known, kinds = len([r for r in ledger if r["type"] == "hypothesis"]), {r["id"]: r["type"] for r in ledger}
     for i in range(len(ok["verdicts"])):  # a verdict given in this same answer can be cited: the id it is about to get
         kinds[f"V{sum(r['type'] == 'verdict' for r in ledger) + i + 1}"] = "verdict"
+    # the chain (2026-11-17, the operator): a result, informed guesses of why it came out so, which of them are worth verifying for the goal, and
+    # only from those a hypothesis. A why names records that exist; a hypothesis names a why that was chosen to be verified.
+    whys = {r["id"]: r["body"] for r in ledger if r["type"] == "why"}
+    n_why = len(whys)
+    # what a why read in a tool's result (a series, a trace) is about that run's simulation: "series r001" or "r001" stands for the simulation of
+    # run r001 (s041, 2026-11-17: three whys about a series were refused, and with them the turn's hypotheses and experiment)
+    run_sim = {r["body"]["run_id"]: r["id"] for r in ledger if r["type"] == "simulation" and r["body"].get("run_id")}
+    def of_run(a):
+        m = re.fullmatch(r"(?:[A-Za-z_ ]+[ :])?\s*(r\d+)", a.strip()) if isinstance(a, str) else None
+        return run_sim.get(m.group(1), a) if m else a
+    # A why is not fixed by how it was first stated. Its standing now (stand) is what a rethink or a revising why last made it; it is fresh when no
+    # result has come in since it was last settled, when this answer rethinks it, or when it is one of this answer's own. A hypothesis comes only from
+    # a why that is worth verifying AND fresh: the early guesses are looked at again in the light of each new result before anything is built on them.
+    ws = why_states(ledger)
+    stand = {y: w["worth"] for y, w in ws.items()}
+    revised_as = {y: w["as"] for y, w in ws.items() if w.get("as")}
+    later = {y: since(ledger, w["at"]) + [f"V{sum(r['type'] == 'verdict' for r in ledger) + i + 1}" for i in range(len(ok["verdicts"]))] for y, w in ws.items()}
+    fresh = {y for y in ws if not later[y]}
+    for k in t.get("rethink") or []:
+        y = k.get("id") if isinstance(k, dict) else None
+        light = [of_run(a) for a in k["in_light_of"]] if isinstance(k, dict) and isinstance(k.get("in_light_of"), list) else None
+        if mode == "report":
+            no.append(("rethink", only))
+        elif y not in ws:
+            no.append(("rethink", f"a rethink names an earlier why of the ledger by the why's own id (Y1, Y2, ...): {y!r} is not one (the K numbers are those of rethinks; a why of this same answer needs none)"))
+        elif stand[y] == "revised":
+            no.append((f"rethink of {y}", f"{y} was revised as {revised_as.get(y)}: rethink that one instead"))
+        elif any(q["id"] == y for q in ok["rethink"]):
+            no.append((f"rethink of {y}", f"{y} is looked at once in an answer"))
+        elif k.get("now") not in ("verify", "set_aside", "refuted", "supported") or not text(k.get("because")):
+            no.append((f"rethink of {y}", "a rethink says what the why is now (now: verify, set_aside, refuted or supported) and because of what in the results"))
+        elif not light or any(kinds.get(a) not in ("evidence", "simulation", "check", "verdict") for a in light):
+            no.append((f"rethink of {y}", "in_light_of must list the results you looked at it again with: ids of evidence tables, simulations, checks or verdicts in the ledger (for example E2, C3)"))
+        elif later[y] and not set(light) & set(later[y]):
+            no.append((f"rethink of {y}", f"in_light_of must name at least one result that came in after {y} was last settled ({', '.join(later[y][:4])}): a rethink looks at a why again in the light of what was measured since"))
+        else:
+            ok["rethink"].append({"id": y, "in_light_of": light, "now": k["now"], "because": k["because"]})
+            stand[y] = k["now"]
+            fresh.add(y)
+    # the review of the step from one hypothesis to the next: the guesses whose hypotheses were checked since they were last settled must be rethought
+    # in this answer before it goes on to a new hypothesis or an experiment (and before the report). A new why that replaces one of them settles it too.
+    tested = tested_whys(ledger)
+    due = lambda: {y: v for y, v in tested.items() if stand.get(y) == "verify" and not any(q["id"] == y for q in ok["rethink"])}
+    FIRST = ("first look again at the guesses that were just tested: {}. Give a rethink for each in this answer (id: the why's own id, for example Y4, never a K number; now: supported, "
+             "refuted, verify or set_aside; because: what in those results makes it so). No new hypothesis and no experiment is accepted until then: this is the review of the step from "
+             "one hypothesis to the next")
+    for w in t.get("whys") or []:
+        if isinstance(w, dict) and isinstance(w.get("about"), list):
+            w["about"] = list(dict.fromkeys(of_run(a) for a in w["about"]))
+        about = w.get("about") if isinstance(w, dict) else None
+        if mode == "report":
+            no.append(("new why", only))
+        elif not isinstance(w, dict) or not all(text(w.get(k)) for k in ("result", "guess", "unseen", "matters", "reason")):
+            no.append(("new why", "a why needs result (the result it is about, in one sentence), guess (why it came out so), unseen (what in the system, not directly visible, would make it so), "
+                                  "matters (how it could matter for the goal) and reason (why it is or is not worth verifying now)"))
+        elif w.get("worth") not in ("verify", "set_aside"):
+            no.append(("new why", "a why says whether it is worth verifying now: worth is verify or set_aside"))
+        elif not isinstance(about, list) or not about or any(a != "brief" and kinds.get(a) not in ("evidence", "simulation", "check", "verdict") for a in about):
+            bad = [a for a in about or [] if a != "brief" and a not in kinds] if isinstance(about, list) else []
+            no.append(("new why", (f"about names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
+                                   "about must list the records whose result the why explains: ids of evidence tables, simulations, checks or verdicts in the ledger (for example E2, C3), "
+                                   "a run id for what you read in that run's series or trace (for example r001), or the word brief")))
+        elif w.get("revises") is not None and (w["revises"] not in ws or stand[w["revises"]] == "revised"):
+            no.append(("new why", "revises is null, or the id of an earlier why in the ledger that this one replaces with a better guess (one that has not been revised already)"))
+        else:
+            ok["whys"].append(w)
+            new = f"Y{n_why + len(ok['whys'])}"   # the id it is about to get
+            whys[new], stand[new] = w, w["worth"]
+            fresh.add(new)
+            if w.get("revises"):
+                stand[w["revises"]], revised_as[w["revises"]] = "revised", new
     for h in t.get("hypotheses") or []:
+        if isinstance(h, dict) and not h.get("follows_from") and whys.get(h.get("from_why")):
+            h["follows_from"] = list(whys[h["from_why"]]["about"])   # what the hypothesis follows from: what its why is about
         if mode == "report":
             no.append(("new hypothesis", only))
+        elif stand.get(h.get("from_why")) != "verify":
+            y = h.get("from_why")
+            no.append(("new hypothesis", "a hypothesis comes from a why you chose to verify: from_why must be the id of a why whose worth is verify, one in the ledger or one of this answer "
+                                         f"(the harness numbers new whys in order: the first new one is Y{n_why + 1})"
+                                         + (f"; {y} was {STANDING[stand[y]]}" + (f" as {revised_as[y]}" if stand[y] == "revised" and y in revised_as else "") if y in stand else "")))
+        elif h["from_why"] in fresh and due():
+            no.append(("new hypothesis", FIRST.format(look_again(due()))))
+        elif h["from_why"] not in fresh:
+            y = h["from_why"]
+            no.append(("new hypothesis", f"{y} was stated before the results of {', '.join(later[y][:4])}: look at it again first (rethink: does it still hold in the light of them, and why?), "
+                                         "or make a new why from the new results. A hypothesis comes from a why that has seen the latest results, so that the first guesses do not fix the work"))
         elif not text(h.get("text")):
             no.append(("new hypothesis", "a hypothesis needs a text"))
         elif not text(h.get("question")):
@@ -504,11 +765,25 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
             no.append(("new hypothesis", (f"follows_from names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
                                           "follows_from must list what the hypothesis follows from: ids of verdicts, checks, evidence tables or simulations in the ledger (for example V2, C3, E1), or the word brief")))
         else:
+            # the judge (judge: a function of the why and the hypothesis, given by the loop; None: no judging): does testing this hypothesis tell whether its guess is true?
+            read = None
+            if judge is not None:
+                try:
+                    follows, because = judge(whys[h["from_why"]], h)
+                    read = {"follows": follows, "because": because}
+                except Exception as e:   # the judge could not be asked: the hypothesis is taken unjudged, and the record says so
+                    read = {"follows": None, "because": f"the judge could not be asked ({type(e).__name__}): accepted unjudged"}
+            if read and read["follows"] is False:
+                no.append(("new hypothesis", f"it does not follow from {h['from_why']}: a second reading of the guess and the hypothesis (the judge) finds that testing it would not tell whether the guess is true. "
+                                             f"{read['because']} State a hypothesis whose result depends on that guess, or state the guess this hypothesis really comes from and name that one"))
+                continue
+            if read:
+                h = {**h, "judge": read}   # a copy: the answer as it was received (answers.jsonl) stays as the model wrote it
             ok["hypotheses"].append(h)
             st[f"H{known + len(ok['hypotheses'])}"] = "open"  # the id it is about to get
     ex = t.get("experiment")
     if ex is not None:
-        why = only if mode == "report" else "the simulation budget is used up: no experiment is accepted in the last turn" if mode == "budget" else experiment_problem(ex, brief, ledger, None, st)
+        why = only if mode == "report" else "the simulation budget is used up: no experiment is accepted in the last turn" if mode == "budget" else FIRST.format(look_again(due())) if due() else experiment_problem(ex, brief, ledger, None, st)
         if not why:  # readable as sent: now cut back what cannot test anything, then count what is left against the budget
             ex, cuts = trim(ex, brief, ledger)
             no.extend(cuts)
@@ -536,8 +811,18 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True):
     else:
         waiting = sorted((h for h in checked if st.get(h) == "open"), key=lambda h: int(h[1:]))  # tested, and not judged even by this answer
         why = check_report(report, brief, set(kinds), ledger)  # the ledger's ids, and those of the verdicts accepted from this same answer
+        # the guesses marked worth verifying from which no hypothesis came and which no rethink settled (s041: all 11 guesses were marked verify, none set
+        # aside; two of them, one the true cause, were never taken up): choosing which guesses to verify is a link of the chain, so it is closed too
+        taken = {r["body"].get("from_why") for r in ledger if r["type"] == "hypothesis"} | {h.get("from_why") for h in ok["hypotheses"]}
+        hanging = sorted((y for y, s in stand.items() if s == "verify" and y not in taken), key=lambda y: int(y[1:]))
         if not why and insist and waiting and mode != "report":  # said once per session: the verdicts are asked for together with the report
             why = NEED + ", ".join(waiting) + ". Give their verdicts in the same answer as the report."
+        if insist and due() and mode != "report" and (not why or why.startswith(NEED)):   # tested, and not looked at again: the last step is reviewed like every other
+            why = (why + " Also: " if why else WAIT) + ("these guesses were tested and no rethink says what the results did to them: " + look_again(due())
+                   + ". In the same answer as the report, give a rethink for each (id: the why's own id; now: supported, refuted, verify or set_aside; because of what).")
+        if insist and hanging and mode != "report" and (not why or why.startswith(WAIT)):
+            why = (why + " Also: " if why else WAIT) + ("these guesses are marked worth verifying, but no hypothesis came from them and no rethink says what became of them: " + ", ".join(hanging)
+                   + ". In the same answer as the report, say in rethink what each is now (set_aside or refuted, and because of what), or test it first: a guess you chose to verify is not left hanging.")
         if why:
             no.append(("report", why))
         else:
@@ -554,6 +839,10 @@ def answer_format(schema, brief):
     ex["runs"]["items"]["properties"]["params"] = {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
     ex["runs"]["maxItems"] = brief["limits"]["simulations_per_experiment"]
     ex["varied"]["items"] = {"type": "string", "enum": list(props)}
+    need = ex["needs"]["items"]["properties"]   # what a hypothesis needs: the one knob that differs between its simulations (or none; or the structure, where that may be changed), and the measure that decides it
+    need["varies"] = {**need["varies"], "enum": [*props, "none", *(["structure"] if may_change(brief) else [])]}
+    if not may_change(brief):   # a changed network has measures of its own, which are not known before the answer
+        need["measure"] = {**need["measure"], "enum": list(tools.outputs(brief))}
     # the recommendation of the final report: every knob of the brief, all required, like a design. Until 2026-11-15 it had a fixed list of six knobs, all optional,
     # and the model server writes an object's properties in the format's order: a report that had passed over one could not name it any more, and a knob that was
     # not in the list (tcpBufBytes) could not be recommended at all (s030: ratio, TCP type, measured time and seed recorded; UDP rate, queue length and buffers lost)
@@ -583,12 +872,12 @@ def plain_format(schema):
     """The answer format of the comparison arm "plain" (--arm plain): the same answer without the hypothesis format. No
     hypotheses, no drop, no verdicts; an experiment only explores (no tests, no decision rules). Everything else, the
     final report included, is as in the ordinary arm."""
-    for k in ("hypotheses", "drop", "verdicts"):
+    for k in ("rethink", "whys", "hypotheses", "drop", "verdicts"):
         del schema["properties"][k]
         schema["required"].remove(k)
     ex = schema["properties"]["experiment"]["anyOf"][0]
     ex["properties"]["kind"] = {"type": "string", "enum": ["explore"]}
-    for k in ("tests", "decision_rules"):
+    for k in ("tests", "needs", "decision_rules"):
         del ex["properties"][k]
         ex["required"].remove(k)
     return schema
@@ -596,12 +885,12 @@ def plain_format(schema):
 
 PLAIN = (  # prompt.txt -> the instructions of the arm "plain": (text as it stands in prompt.txt, what replaces it). Each must be found exactly once.
     ("everything you have hypothesised, run, observed and concluded", "everything you have run, observed and concluded"),
-    ("Name the most important unexplained thing; your next hypothesis is about it.", "Name the most important unexplained thing; your next experiment is about it."),
-    ("\n4. experiment: at most one per turn.", "\n2. experiment: at most one per turn."),
-    ('   - kind "explore": question says what you want to find out; tests and decision_rules stay empty. Use it when you do not yet have a claim to test.', '   - kind is always "explore": question says what you want to find out.'),
-    ("\n5. After an experiment the harness appends the evidence (one line per simulation) and, for every decision rule, a check: the decision rule with the measured numbers written into it, and HELD or FAILED. You never write evidence or checks yourself.",
+    ("Name the most important unexplained thing: your guesses of why are about it.", "Name the most important unexplained thing; your next experiment is about it."),
+    ("\n5. experiment: at most one per turn.", "\n2. experiment: at most one per turn."),
+    ('   - kind "explore": question says what you want to find out; tests, needs and decision_rules stay empty. Use it when you do not yet have a claim to test.', '   - kind is always "explore": question says what you want to find out.'),
+    ("\n6. After an experiment the harness appends the evidence (one line per simulation) and, for every decision rule, a check: the decision rule with the measured numbers written into it, and HELD or FAILED. You never write evidence or checks yourself.",
      "\n3. After an experiment the harness appends the evidence (one line per simulation). You never write evidence yourself."),
-    ("\n7. requests:", "\n4. requests:"), ("\n8. budget_request:", "\n5. budget_request:"), ("\n9. done and report:", "\n6. done and report:"),
+    ("\n8. requests:", "\n4. requests:"), ("\n9. budget_request:", "\n5. budget_request:"), ("\n10. done and report:", "\n6. done and report:"),
     ("do not leave the decisive test for later than you can afford", "do not leave the decisive experiment for later than you can afford"),
     ("(for example E3, C5)", "(for example E3)"),
     ("(for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read)", "(for example an experiment that repeats a design you already ran)"),
@@ -610,7 +899,7 @@ PLAIN = (  # prompt.txt -> the instructions of the arm "plain": (text as it stan
     ("do not write a decision rule that such a difference can decide, do not build a hypothesis on it, do not spend further simulations on it,", "do not spend further simulations on it,"),
     (' The harness marks every check that was decided by less than the tolerance; read such a check as "no difference".', ""),
 )
-PLAIN_DROP = ("2. hypotheses:", "3. drop:", '   - kind "test":', "   - decision_rules:", "6. verdicts:", "   Before the report, give a verdict")  # whole lines of prompt.txt the arm does not have, by how they begin
+PLAIN_DROP = ("2. whys:", "   - rethink:", "3. hypotheses:", "4. drop:", '   - kind "test":', "   - needs:", "   - decision_rules:", "7. verdicts:", "   Before the report, give a verdict")  # whole lines of prompt.txt the arm does not have, by how they begin
 
 
 def plain_prompt(text):
@@ -628,7 +917,7 @@ def plain_prompt(text):
         if text.count(a) != 1:
             raise ValueError(f"prompt.txt: {a[:50]!r}... stands {text.count(a)} times; the arm 'plain' expects once")
         text = text.replace(a, b)
-    left = [w for w in ("hypothes", "decision rule", "decision_rule", "verdict", "HELD", "FAILED") if w in text]
+    left = [w for w in ("hypothes", "decision rule", "decision_rule", "verdict", "HELD", "FAILED", "from_why", "whys", "rethink") if w in text]
     if left:
         raise ValueError(f"the instructions of the arm 'plain' still name: {', '.join(left)}")
     return text
@@ -652,6 +941,7 @@ def main():
     ap.add_argument("--max-tokens", type=int, help="most tokens of one answer, draft included; default 32000 with the draft (the default), 3000 without")
     ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap", "prio"], default="share", help="the scheduling policy: how the scheduler divides the link (prio: only for a brief with a network). The operator's choice, never shown to the model (--mode is its earlier name)")
     ap.add_argument("--temperature", type=float, default=0.3)
+    ap.add_argument("--judge", choices=["on", "off"], default="on", help="on (the default): a second model call judges whether each new hypothesis follows from the guess of why it names, and a hypothesis that does not is refused; off: no such call")
     ap.add_argument("--arm", choices=["hypotheses", "plain"], help="hypotheses (the default): the loop as it is. plain: the same loop, model, brief, budget and final report without the hypothesis format "
                     "(no hypotheses, decision rules or verdicts; experiments only explore), for the comparison that asks whether the format helps. An existing session keeps its own")
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the harness's own default experiment X0")
@@ -677,6 +967,13 @@ def main():
         schema, system = plain_format(schema), plain_prompt(system)
     if may_change(brief):  # only a session that may change the structure is told how
         system += STRUCTURE
+    judged, judge_written = {}, set()   # each pair of a guess and a hypothesis is judged once in a session: a second attempt of the same turn gets the same reading
+    def judge_fn(why, h):
+        k = (why["guess"], h["text"])
+        if k not in judged:
+            judged[k] = judge_link(model, brief, why, h)
+        return judged[k]
+    judge = judge_fn if a.judge == "on" and arm != "plain" else None
     tol_given = type((brief.get("goal") or {}).get("tolerance")) in (int, float)   # tools.check_brief has made sure it is a number of per cent between 0 and 100
     TOLERANCE = float(brief["goal"]["tolerance"]) if tol_given else DEFAULT_TOLERANCE
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget
@@ -690,7 +987,7 @@ def main():
         ap.error(f"the starting budget is at most the brief's limit of {limit} simulations")
     if not meta.exists():  # the session's own record of what it was given; the scheduling policy is not in it
         meta.write_text(json.dumps({"id": SID, "brief": brief["id"], "model": model, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline, **({"arm": arm} if arm != "hypotheses" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
+                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline, "judge": a.judge, **({"arm": arm} if arm != "hypotheses" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
     print(f"session {SID} (brief {brief['id']}): {tools.SESSION}", flush=True)
     ledger = load_ledger()
     if a.baseline == "on":
@@ -741,7 +1038,10 @@ def main():
                     + last_ask if mode == "budget" else
                     f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
                     "write it from what the ledger holds." if mode == "report" else
-                    f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). One experiment holds at most {min(per, budget - sims)} simulations.")
+                    f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). This turn's experiment may run at most {spend_cap(budget - sims, per)} new simulations: never more than half of what is left, so that something remains for what its results raise.")
+                    + (f"\n\nLOOK AGAIN FIRST: results have come in for hypotheses of these guesses since you last settled them: {look_again(tested_whys(ledger))}. Before anything new, give a rethink "
+                       "for each in this answer (id: the why's own id; now: supported, refuted, verify or set_aside; because of what in those results). No new hypothesis and no experiment "
+                       "is accepted until each has its rethink." if arm != "plain" and mode != "report" and tested_whys(ledger) else "")
                     + f"\n\nTOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal ({'stated by the brief' if tol_given else 'the default of the harness: the brief states none'}). "
                       "A difference inside it is not a finding, and a setting is not better for it."
                     + f"\n\nLEDGER:\n{text}")
@@ -765,9 +1065,9 @@ def main():
                 except ValueError as e:
                     err, parsed = f"invalid JSON: {e}", None
                     continue
-                ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked)
+                ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked, judge=judge)
                 rq = [] if mode else (parsed.get("requests") or [])[:3]
-                if any(r.startswith(NEED) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
+                if any(r.startswith(WAIT) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
                     asked = need_now = True
                 if any(ok.values()) or rq:  # something in the answer can be used: it is accepted, without the refused parts
                     err = None
@@ -783,7 +1083,7 @@ def main():
                 if mode == "report":  # the last turn that was given for the report alone
                     how = f"{UNUSABLE} turns in a row without a usable answer"
                 elif mode == "budget":
-                    how = None if need_now else "simulation limit reached, no usable report"  # after the one request for verdicts: one more last turn
+                    how = None if need_now else "all simulations used, no usable report"  # after the one request for verdicts: one more last turn
                 else:
                     unusable += 1
                     if unusable >= UNUSABLE:  # no ending yet: one last turn follows, which accepts only the final report
@@ -806,7 +1106,7 @@ def main():
                 append(ledger, turn, "result", qid, {"tool": q.get("tool"), "result": out})
                 pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{out}")
             ex, report = ok["experiment"], ok["report"]
-            if not (ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ex is not None or report is not None or br):  # only requests
+            if not (ok["rethink"] or ok["whys"] or ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ex is not None or report is not None or br):  # only requests
                 tool_only += 1
                 if tool_only > 3:
                     pending = [" (tool-only turn limit reached: results withheld, decide now)"]
@@ -819,18 +1119,26 @@ def main():
                 append(ledger, turn, "verdict", v["for"], {k: v.get(k) for k in ("for", "result", "because", "next")} | obs())
             for d in ok["drop"]:
                 append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
+            for k, (follows, because) in judged.items():  # what the judge read in this turn, kept for a person (not shown to the model: a refusal reaches it as a note)
+                if k not in judge_written:
+                    judge_written.add(k)
+                    append(ledger, turn, "judge", None, {"guess": k[0], "hypothesis": k[1], "follows": follows, "because": because})
+            for k in ok["rethink"]:
+                append(ledger, turn, "rethink", k["id"], {"for": k["id"], "in_light_of": k["in_light_of"], "now": k["now"], "because": k["because"]} | obs())
+            for w in ok["whys"]:
+                last = append(ledger, turn, "why", last, {k: w[k] for k in ("about", "result", "guess", "unseen", "matters", "worth", "reason")} | ({"revises": w["revises"]} if w.get("revises") else {}) | obs())
             for h in ok["hypotheses"]:
-                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "question": h["question"], "why": h["why"], "prediction": h.get("prediction"), "follows_from": h["follows_from"]} | obs())
+                last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "question": h["question"], "why": h["why"], "prediction": h.get("prediction"), "follows_from": h["follows_from"], "from_why": h["from_why"]} | ({"judge": h["judge"]} if h.get("judge") else {}) | obs())
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
             if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over
                 append(ledger, turn, "report", last, report | obs())
                 (tools.SESSION / "report.json").write_text(json.dumps(report, indent=1) + "\n")
-                how = "done by the model" if mode is None else "simulation limit reached" if mode == "budget" else f"{UNUSABLE} turns in a row without a usable answer, report given in the last turn"
+                how = "done by the model" if mode is None else "all simulations used, report given in the last turn" if mode == "budget" else f"{UNUSABLE} turns in a row without a usable answer, report given in the last turn"
             elif mode == "report":
                 how = f"{UNUSABLE} turns in a row without a usable answer"
             elif mode == "budget" and not need_now:  # a last turn without a usable report (after the one request for verdicts there is one more)
-                how = "simulation limit reached, no usable report"
+                how = "all simulations used, no usable report"
     except ModelServerError as e:  # the session ends cleanly: the error is in the ledger, and session.json says how it ended
         append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"model server error: {e}"})
         how = "model server error"

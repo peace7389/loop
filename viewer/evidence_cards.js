@@ -5,7 +5,8 @@
 Object.assign(EV, {
   // A record's name is a letter and a number: the letter says what kind of record it is, the number is its order among its kind in this session.
   // [the kind in plain words, what such a record is, who writes it]
-  ID_SAYS: { H: ['hypothesis', 'a statement of the AI that a test can refute', 'model'], X: ['experiment', 'one batch of simulations', 'model'], S: ['simulation', 'one run of ns-3', 'simulator'],
+  ID_SAYS: { Y: ['guess of why', 'the AI’s informed guess of why a result came out as it did; a hypothesis comes from one', 'model'], J: ['judge’s reading', 'a second model call read a guess and the hypothesis said to come from it, and said whether testing the one would tell if the other is true; it can be wrong', 'harness'], K: ['guess looked at again', 'the AI looked at an earlier guess again in the light of later results', 'model'],
+    H: ['hypothesis', 'a statement of the AI that a test can refute', 'model'], X: ['experiment', 'one batch of simulations', 'model'], S: ['simulation', 'one run of ns-3', 'simulator'],
     E: ['result table', 'the measures of one experiment’s simulations, as the harness showed them to the AI', 'harness'], C: ['check', 'the harness’s check of one decision rule against the measurements', 'harness'],
     V: ['verdict', 'the AI’s judgement of a hypothesis', 'model'], N: ['note', 'a note the harness wrote into the record: most often which part of an answer it refused, and why', 'harness'],
     Q: ['request', 'a question the AI put to one of the harness’s tools', 'model'], T: ['tool result', 'what a tool answered to a request of the AI', 'harness'], U: ['turn record', 'what the AI had when a turn began', 'harness'], R: ['final report', 'the AI’s answer', 'model'] },
@@ -14,11 +15,11 @@ Object.assign(EV, {
     const M = EV.M, r = M.byId[id], e = EV.e; if (id === 'brief') return `<a data-act="open" data-t="brief" data-id="brief">${EV_ICON.brief} brief</a>`;
     if (!r) return `<span class="mut">${e(id)}</span>`;
     const b = r.body || {}, ct = r.type === 'check' && M.tests.find(t => t.check && t.check.id === id);  // a check opens the test it belongs to
-    const to = { hypothesis: ['hyp', id], verdict: ['hyp', b.for], drop: ['hyp', b.for], experiment: ['exp', id], check: ct ? ['test', ct.id] : ['exp', r.parent], simulation: ['sim', id], report: ['report', 'report'],
+    const to = { why: ['why', id], rethink: ['why', b.for], hypothesis: ['hyp', id], verdict: ['hyp', b.for], drop: ['hyp', b.for], experiment: ['exp', id], check: ct ? ['test', ct.id] : ['exp', r.parent], simulation: ['sim', id], report: ['report', 'report'],
       evidence: M.simById[id] ? ['sim', id] : ['exp', b.experiment || r.parent] }[r.type] || ['log', r.turn];
     // a note, a request, a tool's result, a turn's record, a result table: their names ("N3", "E2") say nothing by themselves, so a box says what the letter stands for and what the record holds
     const box = ['note', 'request', 'result', 'turn', 'evidence'].includes(r.type);
-    return `<a data-act="open" data-t="${to[0]}" data-id="${e(to[1])}"${box ? ` data-wd="r:${e(id)}"` : ` title="${e((EV.ID_SAYS[(/^[A-Z]+/.exec(id) || [''])[0]] || [r.type])[0])}"`}>${EV_ICON[r.type] || ''} ${e(id)}</a>`;
+    return `<a data-act="open" data-t="${to[0]}" data-id="${e(to[1])}"${r.type === 'hypothesis' ? ` data-wd="h:${e(id)}"` : r.type === 'why' || r.type === 'rethink' ? ` data-wd="y:${e(to[1])}"` : box ? ` data-wd="r:${e(id)}"` : ` title="${e((EV.ID_SAYS[(/^[A-Z]+/.exec(id) || [''])[0]] || [r.type])[0])}"`}>${EV_ICON[r.type] || ''} ${e(id)}</a>`;
   },
   // where the opened item sits: Brief › Session › Turn › Experiment › Simulation, each part opens that level
   trail(sel) {
@@ -27,9 +28,11 @@ Object.assign(EV, {
     const own = hyp ? hyp.tests.map(q => M.testById[q]).filter(q => EV.seen(q.exp)).pop() : null, T = sel.t === 'test' ? M.testById[sel.id] : own;  // a hypothesis is shown with its test
     const simTests = sim ? (sel.test && M.testById[sel.test] ? [M.testById[sel.test]] : M.tests.filter(q => q.sims.includes(sim))) : T ? [T] : [];  // a simulation: the test it was opened from, else every test that names it
     const x = sim ? M.expById[sim.exp] : sel.t === 'exp' ? M.expById[sel.id] : T ? M.expById[T.exp] : null;
-    const turn = sim ? sim.turn : x ? x.turn : hyp ? hyp.turn : sel.t === 'log' ? sel.id : sel.t === 'report' && M.repRec ? M.repRec.turn : null;
+    const why = sel.t === 'why' ? (M.whyById || {})[sel.id] : null;
+    const turn = why ? why.turn : sim ? sim.turn : x ? x.turn : hyp ? hyp.turn : sel.t === 'log' ? sel.id : sel.t === 'report' && M.repRec ? M.repRec.turn : null;
     const bits = [part('brief', 'brief', `${EV_ICON.brief} ${EV.term('Brief', 'Brief')}${M.brief ? ' ' + e(M.brief.id) : ''}`), part('session', M.id, `${EV.term('Session', 'Session')} ${e(M.id)}`)];
     if (sel.t !== 'brief' && sel.t !== 'session' && turn != null) bits.push(part('log', turn, `${EV_ICON.turn} ${EV.term('Turn', 'Turn')} ${turn}`));
+    if (why) bits.push(part('why', why.id, `Guess of why ${e(why.id)}`));
     if (hyp && !T) bits.push(part('hyp', hyp.id, `${EV_ICON.hypothesis} ${EV.term('Hypothesis', 'Hypothesis')} ${e(hyp.id)}`));
     if (x) bits.push(part('exp', x.id, `${EV_ICON.experiment} ${EV.term('Experiment', 'Experiment')} ${e(x.id)}`));
     if (simTests.length) bits.push(simTests.map((q, i) => part('test', q.id, `${i ? '' : EV_ICON.test + ' ' + EV.term('Test', simTests.length > 1 ? 'Tests' : 'Test') + ' of '}${e(q.hyp)}`)).join(', '));
@@ -50,7 +53,7 @@ Object.assign(EV, {
     if (!sel || sel.t === 'session') return `${sel ? EV.trail(sel) : ''}<h2>${EV.term('Session', 'Session')} ${e(M.id)} <small>its summary</small></h2>${EV.summaryKV()}${EV.vcSession()}`;
     const k = EV.stepOf(sel);
     if (S.step != null && k != null && k > S.step) return `<p class="sm">The item opened here was recorded after step ${S.step + 1}; while the replay is at that step it is not shown.</p>`;
-    const body = sel.t === 'log' ? EV.logCard(sel.id) : sel.t === 'hyp' ? EV.hypCard(sel.id) : sel.t === 'test' ? EV.testPanel(sel.id) : sel.t === 'exp' ? EV.expPanel(sel.id) : sel.t === 'sim' ? EV.simPanel(sel.id)
+    const body = sel.t === 'log' ? EV.logCard(sel.id) : sel.t === 'hyp' ? EV.hypCard(sel.id) : sel.t === 'why' ? EV.whyCard(sel.id) : sel.t === 'test' ? EV.testPanel(sel.id) : sel.t === 'exp' ? EV.expPanel(sel.id) : sel.t === 'sim' ? EV.simPanel(sel.id)
       : sel.t === 'brief' ? EV.briefCard() : sel.t === 'report' ? EV.reportBody() : '<p class="sm">Nothing to open.</p>';
     return EV.trail(sel) + body + EV.reviewBox(`${sel.t}:${sel.id}`);
   },

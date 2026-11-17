@@ -1,0 +1,91 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "weightUdp": 0.5,
+  "queuePkts": 100,
+  "tcpVariant": "TcpBbr",
+  "duration": 10
+ },
+ "expected": {
+  "udp_goodput_bps": 300003200,
+  "tcp_goodput_bps": 418901197,
+  "udp_loss_frac": 0.0,
+  "drops_band0": 0,
+  "drops_band1": 0,
+  "tcp_retrans": 0,
+  "link_util": 0.746044,
+  "link_rate_bps": 1000000000,
+  "weight_udp": 0.5
+ },
+ "no_difference": [
+  "weightUdp",
+  "queuePkts"
+ ],
+ "limit": "The result is limited by the fixed 1 MB TCP send/receive buffers and the 20 ms minimum round-trip time: in-flight TCP data cannot exceed about 1 MiB, so payload throughput cannot exceed about 1 MiB / 20 ms = 419.43 Mbps. BBR reaches 418.9 Mbps with zero drops and zero retransmissions, and changing scheduler share, queue size, or measurement duration does not move it. Evidence: C5, C6, C7, C8, E3, E4.",
+ "explanation": "TcpBbr is best because it reaches the buffer/RTT in-flight cap within tolerance, while the other tested variants are below that cap or, in the case of TcpBic, statistically indistinguishable from BBR (C9, E4). At BBR, the scheduler share is not limiting: default weightUdp=0.5 gives TCP 500 Mbps of configured share, above the 419 Mbps cap, and lowering weightUdp to 0.35 gives no TCP gain while UDP loss remains 0 (C7, E3). Queue size is not limiting: queuePkts=4 gives the same TCP goodput and UDP loss as queuePkts=100 (C8, E3). Duration is not limiting for BBR: duration 30 is not more than 1% above duration 10 (C6, E3), although duration did matter for TcpCubic (C2), so the simpler default duration 10 is kept for BBR. The link is not saturated (link_util about 0.746), and there are no drops or retransmissions, so the remaining ceiling is the fixed socket-buffer/RTT product, not the scheduler or queues.",
+ "holds_when": "The fixed 1 MB TCP buffers, 20 ms one-way delay/20 ms minimum RTT, 1 Gbps link, 1500-byte MTU, and 300 Mbps UDP load remain unchanged; the scheduler gives TCP at least about 419 Mbps of usable share; and the UDP loss condition does not force a different weightUdp.",
+ "breaks_when": "If TCP buffers were larger or RTT smaller, the in-flight cap would rise and other settings could become limiting. If weightUdp were raised enough that TCP's configured scheduler share fell below about 419 Mbps, scheduler share would limit TCP. If UDP demand or the loss condition required a different scheduler share, weightUdp would need retuning. If duration were shortened below the tested 10 s so that TCP had not reached steady state, duration could matter.",
+ "claims": [
+  {
+   "text": "TcpBbr at weightUdp=0.5, queuePkts=100, duration=10 gives tcp_goodput_bps=418901197 with udp_loss_frac=0.",
+   "role": "supports",
+   "evidence": [
+    "E3"
+   ]
+  },
+  {
+   "text": "BBR's throughput is at the 1 MiB / 20 ms buffer/RTT cap, not at a scheduler, queue, or link-saturation limit.",
+   "role": "supports",
+   "evidence": [
+    "C5",
+    "E3",
+    "E4"
+   ]
+  },
+  {
+   "text": "No other tested TCP variant validly exceeds BBR by more than 1%; TcpBic is within tolerance, while TcpLinuxReno and TcpVegas are lower.",
+   "role": "supports",
+   "evidence": [
+    "C9",
+    "E4"
+   ]
+  },
+  {
+   "text": "Lowering weightUdp from 0.5 to 0.35 does not raise TCP goodput and keeps UDP loss at 0.",
+   "role": "background",
+   "evidence": [
+    "C7",
+    "E3"
+   ]
+  },
+  {
+   "text": "Reducing queuePkts from 100 to 4 does not change TCP goodput or UDP loss.",
+   "role": "background",
+   "evidence": [
+    "C8",
+    "E3"
+   ]
+  },
+  {
+   "text": "For BBR, duration 30 is not meaningfully better than duration 10, although duration mattered for TcpCubic.",
+   "role": "background",
+   "evidence": [
+    "C2",
+    "C6",
+    "E3"
+   ]
+  },
+  {
+   "text": "At the recommended setting the link is not saturated and there are no drops or TCP retransmissions.",
+   "role": "limits",
+   "evidence": [
+    "E3",
+    "E4"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether weightUdp values high enough to leave TCP less than about 419 Mbps of scheduler share would reduce TCP goodput; this is not needed for the maximum but would map the scheduler-share limit.",
+  "Whether TcpBic at duration 10 is exactly indistinguishable from TcpBbr; the tested duration-30 values are already within tolerance."
+ ]
+}

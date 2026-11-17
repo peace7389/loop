@@ -5,12 +5,128 @@
    "type": "string",
    "description": "what you read in the ledger and the tool results"
   },
+  "rethink": {
+   "type": "array",
+   "description": "earlier whys looked at again in the light of results that came in after them: does each still hold?",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "id",
+     "in_light_of",
+     "now",
+     "because"
+    ],
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "the earlier why's own id, for example Y1 (never a K number: those are the numbers of rethinks)",
+      "pattern": "^Y[0-9]+$"
+     },
+     "in_light_of": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "string"
+      },
+      "description": "the results you look at it again with: ids of evidence tables, checks or verdicts that came in after it (for example E2, C3)"
+     },
+     "now": {
+      "type": "string",
+      "enum": [
+       "verify",
+       "set_aside",
+       "refuted",
+       "supported"
+      ],
+      "description": "what it is now: verify (still open and worth verifying), set_aside (not now), refuted (the results speak against it), supported (the results speak for it: its hypotheses held)"
+     },
+     "because": {
+      "type": "string",
+      "description": "what in those results makes it so, in one sentence"
+     }
+    }
+   }
+  },
+  "whys": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+     "about",
+     "result",
+     "guess",
+     "unseen",
+     "matters",
+     "worth",
+     "reason",
+     "revises"
+    ],
+    "properties": {
+     "about": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+       "type": "string"
+      },
+      "description": "the records whose result this is about: ids of evidence tables, simulations, checks or verdicts in the ledger (for example E2, C3), or the word brief"
+     },
+     "result": {
+      "type": "string",
+      "description": "the result, in one sentence: what came out, and what is surprising or unexplained in it"
+     },
+     "guess": {
+      "type": "string",
+      "description": "your informed guess of why it came out so"
+     },
+     "unseen": {
+      "type": "string",
+      "description": "what in the system, not directly visible in the measures, would make it so"
+     },
+     "matters": {
+      "type": "string",
+      "description": "how it could matter for the goal if the guess is true"
+     },
+     "worth": {
+      "type": "string",
+      "enum": [
+       "verify",
+       "set_aside"
+      ],
+      "description": "verify: worth verifying now for the goal; set_aside: not now"
+     },
+     "reason": {
+      "type": "string",
+      "description": "why it is, or is not, worth verifying now"
+     },
+     "revises": {
+      "anyOf": [
+       {
+        "type": "string",
+        "description": "the id of an earlier why that this one replaces with a better guess (for example Y1)",
+        "pattern": "^Y[0-9]+$"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    }
+   },
+   "description": "informed guesses of why results came out as they did; from those worth verifying come the hypotheses"
+  },
   "hypotheses": {
    "type": "array",
    "description": "new hypotheses; may be empty",
    "items": {
     "type": "object",
     "properties": {
+     "from_why": {
+      "type": "string",
+      "description": "the id of the why this hypothesis comes from (one you chose to verify), for example Y2",
+      "pattern": "^Y[0-9]+$"
+     },
      "text": {
       "type": "string"
      },
@@ -28,19 +144,18 @@
      },
      "follows_from": {
       "type": "array",
-      "minItems": 1,
       "items": {
        "type": "string"
       },
-      "description": "what this hypothesis follows from: ids of earlier verdicts, checks, evidence tables or simulations (for example V2, C3, E1), or the word brief"
+      "description": "may be left empty: the harness takes it from the why's about"
      }
     },
     "required": [
+     "from_why",
      "text",
      "question",
      "why",
-     "prediction",
-     "follows_from"
+     "prediction"
     ],
     "additionalProperties": false
    }
@@ -87,6 +202,46 @@
       "question": {
        "type": "string",
        "description": "explore: what you want to find out; test: may be empty"
+      },
+      "needs": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "for",
+         "to_know",
+         "varies",
+         "measure",
+         "simulations"
+        ],
+        "properties": {
+         "for": {
+          "type": "string",
+          "description": "the id of the tested hypothesis this is for"
+         },
+         "to_know": {
+          "type": "string",
+          "description": "one plain sentence: what you must know to decide this hypothesis"
+         },
+         "varies": {
+          "type": "string",
+          "description": "the one knob whose value differs between the simulations made for it; none when a single simulation against a stated number decides it"
+         },
+         "measure": {
+          "type": "string",
+          "description": "the output that decides it"
+         },
+         "simulations": {
+          "type": "array",
+          "items": {
+           "type": "string"
+          },
+          "description": "the labels of the simulations made for this hypothesis, and of no other design"
+         }
+        }
+       },
+       "description": "test: one entry for each tested hypothesis, written before the simulations: what must be known to decide it, and the simulations made for that; explore: empty"
       },
       "varied": {
        "type": "array",
@@ -171,6 +326,7 @@
       "kind",
       "tests",
       "question",
+      "needs",
       "varied",
       "control",
       "runs",
@@ -423,6 +579,8 @@
  },
  "required": [
   "observations",
+  "rethink",
+  "whys",
   "hypotheses",
   "drop",
   "experiment",

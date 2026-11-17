@@ -1,0 +1,1 @@
+{"linkRate": "1Gbps", "linkDelay": "10ms", "udpRate": "300Mbps", "tcpVariant": "TcpNewReno", "mtu": 1500, "queuePkts": 100, "duration": 30, "seed": 1, "weightUdp": 0.5}

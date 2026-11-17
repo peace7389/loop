@@ -11,20 +11,46 @@
 // under its address). The harness checks the brief when it is saved (tools.check_brief): its reason is shown as it is.
 const BRIEF_NET = {
   node: null, ctx: null, s: null, past: [], ahead: [],
-  KINDS: [['host', 'Host', 'a computer; with more than one link it forwards'], ['link', 'Link', 'a point-to-point line between two hosts'], ['udp', 'UDP flow', 'packets at a constant rate from one host to another'],
-          ['tcp', 'TCP flow', 'a sender that always has data, from one host to another'], ['queue', 'Queue / scheduler', 'where packets wait on one sending side of a link']],
+  // the tools, in the groups of the palette (the layers of ns-3: nodes, what connects them, what sends, what makes packets wait)
+  // What sends is an application, and the traffic takes its kind from it (2026-11-17, the operator: no separate "UDP flow" and "TCP flow"; the
+  // connection should follow from the application). A link is the cable: it carries both kinds at once, so it has no kind of its own.
+  GROUPS: [['Nodes', ['host']], ['Connections', ['link']], ['Applications', ['udp', 'tcp']], ['Traffic control', ['fifo', 'queue']]],
+  ICON: { host: '<rect x="3" y="5" width="22" height="15" rx="3"/><path d="M9 24h10M14 20v4"/>', link: '<circle cx="5" cy="14" r="3.2"/><circle cx="23" cy="14" r="3.2"/><path d="M8.2 14h11.6"/>',
+          udp: '<path d="M3 14h4M10 14h4M17 14h4" stroke="var(--series-1)" stroke-width="3"/><path d="M21 9l5 5-5 5" stroke="var(--series-1)"/>', tcp: '<path d="M3 14h18" stroke="var(--series-2)" stroke-width="3"/><path d="M21 9l5 5-5 5" stroke="var(--series-2)"/>',
+          fifo: '<path d="M3 8h20v12H3"/><rect x="10" y="10.5" width="3" height="7" rx="1"/><rect x="14.5" y="10.5" width="3" height="7" rx="1"/><rect x="19" y="10.5" width="3" height="7" rx="1" opacity=".5"/>',
+          queue: '<rect x="3" y="8" width="4" height="12" rx="1"/><rect x="9" y="8" width="4" height="12" rx="1"/><rect x="15" y="8" width="4" height="12" rx="1" opacity=".45"/><circle cx="24" cy="14" r="3.4"/>' },
+  // [kind, name, a few words under the name, the sentence on hover]: the palette stays short enough to stand beside the picture
+  KINDS: [['host', 'Host', 'a computer (ns-3 Node)', 'A computer; with more than one link it forwards'], ['link', 'Link', 'a cable between two hosts', 'A point-to-point line between two hosts: a device at each end and the channel between them'],
+          ['udp', 'UDP application', 'a constant rate', 'Sends packets at a constant rate. Drop it on the host that sends, then choose the host that receives'],
+          ['tcp', 'TCP application', 'always has data', 'Always has data to send, as fast as TCP accepts. Drop it on the host that sends, then choose the host that receives'],
+          ['fifo', 'Shared queue', 'one queue for all flows', 'One queue for all the flows on a sending side of a link: first in, first out'], ['queue', 'Scheduler', 'a queue and a part per flow', 'A queue for each flow on a sending side of a link, and a part of the link for each']],
   TCP: ['TcpCubic', 'TcpNewReno', 'TcpLinuxReno', 'TcpBbr', 'TcpVegas', 'TcpBic'],
   RANGE: { rate: ['10Mbps', '10Gbps'], delay: ['10us', '10ms'], mtu: [576, 1500], device_queue: [1, 1000], length: [4, 1000], parts: [0.05, 4], largest_rate: ['10Mbps', '1Gbps'], packet_bytes: [64, 1400], duration: [2, 30] },
   CSS: `
-.bn-pal { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin: 0 0 8px; } .bn-kind { border: 1px solid var(--border); border-radius: 9px; background: var(--surface-1); padding: 6px 10px; cursor: grab; touch-action: none; user-select: none; text-align: left; font: inherit; max-width: 190px; }
-.bn-kind b { display: block; font-size: var(--f-text); } .bn-kind span { font-size: var(--f-note); color: var(--text-secondary); } .bn-kind:hover, .bn-kind:focus-visible { border-color: var(--text-primary); } .bn-kind.on { outline: 2px solid var(--live); }
-.bn-acts { margin-left: auto; display: flex; gap: 6px; align-items: center; } .bn-two { display: grid; grid-template-columns: minmax(0, 1000px) minmax(260px, 1fr); gap: 8px 20px; align-items: start; } @media (max-width: 1100px) { .bn-two { grid-template-columns: minmax(0, 1fr); } }
-.bn-canvas { position: relative; border: 1px dashed var(--border); border-radius: 10px; background: var(--surface-0); min-height: 150px; touch-action: none; } .bn-canvas.over { border-color: var(--live); }
-.bn-canvas svg { display: block; } .bn-canvas [data-obj] { cursor: grab; } .bn-canvas .sel rect, .bn-canvas .sel circle, .bn-canvas g.sel > text.sn { stroke: var(--text-primary); stroke-width: 2.2; }
+.bn-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; } .bn-seg button { border: 0; border-radius: 0; background: var(--surface-1); padding: 3px 10px; } .bn-seg button.on { background: var(--text-primary); color: var(--surface-0); font-weight: 700; }
+.bn-detail { margin: 0 0 8px; } .bn-detail svg { display: block; height: auto; } .bn-detail .nc-flow, .bn-detail .nc-queue { cursor: pointer; } .bn-detail .nc-flow:hover rect, .bn-detail .nc-queue:hover .nc-qbox { stroke: var(--text-primary); stroke-width: 1.6; }
+.bn-three { display: grid; grid-template-columns: 200px minmax(0, 1fr) minmax(260px, 400px); gap: 8px 14px; align-items: start; } @media (max-width: 1100px) { .bn-three { grid-template-columns: minmax(0, 1fr); } }
+.bn-pal { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); padding: 8px 8px 10px; } .bn-pal-h { margin: 0 2px 6px; font-weight: 700; font-size: var(--f-text); } .bn-pal-h .sm { font-weight: 400; display: block; }
+.bn-group { margin-top: 6px; } .bn-group-h { margin: 0 2px 4px; font-size: var(--f-note); font-weight: 700; color: var(--text-muted); }
+.bn-kind { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; margin: 0 0 4px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-0); padding: 4px 8px; cursor: grab; touch-action: none; user-select: none; text-align: left; font: inherit; color: var(--text-primary); }
+.bn-kind b { display: block; font-size: var(--f-sec); } .bn-kind span span { font-size: var(--f-note); color: var(--text-secondary); line-height: 1.25; display: block; } .bn-kind:hover, .bn-kind:focus-visible { border-color: var(--text-primary); background: var(--surface-1); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); } .bn-kind:active { cursor: grabbing; } .bn-kind.on { outline: 2px solid var(--live); }
+.bn-bar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 0 0 6px; } .bn-bar .bn-hint { flex: 1 1 260px; } .bn-acts { display: flex; gap: 6px; align-items: center; } .bn-acts button { min-width: 30px; }
+.bn-canvas { position: relative; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); min-height: 440px; overflow: hidden; touch-action: none; } .bn-canvas.over { border-color: var(--live); box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 30%, transparent); }
+#bn-paper { cursor: grab; } #bn-paper.panning { cursor: grabbing; } .bn-empty { position: absolute; left: 0; right: 0; top: 46%; text-align: center; pointer-events: none; }
+.bn-canvas svg text.nc-lab { font-size: 12px; fill: var(--text-primary); } .bn-canvas svg text.nc-b { font-weight: 700; } .bn-canvas .joint-element { cursor: move; } .bn-canvas .joint-element.nc-sel [joint-selector=body], .bn-canvas .joint-link.nc-sel [joint-selector=wrapper] { stroke: var(--text-primary); stroke-width: 3; } .bn-canvas .joint-link.nc-sel [joint-selector=wrapper] { stroke: color-mix(in srgb, var(--text-primary) 16%, transparent); stroke-width: 22; }
+.bn-canvas .available-cell [joint-selector=body] { stroke: var(--live); stroke-width: 3; stroke-dasharray: 7 5; } .bn-canvas .nc-flow, .bn-canvas .nc-queue { cursor: pointer; } .bn-canvas .nc-flow:hover rect, .bn-canvas .nc-queue:hover .nc-qbox { stroke: var(--text-primary); stroke-width: 1.6; }
+.bn-canvas .nc-flow.nc-sel rect, .bn-canvas .nc-queue.nc-sel .nc-qbox { stroke: var(--text-primary); stroke-width: 2.4; } .bn-canvas .joint-port circle:hover { fill: var(--live); }
+#bn-band { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
 .bn-zone { position: absolute; transform: translate(-50%, -50%); border: 1.5px dashed var(--text-secondary); border-radius: 999px; background: var(--surface-1); color: var(--text-secondary); min-width: 26px; height: 26px; padding: 0 7px; font: inherit; font-size: var(--f-note); line-height: 22px; white-space: nowrap; cursor: pointer; opacity: .75; z-index: 2; }
 .bn-zone.near, .bn-zone:focus-visible { border: 2px solid var(--live); background: var(--live); color: #fff; opacity: 1; font-weight: 700; z-index: 3; } .bn-zone .plus { font-weight: 700; } .bn-zone .lab { display: none; } .bn-zone.near .lab, .bn-zone:focus-visible .lab, .bn-zone:hover .lab { display: inline; }
 .bn-ghost { position: fixed; z-index: 50; pointer-events: none; transform: translate(12px, 12px); border-radius: 8px; padding: 4px 9px; font-size: var(--f-note); background: var(--text-primary); color: var(--surface-0); max-width: 340px; }
 .bn-ghost.add { background: var(--live); color: #fff; } .bn-ghost.rem { background: var(--critical); color: #fff; } .bn-say { min-height: 20px; margin: 6px 0 0; }
+.bn-panels-h { margin: 12px 0 6px; } .bn-panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 8px; align-items: start; }
+.bn-pc { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); padding: 6px 10px 8px; min-width: 0; } .bn-pc-h { margin: 0 0 5px; font-size: var(--f-sec); cursor: pointer; } .bn-pc-h span { font-weight: 400; color: var(--text-secondary); font-size: var(--f-note); } .bn-pc-h:hover b { text-decoration: underline; }
+.bn-pc .bn-row { grid-template-columns: 112px 22px minmax(0, 1fr); font-size: var(--f-sec); } .bn-pc .bn-row > span:first-child { color: var(--text-secondary); } .bn-fact { color: var(--text-primary); }
+.bn-pc.hot { border-color: var(--live); box-shadow: 0 0 0 2px color-mix(in srgb, var(--live) 35%, transparent); background: color-mix(in srgb, var(--live) 7%, var(--surface-1)); }
+.bn-canvas .joint-element.nc-hot [joint-selector=body], .bn-canvas .nc-flow.nc-hot rect, .bn-canvas .nc-queue.nc-hot .nc-qbox, .bn-detail .nc-flow.nc-hot rect, .bn-detail .nc-queue.nc-hot .nc-qbox { stroke: var(--live); stroke-width: 3; } .bn-canvas .joint-link.nc-hot [joint-selector=wrapper] { stroke: color-mix(in srgb, var(--live) 35%, transparent); }
+.bn-card h5 { margin: 9px 0 3px; font-size: var(--f-note); font-weight: 700; color: var(--text-muted); } .bn-in { display: block; width: 100%; text-align: left; margin: 2px 0; font-weight: 400; } .bn-adds { margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 4px; } .bn-add { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin: 5px 0 0; padding: 5px 7px; border: 1px dashed var(--border); border-radius: 8px; font-size: var(--f-sec); } .bn-add select { flex: 1 1 90px; min-width: 0; }
 .bn-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); padding: 8px 12px; } .bn-card h4 { margin: 0 0 6px; font-size: var(--f-text); } .bn-row { display: grid; grid-template-columns: 128px 30px minmax(0, 1fr); gap: 4px 8px; align-items: center; margin: 3px 0; }
 .bn-row input[type=text] { width: 100%; box-sizing: border-box; } .bn-row .tri { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; } .bn-row small { color: var(--text-secondary); font-size: var(--f-note); } .bn-who { border: 1px solid var(--border); border-radius: 6px; background: var(--surface-0); cursor: pointer; font: inherit; height: 24px; }
 .bn-bad { color: var(--critical); } .bn-list td { padding: 2px 10px 2px 0; vertical-align: top; }`,
@@ -37,13 +63,13 @@ const BRIEF_NET = {
     if (!document.getElementById('bn-css')) { const st = document.createElement('style'); st.id = 'bn-css'; st.textContent = N.CSS; document.head.appendChild(st); }
     if (!N.node) {
       N.node = document.createElement('div'); N.node.className = 'be bn'; N.s = N.fresh(JSON.parse(JSON.stringify(N.DEFAULT)));
-      N.node.addEventListener('pointerdown', N.down); N.node.addEventListener('click', N.click); N.node.addEventListener('input', N.input); N.node.addEventListener('change', N.input);
+      N.node.addEventListener('pointerdown', N.down); N.node.addEventListener('mouseover', N.over); N.node.addEventListener('mouseleave', () => N.hot([])); N.node.addEventListener('click', N.click); N.node.addEventListener('input', N.input); N.node.addEventListener('change', N.input);
       document.addEventListener('keydown', N.key);  // on the document: a click on the picture chooses an object without giving the form the focus, and Delete must still reach it
       window.addEventListener('pointermove', N.move); window.addEventListener('pointerup', N.up);
     }
     if (N.node.parentNode !== host) { host.appendChild(N.node); N.draw(); } else N.paint();
   },
-  fresh(t) { return { t, knobs: {}, id: '', description: '', goal: 'open', measure: '', direction: 'max', conds: '', tolerance: '', sims: '40', per: '12', duration: '10', seed: '1', sel: null, placing: null, pending: null, drag: null, msg: null, busy: '', base: '', structure: false, most: { hosts: '', links: '', flows: '' }, locked: {} }; },
+  fresh(t) { return { t, knobs: {}, id: '', description: '', goal: 'open', measure: '', direction: 'max', conds: '', tolerance: '', sims: '40', per: '12', duration: '10', seed: '1', sel: null, pos: {}, tcpInitCwnd: '', tcpBufBytes: '', placing: null, pending: null, drag: null, msg: null, busy: '', base: '', structure: false, most: { hosts: '', links: '', flows: '' }, locked: {} }; },
 
   // ---- the network as data
   newId(prefix) { const N = BRIEF_NET, t = N.s.t, all = new Set([...t.hosts, ...t.links, ...t.flows].map(x => x.id)); let i = 1; while (all.has(prefix + i)) i++; return prefix + i; },
@@ -81,25 +107,34 @@ const BRIEF_NET = {
   step(from, to) { const N = BRIEF_NET, s = N.s; if (!from.length) return; to.push(JSON.stringify({ t: s.t, knobs: s.knobs })); const o = JSON.parse(from.pop()); s.t = o.t; s.knobs = o.knobs; s.placing = s.pending = null; N.sync(); N.draw(); },
   remove(kind, id) { const N = BRIEF_NET, d = N.deps(kind, id); N.change(() => { N.s.t = d.t; N.s.sel = null; }); },
   add: {
-    host() { const N = BRIEF_NET, id = N.newId('h'); N.change(() => { N.s.t.hosts.push({ id }); N.s.sel = ['host', id]; }); },
+    host(at) { const N = BRIEF_NET, id = N.newId('h'); at = at || NETC.center(); if (at) N.s.pos[id] = { x: Math.round(at.x - 110), y: Math.round(at.y - 60) }; N.change(() => { N.s.t.hosts.push({ id }); N.s.sel = ['host', id]; }); },  // at: where it was dropped, in the picture
     link(a, b) { const N = BRIEF_NET, id = N.newId('l'); N.change(() => { N.s.t.links.push({ id, between: [a, b], rate: '1Gbps', delay: '50us', mtu: 1500, device_queue: 10 }); N.s.sel = ['link', id]; }); },
     flow(kind, from, to) { const N = BRIEF_NET, id = N.newId(kind === 'udp' ? 'u' : 't'); N.change(() => { N.s.t.flows.push(kind === 'udp' ? { id, kind, from, to, rate: '100Mbps', packet_bytes: 1400 } : { id, kind, from, to, type: 'TcpCubic' }); N.s.sel = ['flow', id]; }); },
-    queue(link, on) { const N = BRIEF_NET; N.change(() => { N.linkOf(link).queue = { on, kind: 'scheduler', length: 100, parts: {}, largest_rate: {} }; N.s.sel = ['queue', link]; }); },
+    // an application on host `from` that sends to host `to`; where no link leads there yet, a link between the two is added with it (one step, one undo)
+    app(kind, from, to) { const N = BRIEF_NET, id = N.newId(kind === 'udp' ? 'u' : 't'), need = !EV.netPath(N.s.t, { from, to }), lid = need ? N.newId('l') : null;
+      N.change(() => { if (need) N.s.t.links.push({ id: lid, between: [from, to], rate: '1Gbps', delay: '50us', mtu: 1500, device_queue: 10 });
+        N.s.t.flows.push(kind === 'udp' ? { id, kind, from, to, rate: '100Mbps', packet_bytes: 1400 } : { id, kind, from, to, type: 'TcpCubic' }); N.s.sel = ['flow', id]; }); },
+    queue(link, on, kind) { const N = BRIEF_NET; N.change(() => { N.linkOf(link).queue = kind === 'fifo' ? { on, kind: 'fifo', length: 100 } : { on, kind: 'scheduler', length: 100, parts: {}, largest_rate: {} }; N.s.sel = ['queue', link]; }); },  // kind fifo: one queue shared by all the flows; else a scheduler (a queue and a part for each flow)
   },
+  // A value that was just finished draws the form again a moment later: by then the field the reader clicked next has the focus, and draw() gives it
+  // back to that same field of the new form (before, the form was drawn again under the click and the field that was clicked lost the focus).
+  soon() { const N = BRIEF_NET; clearTimeout(N._soon); N._soon = setTimeout(() => N.draw(), 0); },
+  // an object of the picture was chosen (or, with no kind, nothing is): its card beside the picture, its mark in it
+  pick(kind, id) { const N = BRIEF_NET; if (!N.s || N.s.placing || N.s.pending) return; N.s.sel = kind ? [kind, id] : null; const side = N.node.querySelector('#bn-side'); if (side) side.innerHTML = N.card(); N.paint(); },
   focusZone() { const N = BRIEF_NET; if (N.viaKey) { const z = N.node.querySelector('.bn-zone'); if (z) z.focus(); } },
   says(kind, id) { return kind === 'queue' ? `the queue of link ${id}` : `${kind} ${id}`; },
 
   // ---- where an object of a kind can go now: [{ key, x, y (the picture's units), label, go() }]
   zones() {
-    const N = BRIEF_NET, s = N.s, t = s.t, G = EV.netGeom(t), mid = h => ({ x: G.pos[h].x + G.pos[h].w / 2, y: G.pos[h].y + G.pos[h].h / 2 }), kind = s.placing, p = s.pending;
+    const N = BRIEF_NET, s = N.s, t = s.t, G = NETC.geom(), mid = h => ({ x: G.pos[h].x + G.pos[h].w / 2, y: G.pos[h].y + G.pos[h].h / 2 }), kind = s.placing, p = s.pending;
     const linked = (a, b) => t.links.some(l => l.between.includes(a) && l.between.includes(b)), hosts = t.hosts.map(h => h.id);
     if (p && p.kind === 'link') return hosts.filter(h => h !== p.from && !linked(h, p.from)).map(h => ({ key: 'to-' + h, ...mid(h), label: `link ${p.from} – ${h}`, go: () => { s.pending = s.placing = null; N.add.link(p.from, h); } }));
-    if (p) return hosts.filter(h => h !== p.from && EV.netPath(t, { from: p.from, to: h })).map(h => ({ key: 'to-' + h, ...mid(h), label: `${p.kind.toUpperCase()} flow ${p.from} → ${h}`, go: () => { s.pending = s.placing = null; N.add.flow(p.kind, p.from, h); } }));
-    if (kind === 'host') return [{ key: 'new-host', x: G.W / 2, y: 22, label: 'a new host', anywhere: true, go: () => { s.placing = null; N.add.host(); } }];
+    if (p) return hosts.filter(h => h !== p.from).map(h => ({ key: 'to-' + h, ...mid(h), label: `it sends to ${h}${EV.netPath(t, { from: p.from, to: h }) ? '' : ' (a link is added too)'}`, go: () => { s.pending = s.placing = null; N.add.app(p.kind, p.from, h); } }));
+    if (kind === 'host') return [{ key: 'new-host', x: G.W / 2, y: 22, label: 'a new host', anywhere: true, go: ev => { s.placing = null; N.add.host(ev && ev.clientX != null && ev.type !== 'click' ? NETC.at(ev) : null); } }];
     if (kind === 'link') return hosts.filter(h => hosts.some(o => o !== h && !linked(h, o))).map(h => ({ key: 'from-' + h, ...mid(h), label: `a link from ${h}`, go: () => { s.pending = { kind: 'link', from: h }; N.draw(); N.focusZone(); } }));
-    if (kind === 'udp' || kind === 'tcp') return hosts.filter(h => hosts.some(o => o !== h && EV.netPath(t, { from: h, to: o }))).map(h => ({ key: 'from-' + h, ...mid(h), label: `a ${kind.toUpperCase()} flow from ${h}`, go: () => { s.pending = { kind, from: h }; N.draw(); N.focusZone(); } }));
-    if (kind === 'queue') return t.links.filter(l => !l.queue && G.ends[l.id]).flatMap(l => { const E = G.ends[l.id], len = Math.hypot(E.x2 - E.x1, E.y2 - E.y1) || 1, ux = (E.x2 - E.x1) / len, uy = (E.y2 - E.y1) / len;
-      return [[E.a, E.x1 + 30 * ux, E.y1 + 30 * uy], [E.c, E.x2 - 30 * ux, E.y2 - 30 * uy]].map(([h, x, y]) => ({ key: `q-${l.id}-${h}`, x, y, label: `a scheduler on ${h}'s side of ${l.id}`, go: () => { s.placing = null; N.add.queue(l.id, h); } })); });
+    if (kind === 'udp' || kind === 'tcp') return hosts.filter(() => hosts.length > 1).map(h => ({ key: 'from-' + h, ...mid(h), label: `a ${kind.toUpperCase()} application on ${h}`, go: () => { s.pending = { kind, from: h }; N.draw(); N.focusZone(); } }));
+    if (kind === 'queue' || kind === 'fifo') return t.links.filter(l => !l.queue && G.ends[l.id]).flatMap(l => { const E = G.ends[l.id], len = Math.hypot(E.x2 - E.x1, E.y2 - E.y1) || 1, ux = (E.x2 - E.x1) / len, uy = (E.y2 - E.y1) / len;
+      return [[E.a, E.x1 + 30 * ux, E.y1 + 30 * uy], [E.c, E.x2 - 30 * ux, E.y2 - 30 * uy]].map(([h, x, y]) => ({ key: `q-${l.id}-${h}`, x, y, label: `a ${kind === 'fifo' ? 'shared queue' : 'scheduler'} on ${h}'s side of ${l.id}`, go: () => { s.placing = null; N.add.queue(l.id, h, kind === 'fifo' ? 'fifo' : 'scheduler'); } })); });
     return [];
   },
 
@@ -125,14 +160,14 @@ const BRIEF_NET = {
     const have = EV.netSettings(t), fixed = {}; Object.keys(have).forEach(k => { fixed[k] = cast(k, have[k]); }); const net = EV.netWith(t, fixed);
     const knobs = {}; Object.entries(s.knobs).forEach(([k, q]) => { knobs[k] = q.choices ? { choices: q.choices, default: q.default, meaning: q.meaning } : { min: cast(k, q.min), max: cast(k, q.max), default: cast(k, q.default), meaning: q.meaning }; });
     const goal = s.goal === 'open' ? { kind: 'open' } : { kind: 'given', target: { measure: s.measure, direction: s.direction }, conditions: s.conds.split('\n').map(c => c.trim()).filter(Boolean), ...(String(s.tolerance).trim() ? { tolerance: N.num(s.tolerance) } : {}) };
-    const b = { id: s.id.trim(), description: s.description.trim(), topology: net, system: { seed: N.num(s.seed), ...('duration' in knobs ? {} : { duration: N.num(s.duration) }) }, knobs, goal, limits: { simulations: N.num(s.sims), simulations_per_experiment: N.num(s.per) } };
+    const b = { id: s.id.trim(), description: s.description.trim(), topology: net, system: { seed: N.num(s.seed), ...('duration' in knobs ? {} : { duration: N.num(s.duration) }), ...(String(s.tcpInitCwnd).trim() ? { tcpInitCwnd: N.num(s.tcpInitCwnd) } : {}), ...(String(s.tcpBufBytes).trim() ? { tcpBufBytes: N.num(s.tcpBufBytes) } : {}) }, knobs, goal, limits: { simulations: N.num(s.sims), simulations_per_experiment: N.num(s.per) } };
     if (s.structure) b.structure = { may_change: true, most: Object.fromEntries(Object.entries(s.most).filter(([, v]) => String(v).trim()).map(([k, v]) => [k, N.num(v)])), locked: Object.keys(s.locked).filter(k => s.locked[k]) };
     return b;
   },
   fromBrief(b) {
     const N = BRIEF_NET, s = N.fresh(JSON.parse(JSON.stringify(b.topology))), g = b.goal || {}, st = b.structure || {};
     Object.assign(s, { knobs: JSON.parse(JSON.stringify(b.knobs || {})), description: b.description || '', goal: g.kind === 'given' ? 'given' : 'open', measure: (g.target || {}).measure || '', direction: (g.target || {}).direction || 'max', conds: (g.conditions || []).join('\n'), tolerance: g.tolerance == null ? '' : String(g.tolerance),
-      sims: String((b.limits || {}).simulations ?? 40), per: String((b.limits || {}).simulations_per_experiment ?? 12), seed: String((b.system || {}).seed ?? 1), duration: String((b.system || {}).duration ?? ((b.knobs || {}).duration || {}).default ?? 10), base: b.id || '',
+      sims: String((b.limits || {}).simulations ?? 40), per: String((b.limits || {}).simulations_per_experiment ?? 12), seed: String((b.system || {}).seed ?? 1), tcpInitCwnd: String((b.system || {}).tcpInitCwnd ?? ''), tcpBufBytes: String((b.system || {}).tcpBufBytes ?? ''), duration: String((b.system || {}).duration ?? ((b.knobs || {}).duration || {}).default ?? 10), base: b.id || '',
       structure: !!st.may_change, most: { hosts: String((st.most || {}).hosts ?? ''), links: String((st.most || {}).links ?? ''), flows: String((st.most || {}).flows ?? '') }, locked: Object.fromEntries((st.locked || []).map(k => [k, true])) });
     return s;
   },
@@ -157,29 +192,94 @@ const BRIEF_NET = {
   },
   card() {
     const N = BRIEF_NET, s = N.s, t = s.t, e = EV.e, sel = s.sel, o = N.find(sel);
-    if (!o) return `<div class="bn-card" id="bn-card"><p class="sm mut">Click an object of the picture to see and set its values. Drag a kind from the row above onto the picture to add one; drag an object out of the picture to remove it.</p></div>`;
+    if (!o) return `<div class="bn-card" id="bn-card"><p class="sm mut">Click an object of the picture to see and set its values: a host, a link, a flow (its source), a queue.</p></div>`;
     const [kind, id] = sel, d = N.deps(kind, id).gone.slice(1), rm = `<p style="margin:8px 0 0"><button data-remove="${e(kind)}:${e(id)}">Remove ${e(N.says(kind, id))}</button>${d.length ? ` <span class="sm">also removes ${e(d.map(([k, i]) => N.says(k, i)).join(', '))}</span>` : ''}</p>`;
     const lock = s.structure ? `<p class="sm" style="margin:6px 0 0"><label style="font-weight:400"><input type="checkbox" data-lock="${e(kind)}:${e(id)}"${s.locked[`${kind}:${id}`] ? ' checked' : ''}> the AI may not remove or change this object</label></p>` : '';
     let rows = '';
-    if (kind === 'host') rows = `<p class="sm">${t.links.filter(l => l.between.includes(id)).length} link(s), ${t.flows.filter(f => f.from === id).length} flow(s) sent, ${t.flows.filter(f => f.to === id).length} received. A host has no setting of its own.</p>`;
+    // a host: what is inside it, by the layers of its picture; each part opens its own card, and what can be added to this host is added from here
+    if (kind === 'host') { const out = t.flows.filter(f => f.from === id), inn = t.flows.filter(f => f.to === id), ls = t.links.filter(l => l.between.includes(id)), pt = (k, i, text) => `<button class="bn-in" data-pick="${k}:${e(i)}">${text}</button>`, plain = v => TASK_VIEW._rate(String(v)).replace(/^Tcp/, ''), far = l => l.between.find(x => x !== id);
+      const others = t.hosts.filter(h => h.id !== id).map(h => h.id), unlinked = others.filter(h => !ls.some(l => l.between.includes(h))), opt = (list, note) => list.map(h => `<option value="${e(h)}">${e(h)}${note && !EV.netPath(t, { from: id, to: h }) ? ' (a link to it is added too)' : ''}</option>`).join('');
+      // Everything a host can hold is set up from here, with nothing that has to be done somewhere else first: an application is added with the host it
+      // sends to (where no link leads there yet, the link is added with it); a link, with the host at its other end; a scheduler, on any of its links.
+      rows = `<p class="sm">ns-3 Node ${t.hosts.findIndex(h => h.id === id)} · click a part to set it (here or in the picture)</p>
+        <h5>Applications</h5>${out.map(f => pt('flow', f.id, `<b>${e(f.id)}</b> · ${f.kind.toUpperCase()} application, sends to ${e(f.to)}${f.kind === 'udp' ? ' · ' + e(plain(f.rate)) : ''}`)).join('')}${inn.map(f => pt('flow', f.id, `<b>${e(f.id)}</b> sink · receives from ${e(f.from)}`)).join('')}
+        ${others.length ? `<div class="bn-add" id="bn-add-app"><span>add one that sends to</span><select id="bn-app-to" aria-label="The host the new application sends to">${opt(others, true)}</select><button data-addapp="udp" title="An application that sends packets at a constant rate">+ UDP</button><button data-addapp="tcp" title="An application that always has data to send">+ TCP</button></div>` : '<p class="sm">An application sends to another host: add a second host first (drag “Host” onto the picture).</p>'}
+        <h5>Internet stack</h5>${out.concat(inn).map(f => pt('flow', f.id, `${f.kind.toUpperCase()} socket of <b>${e(f.id)}</b>${f.kind === 'tcp' && f.from === id ? ' · ' + e(plain(f.type)) : ''}`)).join('')}<p class="sm">IPv4${ls.length > 1 ? ': forwards between its links' : ''} · no setting of its own</p>
+        <div class="bn-row"><span>TCP first window</span><span></span>${N.field('tcpInitCwnd', s.tcpInitCwnd, '10 segments')}</div><div class="bn-row"><span>TCP buffers, bytes</span><span></span>${N.field('tcpBufBytes', s.tcpBufBytes, '1048576 (1 MB)')}</div><p class="sm">These two are the same on every host of the network; empty: ns-3's own value.</p>
+        <h5>Traffic control</h5>${ls.filter(l => l.queue && l.queue.on === id).map(l => pt('queue', l.id, `${e(l.queue.kind)} towards ${e(far(l))} · ${e(l.queue.length)} packets`)).join('')}
+        ${ls.filter(l => !l.queue).length ? `<p class="bn-adds">${ls.filter(l => !l.queue).map(l => `<button data-addq="${e(l.id)}:${e(id)}">+ scheduler towards ${e(far(l))}</button> <button data-addq="${e(l.id)}:${e(id)}" data-qk="fifo">+ shared queue towards ${e(far(l))}</button>`).join(' ')}</p>` : ''}
+        <p class="sm">${ls.length ? (ls.some(l => !l.queue || l.queue.on !== id) ? 'Where no scheduler is described, packets wait in a plain queue of 100 packets.' : '') : 'Packets wait where they are sent onto a link: this host has no link yet (add one below).'}</p>
+        <h5>Net devices</h5>${ls.map(l => pt('link', l.id, `device on link <b>${e(l.id)}</b> to ${e(far(l))} · ${e(plain(l.rate))} · queue ${e(l.device_queue)}`)).join('')}
+        ${unlinked.length ? `<div class="bn-add" id="bn-add-link"><span>add a link to</span><select id="bn-link-to" aria-label="The host at the other end of the new link">${opt(unlinked)}</select><button data-addlink="${e(id)}">+ link</button></div>` : `<p class="sm">${others.length ? 'It has a link to every other host.' : 'A link joins two hosts: add a second host first.'}</p>`}`; }
     if (kind === 'link') rows = N.row(`${id}.rate`, 'rate', o.rate) + N.row(`${id}.delay`, 'one-way delay', o.delay) + N.row(`${id}.mtu`, 'largest packet, bytes', o.mtu) + N.row(`${id}.device_queue`, 'device queue, packets', o.device_queue) + `<p class="sm">between ${e(o.between[0])} and ${e(o.between[1])}${o.queue ? '' : ' · a plain queue of 100 packets on each side'}</p>`;
-    if (kind === 'flow') rows = (o.kind === 'udp' ? N.row(`${id}.rate`, 'rate', o.rate) + N.row(`${id}.packet_bytes`, 'packet size, bytes', o.packet_bytes) : N.row(`${id}.type`, 'TCP type', o.type)) + `<p class="sm">${e(o.kind.toUpperCase())} from ${e(o.from)} to ${e(o.to)}</p>`;
-    if (kind === 'queue') rows = `<div class="bn-row"><span>kind</span><span></span><select data-qkind="${e(id)}"><option value="scheduler"${o.kind === 'scheduler' ? ' selected' : ''}>scheduler: a part of the link for each flow</option><option value="fifo"${o.kind === 'fifo' ? ' selected' : ''}>plain queue: first in, first out</option></select></div>`
+    if (kind === 'flow') rows = `<div class="bn-row"><span>kind</span><span></span><select data-fkind="${e(id)}" title="What this application sends: the socket, the sink at the other end and the settings below follow from it"><option value="udp"${o.kind === 'udp' ? ' selected' : ''}>UDP: packets at a constant rate</option><option value="tcp"${o.kind === 'tcp' ? ' selected' : ''}>TCP: always has data to send</option></select></div>` + (o.kind === 'udp' ? N.row(`${id}.rate`, 'rate', o.rate) + N.row(`${id}.packet_bytes`, 'packet size, bytes', o.packet_bytes) : N.row(`${id}.type`, 'TCP type', o.type)) + `<p class="sm">on ${e(o.from)}; it sends to ${e(o.to)}, over ${e((EV.netPath(t, o) || []).map(([l]) => l).join(', ') || 'no link')}</p>`;
+    if (kind === 'queue') rows = `<div class="bn-row"><span>kind</span><span></span><select data-qkind="${e(id)}"><option value="scheduler"${o.kind === 'scheduler' ? ' selected' : ''}>scheduler: a queue for each flow, and a part of the link for each</option><option value="fifo"${o.kind === 'fifo' ? ' selected' : ''}>shared queue: one for all the flows, first in, first out</option></select></div>`
       + N.row(`${id}.queue.length`, 'length, packets', o.length) + (o.kind === 'scheduler' ? Object.keys(o.parts || {}).map(f => N.row(`${id}.queue.parts.${f}`, `part of ${f}`, o.parts[f]) + `<div class="bn-row"><span>largest rate of ${e(f)}</span><span></span>${N.field(`lr:${id}:${f}`, (o.largest_rate || {})[f] || '', 'none')}</div>`).join('') : '')
       + `<p class="sm">on ${e(o.on)}'s side of link ${e(id)}${o.kind === 'scheduler' ? ' · the parts are divided by their sum' : ''}</p>`;
-    return `<div class="bn-card" id="bn-card" data-sel="${e(kind)}:${e(id)}"><h4>${e(kind === 'queue' ? `Queue of link ${id}` : `${kind[0].toUpperCase()}${kind.slice(1)} ${id}`)}</h4>${rows}${lock}${rm}</div>`;
+    // drawn the simple way, the picture shows a host as a sign: the full structure of the host that is chosen (or that holds what is chosen) stands here
+    const owner = kind === 'host' ? id : kind === 'flow' ? o.from : kind === 'queue' ? o.on : null, detail = NETC.mode() === 'simple' && owner ? NETC.detail(t, owner, s.knobs) : '';
+    return `<div class="bn-card" id="bn-card" data-sel="${e(kind)}:${e(id)}">${detail}<h4>${e(kind === 'queue' ? `Queue of link ${id}` : kind === 'flow' ? `${o.kind.toUpperCase()} application ${id}` : `${kind[0].toUpperCase()}${kind.slice(1)} ${id}`)}</h4>${rows}${lock}${rm}</div>`;
+  },
+  // ---- one card for each part of the network, with everything it has (2026-11-17, the operator: as under the two-host picture, so that every
+  // configuration can be seen; a part that is added brings its cards). A setting is set in its card (✧ fixed by the operator, ✦ left to the AI: the
+  // same row as in the card of the chosen object); what the program fixes is said in words (read from scratch/net: the flows start at 1 s plus up to
+  // 10 ms, a full segment is the smallest largest-packet on the way less 52 bytes, the scheduler's turn is 3000 bytes times the part; the rest are
+  // ns-3's own values). data-keys: the objects a card belongs to (host:, flow:, queue:, link:), for the highlight between the picture and the cards.
+  panels() {
+    const N = BRIEF_NET, s = N.s, t = s.t, e = EV.e, passing = N.passing(t), plain = v => TASK_VIEW._rate(String(v)).replace(/^Tcp/, ''), far = (l, h) => l.between.find(x => x !== h);
+    const fact = (label, text) => `<div class="bn-row bn-factrow"><span>${label}</span><span></span><span class="bn-fact">${text}</span></div>`;
+    const card = (keys, pick, title, where, rows) => `<div class="bn-pc" data-keys="${e(keys.join(' '))}" data-part="${e(title + ' @ ' + where)}"><h5 class="bn-pc-h" data-pick="${e(pick)}" title="Click: choose this part in the picture"><b>${e(title)}</b> <span>${e(where)}</span></h5>${rows}</div>`;
+    const shared = (f, label, v, hint) => `<div class="bn-row"><span>${label}</span><span title="The same for the whole network">✧</span>${N.field(f, v, hint)}</div>`;
+    const seg = f => { const way = (EV.netPath(t, f) || []).map(([l]) => N.linkOf(l)).filter(Boolean), m = Math.min(...way.map(l => Number(l.mtu) || 1500)); return way.length ? `${m - 52} bytes` : 'no way yet'; };
+    const order = t.hosts.slice().sort((a, b) => ((s.pos[a.id] || {}).x ?? 0) - ((s.pos[b.id] || {}).x ?? 0)), seen = new Set(); let out = '';
+    order.forEach(h => { const H = h.id, src = t.flows.filter(f => f.from === H), dst = t.flows.filter(f => f.to === H), ls = t.links.filter(l => l.between.includes(H));
+      src.forEach(f => { out += card([`host:${H}`, `flow:${f.id}`], `flow:${f.id}`, `${f.id} source`, `${H} · applications`, (f.kind === 'udp' ? N.row(`${f.id}.rate`, 'Sends, constant', f.rate) + N.row(`${f.id}.packet_bytes`, 'Packet payload, bytes', f.packet_bytes) : fact('Sends', 'as fast as TCP accepts, no limit')) + fact('Sends to', e(f.to)) + fact('Starts', '1 s + 0–10 ms')); });
+      dst.forEach(f => { out += card([`host:${H}`, `flow:${f.id}`], `flow:${f.id}`, `${f.id} sink`, `${H} · applications`, fact('Receives from', e(f.from)) + fact('Counts', 'what arrives: goodput, loss')); });
+      src.forEach(f => { out += card([`host:${H}`, `flow:${f.id}`], `flow:${f.id}`, `${f.kind.toUpperCase()} socket of ${f.id}`, `${H} · internet stack`, f.kind === 'udp' ? fact('Send buffer', 'none: nothing is held back') + fact('Resends lost packets', 'never')
+        : N.row(`${f.id}.type`, 'Congestion control', f.type) + fact('Segment payload', seg(f)) + shared('tcpBufBytes', 'Send and receive buffer, bytes', s.tcpBufBytes, '1048576 (1 MB)') + shared('tcpInitCwnd', 'First window, segments', s.tcpInitCwnd, '10') + fact('TCP options', 'timestamps, SACK, window scaling') + fact('Shortest resend timer', '1 s')); });
+      dst.forEach(f => { out += card([`host:${H}`, `flow:${f.id}`], `flow:${f.id}`, `${f.kind.toUpperCase()} socket of ${f.id}`, `${H} · internet stack`, f.kind === 'udp' ? fact('Receive buffer', '128 kB') : shared('tcpBufBytes', 'Receive buffer, bytes', s.tcpBufBytes, '1048576 (1 MB)') + fact('Sends ACK', 'every 2nd packet, or after 0.2 s')); });
+      out += card([`host:${H}`], `host:${H}`, 'IPv4', `${H} · internet stack`, fact('Forwards', ls.length > 1 ? 'between its links' : 'no: it has one link or none') + fact('Largest packet', ls.length ? ls.map(l => `${e(l.mtu)} bytes on ${e(l.id)}`).join(', ') + ' (larger ones would be split)' : 'no link yet'));
+      ls.filter(l => l.queue && l.queue.on === H).forEach(l => { const q = l.queue, fl = passing[l.id] || [];
+        if (q.kind === 'scheduler') fl.forEach(f => { out += card([`host:${H}`, `queue:${l.id}`, `flow:${f}`], `queue:${l.id}`, `${f} queue`, `${H} · traffic control`, N.row(`${l.id}.queue.length`, 'Room for, packets', q.length) + fact('When full', 'the new packet is dropped')); });
+        out += card([`host:${H}`, `queue:${l.id}`], `queue:${l.id}`, q.kind === 'scheduler' ? 'Scheduler' : 'Shared queue', `${H} · traffic control · towards ${far(l, H)}`, (q.kind === 'scheduler' ? fl.map(f => N.row(`${l.id}.queue.parts.${f}`, `Part of ${f}`, (q.parts || {})[f] ?? 1)).join('') + fact('Scheduling policy', 'chosen in block 6 · not told to the AI') + fact('Turn size', '3000 bytes × part')
+          : N.row(`${l.id}.queue.length`, 'Room for, packets', q.length) + fact('Holds', fl.length ? 'the packets of ' + fl.map(e).join(', ') + ', together' : 'no flow passes it yet') + fact('Order', 'first in, first out') + fact('When full', 'the new packet is dropped')) + fact('Link rate (read from its device)', e(plain(l.rate)))); });
+      ls.forEach(l => { out += card([`host:${H}`, `link:${l.id}`], `link:${l.id}`, 'Point-to-point device', `${H} · net device · link ${l.id}`, N.row(`${l.id}.rate`, 'Rate', l.rate) + N.row(`${l.id}.mtu`, 'Largest packet, bytes', l.mtu) + N.row(`${l.id}.device_queue`, 'Transmit queue, packets', l.device_queue) + fact('Queue kind', 'DropTailQueue'));
+        if (!seen.has(l.id)) { seen.add(l.id); out += card([`link:${l.id}`], `link:${l.id}`, `Point-to-point link ${l.id}`, `between ${l.between[0]} and ${l.between[1]}`, N.row(`${l.id}.delay`, 'Delay, one way', l.delay) + fact('Capacity', `${e(plain(l.rate))} (set by the two devices)`)); } }); });
+    return `<div id="bn-panels-box"><p class="sm bn-panels-h"><b>Every part, with everything it has</b> · one card for each part of the network; a part you add brings its cards · ✧ fixed by the operator, ✦ left to the AI (click the mark to switch) · point at a part of the picture to find its cards, and at a card to find its part</p><div class="bn-panels" id="bn-panels">${out}</div></div>`;
+  },
+  // the highlight between the picture and the cards: the cards of the part the pointer is on, and the part of the card it is on (no drawing again, nothing moves)
+  hot(keys) {
+    const N = BRIEF_NET, k = (keys || []).join(' '); if (k === N._hot) return; N._hot = k; const on = new Set(keys || []), q = id => CSS.escape(id);
+    N.node.querySelectorAll('.bn-pc').forEach(c => c.classList.toggle('hot', c.dataset.keys.split(' ').some(x => on.has(x))));
+    N.node.querySelectorAll('.nc-hot').forEach(x => x.classList.remove('nc-hot'));
+    const specific = (keys || []).filter(x => !x.startsWith('host:')), use = specific.length ? specific : keys || [];
+    use.forEach(x => { const [kind, id] = [x.slice(0, x.indexOf(':')), x.slice(x.indexOf(':') + 1)];
+      const sel = kind === 'flow' ? `[data-flow="${q(id)}"], [data-sink="${q(id)}"]` : kind === 'queue' ? `[data-queue="${q(id)}"]` : kind === 'link' ? `#bn-paper [data-link="${q(id)}"]` : `#bn-paper [data-host="${q(id)}"]`;
+      N.node.querySelectorAll(sel).forEach(el => el.classList.add('nc-hot')); });
+  },
+  over(ev) {
+    const N = BRIEF_NET, t = ev.target.closest ? ev.target : null; if (!t || !N.s || N.s.drag) return;
+    const pc = t.closest('.bn-pc'); if (pc) return N.hot(pc.dataset.keys.split(' '));
+    if (!t.closest('#bn-paper, .bn-detail')) return N.hot([]);
+    const f = t.closest('[data-flow], [data-sink]'), qd = t.closest('[data-queue]'), l = t.closest('[data-link]'), h = t.closest('[data-host], [data-detail]');
+    N.hot(f ? ['flow:' + (f.dataset.flow || f.dataset.sink)] : qd ? ['queue:' + qd.dataset.queue] : l ? ['link:' + l.dataset.link] : h ? ['host:' + (h.dataset.host || h.dataset.detail)] : []);
   },
   canvas() {
-    const N = BRIEF_NET, s = N.s, b = { topology: s.t, knobs: s.knobs }, svg = EV.netSvg(b, { max: 1000 });
-    return `<div class="bn-canvas" id="bn-canvas">${svg || '<p class="sm" style="padding:16px">An empty network: drag a host here.</p>'}<div id="bn-zones"></div></div>`;
+    return `<div class="bn-canvas" id="bn-canvas"><div id="bn-paper"></div>${BRIEF_NET.s.t.hosts.length ? '' : '<p class="sm bn-empty">An empty network: drag a host from the palette onto this field.</p>'}<div id="bn-zones"></div></div>`;
   },
   draw() {
     const N = BRIEF_NET, s = N.s, e = EV.e, briefs = ((N.ctx.st || {}).briefs || []), nw = EV.nw, outs = Object.keys(N.outputs(s.t)), have = EV.netSettings(s.t);
+    const act = document.activeElement, keep = act && N.node.contains(act) && act.dataset && act.dataset.f ? { f: act.dataset.f, part: act.closest('.bn-pc') ? act.closest('.bn-pc').dataset.part : act.closest('#bn-card') ? '#card' : '', at: act.selectionStart } : null;
     const sched = s.t.links.some(l => l.queue && l.queue.kind === 'scheduler'), name = k => (TH_DATA.KNOB[k] || k);
     EV.netApply({ id: 'setup-' + Date.now(), topology: s.t });
-    const pal = `<div class="bn-pal" id="bn-pal">${N.KINDS.map(([k, title, says]) => `<button class="bn-kind${s.placing === k ? ' on' : ''}" data-kind="${k}" title="Drag it onto the picture, or press Enter and choose a place"><b>+ ${title}</b><span>${says}</span></button>`).join('')}
-      <span class="bn-acts"><button id="bn-undo"${N.past.length ? '' : ' disabled'}>Undo</button><button id="bn-redo"${N.ahead.length ? '' : ' disabled'}>Redo</button></span></div>`;
-    const b1 = `${pal}<div class="bn-two"><div>${N.canvas()}<p class="sm bn-say" id="bn-say"></p></div><div id="bn-side">${N.card()}</div></div>`;
+    // the tool palette: the kinds of object in groups, each with its sign; a tool is dragged onto the picture (or chosen with Enter, then a place)
+    const tool = k => { const [, title, says, full] = N.KINDS.find(q => q[0] === k); return `<button class="bn-kind${s.placing === k ? ' on' : ''}" data-kind="${k}" title="${e(full)}. Drag it onto the picture, or press Enter and choose a place."><svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${N.ICON[k]}</svg><span><b>${title}</b><span>${says}</span></span></button>`; };
+    const pal = `<div class="bn-pal" id="bn-pal" aria-label="Tools"><p class="bn-pal-h">Tools <span class="sm">drag one onto the picture</span></p>${N.GROUPS.map(([name, ks]) => `<div class="bn-group" data-group="${e(name)}"><p class="bn-group-h">${e(name)}</p>${ks.map(tool).join('')}</div>`).join('')}</div>`;
+    const bar = `<div class="bn-bar"><span class="bn-acts"><button id="bn-undo"${N.past.length ? '' : ' disabled'} title="Undo (key: left arrow)">← Undo</button><button id="bn-redo"${N.ahead.length ? '' : ' disabled'} title="Redo (key: right arrow)">Redo →</button></span>
+      <span class="bn-seg" role="group" aria-label="How the hosts are drawn" title="Simple: a host is its sign and its marks; its full structure stands beside the picture when it is chosen. Detailed: every host shows its full structure in the picture."><button id="bn-simple" class="${NETC.mode() === 'simple' ? 'on' : ''}" aria-pressed="${NETC.mode() === 'simple'}">simple</button><button id="bn-full" class="${NETC.mode() === 'full' ? 'on' : ''}" aria-pressed="${NETC.mode() === 'full'}">detailed</button></span>
+      <span class="sm bn-hint">drag a host to move it anywhere · choose it and drag a handle (right edge, lower edge, corner) to resize it · drag its <b>+</b> onto another host to link them · drag the background to move the picture · scroll to zoom</span>
+      <span class="bn-acts"><button id="bn-zout" title="Smaller" aria-label="Smaller">−</button><button id="bn-zin" title="Larger" aria-label="Larger">+</button><button id="bn-fit" title="Show the whole network (key F)">fit <span class="sm">F</span></button></span></div>`;
+    const b1 = `<div class="bn-three">${pal}<div>${bar}${N.canvas()}<p class="sm bn-say" id="bn-say"></p></div><div id="bn-side">${N.card()}</div></div>${N.panels()}`;
     const who = k => (s.knobs[k] ? `<td>${e(s.knobs[k].choices ? 'one of ' + s.knobs[k].choices.map(c => c.replace(/^Tcp/, '')).join(', ') : `${s.knobs[k].min} to ${s.knobs[k].max}, starts at ${s.knobs[k].default}`)}</td><td>✦ the AI</td>` : `<td><b>${e(have[k])}</b></td><td>✧ the operator</td>`);
     const b2 = `<table class="bn-list" id="bn-who"><tbody>${Object.keys(have).map(k => `<tr data-k="${e(k)}"><td>${e(name(k))}</td>${who(k)}</tr>`).join('')}
         <tr data-k="duration"><td>measured time, s</td><td>${s.knobs.duration ? `${e(s.knobs.duration.min)} to ${e(s.knobs.duration.max)}, starts at ${e(s.knobs.duration.default)}` : N.field('duration', s.duration)}</td><td><button class="bn-who" data-knob="duration">${s.knobs.duration ? '✦' : '✧'}</button> ${s.knobs.duration ? 'the AI' : 'the operator'}</td></tr>
@@ -205,22 +305,23 @@ const BRIEF_NET = {
     const top = `<div class="be-top"><div><label>Start from<small>a saved brief that has a network, or one of two examples</small><select id="bn-open"><option value="">choose…</option><option value="~default">example: two hosts, one link (UDP and TCP)</option><option value="~dumbbell">example: two senders through a third host</option>${nets.map(b => `<option value="${e(b)}"${b === s.base ? ' selected' : ''}>${e(b)}</option>`).join('')}</select></label></div>
         <label>Name of the new brief<small>lower-case letters, digits, - and _ · a saved brief is never overwritten</small>${N.field('id', s.id, 'e.g. three-hosts')}</label></div>`;
     const blk = (i, body, cls) => EV.setBlock(i, body, { says: true, cls });
-    const first = blk(0, b1, 'st-wide').replace(/(<p class="st-says[^>]*>)[^<]*/, '$1Hosts, links, flows and queues. Drag a kind onto the picture to add one; drag an object out of the picture to remove it.');
+    const first = blk(0, b1, 'st-wide').replace(/(<p class="st-says[^>]*>)[^<]*/, '$1Hosts, links, flows and queues, drawn as in the two-host picture. Drag a tool onto the picture to add one; choose an object and press its × (or Delete) to remove it.');
+    NETC.dispose();
     N.node.innerHTML = `${top}<div class="st" id="st-blocks">${first}${blk(1, b2)}${blk(2, b3)}${blk(3, b4, 'st-told')}<div class="st-row st-low">${blk(4, b5)}${blk(5, b6)}${blk(6, b7)}</div></div>
       <div class="be-start" id="bn-start-box"><div id="bn-state" class="sm"></div><div id="bn-msg"></div><p style="margin-top:8px"><button id="bn-save">Save as new brief</button> <button class="big primary" id="bn-start">Save and start the session</button></p></div>`;
+    NETC.mount(N.node.querySelector('#bn-paper'), s.t, { knobs: s.knobs, pos: s.pos, sel: s.sel });
     N.paint();
+    if (keep) { const scope = keep.part === '#card' ? N.node.querySelector('#bn-card') : keep.part ? [...N.node.querySelectorAll('.bn-pc')].find(c => c.dataset.part === keep.part) : N.node, el = scope && scope.querySelector(`[data-f="${CSS.escape(keep.f)}"]`);
+      if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(keep.at, keep.at); } catch (x) { /* a field without a caret */ } } }
   },
   // what follows the values, in place: the drop places, the chosen object's mark, the task, what cannot be saved yet
   paint() {
     const N = BRIEF_NET, s = N.s, e = EV.e, $ = id => N.node.querySelector('#' + id), cv = $('bn-canvas'), svg = cv && cv.querySelector('svg'); if (!cv) return;
-    cv.querySelectorAll('[data-host]').forEach(g => { g.dataset.obj = 'host:' + g.dataset.host; g.classList.toggle('sel', !!s.sel && s.sel[0] === 'host' && s.sel[1] === g.dataset.host); });
-    cv.querySelectorAll('.nl[data-link]').forEach(g => { g.dataset.obj = 'link:' + g.dataset.link; g.classList.toggle('sel', !!s.sel && s.sel[0] === 'link' && s.sel[1] === g.dataset.link); });
-    cv.querySelectorAll('.nq').forEach(g => { g.dataset.obj = 'queue:' + g.dataset.queue; g.classList.toggle('sel', !!s.sel && s.sel[0] === 'queue' && s.sel[1] === g.dataset.queue); });
-    cv.querySelectorAll('.nh g[data-flow]').forEach(g => { if (s.t.flows.find(f => f.id === g.dataset.flow && f.from === g.parentNode.dataset.host)) g.dataset.obj = 'flow:' + g.dataset.flow; });
-    const zs = N.zones(), box = $('bn-zones'), k = svg ? svg.getBoundingClientRect().width / svg.viewBox.baseVal.width : 1;
+    NETC.mark(s.sel); NETC.band(s.pending);
+    const zs = N.zones(), box = $('bn-zones'), k = 1;   // the places are given in pixels of the canvas (NETC.geom)
     box.innerHTML = zs.map((z, i) => `<button class="bn-zone" data-zone="${i}" data-key="${e(z.key)}" style="left:${z.x * k}px;top:${z.y * k}px" title="Add ${e(z.label)} here" aria-label="Add ${e(z.label)} here"><span class="plus">+</span><span class="lab"> ${e(z.label)}</span></button>`).join('');
     const say = $('bn-say'), p = s.pending;
-    say.innerHTML = p ? `<b>${p.kind === 'link' ? `A link from ${e(p.from)}` : `A ${e(p.kind.toUpperCase())} flow from ${e(p.from)}`}:</b> now choose the host it goes to${zs.length ? '' : ' (no host can take it)'}. <button class="cl" id="bn-cancel">cancel</button>`
+    say.innerHTML = p ? `<b>${p.kind === 'link' ? `A link from ${e(p.from)}` : `The ${e(p.kind.toUpperCase())} application on ${e(p.from)}`}:</b> now choose the host it ${p.kind === 'link' ? 'goes to' : 'sends to'}${zs.length ? '' : ' (no host can take it)'}. <button class="cl" id="bn-cancel">cancel</button>`
       : s.placing ? `<b>${e(N.KINDS.find(q => q[0] === s.placing)[1])}:</b> ${zs.length ? `choose one of the ${zs.length} marked place${zs.length === 1 ? '' : 's'} (Tab and Enter, or a click)` : 'there is no place for one in this network'}. <button class="cl" id="bn-cancel">cancel</button>` : '';
     const task = $('bn-task'); if (task) task.textContent = EV.taskText(N.toBrief());
     const bad = N.problems(), wait = EV.mustWait ? EV.mustWait() : null;
@@ -239,12 +340,12 @@ const BRIEF_NET = {
   },
   down(ev) {
     const N = BRIEF_NET, s = N.s, t = ev.target.closest ? ev.target : null; if (!t || ev.button > 0) return;
-    const kind = t.closest('.bn-kind'), obj = t.closest('#bn-canvas [data-obj]');
+    const kind = t.closest('.bn-kind'), obj = null;   // an object of the picture is moved, chosen and removed by the drawing surface (brief_canvas.js)
     if (kind) { s.drag = { what: 'kind', kind: kind.dataset.kind, x: ev.clientX, y: ev.clientY, moved: false }; ev.preventDefault(); }
     else if (obj && !t.closest('.bn-zone')) { const [k, id] = obj.dataset.obj.split(':'); s.drag = { what: 'obj', kind: k, id, x: ev.clientX, y: ev.clientY, moved: false }; ev.preventDefault(); }
   },
   move(ev) {
-    const N = BRIEF_NET, s = N.s, d = s && s.drag; if (!d || !N.node.isConnected) return;
+    const N = BRIEF_NET, s = N.s, d = s && s.drag; if (s && s.pending && N.node.isConnected) NETC.bandTo(ev); if (!d || !N.node.isConnected) return;
     if (!d.moved && Math.hypot(ev.clientX - d.x, ev.clientY - d.y) < 6) return;
     if (!d.moved) { d.moved = true; if (d.what === 'kind') { s.placing = d.kind; s.pending = null; N.paint(); } }
     if (d.what === 'kind') { const n = N.near(ev); N.ghost(n.zone ? `release: add ${n.zone.label}` : `${N.KINDS.find(q => q[0] === d.kind)[1]}: move to a marked place`, n.zone ? 'add' : '', ev); }
@@ -253,7 +354,7 @@ const BRIEF_NET = {
   up(ev) {
     const N = BRIEF_NET, s = N.s, d = s && s.drag; if (!d) return; s.drag = null; N.ghost('');
     if (d.what === 'kind') { if (!d.moved) { s.placing = s.placing === d.kind && !s.pending ? null : d.kind; s.pending = null; N.paint(); const z = N.node.querySelector('.bn-zone'); if (z && s.placing) z.focus(); return; }
-      const n = N.near(ev); N.node.querySelector('#bn-canvas').classList.remove('over'); if (n.zone) n.zone.go(); else { s.placing = null; N.paint(); } return; }
+      const n = N.near(ev); N.node.querySelector('#bn-canvas').classList.remove('over'); if (n.zone) n.zone.go(ev); else { s.placing = null; N.paint(); } return; }
     if (!d.moved) { s.sel = [d.kind, d.id]; N.node.querySelector('#bn-side').innerHTML = N.card(); N.paint(); return; }
     const n = N.near(ev); N.node.querySelector('#bn-canvas').classList.remove('over'); if (!n.inside) N.remove(d.kind, d.id); else N.paint();
   },
@@ -264,6 +365,15 @@ const BRIEF_NET = {
     const kd = c('.bn-kind'); if (kd && ev.detail === 0) { s.placing = s.placing === kd.dataset.kind && !s.pending ? null : kd.dataset.kind; s.pending = null; N.draw(); const first = N.node.querySelector('.bn-zone'); if (first && s.placing) first.focus(); return; }
     if (c('#bn-cancel')) { s.placing = s.pending = null; N.paint(); return; }
     if (c('#bn-undo')) return N.step(N.past, N.ahead); if (c('#bn-redo')) return N.step(N.ahead, N.past);
+    if (c('#bn-simple') || c('#bn-full')) { try { localStorage.setItem('ev-bn-mode', c('#bn-full') ? 'full' : 'simple'); } catch (x) { /* no storage */ } NETC.view = null; return N.draw(); }
+    // a part of the structure shown beside the picture (the simple way of drawing): chosen like the part in the picture
+    const dp = c('.bn-detail [data-flow], .bn-detail [data-sink], .bn-detail [data-queue]'); if (dp) return N.pick(...(dp.dataset.queue ? ['queue', dp.dataset.queue] : ['flow', dp.dataset.flow || dp.dataset.sink]));
+    if (c('#bn-zin')) return NETC.zoom(1.2); if (c('#bn-zout')) return NETC.zoom(1 / 1.2); if (c('#bn-fit')) { NETC.fit(); return N.paint(); }
+    // from a host's card: a part of the host opens its own card; an application or a scheduler is added to this host
+    const pk = c('[data-pick]'); if (pk) { const [k, i] = pk.dataset.pick.split(':'); return N.pick(k, i); }
+    const ap = c('[data-addapp]'); if (ap && s.sel && s.sel[0] === 'host') { const to = (N.node.querySelector('#bn-app-to') || {}).value; if (to) return N.add.app(ap.dataset.addapp, s.sel[1], to); return; }
+    const al = c('[data-addlink]'); if (al) { const to = (N.node.querySelector('#bn-link-to') || {}).value; if (to) return N.add.link(al.dataset.addlink, to); return; }
+    const aq = c('[data-addq]'); if (aq) { const [l, h] = aq.dataset.addq.split(':'); return N.add.queue(l, h, aq.dataset.qk); }
     const rm = c('[data-remove]'); if (rm) { const [k, id] = rm.dataset.remove.split(':'); return N.remove(k, id); }
     const kn = c('[data-knob]'); if (kn) { const a = kn.dataset.knob; return N.change(() => { if (s.knobs[a]) { delete s.knobs[a]; return; }
       const kind = N.kindOf(a), v = a === 'duration' ? s.duration : EV.netSettings(s.t)[a], name = TH_DATA.KNOB[a] || (a === 'duration' ? 'seconds of measured traffic' : a);
@@ -278,19 +388,24 @@ const BRIEF_NET = {
     if (t.dataset && t.dataset.goal) { s.goal = t.dataset.goal; return N.draw(); }
     if (t.dataset && t.dataset.lock) { s.locked[t.dataset.lock] = t.checked; return; }
     if (t.dataset && t.dataset.qkind && done) return N.change(() => { N.linkOf(t.dataset.qkind).queue.kind = t.value; });
+    // an application changed between UDP and TCP: what it sends is converted where it stands (its name, its hosts and its part of a scheduler stay; the settings of the other kind go)
+    if (t.dataset && t.dataset.fkind && done) return N.change(() => { const i = s.t.flows.findIndex(q => q.id === t.dataset.fkind), o = s.t.flows[i]; if (i < 0 || o.kind === t.value) return;
+      s.t.flows[i] = t.value === 'udp' ? { id: o.id, kind: 'udp', from: o.from, to: o.to, rate: '100Mbps', packet_bytes: 1400 } : { id: o.id, kind: 'tcp', from: o.from, to: o.to, type: 'TcpCubic' }; });
     if (t.dataset && t.dataset.choice && done) { const a = t.dataset.choice, k = s.knobs[a], list = [...N.node.querySelectorAll(`[data-choice="${a}"]`)].filter(x => x.checked).map(x => x.value); if (!list.length) { t.checked = true; return; } return N.change(() => { k.choices = list; if (!list.includes(k.default)) k.default = list[0]; }); }
     if (!f) return;
-    if (f.startsWith('v:')) { const a = f.slice(2), v = N.isText(a) ? t.value : N.num(t.value); s.t = EV.netWith(s.t, { [a]: v }); if (done) { N.past.push(JSON.stringify({ t: s.t, knobs: s.knobs })); N.draw(); } else N.paintTask(); return; }
-    if (f.startsWith('k:')) { const [, a, part] = f.split(':'); s.knobs[a][part] = N.isText(a) ? t.value : N.num(t.value); if (done) N.draw(); return; }
-    if (f.startsWith('lr:')) { const [, l, fl] = f.split(':'), q = N.linkOf(l).queue; q.largest_rate = q.largest_rate || {}; if (t.value.trim()) q.largest_rate[fl] = t.value.trim(); else delete q.largest_rate[fl]; if (done) N.draw(); return; }
+    if (f.startsWith('v:')) { const a = f.slice(2), v = N.isText(a) ? t.value : N.num(t.value); s.t = EV.netWith(s.t, { [a]: v }); if (done) { N.past.push(JSON.stringify({ t: s.t, knobs: s.knobs })); N.soon(); } else N.paintTask(); return; }
+    if (f.startsWith('k:')) { const [, a, part] = f.split(':'); s.knobs[a][part] = N.isText(a) ? t.value : N.num(t.value); if (done) N.soon(); return; }
+    if (f.startsWith('lr:')) { const [, l, fl] = f.split(':'), q = N.linkOf(l).queue; q.largest_rate = q.largest_rate || {}; if (t.value.trim()) q.largest_rate[fl] = t.value.trim(); else delete q.largest_rate[fl]; if (done) N.soon(); return; }
     if (f.startsWith('most:')) { s.most[f.slice(5)] = t.value; return; }
-    s[f] = t.value; if (done && ['measure', 'direction'].includes(f)) return N.draw(); N.paintTask();
+    s[f] = t.value; if (done && ['measure', 'direction', 'tcpBufBytes', 'tcpInitCwnd'].includes(f)) return N.soon(); N.paintTask();
   },
   paintTask() { const N = BRIEF_NET, $ = id => N.node.querySelector('#' + id); const task = $('bn-task'); if (task) task.textContent = EV.taskText(N.toBrief()); const bad = N.problems(); $('bn-save').disabled = !!N.s.busy || !!bad.length; $('bn-state').innerHTML = bad.length ? `<span class="bn-bad"><b>Not ready yet:</b></span><ul id="bn-bad">${bad.map(x => `<li>${EV.e(x)}</li>`).join('')}</ul>` : 'Ready.'; },
   key(ev) {
     const N = BRIEF_NET, s = N.s, t = ev.target, typing = t.matches && t.matches('input, textarea, select'); if (!N.node || !N.node.isConnected || !s) return;
     if (ev.key === 'Escape' && (s.placing || s.pending)) { s.placing = s.pending = null; N.paint(); return; }
     if (typing) return;
+    if ((ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && !ev.ctrlKey && !ev.metaKey && !ev.altKey && !ev.shiftKey) { ev.preventDefault(); return ev.key === 'ArrowLeft' ? N.step(N.past, N.ahead) : N.step(N.ahead, N.past); }   // the left arrow: undo; the right arrow: redo
+    if ((ev.key === 'f' || ev.key === 'F') && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); NETC.fit(); return N.paint(); }   // F: the whole network in view
     if ((ev.key === 'Delete' || ev.key === 'Backspace') && s.sel) { ev.preventDefault(); return N.remove(s.sel[0], s.sel[1]); }
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); return ev.shiftKey ? N.step(N.ahead, N.past) : N.step(N.past, N.ahead); }
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'y') { ev.preventDefault(); return N.step(N.ahead, N.past); }

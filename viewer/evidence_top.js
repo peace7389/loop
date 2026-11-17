@@ -83,7 +83,7 @@ Object.assign(EV, {
   // ---- who produced what: this session's record counts per source (the colours are in the page's legend); and the one symbol per record type
   legend() {
     const say = { model: 'what the AI wrote', harness: 'what the harness computed, found or decided', simulator: 'what ns-3, the network simulator, measured in a simulation', operator: 'what the person set: the brief, the scheduling policy' };
-    const names = { brief: 'brief', hypothesis: 'hypothesis', drop: 'dropped hypothesis', experiment: 'experiment', test: 'test', simulation: 'simulation', evidence: 'evidence table', check: 'check',
+    const names = { brief: 'brief', why: 'guess of why', rethink: 'guess looked at again', judge: 'the judge’s reading of a link', hypothesis: 'hypothesis', drop: 'dropped hypothesis', experiment: 'experiment', test: 'test', simulation: 'simulation', evidence: 'evidence table', check: 'check',
                     verdict: 'verdict', report: 'final report', note: 'note', malformed: 'refused answer', request: 'request for information', result: 'its result', turn: 'turn record' };
     return `<table><tbody>${['model', 'harness', 'simulator', 'operator'].map(b => `<tr><td><b>${b === 'model' ? 'AI (model)' : b === 'simulator' ? 'ns-3' : b}</b></td><td class="num">${EV.M.bySource[b]} record${EV.M.bySource[b] === 1 ? '' : 's'}</td><td class="sm">${say[b]}</td></tr>`).join('')}</tbody></table>
       <p class="sm" style="margin-top:6px">${Object.entries(EV_ICON).map(([k, i]) => `<span style="white-space:nowrap;margin-right:10px">${i} ${names[k]}</span>`).join(' ')}</p>`;

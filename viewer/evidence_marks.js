@@ -5,7 +5,8 @@
 // The colour of held and failed, supported and refuted is on the sign only: the word beside it is ordinary text.
 // ======================================================================================================
 Object.assign(EV, {
-  GK: { hyp: 'M6 1 11 6 6 11 1 6Z', dropped: ['M6 1.8 10.2 6 6 10.2 1.8 6ZM2.4 9.6 9.6 2.4', 1.2], rule: ['M6 2.4V9.6', 1.5], sim: 'M6 2.3a3.7 3.7 0 1 0 0 7.4a3.7 3.7 0 1 0 0-7.4Z', 'sim-returned': ['M6 2.9a3.1 3.1 0 1 0 0 6.2a3.1 3.1 0 1 0 0-6.2Z', 1.4],
+  GK: { why: ['M6 1.2a4.8 4.8 0 1 0 0 9.6a4.8 4.8 0 1 0 0-9.6ZM4.5 4.7a1.55 1.45 0 1 1 2.35 1.25c-.6.4-.85.65-.85 1.2M6 8.75V8.85', 1.15],  // a guess of why: a question mark in a ring
+        hyp: 'M6 1 11 6 6 11 1 6Z', dropped: ['M6 1.8 10.2 6 6 10.2 1.8 6ZM2.4 9.6 9.6 2.4', 1.2], rule: ['M6 2.4V9.6', 1.5], sim: 'M6 2.3a3.7 3.7 0 1 0 0 7.4a3.7 3.7 0 1 0 0-7.4Z', 'sim-returned': ['M6 2.9a3.1 3.1 0 1 0 0 6.2a3.1 3.1 0 1 0 0-6.2Z', 1.4],
         held: ['M2.3 6.4 4.9 9 9.8 3.2', 1.9], failed: ['M3 3 9 9M9 3 3 9', 1.9], 'not-checked': ['M3 6H9', 1.6], void: ['M6 2.1a3.9 3.9 0 1 0 0 7.8a3.9 3.9 0 1 0 0-7.8ZM3.3 8.7 8.7 3.3', 1.3], supported: 'M6 1.7 10.7 9.9H1.3Z', refuted: 'M6 10.3 10.7 2.1H1.3Z', inconclusive: 'M1.6 4.5H10.4V7.5H1.6Z',
         report: 'M6 .7 7.6 4.2 11.4 4.6 8.5 7.1 9.4 10.9 6 8.9 2.6 10.9 3.5 7.1 .6 4.6 4.4 4.2Z',
         check: ['M2.3 6.4 4.9 9 9.8 3.2', 1.9],                    // a tick that is not a check's result: "agrees", "reviewed", the icon of the record type
@@ -57,5 +58,5 @@ Object.assign(EV, {
   dot: (filled, col) => `<i class="gk"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4" fill="${filled ? col || 'currentColor' : 'var(--surface-1)'}" stroke="${col || 'currentColor'}" stroke-width="${filled ? 0 : 1.8}"/></svg></i>`,
 });
 // the icons of the record types that have a drawn mark
-Object.assign(EV_ICON, { hypothesis: EV.gkey('hyp'), simulation: EV.gkey('sim'), check: EV.gkey('check'), malformed: EV.gkey('warn'), report: EV.gkey('report') });
+Object.assign(EV_ICON, { why: EV.gkey('why'), hypothesis: EV.gkey('hyp'), simulation: EV.gkey('sim'), check: EV.gkey('check'), malformed: EV.gkey('warn'), report: EV.gkey('report') });
 EV.act = Object.assign(EV.act || {}, { qmore(id) { const q = EV.s.qmore = EV.s.qmore || {}; q[id] = !q[id]; EV.draw(); } });
