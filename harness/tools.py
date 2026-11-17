@@ -4,6 +4,7 @@ A session works on one brief (briefs/<id>.json): the task, the fixed settings (s
 change (knobs), the goal and the limits. The brief is read once, when the session is created."""
 import json, os, re, subprocess, time
 from pathlib import Path
+import network
 
 ROOT = Path.home() / "project"
 NS3, HARNESS, SESSIONS, BRIEFS = ROOT / "ns-3.49", ROOT / "harness", ROOT / "sessions", ROOT / "briefs"
@@ -20,10 +21,56 @@ KNOB_TYPES = {"weightUdp": "number", "udpRate": "string", "queuePkts": "integer"
               "linkRate": "string", "linkDelay": "string", "mtu": "integer", "queuePktsUdp": "integer", "queuePktsTcp": "integer", "tcpInitCwnd": "integer", "tcpBufBytes": "integer", "devQueuePkts": "integer"}  # their types in the answer format
 RATES, STEPPED = ("udpRate", "linkRate"), ("weightUdp", "queuePkts", "duration", "seed", "mtu", "queuePktsUdp", "queuePktsTcp", "tcpInitCwnd", "tcpBufBytes", "devQueuePkts")  # knobs given as a rate ("400Mbps"); numeric knobs, which may have a step
 DEFAULT_BRIEF = "two-hosts-open"
+def policies(brief=None):
+    """The scheduling policies a brief's program has: share and cap; and prio (the first flow of a scheduler's list is served first, the parts unused)
+    for a brief with a network, whose program `net` has it."""
+    return ("share", "cap", "prio") if (brief or BRIEF or {}).get("topology") else ("share", "cap")
+
+
 POLICY = "share"        # the scheduling policy (how the scheduler divides the link: share or cap): the operator's choice, set by loop.py. It goes to
                         # the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
 RUN_TIMEOUT = 600
 BIN = NS3 / "build/scratch/two-hosts/ns3.49-two-hosts-optimized"  # the built program, started directly (several at once)
+NET_BIN = NS3 / "build/scratch/net/ns3.49-net-optimized"          # the program that builds a network from a description: for a brief that has "topology" (network.py)
+KIND_TYPES = {"rate": "string", "time": "string", "choice": "string", "int": "integer", "number": "number"}  # a network setting's kind -> its type in the answer format
+
+
+def outputs(brief=None):
+    """The measures of a simulation with what each is: a brief with a network has its own (made from the network), every other brief the manifest's."""
+    b = brief or BRIEF or {}
+    return network.outputs(b["topology"]) if b.get("topology") else MANIFEST["outputs"]
+
+
+def kind(k, brief=None):
+    """What kind of value setting k holds: rate, time, choice, int or number."""
+    b = brief or BRIEF or {}
+    if b.get("topology"):
+        return "choice" if "choices" in (b.get("knobs") or {}).get(k, {}) else network.kind(k)
+    return "rate" if k in RATES else "time" if k == "linkDelay" else "choice" if k == "tcpVariant" else "number" if k in ("weightUdp", "duration") else "int"
+
+
+def knob_type(k, brief=None):
+    """The type of knob k in the answer format."""
+    b = brief or BRIEF or {}
+    return KIND_TYPES[kind(k, b)] if b.get("topology") else KNOB_TYPES[k]
+
+
+def command(opts, out, brief=None, topology=None):
+    """The command that starts one simulation with these settings into folder out. For a brief with a network it first
+    writes out/network.txt (the network with the settings at their values) and out/params.json (the settings used:
+    `net` writes none); two-hosts takes its settings as options and writes its own params.json."""
+    b = brief or BRIEF or {}
+    if not b.get("topology"):
+        return [str(BIN)] + [f"--{k}={v}" for k, v in opts.items()] + [f"--out={out}"]
+    run = {k: v for k, v in opts.items() if k in network.RUN}
+    base = topology or b["topology"]   # topology: the brief's network with a simulation's own changes made (network.apply); a knob of an object that is gone there has nothing to set
+    net = network.with_values(base, {k: v for k, v in opts.items() if k not in network.RUN and k in network.settings(base)})
+    bad = network.problems(net)
+    if bad:
+        raise ValueError("the network cannot be built with these settings: " + "; ".join(bad))
+    (Path(out) / "network.txt").write_text(network.text(net, run))
+    (Path(out) / "params.json").write_text(json.dumps(opts) + "\n")
+    return [str(NET_BIN), f"--net={Path(out) / 'network.txt'}", f"--out={out}"]
 
 def _ok(k, v):
     """Whether the program can be started with setting k = v."""
@@ -63,6 +110,8 @@ def check_brief(b, brief_id):
     (a fixed setting by its value, a knob as "the knob <name>", so that one description stays true whoever decides a
     setting) and, when it states no task of its own, with the task written by task_text.
     The one check for a brief: loop.py (through open_session) and control.py both use it."""
+    if "topology" in b:
+        return _check_network_brief(b, brief_id)
     knobs, system, goal, limits = (b.get(k) if isinstance(b.get(k), dict) else {} for k in ("knobs", "system", "goal", "limits"))
     num = lambda k, v: _rate_bps(v) if k in RATES else _seconds(v) if k == "linkDelay" else v
     bad = [] if b.get("id") == brief_id and re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) else ["id must equal the file name (letters, digits, - and _)"]
@@ -113,6 +162,74 @@ def check_brief(b, brief_id):
     fill = lambda m: str(system[m.group(1)]) if m.group(1) in system else f"the knob {m.group(1)}"
     return {**b, "task": b["task"] if b.get("task") is not None else task_text(b), "description": re.sub(r"\{(\w+)\}", fill, b["description"])}
 
+def _check_network_brief(b, brief_id):
+    """check_brief for a brief that has "topology" (network.py). Its settings are the network's, by address
+    (l1.rate, udp.rate, l1.queue.parts.udp, ...), and the four of a simulation that belong to no object (duration, seed,
+    and optionally tcpInitCwnd, tcpBufBytes). The network holds each setting's fixed value; "knobs" names, by address,
+    those the model may change (a knob's default is used in place of the network's value); "system" holds only the
+    simulation's own settings. Its measures are made from the network."""
+    t, knobs, system, goal, limits = b.get("topology"), *(b.get(k) if isinstance(b.get(k), dict) else {} for k in ("knobs", "system", "goal", "limits"))
+    bad = [] if b.get("id") == brief_id and re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) else ["id must equal the file name (letters, digits, - and _)"]
+    if not isinstance(b.get("description"), str) or not b["description"].strip():
+        bad.append("'description' must be a text")
+    if b.get("task") is not None and (not isinstance(b["task"], str) or not b["task"].strip()):
+        bad.append("'task' must be a text, or be left out: the harness then writes it from the aim and the settings")
+    bad += network.problems(t)
+    if bad:
+        raise ValueError(f"brief {brief_id}: " + "; ".join(bad))
+    have, outs = network.settings(t), network.outputs(t)
+    bad += [f"'{k}' is not a setting of this network (its settings: {', '.join(have)}) nor of a simulation ({', '.join(network.RUN)})" for k in list(knobs) + list(system) if k not in have and k not in network.RUN]
+    bad += [f"'{k}' is a setting of the network: its fixed value stands in the network, not in system" for k in system if k in have]
+    bad += [f"'{k}' is both fixed (system) and adjustable (knobs)" for k in knobs if k in system]
+    bad += [f"'{k}' is missing: give it a fixed value (system) or make it a knob" for k in ("duration", "seed") if k not in knobs and k not in system]
+    bad += [f"fixed setting '{k}': {v!r} is not a value the program accepts" for k, v in system.items() if k in network.RUN and not (type(v) in (int, float) and v > 0 if k == "duration" else network.ok(k, v))]
+    num = lambda k, v: network.rate_bps(v) if network.kind(k) == "rate" else network.seconds(v) if network.kind(k) == "time" else v
+    for k, s in knobs.items():
+        if (k not in have and k not in network.RUN) or not isinstance(s, dict):
+            continue
+        fine = (lambda v: type(v) in (int, float) and v > 0) if k == "duration" else (lambda v: network.ok(k, v))
+        numeric = network.kind(k) in ("int", "number")
+        if not isinstance(s.get("meaning"), str) or not s["meaning"].strip():
+            bad.append(f"knob '{k}' needs a meaning (one line the model reads)")
+        if "step" in s and ("choices" in s or not numeric):
+            bad.append(f"knob '{k}': a step is for a numeric knob (not for one with choices, a rate or a time)")
+        if network.kind(k) == "choice" or "choices" in s:
+            if network.kind(k) != "choice" or not isinstance(s.get("choices"), list) or not s["choices"] or not all(fine(c) for c in s["choices"]) or s.get("default") not in s["choices"]:
+                bad.append(f"knob '{k}' needs a list of acceptable choices and a default that is one of them" if network.kind(k) == "choice" else f"knob '{k}' is not a setting with choices")
+        elif not all(x in s and fine(s[x]) for x in ("min", "max", "default")):
+            bad.append(f"knob '{k}' needs min, max and default, each a value the program accepts")
+        elif not num(k, s["min"]) <= num(k, s["default"]) <= num(k, s["max"]) or num(k, s["min"]) == num(k, s["max"]):
+            bad.append(f"knob '{k}' needs min < max and a default between them")
+        elif "step" in s and numeric:
+            whole = type(s["min"]) is int and type(s["max"]) is int
+            if type(s["step"]) not in (int, float) or not 0 < s["step"] <= s["max"] - s["min"] or (whole and type(s["step"]) is not int):
+                bad.append(f"knob '{k}': a step is a number above 0 and at most max - min (a whole number where the knob is one)")
+    if "structure" in b:
+        bad += network.structure_problems(b["structure"], t)
+    if not bad:  # the network as a session starts it: every knob at its default
+        try:
+            bad += network.problems(network.with_values(t, {k: s["default"] for k, s in knobs.items() if k in have}))
+        except (ValueError, KeyError, TypeError) as e:
+            bad.append(f"the network cannot be built with the knobs at their defaults: {e}")
+    if goal.get("kind") == "given":
+        tg, c = goal.get("target") if isinstance(goal.get("target"), dict) else {}, goal.get("conditions")
+        if tg.get("measure") not in outs or tg.get("direction") not in ("max", "min"):
+            bad.append(f"a given goal needs a target: a measure that is one of the outputs ({', '.join(outs)}), and a direction max or min")
+        if not isinstance(c, list) or not all(isinstance(x, str) and x.strip() for x in c):
+            bad.append("a given goal needs a list of conditions, each a text (the list may be empty)")
+        if "tolerance" in goal and (type(goal["tolerance"]) not in (int, float) or not 0 < goal["tolerance"] < 100):
+            bad.append("goal.tolerance is a number of per cent above 0 and below 100: two results closer than this count as equal")
+    elif goal.get("kind") != "open":
+        bad.append("goal.kind must be open or given")
+    bad += [f"limits.{k} must be a whole number of at least 1" for k in ("simulations", "simulations_per_experiment") if type(limits.get(k)) is not int or limits[k] < 1]
+    used = set(re.findall(r"\{([\w.]+)\}", b["description"]))
+    bad += [f"the description uses {{{k}}}, which is not one of the brief's settings" for k in sorted(used - set(have) - set(system) - set(knobs))]
+    if bad:
+        raise ValueError(f"brief {brief_id}: " + "; ".join(bad))
+    fill = lambda m: f"the knob {m.group(1)}" if m.group(1) in knobs else str(system[m.group(1)] if m.group(1) in system else have[m.group(1)])
+    return {**b, "task": b["task"] if b.get("task") is not None else task_text(b), "description": re.sub(r"\{([\w.]+)\}", fill, b["description"])}
+
+
 def load_brief(brief_id):
     """briefs/<id>.json, checked, with its description filled in."""
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,60}", str(brief_id)) or not (BRIEFS / f"{brief_id}.json").is_file():
@@ -139,6 +256,9 @@ def open_session(sid=None, brief=None):
         raise ValueError(f"session {sid} was made before briefs existed and cannot be continued")
     else:
         given = {**load_brief(brief or DEFAULT_BRIEF), **MANIFEST}
+        if given.get("topology"):  # a brief with a network has measures of its own, and its series has other columns
+            given["outputs"] = network.outputs(given["topology"])
+            given["tools"] = network.tools_told(given["tools"])
     (SESSIONS / sid / "runs").mkdir(parents=True, exist_ok=True)
     SESSION, BRIEF = SESSIONS / sid, given
     return sid
@@ -172,18 +292,21 @@ def clamp(params, brief=None, design=None):
     if design is not None and [k for k in b["knobs"] if k not in params]:
         raise Missing(f"design `{design}` does not state " + ", ".join(f"`{k}`" for k in b["knobs"] if k not in params))
     clean, clamps = {}, {k: [v, b["system"][k]] for k, v in params.items() if k in b["system"] and v != b["system"][k]}
+    if b.get("topology"):  # a setting the network fixes is not the model's to change either: the network's value is used
+        have = network.settings(b["topology"])
+        clamps.update({k: [v, have[k]] for k, v in params.items() if k in have and k not in b["knobs"] and v != have[k]})
     for k, spec in b["knobs"].items():
         if k not in params:
             continue
         v = params[k]
         if "choices" in spec:
             nv = v if v in spec["choices"] else spec["default"]
-        elif k in RATES:
+        elif kind(k, b) == "rate":
             bps = min(max(_rate_bps(v), _rate_bps(spec["min"])), _rate_bps(spec["max"]))
             nv = f"{int(round(bps / 1e6))}Mbps"
             if abs(bps - _rate_bps(v)) < 1:
                 nv = str(v).strip()
-        elif k == "linkDelay":  # a time with its unit: inside the range it is kept as written, outside it the range's end is used
+        elif kind(k, b) == "time":  # a time with its unit: inside the range it is kept as written, outside it the range's end is used
             sec = _seconds(v)
             nv = spec["min"] if sec < _seconds(spec["min"]) else spec["max"] if sec > _seconds(spec["max"]) else str(v).strip()
         else:
@@ -209,26 +332,35 @@ def _seconds(s):
 def options(clean, brief=None):
     """Every option the program is started with: the brief's fixed settings, its knobs' defaults, then the chosen values."""
     b = brief or BRIEF
+    if b.get("topology"):  # a network: its fixed settings stand in the network itself; here the simulation's own, the knobs' defaults, the chosen values
+        return {**{k: v for k, v in b["system"].items() if k in network.RUN}, **{k: s["default"] for k, s in b["knobs"].items()}, **clean}
     return {**{k: v for k, v in b["system"].items() if k in OPTIONS + EXTRA}, **{k: s["default"] for k, s in b["knobs"].items()}, **clean}
 
 def same(opts):
     """The settings and the seed of a simulation in a form that is equal exactly when the simulation would be the same
     (an option of EXTRA that was not given counts as not given: within one brief it is given always or never)."""
+    if "linkRate" not in opts:  # the settings of a network, by address: every one of them, each as a number where it is one
+        val = lambda k, v: network.rate_bps(v) if network.kind(k) == "rate" else network.seconds(v) if network.kind(k) == "time" else float(v) if type(v) in (int, float) else str(v)
+        return tuple((k, val(k, opts[k])) for k in sorted(opts))
     return tuple((k, _rate_bps(opts[k]) if k in RATES else _seconds(opts[k]) if k == "linkDelay" else float(opts[k]) if type(opts[k]) in (int, float) else str(opts[k])) for k in OPTIONS + EXTRA if k in OPTIONS or k in opts)
 
-def run_many(param_sets):
+def run_many(param_sets, structures=None):
     """Several simulations at once, each in its own runs/<id>/ of the session: clamp, start the built program for all
-    of them, wait, parse the metrics, append to the session's runs/index.json in order. One result per set, in order."""
+    of them, wait, parse the metrics, append to the session's runs/index.json in order. One result per set, in order.
+    structures: for a brief with a network whose structure the model may change, the changes of each simulation
+    (network.apply), or None; a simulation that has some is run on the changed network, which its result names."""
     RUNS = _runs()
     first = max([int(p.name[1:]) for p in RUNS.iterdir() if re.fullmatch(r"r\d{3}", p.name)], default=0) + 1
     jobs, results, deadline = [], [], time.time() + RUN_TIMEOUT
+    nets = {}
     for i, params in enumerate(param_sets):
         clean, clamps = clamp(params)
         rid = f"r{first + i:03d}"
         out = RUNS / rid
         out.mkdir()
-        args = [f"--{k}={v}" for k, v in options(clean).items()] + [f"--out={out}"]
-        proc = subprocess.Popen([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if structures and structures[i]:
+            nets[rid] = network.apply(BRIEF["topology"], structures[i])
+        proc = subprocess.Popen(command(options(clean), out, topology=nets.get(rid)), cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         jobs.append((rid, clean, clamps, out, time.time(), proc))
     for rid, clean, clamps, out, t0, proc in jobs:
         try:
@@ -237,7 +369,7 @@ def run_many(param_sets):
             proc.kill()
             proc.communicate()
             said = f"no result after {RUN_TIMEOUT} s"
-        res = {"id": rid, "params": clean, "clamped": clamps, "seconds": round(time.time() - t0, 1)}
+        res = {"id": rid, "params": clean, "clamped": clamps, "seconds": round(time.time() - t0, 1), **({"topology": nets[rid]} if rid in nets else {})}
         if proc.returncode or not (out / "metrics.json").exists():
             results.append({**res, "error": (said or f"exit {proc.returncode}")[-800:]})
             continue
@@ -267,6 +399,8 @@ def series(run_id, every_n=1):
 
 def grep_trace(run_id, pattern, limit=50):
     rx, hits = re.compile(str(pattern)[:200]), []
+    if not (_dir(run_id) / "flowmon.xml").is_file():
+        return "this simulation has no packet trace (the program that builds a network writes none)"
     for line in (_dir(run_id) / "flowmon.xml").open():
         if rx.search(line):
             hits.append(line.strip()[:300])

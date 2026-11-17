@@ -697,9 +697,12 @@ may be null or empty):
 
 ```
 { "observations":   text
-  "hypotheses":     [ {text, question, why, prediction, follows_from: [ids | "brief"]} ]
+  "whys":           [ {about: [ids | "brief"], result, guess, unseen, matters, worth: "verify"|"set_aside", reason} ]
+  "hypotheses":     [ {from_why: Y id, text, question, why, prediction, follows_from: [ids | "brief"] (optional)} ]
   "drop":           [ {id, why} ]
-  "experiment":     { kind: "test"|"explore", tests: [H ids], question, varied: [knobs], control: label|null,
+  "experiment":     { kind: "test"|"explore", tests: [H ids], question,
+                      needs: [ {for: H id, to_know, varies: knob|"none"|"structure", measure, simulations: [labels]} ],
+                      varied: [knobs], control: label|null,
                       runs: [ {label, params: {every knob of the brief: value}} ],
                       decision_rules: [ {for, decision_rule, rival, rival_predicts: "held"|"failed"} ] } | null
   "verdicts":       [ {for, result: "supported"|"refuted"|"inconclusive", because, next} ]
@@ -708,6 +711,37 @@ may be null or empty):
   "budget_request": {simulations, why} | null
   "done":           true | false }
 ```
+
+**The chain of reasoning is fixed by the format** (**DECISION 2026-11-17**, the
+operator: "after the AI formed a hypothesis, it clearly chooses what it needs
+to know and subsequently forms simulations"; "its main role is not to try many
+less informed fixes ... but actually looking into the system and form 'why'").
+Measured on eight sessions before the change: of 101 decision rules 70 compared
+simulations that differ in one setting, 14 in several, 17 judged one simulation
+against a number; 28 of 228 test simulations were named by no rule; 12 of 39
+sessions ended with the budget used up (typical spending 12, 12, 12, 3, 1). The
+chain, link by link, each a part of the answer in this order:
+
+1. a result (records of the ledger);
+2. `whys`: informed guesses of why that result came out so. `about` the
+   records; `result` in one sentence; the `guess`; `unseen`: what in the system,
+   not directly visible in the measures, would make it so; `matters`: what it
+   would mean for the goal; `worth`: verify or set_aside, with the `reason`.
+   Ledger type `why`, ids `Y<n>`. A why that was set aside stays in the ledger;
+3. `hypotheses`: each from a why whose worth is verify (`from_why`; one in the
+   ledger or one of the same answer). `follows_from` may be left out: the
+   harness takes it from the why's `about`;
+4. `needs`, in a test experiment, before its simulations: one for each tested
+   hypothesis: what must be known to decide it, the one knob that differs
+   between its simulations (`none`: one simulation against a stated number;
+   `structure` where the brief lets the structure change), the measure that
+   decides it, and the simulations made for it;
+5. the simulations: only those a need lists.
+
+`prompt.txt` opens with the role in these words' sense: not to try many
+settings and keep whichever comes out slightly ahead, but to look into the
+system, ask why a result came out so, and infer what is not directly visible.
+The arm `plain` (10.9) has none of this: no whys, no needs.
 
 **The params object comes from the brief; every design states every knob**
 (**DECISION 2026-11-13**, the operator's `FORMAT_FIX.md`, Part 1). At the start
@@ -756,7 +790,8 @@ the parts accepted earlier count for the later ones:
 |---|---|
 | verdict | the hypothesis is open and one of its decision rules has been checked; it has a result and a because. It closes the hypothesis. |
 | drop | the hypothesis is open, none of its decision rules has been checked, and there is a reason. A tested hypothesis cannot be dropped: it needs a verdict. |
-| new hypothesis | it has a text, a question (not empty), a why (not empty) and `follows_from`: ids of verdicts, checks, evidence tables or simulations that are in the ledger (a verdict accepted from this same answer counts, by the id it is about to get), or the word `brief`. It gets the next id `H<n>`, usable in the same answer. |
+| new why | `result`, `guess`, `unseen`, `matters` and `reason` are not empty; `worth` is verify or set_aside; `about` lists records that are in the ledger (evidence tables, simulations, checks, verdicts; a verdict of the same answer counts) or the word `brief`. It gets the next id `Y<n>`, usable in the same answer. |
+| new hypothesis | `from_why` names a why whose worth is verify (in the ledger or accepted from this same answer); it has a text, a question (not empty), a why (not empty) and `follows_from` (taken from the why's `about` when left out): ids of verdicts, checks, evidence tables or simulations that are in the ledger (a verdict accepted from this same answer counts, by the id it is about to get), or the word `brief`. It gets the next id `H<n>`, usable in the same answer. |
 | experiment | see 8.5. At most one per turn. It is itself taken part by part: a design or a decision rule can be refused and the rest run. |
 | budget request | a whole number of at least 1 and a reason. Granted up to the brief's limit, before this turn's experiment is counted. |
 | report | see 8.6. Only together with `done`, and `done` only with a report. |
@@ -805,7 +840,24 @@ Readable as it was sent (`loop.experiment_problem`) when:
 - `control` is one of the labels or null, and `varied` names knobs;
 - kind `test`: `tests` lists open hypotheses, with at least one decision rule
   for each and none for any other; every rule is readable and has its rival;
-- kind `explore`: a question, no tests and no decision rules.
+  `needs` has one readable entry for each tested hypothesis;
+- kind `explore`: a question, no tests, no needs and no decision rules.
+
+**Needs tie each simulation to a hypothesis** (`loop.needs_problem`;
+**DECISION 2026-11-17**). Judged on what `loop.trim` leaves, like the budget;
+the experiment is refused, with the reason, when: the simulations of a need
+differ in anything but the knob it names (or do not differ in it); a need that
+says nothing varies lists more than one simulation; a decision rule of the
+hypothesis names a simulation its need does not list, or does not name the
+need's measure; a simulation is listed by no need ("made for no hypothesis").
+The experiment record keeps `needs` (what is left of them after `trim`).
+
+**One experiment may use at most half of the simulations that are left**
+(`loop.spend_cap(left, per) = max(1, min(per, (left + 1) // 2))`; **DECISION
+2026-11-17**, the operator: sessions spent the budget in three experiments of
+12 and had nothing left for what the results raised). The turn's text states
+the number ("This turn's experiment may run at most N new simulations");
+a larger experiment is refused with it.
 
 **A plan that cannot test anything is cut back before anything is run**
 (`loop.trim`; **DECISION 2026-11-13**, `FORMAT_FIX.md`, Parts 1 and 2). Each cut
@@ -924,7 +976,8 @@ model's answer.
 
 | Type | Id | By | Body | In the prompt |
 |---|---|---|---|---|
-| hypothesis | H | model | text, question, why, prediction, follows_from | yes, with its current state (the question and the why are not shown) |
+| why | Y | model | about, result, guess, unseen, matters, worth, reason (since 2026-11-17) | yes |
+| hypothesis | H | model | from_why (since 2026-11-17), text, question, why, prediction, follows_from | yes, with its current state and the why it comes from (the question and the why are not shown) |
 | drop | W | model | for, why | yes |
 | experiment | X | model (X0: harness) | kind, tests, question, varied, control, runs [{label, params, clamped}], decision_rules: what is left after `loop.trim`; `params` holds every knob of the brief (X0's is empty) | yes |
 | simulation | S | simulator | label, run_id, params, metrics or error, same_as | no (the evidence has its line) |
@@ -955,8 +1008,8 @@ the model stated (the others ran at the brief's default); sessions before
 | `how` | When |
 |---|---|
 | done by the model | the model set `done` with an accepted report |
-| simulation limit reached | the budget was used up; one last turn follows in which no experiment is accepted and the report is required; the report was accepted |
-| simulation limit reached, no usable report | that last turn brought none |
+| all simulations used, report given in the last turn | the budget was used up; one last turn follows in which no experiment is accepted and the report is required; the report was accepted. Sessions before 2026-11-17 say "simulation limit reached", which read like an error |
+| all simulations used, no usable report | that last turn brought none (before 2026-11-17: "simulation limit reached, no usable report") |
 | 3 turns in a row without a usable answer, report given in the last turn | after 3 unusable turns one last turn accepts only the report |
 | 3 turns in a row without a usable answer | that turn brought none either |
 | ledger too large | the rendered ledger passed 100,000 tokens |
@@ -1249,6 +1302,19 @@ screen scrolls sideways inside itself, so the page as a whole does not. Without 
 of the checks) the server listens on 127.0.0.1 alone, as before. Tests: `test_shared_page.py` (a request through the
 machine's own network address), `ev_usable.py network`. Whether the server's firewall lets port 8600 through from
 the VPN has not been seen from outside.
+
+**A personal link** (**DECISION 2026-11-17**; the operator, having opened the page from a phone: "I want my professor
+to be able to run new session and do everything as me"). Opening POST to every visitor from the network was not
+done: the address answers to anybody who can reach it, and each of them could then start and stop sessions under
+the owner's account. Instead `python3 harness/invite.py NAME` writes a long random key into `checks/access.json`
+(`{key: name}`, mode 600, in `.gitignore`, in no export, given to nobody over HTTP) and prints the page's address
+with `?key=...`. A request from the network that shows the key (in its address the first time; the server then sets
+the cookie `th_key`, HttpOnly, and redirects to the address without it) is that person: `/api/status` says `you`
+"NAME (by link)", `view_only` false and `by_link` true; POSTs are carried out and noted under that name; such a
+person may stop any session started here, as the owner may (the links are the owner's own choice of people). One
+session at a time holds for them as for everybody. The file is read at each request, so `invite.py --remove NAME`
+ends a link at once; `invite.py --list` names who has one. The key travels over plain HTTP: it is as safe as the
+network between the browser and the server. Test: `test_shared_page.py` (its last part).
 
 Sessions started through the page run under the owner's account and use its model server. Reviews and checklist
 judgements are one set per session, without the reviewer's account: two people who review the same session write

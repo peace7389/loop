@@ -28,7 +28,9 @@ Object.assign(EV, {
   // the page is shared: which session is running and who started it, in one phrase (null when the server does not say who: an older server, an exported page)
   runningSays() { const r = ((EV.st || {}).running_now || []), you = (EV.st || {}).you; return r.length ? r.map(x => `<span id="run-who" data-id="${EV.e(x.id)}" data-by-account="${EV.e(x.by)}"><b>${EV.e(x.id)}</b> running now, started by <b>${EV.e(x.by)}</b>${x.by === you ? ' (you)' : ''}</span>`).join(' · ') : null; },
   // why a new session cannot start now (one session runs at a time), or null when it can
-  mustWait() { const st = EV.st || {}, r = (st.running_now || [])[0]; return st.one_at_a_time && r ? `Session ${r.id} is running now, started by ${r.by}${r.by === st.you ? ' (you)' : ''}. One session runs at a time, so that nobody's work gets in another's way: a new one can start when it has ended.` : null; },
+  mustWait() { const st = EV.st || {}, r = (st.running_now || [])[0];
+    if (st.view_only) return 'You are looking at this page over the network, where it can only be read. To start a session, open the page through an SSH tunnel (the command is at the foot of the page).';
+    return st.one_at_a_time && r ? `Session ${r.id} is running now, started by ${r.by}${r.by === st.you ? ' (you)' : ''}. One session runs at a time, so that nobody's work gets in another's way: a new one can start when it has ended.` : null; },
   one: (text, cls) => `<td class="one ${cls || ''}" title="${EV.e(text)}">${EV.e(text)}</td>`,
   seqCell: x => (x.seq === undefined ? EV.nr : EV.seqHtml(x.seq) + (x.held + x.failed ? ` <span class="sq-n">${EV.tally(x.held, x.failed)}</span>` : '')),
   reviewCell(x) {  // the reviewer's progress on a session, and the sign-off

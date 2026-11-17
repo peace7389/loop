@@ -70,7 +70,7 @@ Object.assign(EV, {
   // ---- the pieces. c: { mode: 'session' | 'setup', b: the brief (its description filled in), man: the manifest's outputs and tools, flags, model, policy, policyHidden, op, used }
   // 2 · who decides what: one line per setting, in a fixed order; the two colours are those of the picture
   setWho(c) {
-    const b = c.b, e = EV.e, sys = b.system || {}, kn = b.knobs || {}, keys = EV.SET_ORDER.filter(k => k in sys || k in kn).concat(Object.keys({ ...sys, ...kn }).filter(k => !EV.SET_ORDER.includes(k)));
+    const b = c.b, e = EV.e, sys = { ...EV.netFixed(b), ...(b.system || {}) }, kn = b.knobs || {}, keys = EV.SET_ORDER.filter(k => k in sys || k in kn).concat(Object.keys({ ...sys, ...kn }).filter(k => !EV.SET_ORDER.includes(k)));
     const fixed = keys.filter(k => !(k in kn)), open = keys.filter(k => k in kn);
     // A setting the AI may change has three values, each in a column of its own under its name: the lowest and the highest it may set, and the value the session
     // starts at (the baseline's); a setting chosen from a list has the list in the place of the first two. A fixed setting has its one value.
@@ -99,7 +99,7 @@ Object.assign(EV, {
     if (g.kind === 'given') { const t = g.target || {}, c = (g.conditions || []).map(x => String(x).trim()); return `Find the settings that give the ${t.direction === 'max' ? 'largest' : 'smallest'} ${t.measure}${c.length ? ', while ' + c.join(' and ') : ''}. ${may} Explain why they are best.`; }
     return `No aim is given. Choose what 'performance' should mean for this system and say why; then find the settings that are best for it. ${may} Explain why they are best.`; },
   setLists(c) {
-    const b = c.b, e = EV.e, sys = b.system || {}, kn = b.knobs || {}, man = c.man || {}, lim = b.limits || {}, order = k => EV.SET_ORDER.filter(q => q in k), outs = Object.keys(man.outputs || {}), tools = Object.keys(man.tools || {});
+    const b = c.b, e = EV.e, sys = { ...EV.netFixed(b), ...(b.system || {}) }, kn = b.knobs || {}, man = c.man || {}, lim = b.limits || {}, order = k => EV.SET_ORDER.filter(q => q in k).concat(Object.keys(k).filter(q => !EV.SET_ORDER.includes(q))), outs = Object.keys(man.outputs || {}), tools = Object.keys(man.tools || {});
     const it = (key, html, title) => `<li data-it="${key}"${title ? ` title="${e(title)}"` : ''}>${html}</li>`;
     const told = [it('task', 'the task', b.task), it('description', 'the description of the system', b.description),
       `<li data-it="fixed" data-keys="${e(order(sys).join(','))}" title="${e(order(sys).map(k => `${EV.LABEL[k] || k} ${EV.setVal(k, sys[k])}`).join(', '))}">the ${order(sys).length} fixed settings <span class="sm">(block 2)</span></li>`,
@@ -158,7 +158,12 @@ Object.assign(EV, {
     const c = EV.setCtx(), row = EV.files.row || {};
     // the scheduler's mark: the policy is not told to the AI; with the operator columns on the mark names it
     const pol = `<text x="432" y="162" text-anchor="middle" class="sv" id="sy-pol"${S.op ? ' data-by="operator"' : ''}>${S.op && row.policy && !row.policy_hidden ? `policy: ${e(row.policy)} · not told to the AI` : 'policy not told to the AI'}</text>`;
-    const pic = !O ? `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`
+    // a brief with a network: the picture is drawn from the network itself (evidence_net.js), with the knobs at their defaults or, when a simulation is open, at its values
+    const NT = EV.net(M.brief), netPic = () => { const kn = M.brief.knobs || {}, vals = { ...Object.fromEntries(Object.entries(kn).map(([k, q]) => [k, q.default])), ...(V.sim ? V.sim.params : {}) }, net = V.sim && V.sim.topology ? V.sim.topology : NT, b2 = { ...M.brief, topology: EV.netWith(net, vals) };  // a simulation that changed the structure: its own network
+      const sched = (NT.links || []).some(l => l.queue && l.queue.kind === 'scheduler'), says = !sched ? '' : S.op && row.policy && !row.policy_hidden ? `scheduling policy: ${row.policy} · not told to the AI` : 'how a scheduler divides its link is not told to the AI';
+      const edits = V.sim && V.sim.structure && V.sim.structure.length ? `<p class="sm" id="net-changed" data-own="model"><b>This simulation changed the structure:</b> ${EV.e(EV.editsSay(V.sim.structure))}</p>` : '';
+      return `<div class="sy-row"><div><div class="ev-scroll">${EV.netSvg(b2, { pol: says, op: S.op })}</div>${edits}<p class="sm gl-key">${EV.sysLegend()}</p></div><div class="sy-side">${EV.netSide(b2)}</div></div>`; };
+    const pic = NT ? netPic() : !O ? `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`
       : `<div class="sy-row"><div><div class="ev-scroll">${EV.sysSvg({ v: V.v, knob: V.knob, fixed: V.fixed, on, act: 'sysobj', pol })}</div>
           <p class="sm gl-key">${M.brief ? EV.sysLegend() : ''}${(O.around || []).length ? `<span>outside a packet's path: ${(O.around || []).map((o, i) => `<a data-act="sysobj" data-id="around-${i}"${on === 'around-' + i ? ' style="font-weight:700"' : ''}>${e(o.name.toLowerCase())}</a>`).join(', ')}</span>` : ''}</p></div><div class="sy-side"><div class="sy-det${on ? ' on' : ''}">${on ? `${EV.objCard(on)}<p class="sy-det-h sm noprint"><button class="cl" data-act="sysobj" data-id="">close</button></p>` : '<p class="sm mut" id="sy-hint">Click a part of the picture to see its settings, what the AI may change there, and what is measured there.</p>'}</div></div></div>`;
     const open = k => S.full || (S.setOpen || {})[k], line = (i, key, body) => EV.setBlock(i, body(), { fold: S.full ? null : !open(key), line: EV.setLine(key, c) });

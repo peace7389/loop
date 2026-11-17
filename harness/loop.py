@@ -19,7 +19,7 @@ Who else may write what: control.py's docstring."""
 import argparse, json, re, signal, sys, time
 from pathlib import Path
 import requests
-import decision_rules, tools
+import decision_rules, network, tools
 
 ROOT = Path.home() / "project"
 H, OPERATOR, API = ROOT / "harness", ROOT / "checks/operator.jsonl", "http://127.0.0.1:18000/v1"
@@ -39,7 +39,71 @@ BY = {"draft": "model", "hypothesis": "model", "drop": "model", "experiment": "m
       "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness", "request": "model", "result": "harness", "turn": "harness"}
 HIDDEN = ("draft", "scratch", "simulation", "request", "result", "turn")  # kept on disk, not replayed: what the model wrote before its answer, and the
                                              # simulation records (the evidence record has one line for each of them)
-SHOWN = [k for k in tools.MANIFEST["outputs"] if k not in ("link_rate_bps", "weight_udp")]  # the measures of an evidence line
+# ---- a brief with a network whose structure the model may change (TOPOLOGY.md, stage 5): a simulation may carry "structure", a list of changes
+# against the brief's network (network.apply); it is then run on the changed network, which has measures of its own
+def may_change(brief=None):
+    b = brief or tools.describe_system()
+    return bool(b.get("topology") and (b.get("structure") or {}).get("may_change"))
+
+
+def edits_of(r, brief=None):
+    """The changes a design asks for, as a list of plain objects with every field; none where the brief does not let the structure be changed."""
+    return [{k: (e.get(k) or "") for k in network.EDIT} for e in (r.get("structure") or []) if isinstance(e, dict)] if may_change(brief) else []
+
+
+def aim_measures(brief):
+    """The measures the brief's aim is about: its target and those its conditions name. They must exist in every network that is simulated."""
+    g, outs = brief.get("goal") or {}, tools.outputs(brief)
+    if g.get("kind") != "given":
+        return set()
+    return {g["target"]["measure"]} | {m for c in g.get("conditions") or [] for m in outs if re.search(rf"\b{re.escape(m)}\b", c)}
+
+
+def structure_problem(edits, brief=None):
+    """None if the brief's network with these changes may be simulated; otherwise why not."""
+    b = brief or tools.describe_system()
+    if not edits:
+        return None
+    try:
+        t1 = network.apply(b["topology"], edits)
+    except (ValueError, KeyError, TypeError) as e:
+        return str(e)
+    bad = network.problems(t1) + network.changed_problems(b["topology"], t1, b.get("structure") or {}, b.get("goal") or {}, aim_measures(b))
+    return "; ".join(bad) or None
+
+
+def outputs_of(edits, brief=None):
+    """The measures of the brief's network with these changes made (the brief's own where there is none)."""
+    b = brief or tools.describe_system()
+    return network.outputs(network.apply(b["topology"], edits)) if edits else tools.outputs(b)
+
+
+def design_key(clean, edits):
+    """What makes two designs the same simulation: the same settings and seed, on the same network."""
+    return (tools.same(tools.options(clean)), json.dumps(edits, sort_keys=True))
+
+
+def edits_say(edits):
+    """A list of changes in a few words, for an evidence line."""
+    one = lambda e: (f"+host {e['id']}" if e["do"] == "add_host" else f"+link {e['id']} {e['from']}-{e['to']}" if e["do"] == "add_link" else f"+{e['kind']} flow {e['id']} {e['from']}>{e['to']}" if e["do"] == "add_flow"
+                     else f"+{e['kind'] or 'scheduler'} on {e['on']}'s side of {e['id']}" if e["do"] == "add_queue" else f"-{e['kind']} {e['id']}")
+    return ", ".join(one(e) for e in edits)
+
+
+STRUCTURE = """
+
+In this session you may also change the structure of the network. A simulation of an experiment carries structure: a list of changes made, in order, to the network of the brief (always to the brief's network, never to that of an earlier simulation); an empty list runs the network as it is. A change states every field (do, id, kind, from, to, on, rate, type), with "" where one does not apply:
+   - do add_host: id, a new name (at most 12 lower-case letters and digits, beginning with a letter).
+   - do add_link: id, from and to (the two hosts it joins), rate (for example 1Gbps). One link for each two hosts.
+   - do add_flow: id, kind (udp or tcp), from, to, and rate for udp (for example 100Mbps) or type for tcp (for example TcpCubic). A flow needs one shortest way from its sender to its receiver.
+   - do add_queue: id (the link), on (the host whose sending side of the link it is), kind (scheduler or fifo). A scheduler gives each flow that passes it a part of the link.
+   - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's). A host goes with its links and with the flows that start or end at it.
+The brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network."""
+
+
+def evidence_measures():
+    """The measures of an evidence line: the session's, without the two of two-hosts that only repeat a setting."""
+    return [k for k in tools.outputs() if k not in ("link_rate_bps", "weight_udp")]
 
 def load_ledger():
     return [json.loads(l) for l in LEDGER.read_text().splitlines() if l.strip()] if LEDGER.exists() else []
@@ -72,9 +136,11 @@ def plan(ledger, runs, complete=True):
     out = []
     for r in runs:
         clean, clamps = tools.clamp(r.get("params") or {}, design=r["label"] if complete else None)
-        key = tools.same(tools.options(clean))
-        prior = next((q for q in ledger if q["type"] == "simulation" and "metrics" in q["body"] and not q["body"].get("same_as") and tools.same(q["body"]["params"]) == key), None)
-        out.append({"label": r["label"], "params": clean, "clamped": clamps, "key": key, "prior": prior, "twin": None if prior else next((q["label"] for q in out if q["key"] == key), None)})
+        edits = edits_of(r)
+        key = design_key(clean, edits)
+        prior = next((q for q in ledger if q["type"] == "simulation" and "metrics" in q["body"] and not q["body"].get("same_as")
+                      and (tools.same(q["body"]["params"]), json.dumps(q["body"].get("structure") or [], sort_keys=True)) == key), None)
+        out.append({"label": r["label"], "params": clean, "clamped": clamps, "structure": edits, "key": key, "prior": prior, "twin": None if prior else next((q["label"] for q in out if q["key"] == key), None)})
     return out
 
 def decided_by_little(rule, labels, values, ledger):
@@ -87,7 +153,7 @@ def decided_by_little(rule, labels, values, ledger):
     earlier = {v for q in ledger if q["type"] == "simulation" for v in (q["body"].get("metrics") or {}).values() if type(v) in (int, float) and v}
     results = lambda kinds, a, b: kinds == ("measured", "measured") or (kinds == ("measured", "number") and b in earlier) or (kinds == ("number", "measured") and a in earlier)
     return [{"left": a, "op": op, "right": b, "percent": round(100 * abs(a - b) / max(abs(a), abs(b)), 6)}
-            for a, op, b, kinds in decision_rules.comparisons(rule, tools.MANIFEST["outputs"], labels, values)
+            for a, op, b, kinds in decision_rules.comparisons(rule, {**tools.outputs(), **{k: "" for v in values.values() for k in v}}, labels, values)
             if results(kinds, a, b) and op != "==" and max(abs(a), abs(b)) > 0 and 100 * abs(a - b) / max(abs(a), abs(b)) < TOLERANCE]
 
 def experiment(ledger, turn, parent, ex, zero=False):
@@ -97,11 +163,11 @@ def experiment(ledger, turn, parent, ex, zero=False):
     brief = tools.describe_system()
     runs, stated = plan(ledger, ex["runs"], complete=not zero), ex.get("decision_rules") or []
     xid = append(ledger, turn, "experiment", parent, {"kind": ex["kind"], "tests": ex.get("tests") or [], "question": ex.get("question") or "", "varied": ex.get("varied") or [],
-                                                      "control": ex.get("control") or None, "runs": [{k: r[k] for k in ("label", "params", "clamped")} for r in runs], "decision_rules": stated,
+                                                      "control": ex.get("control") or None, "runs": [{k: r[k] for k in ("label", "params", "clamped") + (("structure",) if r["structure"] else ())} for r in runs], "decision_rules": stated,
                                                       **({"observations": ex["observations"]} if ex.get("observations") else {})},
                  rid="X0" if zero else None, by="harness" if zero else None)
     fresh = [r for r in runs if not r["prior"] and not r["twin"]]
-    results = dict(zip((r["label"] for r in fresh), tools.run_many([r["params"] for r in fresh])))
+    results = dict(zip((r["label"] for r in fresh), tools.run_many([r["params"] for r in fresh], [r["structure"] for r in fresh])))
     OPERATOR.parent.mkdir(parents=True, exist_ok=True)
     with OPERATOR.open("a") as f:  # the operator's line of each simulation run: session, run, scheduling policy, seconds. No tool reads that file
         for res in results.values():
@@ -109,12 +175,16 @@ def experiment(ledger, turn, parent, ex, zero=False):
     values, lines, made = {}, [], {}  # made: label -> the simulation record that holds its result
     for r in runs:
         changed = ", ".join(f"{k}={v}" for k, v in r["params"].items() if v != brief["knobs"][k]["default"]) or "defaults"
+        if r["structure"]:
+            changed += f"; structure: {edits_say(r['structure'])}"
         first = r["prior"] or made.get(r["twin"])  # the earlier simulation with the same settings and seed, if any
         if first and "metrics" in first["body"]:
-            body = {"label": r["label"], "run_id": first["body"]["run_id"], "params": first["body"]["params"], "metrics": first["body"]["metrics"], "same_as": first["id"]}
+            body = {"label": r["label"], "run_id": first["body"]["run_id"], "params": first["body"]["params"], "metrics": first["body"]["metrics"], "same_as": first["id"],
+                    **({k: first["body"][k] for k in ("structure", "topology") if k in first["body"]})}
         else:
             res = results.get(r["label"]) or results[r["twin"]]  # (a twin of a simulation that failed shares its failure)
-            body = {"label": r["label"], "run_id": res["id"], "params": res.get("used") or r["params"], **({"metrics": res["metrics"]} if "metrics" in res else {"error": res["error"]})}
+            body = {"label": r["label"], "run_id": res["id"], "params": res.get("used") or r["params"], **({"metrics": res["metrics"]} if "metrics" in res else {"error": res["error"]}),
+                    **({"structure": r["structure"], "topology": res["topology"]} if r["structure"] and "topology" in res else {})}   # a simulation on a changed network: the changes, and the network it was run on
         sid = append(ledger, turn, "simulation", xid, body, rid="S0" if zero else None)
         made[r["label"]] = ledger[-1]
         if "same_as" in body:
@@ -122,7 +192,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
                                                        "nothing was run again, and it is not counted against the budget", "simulation": sid, "same_as": first["id"]})
         if "metrics" in body:
             values[r["label"]] = body["metrics"]
-            lines.append(f"{r['label']} {body['run_id']} {changed} | " + " ".join(f"{k}={body['metrics'][k]}" for k in SHOWN if k in body["metrics"])
+            lines.append(f"{r['label']} {body['run_id']} {changed} | " + " ".join(f"{k}={body['metrics'][k]}" for k in (body["metrics"] if "structure" in body else evidence_measures()) if k in body["metrics"])
                          + (f" (the result of {first['id']}: same settings and seed, not run again)" if "same_as" in body else ""))
         else:
             lines.append(f"{r['label']} {body['run_id']} {changed} | FAILED: {' '.join(body['error'].split())[:300]}")
@@ -130,7 +200,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
     labels = [r["label"] for r in runs]
     for d in stated:
         try:
-            held, numbers = decision_rules.check(d["decision_rule"], tools.MANIFEST["outputs"], labels, values)
+            held, numbers = decision_rules.check(d["decision_rule"], {**tools.outputs(), **{k: "" for v in values.values() for k in v}}, labels, values)   # a changed network's own measures count too
             result = "held" if held else "failed"
             close = decided_by_little(d["decision_rule"], labels, values, ledger)
         except decision_rules.DecisionRuleError as e:  # it was readable (validate), so: a simulation it names gave no value
@@ -236,6 +306,14 @@ def check_report(rep, brief, ids, ledger=None):
         if untested:
             return f"report.no_difference names {', '.join(untested)}, which this session never varied: a setting that was not tested cannot be said to make no difference"
     rec, exp, claims, open_q = rep.get("recommendation"), rep.get("expected"), rep.get("claims"), rep.get("open_questions")
+    edits = []
+    if may_change(brief):  # the structure it recommends: a list of changes to the brief's network (empty: as given)
+        if not isinstance(rep.get("structure"), list):
+            return "report.structure must be a list of changes to the network of the brief (an empty list: the network as given)"
+        edits = edits_of(rep, brief)
+        why = structure_problem(edits, brief)
+        if why:
+            return f"report.structure cannot be used: {why}"
     if not isinstance(rec, dict) or not rec:
         return "report.recommendation must give at least one knob and its value"
     if set(rec) & set(brief["system"]):
@@ -250,7 +328,7 @@ def check_report(rep, brief, ids, ledger=None):
         return f"report.recommendation has a value that cannot be read: {e}"
     if clamps:
         return "report.recommendation has a value outside its allowed range: " + ", ".join(f"{k}={asked}" for k, (asked, _) in clamps.items())
-    if not isinstance(exp, dict) or set(exp) - set(tools.MANIFEST["outputs"]) or not all(type(v) in (int, float) for v in exp.values()):
+    if not isinstance(exp, dict) or set(exp) - set(outputs_of(edits, brief)) or not all(type(v) in (int, float) for v in exp.values()):
         return "report.expected must give numbers for outputs (by their names)"
     if not isinstance(claims, list) or not all(isinstance(c, dict) and text(c.get("text")) and isinstance(c.get("evidence"), list) for c in claims):
         return "report.claims must be a list of {text, role, evidence: [ledger ids]}"
@@ -277,6 +355,12 @@ def experiment_problem(ex, brief, ledger, left, st):
         return "every simulation needs its own label: letters, digits and _ only, at most 20 characters"
     if any(set(r.get("params") or {}) - set(brief["knobs"]) - set(brief["system"]) for r in runs):
         return "a simulation's params has keys that are not settings of the brief"
+    for r in runs:  # a brief that lets the structure be changed: each simulation's changes must give a network that can be built, within the brief's limits
+        why = structure_problem(edits_of(r, brief), brief)
+        if why:
+            return f"simulation `{r['label']}`: its structure cannot be used: {why}"
+    has = {r["label"]: outputs_of(edits_of(r, brief), brief) for r in runs}   # the measures each simulation will have
+    every = {k: v for o in has.values() for k, v in o.items()}
     try:
         fresh = sum(1 for r in plan(ledger, runs, complete=left is not None) if not r["prior"] and not r["twin"])  # simulations already run in this session are not run again
     except (ValueError, TypeError) as e:
@@ -293,9 +377,12 @@ def experiment_problem(ex, brief, ledger, left, st):
             return "a test experiment needs at least one decision rule for each tested hypothesis, and none for any other"
         for r in rs:
             try:
-                decision_rules.parse(r.get("decision_rule"), tools.MANIFEST["outputs"], labels)
+                absent = [(m, l) for m, l in decision_rules.pairs(r.get("decision_rule"), every, labels) if m not in has[l]]
             except decision_rules.DecisionRuleError as e:
                 return f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
+            if absent:
+                return (f"the decision rule for {r['for']} names {absent[0][0]}@{absent[0][1]}, but the network of simulation `{absent[0][1]}` has no such measure: "
+                        "a decision rule may only name measures that exist in every simulation it names")
             if not text(r.get("rival")) or r.get("rival_predicts") not in ("held", "failed"):
                 return f"the decision rule for {r['for']} needs a rival (a competing explanation of how the system behaves) and rival_predicts (held or failed)"
             if r["rival_predicts"] == "held":
@@ -324,15 +411,16 @@ def trim(ex, brief, ledger):
         except tools.Missing as e:
             cuts.append((f"design {r['label']}", str(e)))
             continue
-        key[r["label"]] = tools.same(tools.options(clean[r["label"]]))
+        key[r["label"]] = design_key(clean[r["label"]], edits_of(r))
         runs.append(r)
     if not runs:
         return None, cuts + [("experiment", "no design of this experiment is left, so nothing is run")]
     for k in ex.get("varied") or []:
-        if len({dict(key[r["label"]])[k] for r in runs}) == 1:
+        if len({dict(key[r["label"]][0])[k] for r in runs}) == 1:
             return None, cuts + [("experiment", f"`{k}` is listed as varied but has the single value `{clean[runs[0]['label']][k]}` in every design")]
     labels, rules, refused = [r["label"] for r in ex["runs"]], ex.get("decision_rules") or [], set()
-    named = [decision_rules.names(d["decision_rule"], tools.MANIFEST["outputs"], labels) for d in rules]
+    every = {k: v for r in ex["runs"] for k, v in outputs_of(edits_of(r)).items()}
+    named = [decision_rules.names(d["decision_rule"], every, labels) for d in rules]
     for i, d in enumerate(rules):
         pair = next(((a, b) for j, a in enumerate(named[i]) for b in named[i][j + 1:] if a in key and b in key and key[a] == key[b]), None)
         if pair:
@@ -462,7 +550,7 @@ def answer_format(schema, brief):
     brief fixes is not a property); varied: the brief's knobs; runs: at most the brief's simulations per experiment;
     the report's recommendation: the same properties, all required."""
     ex = schema["properties"]["experiment"]["anyOf"][0]["properties"]
-    props = {k: {"type": "string", "enum": list(s["choices"])} if "choices" in s else {"type": tools.KNOB_TYPES[k]} for k, s in brief["knobs"].items()}
+    props = {k: {"type": "string", "enum": list(s["choices"])} if "choices" in s else {"type": tools.knob_type(k, brief)} for k, s in brief["knobs"].items()}
     ex["runs"]["items"]["properties"]["params"] = {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
     ex["runs"]["maxItems"] = brief["limits"]["simulations_per_experiment"]
     ex["varied"]["items"] = {"type": "string", "enum": list(props)}
@@ -470,6 +558,23 @@ def answer_format(schema, brief):
     # and the model server writes an object's properties in the format's order: a report that had passed over one could not name it any more, and a knob that was
     # not in the list (tcpBufBytes) could not be recommended at all (s030: ratio, TCP type, measured time and seed recorded; UDP rate, queue length and buffers lost)
     schema["properties"]["report"]["anyOf"][0]["properties"]["no_difference"]["items"] = {"type": "string", "enum": list(props)}   # the brief's knobs
+    if may_change(brief):  # a simulation may carry changes to the network, and the report recommends some: every field of a change is stated, in this order
+        edit = {"type": "object", "additionalProperties": False, "required": list(network.EDIT), "properties": {
+            "do": {"type": "string", "enum": list(network.DOES)}, "id": {"type": "string"}, "kind": {"type": "string", "enum": ["", "udp", "tcp", "host", "link", "flow", "queue", "scheduler", "fifo"]},
+            "from": {"type": "string"}, "to": {"type": "string"}, "on": {"type": "string"}, "rate": {"type": "string"}, "type": {"type": "string"}}}
+        item = ex["runs"]["items"]
+        item["properties"]["structure"] = {"type": "array", "items": edit, "description": "the changes this simulation makes to the network of the brief, in order; an empty list: the network as it is"}
+        item["required"] = [*item["required"], "structure"]
+        rep = schema["properties"]["report"]["anyOf"][0]
+        ordered = {}
+        for k, v in rep["properties"].items():   # after the recommendation, in the order the report is written
+            ordered[k] = v
+            if k == "recommendation":
+                ordered["structure"] = {"type": "array", "items": edit, "description": "the changes to the network of the brief that you recommend, in order; an empty list: the network as given"}
+        rep["properties"] = ordered
+        rep["required"] = [x for k in rep["required"] for x in ((k, "structure") if k == "recommendation" else (k,))]
+    if brief.get("topology"):  # a network has measures of its own: the expected values of the report are by their names
+        schema["properties"]["report"]["anyOf"][0]["properties"]["expected"]["properties"] = {k: {"type": "number"} for k in tools.outputs(brief)}
     schema["properties"]["report"]["anyOf"][0]["properties"]["recommendation"] = {"type": "object", "properties": dict(props), "required": list(props), "additionalProperties": False,
         "description": "the settings you recommend: a value for every knob of the brief, each within its range (a knob you leave as it was is stated with the value it has)"}
     return schema
@@ -545,7 +650,7 @@ def main():
     ap.add_argument("--budget", type=int, help=f"simulations granted at the start; default: the brief's limits.simulations (never more than that limit; when it is lower, a budget_request can raise it up to the limit)")
     ap.add_argument("--draft", choices=["on", "off"], default="on", help="on: the model may write a draft before its JSON answer and the draft is kept in the ledger; off: answer only")
     ap.add_argument("--max-tokens", type=int, help="most tokens of one answer, draft included; default 32000 with the draft (the default), 3000 without")
-    ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap"], default="share", help="the scheduling policy: how the scheduler divides the link. The operator's choice, never shown to the model (--mode is its earlier name)")
+    ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap", "prio"], default="share", help="the scheduling policy: how the scheduler divides the link (prio: only for a brief with a network). The operator's choice, never shown to the model (--mode is its earlier name)")
     ap.add_argument("--temperature", type=float, default=0.3)
     ap.add_argument("--arm", choices=["hypotheses", "plain"], help="hypotheses (the default): the loop as it is. plain: the same loop, model, brief, budget and final report without the hypothesis format "
                     "(no hypotheses, decision rules or verdicts; experiments only explore), for the comparison that asks whether the format helps. An existing session keeps its own")
@@ -560,6 +665,8 @@ def main():
     except ValueError as e:
         ap.error(str(e))
     brief = tools.describe_system()  # the brief, with the descriptions of the outputs and the tools
+    if a.policy not in tools.policies(brief):
+        ap.error(f"the scheduling policy {a.policy} exists only for a brief that has a network")
     per = brief["limits"]["simulations_per_experiment"]
     schema = answer_format(schema, brief)
     was = json.loads((tools.SESSION / "session.json").read_text()).get("flags", {}).get("arm", "hypotheses") if (tools.SESSION / "session.json").is_file() else None
@@ -568,6 +675,8 @@ def main():
     arm = was or a.arm or "hypotheses"
     if arm == "plain":
         schema, system = plain_format(schema), plain_prompt(system)
+    if may_change(brief):  # only a session that may change the structure is told how
+        system += STRUCTURE
     tol_given = type((brief.get("goal") or {}).get("tolerance")) in (int, float)   # tools.check_brief has made sure it is a number of per cent between 0 and 100
     TOLERANCE = float(brief["goal"]["tolerance"]) if tol_given else DEFAULT_TOLERANCE
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget

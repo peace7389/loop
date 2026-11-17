@@ -1,0 +1,96 @@
+{
+ "goal": "Maximize fa_goodput_bps while keeping fb_loss_frac <= 0.1.",
+ "recommendation": {
+  "lc.queue.parts.fa": 0.179,
+  "lc.queue.length": 100,
+  "fa.type": "TcpCubic"
+ },
+ "expected": {
+  "fa_goodput_bps": 25394445,
+  "fa_retrans": 2,
+  "fb_goodput_bps": 72114560,
+  "fb_loss_frac": 0.098561,
+  "la_util": 0.026353,
+  "la_util_back": 0.000486,
+  "la_drops": 0,
+  "la_drops_back": 0,
+  "lb_util": 0.081714,
+  "lb_util_back": 0.0,
+  "lb_drops": 0,
+  "lb_drops_back": 0,
+  "lc_util": 0.999991,
+  "lc_util_back": 0.004858,
+  "lc_drops_fa": 2,
+  "lc_drops_fb": 3520,
+  "lc_drops_back": 0
+ },
+ "no_difference": [
+  "lc.queue.length"
+ ],
+ "limit": "The fb_loss_frac <= 0.1 condition limits lc.queue.parts.fa. fa_goodput increases with fa's weighted scheduler share of lc, but at parts.fa=0.18 fb_loss_frac=0.100213, just infeasible, while parts.fa=0.179 is feasible. Increasing parts.fa further would give fb a smaller scheduler share than its 80Mbps offer can use, causing fb queue drops. Evidence: E1, E2, E3, C2, C6.",
+ "explanation": "The scheduler is work-conserving, but once fb is lossy it is using essentially all of its weighted share, so fa_goodput is set by fa's weighted scheduler share of lc. Raising lc.queue.parts.fa raises fa_goodput monotonically, but also raises fb_loss_frac; the tested feasible maximum is parts.fa=0.179, with fa_goodput_bps=25394445 and fb_loss_frac=0.098561. parts.fa=0.18 gives only about 0.5% more fa_goodput, inside the 1% tolerance, but violates fb_loss_frac <= 0.1, so 0.179 is the best tested feasible setting. lc.queue.length made no meaningful difference to the goal: length 20 and 100 gave identical fa_goodput and fb_loss, while length 20 increased TCP retransmissions, so the default length 100 is preferred. fa.type did not improve the feasible maximum: at parts.fa=0.20, TcpCubic, TcpBbr, and TcpNewReno produced the same fa_goodput and fb_loss, and TcpVegas underfilled the scheduler share and gave much lower fa_goodput, so the default TcpCubic is the simplest choice.",
+ "holds_when": "fb remains a constant 80Mbps UDP flow, lc remains 100Mbps, the scheduler remains weighted-fair and work-conserving, the TCP flow is able to fill its scheduler share, and the measurement is in steady state.",
+ "breaks_when": "The recommendation would change if fb's offered rate changed, if the scheduler's overhead or fairness behavior changed, if a TCP type could fill a different effective share, if TcpVegas-like underfilling were desired, if much smaller queue lengths changed TCP throughput, or if the fb_loss_frac condition were relaxed enough to allow parts.fa=0.18.",
+ "claims": [
+  {
+   "text": "At lc.queue.parts.fa=0.179, lc.queue.length=100, and TcpCubic, the condition fb_loss_frac <= 0.1 is satisfied and fa_goodput_bps=25394445.",
+   "role": "supports",
+   "evidence": [
+    "E3",
+    "C6"
+   ]
+  },
+  {
+   "text": "fa_goodput is set by fa's weighted scheduler share of lc in the tested range and is not changed by lc.queue.length from 100 to 20.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "C3",
+    "V3"
+   ]
+  },
+  {
+   "text": "fb_loss_frac rises with lc.queue.parts.fa, and the feasible boundary is between 0.179 and 0.18.",
+   "role": "supports",
+   "evidence": [
+    "E1",
+    "E2",
+    "E3",
+    "C2",
+    "C6"
+   ]
+  },
+  {
+   "text": "Changing fa.type from TcpCubic to TcpBbr or TcpNewReno did not change fa_goodput or fb_loss at parts.fa=0.20, while TcpVegas underfilled and lowered fa_goodput.",
+   "role": "supports",
+   "evidence": [
+    "E3",
+    "C5",
+    "C7"
+   ]
+  },
+  {
+   "text": "The scheduler is work-conserving: at parts.fa=0.05, fb_loss_frac=0 and fa_goodput_bps=17628531, above fa's weighted share.",
+   "role": "background",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "lc.queue.length=20 versus 100 had identical fa_goodput and fb_loss but more fa_retrans, so the default length is preferred.",
+   "role": "limits",
+   "evidence": [
+    "E2",
+    "C4",
+    "V4"
+   ]
+  }
+ ],
+ "open_questions": [
+  "The exact feasible boundary between lc.queue.parts.fa=0.179 and 0.18 was not pinned down, but the fa_goodput difference across that interval is inside the 1% tolerance.",
+  "Whether TcpBbr or TcpNewReno at parts.fa=0.179 gives exactly the same fa_goodput and fb_loss as TcpCubic was not directly tested, though they were identical at parts.fa=0.20.",
+  "Queue lengths below 20 were not tested, but the tested reduction from 100 to 20 did not change the goal outputs."
+ ]
+}

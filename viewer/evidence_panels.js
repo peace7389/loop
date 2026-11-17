@@ -28,13 +28,14 @@ Object.assign(EV, {
     const rows = ts.map(T => { const kc = T.check ? M.recStep[T.check.id] ?? simK : simK, v = T.verdict;
       return `<tr class="pick" data-act="open" data-t="test" data-id="${e(T.id)}"><td>${EV_ICON.test} <b>${e(T.hyp)}</b></td><td>${e(EV.compared(T))}</td><td>${span(kc, T.check ? EV.checkRes(T.check) : T.rule ? 'not checked' : '–')}</td>
         <td>${v ? span(M.recStep[v.id] ?? kc, `${v.id} ${EV.verdictRes(v.result)}${EV.contradicts(v, T.check ? [T.check] : []) ? ' ' + EV.warn('', 'the verdict disagrees with its check') : ''}`) : 'no verdict'}</td></tr>`; }).join('');
+    const two = EV.net(M.brief) ? EV.netTwo(M.brief) : null;  // a network: the two measures its aim is about, in the place of UDP loss and TCP goodput
     return `<h2>${EV_ICON.experiment} ${EV.term('Experiment', 'Experiment')} ${e(x.id)} <small>turn ${x.turn} · ${e(x.by)} · the container its tests were run in</small></h2><p>${what}</p>
       ${ts.length ? `<h3>The tests in it</h3><table><thead><tr><th>test of</th><th>what was compared</th><th>${EV.term('Check', 'check')}</th><th>${EV.term('Verdict', 'verdict')}</th></tr></thead><tbody>${rows}</tbody></table>` : ''}
       <p class="sm" style="margin-top:8px"><button data-act="xchart" data-id="${e(x.id)}">${S.xchart === x.id ? 'hide the chart' : `show one measure over all ${n} simulations`}</button></p>${S.xchart === x.id ? `<div data-step="${simK}">${EV.canvas('exp', x.id)}</div>` : ''}
       <h3>Its ${EV.term('Simulation', 'simulations')}</h3>
-      <table><thead><tr><th>simulation</th><th>label</th><th>settings against the control</th><th>named by the tests of</th><th class="num">UDP loss</th><th class="num">TCP goodput</th><th>run</th></tr></thead><tbody>${x.sims.map(s => `<tr class="pick" data-act="open" data-t="sim" data-id="${e(s.id)}" data-step="${M.recStep[s.id] ?? 0}">
-        <td>${EV.gkey(s.same_as ? 'sim-returned' : 'sim')}${e(s.id)}</td><td>${e(s.label)}</td><td>${diff(s)}</td><td>${ts.filter(T => T.sims.includes(s)).map(T => e(T.hyp)).join(', ') || '–'}</td><td class="num">${pc((s.metrics || {}).udp_loss_frac)}</td>
-        <td class="num">${s.metrics && typeof s.metrics.tcp_goodput_bps === 'number' ? EV.mb(s.metrics.tcp_goodput_bps) + ' Mbps' : '–'}</td><td>${e(s.run || '')}${s.same_as ? ` <span class="sm">= ${e(s.same_as)}</span>` : ''}</td></tr>`).join('')}</tbody></table>`;
+      <table><thead><tr><th>simulation</th><th>label</th><th>settings against the control</th><th>named by the tests of</th>${two ? two.map(k => `<th class="num">${e(TH_DATA.PLAIN[k] || k)}</th>`).join('') : '<th class="num">UDP loss</th><th class="num">TCP goodput</th>'}<th>run</th></tr></thead><tbody>${x.sims.map(s => `<tr class="pick" data-act="open" data-t="sim" data-id="${e(s.id)}" data-step="${M.recStep[s.id] ?? 0}">
+        <td>${EV.gkey(s.same_as ? 'sim-returned' : 'sim')}${e(s.id)}</td><td>${e(s.label)}</td><td>${diff(s)}</td><td>${ts.filter(T => T.sims.includes(s)).map(T => e(T.hyp)).join(', ') || '–'}</td>${two ? two.map(k => `<td class="num">${s.metrics && typeof s.metrics[k] === 'number' ? EV.v4(k, s.metrics[k]) : '–'}</td>`).join('') : `<td class="num">${pc((s.metrics || {}).udp_loss_frac)}</td>
+        <td class="num">${s.metrics && typeof s.metrics.tcp_goodput_bps === 'number' ? EV.mb(s.metrics.tcp_goodput_bps) + ' Mbps' : '–'}</td>`}<td>${e(s.run || '')}${s.same_as ? ` <span class="sm">= ${e(s.same_as)}</span>` : ''}</td></tr>`).join('')}</tbody></table>`;
   },
 
   TIME: [  // the run page's time charts (adrs_view.js), drawn by its TASK_VIEW._time
@@ -55,12 +56,12 @@ Object.assign(EV, {
       const [u, f] = EV.unit(q), v = f(m[q]) - f(cm[q]); return (v > 0 ? '+' : v < 0 ? '−' : '±') + (+Math.abs(v).toPrecision(5)).toLocaleString('en-US') + (u ? ' ' + u : ''); };
     const show = (q, v) => { const [u, f] = EV.unit(q); return typeof v !== 'number' ? '–' : (+f(v).toPrecision(7)).toLocaleString('en-US') + (u ? ' ' + u : ''); };
     const charts = !src ? `<p class="sm">charts over time: ${EV.nr} (no run id)</p>` : sr === 'none' ? `<p class="sm">charts over time: ${EV.nr} (the run has no series.csv)</p>` : !sr || !window.Chart ? (EV.chartJs(), `<p class="sm">${EV.cj === 'failed' ? 'The chart library is not available here, so the charts over time are not drawn.' : 'Loading the charts…'}</p>`)
-      : `<div class="charts" data-by="simulator">${EV.TIME.filter(q => !q.need || q.need(sr)).map(q => `<figure style="margin:0"><div class="cv" style="height:200px"><canvas id="th-c-${q.id}"></canvas></div>${EV.expBtns(q.id)}</figure>`).join('')}</div>`;
+      : `<div class="charts" data-by="simulator">${EV.timeDefs(sr).map(q => `<figure style="margin:0"><div class="cv" style="height:200px"><canvas id="th-c-${q.id}"></canvas></div>${EV.expBtns(q.id)}</figure>`).join('')}</div>`;
     return `<div class="ev-top"><div><h3>Settings${ctl ? ' · against ' + o.ctlHead : ''}</h3>${ctl ? '' : `<p class="sm">the experiment's control: ${EV.nr}</p>`}
           <table><thead><tr><th>setting</th><th>this simulation</th><th>${e(o.ctlName || 'control')}</th></tr></thead><tbody>${keys.map(q => `<tr class="${diff(q) ? 'diff' : ''}"><td>${e(TH_DATA.KNOB[q] || q)}</td><td>${e(s.params[q] ?? '–')}${diff(q) ? ' <span class="warnc">≠</span>' : ''}</td><td>${ctl ? e(ctl.params[q] ?? '–') : '–'}</td></tr>`).join('')}</tbody></table></div>
         <div><h3>Measurements${ctl && ctl.metrics ? ' · difference from the control' : ''}</h3><table><thead><tr><th>measure</th><th class="num">value</th>${ctl && ctl.metrics ? '<th class="num">− control</th>' : ''}</tr></thead><tbody>${meas.map(q => `<tr><td>${e(TH_DATA.PLAIN[q] || q)}</td><td class="num">${show(q, m[q])}</td>${ctl && ctl.metrics ? `<td class="num">${s === ctl ? 'the control' : d(q)}</td>` : ''}</tr>`).join('') || `<tr><td colspan="3">${EV.nr}</td></tr>`}</tbody></table></div></div>
       <h3>Over time</h3>
-      ${o.others && o.others.length ? `<p class="sm"><label>Compare with <select data-ch="cmp"><option value="">no second simulation</option>${o.others.map(q => `<option value="${e(q.id)}"${EV.s.cmp === q.id ? ' selected' : ''}>${e(`${q.id} · ${q.label || ''} · run ${q.run}`)}</option>`).join('')}</select></label> (drawn dashed) · UDP blue, TCP orange</p>` : '<p class="sm">UDP blue, TCP orange</p>'}${charts}`;
+      ${o.others && o.others.length ? `<p class="sm"><label>Compare with <select data-ch="cmp"><option value="">no second simulation</option>${o.others.map(q => `<option value="${e(q.id)}"${EV.s.cmp === q.id ? ' selected' : ''}>${e(`${q.id} · ${q.label || ''} · run ${q.run}`)}</option>`).join('')}</select></label> (drawn dashed) · ${EV.flowsSay()}</p>` : `<p class="sm">${EV.flowsSay()}</p>`}${charts}`;
   },
   simPanel(id) {
     const M = EV.M, e = EV.e, s = M.simById[id]; if (!s) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
@@ -86,7 +87,7 @@ Object.assign(EV, {
     if ((await Promise.all([a, b].filter(Boolean).map(EV.loadSeries))).some(Boolean)) return true;
     const row = q => { const sr = q && EV.series[EV.srcOf(q)]; return sr && sr !== 'none' ? { id: q.run && q.run !== q.id ? `${q.id} (${q.run})` : q.id, series: sr } : null; };
     const A = row(a), B = row(b); if (!A || !document.getElementById('th-c-tput')) return false;
-    T._time(EV.TIME.filter(q => !q.need || [A, B].some(r => r && q.need(r.series))), [A, B].filter(Boolean), B); return false;
+    T._time(A.series.cols && !A.series.udp ? EV.netTime(A.series) : EV.TIME.filter(q => !q.need || [A, B].some(r => r && q.need(r.series))), [A, B].filter(Boolean), B); return false;
   },
   // after the HTML is in place: the charts of what is open, and the series still to be fetched
   async afterDraw() {

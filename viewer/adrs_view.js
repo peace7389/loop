@@ -547,7 +547,7 @@ const TASK_VIEW = {
     const made = [];
     defs.forEach(d => {
       const sets = shown.flatMap(r => (d.need && !d.need(r.series) ? [] : d.lines(r.series).map(([name, c, vals]) => ({ label: two ? `${short(r)} · ${name}` : name, name, run: r.id, unit: d.unit,
-        data: r.series.t.map((t, i) => ({ x: t, y: vals[i] })), borderColor: col[c], backgroundColor: col[c], borderWidth: 2, borderDash: r === B ? [6, 4] : [], pointRadius: 0, pointHoverRadius: 0, pointStyle: 'line' }))));
+        data: r.series.t.map((t, i) => ({ x: t, y: vals[i] })), borderColor: col[c] || css('--series-' + c), backgroundColor: col[c] || css('--series-' + c), borderWidth: 2, borderDash: r === B ? [6, 4] : [], pointRadius: 0, pointHoverRadius: 0, pointStyle: 'line' }))));
       const ch = new Chart(T._q('#th-c-' + d.id), { type: 'line', data: { datasets: sets }, plugins: [T._bg, mark],
         options: T._options(`${d.title}, ${d.unit}`, 'Time since the traffic began, s', '', o => {
           o.interaction = { mode: 'index', intersect: false }; o.layout = { padding: { right: 12 } };
@@ -672,7 +672,8 @@ const TH_DATA = {
     const head = lines[0].split(','), col = n => head.indexOf(n), rows = lines.slice(1).map(l => l.split(',').map(Number));
     const get = n => (col(n) < 0 ? null : rows.map(r => r[col(n)]));
     const diff = a => a.map((v, i) => (i ? v - a[i - 1] : v));
-    return { t: get('t'), udp: get('udp_bps'), tcp: get('tcp_bps'), cwnd: get('cwnd'), d0: diff(get('drops_band0')), d1: diff(get('drops_band1')),
+    const two = col('udp_bps') >= 0, d2 = a => (a ? diff(a) : null);  // two-hosts writes these columns; the program that builds a network names its columns by its flows and links
+    return { cols: Object.fromEntries(head.filter(n => n !== 't').map(n => [n, get(n)])), t: get('t'), udp: two ? get('udp_bps') : null, tcp: two ? get('tcp_bps') : null, cwnd: get('cwnd'), d0: d2(get('drops_band0')), d1: d2(get('drops_band1')),
              q0: get('q_band0'), q1: get('q_band1') };  // packets waiting in each queue; null for runs made before they were recorded
   },
 

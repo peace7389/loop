@@ -1,0 +1,175 @@
+{
+ "id": "s040",
+ "brief": "three-hosts",
+ "model": "Qwen/Qwen3.8-Flash-Next-FP8",
+ "started": "2026-11-17T16:16:47",
+ "flags": {
+  "budget": 20,
+  "draft": "on",
+  "max_tokens": 32000,
+  "temperature": 0.3,
+  "baseline": "on"
+ },
+ "given": {
+  "id": "three-hosts",
+  "description": "A network of four hosts: a, b, r and c. Host a sends a TCP flow, fa, to c; host b sends a UDP flow, fb, to c at a constant rate (80Mbps, packets of 1400 bytes). Both reach c through r, which forwards them. Link la joins a and r and link lb joins b and r; each carries 1Gbps. Link lc joins r and c and carries only 100Mbps with a one-way delay of 1ms: everything the two flows send to c must pass it. On r's side of lc a scheduler divides the link between the two flows by two parts, the knob lc.queue.parts.fa for fa and 0.5 for fb (the parts are divided by their sum); each flow waits in a queue of its own of the knob lc.queue.length packets, and a packet that arrives at a full queue is dropped. How the scheduler behaves when one flow has less to send than its part allows is not described here; finding that out is part of the work. The congestion control of fa is the knob fa.type. In each simulation the flows start within the first 10 ms, traffic runs for one second that is not measured, and then for duration seconds, over which the outputs are measured.",
+  "topology": {
+   "hosts": [
+    {
+     "id": "a"
+    },
+    {
+     "id": "b"
+    },
+    {
+     "id": "r"
+    },
+    {
+     "id": "c"
+    }
+   ],
+   "links": [
+    {
+     "id": "la",
+     "between": [
+      "a",
+      "r"
+     ],
+     "rate": "1Gbps",
+     "delay": "50us",
+     "mtu": 1500,
+     "device_queue": 10
+    },
+    {
+     "id": "lb",
+     "between": [
+      "b",
+      "r"
+     ],
+     "rate": "1Gbps",
+     "delay": "50us",
+     "mtu": 1500,
+     "device_queue": 10
+    },
+    {
+     "id": "lc",
+     "between": [
+      "r",
+      "c"
+     ],
+     "rate": "100Mbps",
+     "delay": "1ms",
+     "mtu": 1500,
+     "device_queue": 10,
+     "queue": {
+      "on": "r",
+      "kind": "scheduler",
+      "length": 100,
+      "parts": {
+       "fa": 0.5,
+       "fb": 0.5
+      },
+      "largest_rate": {}
+     }
+    }
+   ],
+   "flows": [
+    {
+     "id": "fa",
+     "kind": "tcp",
+     "from": "a",
+     "to": "c",
+     "type": "TcpCubic"
+    },
+    {
+     "id": "fb",
+     "kind": "udp",
+     "from": "b",
+     "to": "c",
+     "rate": "80Mbps",
+     "packet_bytes": 1400
+    }
+   ]
+  },
+  "system": {
+   "seed": 1,
+   "duration": 5
+  },
+  "knobs": {
+   "lc.queue.parts.fa": {
+    "min": 0.05,
+    "max": 4,
+    "default": 0.5,
+    "meaning": "the part of link lc for flow fa (fb's part is fixed at 0.5; the parts are divided by their sum)"
+   },
+   "lc.queue.length": {
+    "min": 4,
+    "max": 1000,
+    "default": 100,
+    "meaning": "most packets each of the two queues of the scheduler holds"
+   },
+   "fa.type": {
+    "choices": [
+     "TcpCubic",
+     "TcpNewReno",
+     "TcpBbr",
+     "TcpVegas"
+    ],
+    "default": "TcpCubic",
+    "meaning": "TCP congestion control of flow fa"
+   }
+  },
+  "goal": {
+   "kind": "given",
+   "target": {
+    "measure": "fa_goodput_bps",
+    "direction": "max"
+   },
+   "conditions": [
+    "fb_loss_frac <= 0.1"
+   ]
+  },
+  "limits": {
+   "simulations": 20,
+   "simulations_per_experiment": 4
+  },
+  "task": "Find the settings that give the largest fa_goodput_bps, while fb_loss_frac <= 0.1. You may change 3 settings (lc.queue.parts.fa, lc.queue.length, fa.type); every other setting is fixed. Explain why they are best.",
+  "outputs": {
+   "fa_goodput_bps": "payload bits per second delivered to the receiver of flow fa (c)",
+   "fa_retrans": "TCP segments the sender of flow fa sent again",
+   "fb_goodput_bps": "payload bits per second delivered to the receiver of flow fb (c)",
+   "fb_loss_frac": "fraction of the packets flow fb sent that never arrived",
+   "la_util": "bits sent on link la from a to r, divided by the link's rate",
+   "la_util_back": "the same from r to a",
+   "la_drops": "packets dropped from the queue in front of link la on the side of a",
+   "la_drops_back": "packets dropped from the plain queue in front of link la on the side of r",
+   "lb_util": "bits sent on link lb from b to r, divided by the link's rate",
+   "lb_util_back": "the same from r to b",
+   "lb_drops": "packets dropped from the queue in front of link lb on the side of b",
+   "lb_drops_back": "packets dropped from the plain queue in front of link lb on the side of r",
+   "lc_util": "bits sent on link lc from r to c, divided by the link's rate",
+   "lc_util_back": "the same from c to r",
+   "lc_drops_fa": "packets of flow fa dropped from its queue in the scheduler of link lc",
+   "lc_drops_fb": "packets of flow fb dropped from its queue in the scheduler of link lc",
+   "lc_drops_back": "packets dropped from the plain queue in front of link lc on the side of c"
+  },
+  "tools": {
+   "describe_system": "this brief, with the descriptions of the outputs and the tools",
+   "metrics": "metrics(run_id): the output values of a simulation (run ids are in the evidence lines, e.g. r003)",
+   "series": "series(run_id, every_n): per-100ms samples of a run: t, then for each flow <flow>_bps (and <flow>_cwnd for a TCP flow), then for each described queue the packets waiting at the sample time (<link>_q_<flow> for a scheduler, <link>_q for a plain queue) and the packets dropped since traffic began (<link>_drops_<flow>, <link>_drops) (at most 100 rows; the measured seconds begin at t = 2)",
+   "list_runs": "list_runs(): id, params and metrics of every simulation of this session so far"
+  },
+  "how_to_run": "An experiment is a set of simulations with one purpose, run at once. Fill the 'experiment' field of your answer: its kind (test or explore), the simulations (runs: a label and the params that differ from the defaults), and for a test the decision rules, comparisons stated before the simulations run. The harness runs the simulations, appends the evidence (one line per simulation) and checks every decision rule itself.",
+  "budget": "the budget counts simulations; the number left is stated in each turn"
+ },
+ "prompt": "You are a researcher working on a system you cannot see inside. You reach it only through the tools listed in the brief and through experiments the harness runs for you.\n\nThe purpose of the work is to understand why the system behaves as it does. Good settings follow from that understanding; they are not the work itself. A session that names a best setting and cannot say why it is best, or what stops the result from being better, has not done the work.\n\nYour task is the one stated in the brief. The brief also describes the system in plain words (description) and gives its fixed settings (system), the settings you may change with their ranges and defaults (knobs), the goal and the limits.\n\nThe ledger is the complete record of everything you have hypothesised, run, observed and concluded. You have no other memory. Each turn you read it and answer with one JSON object. Its parts:\n\n1. observations: what you read in the ledger and in the tool results, and, each turn, what the results do not yet explain: a result that does not change when a setting changes, a result that stays below what the settings would allow, results that are the same to the last digit, a result that goes against what you expected. Name the most important unexplained thing; your next hypothesis is about it.\n2. hypotheses: new claims about how the system behaves, each with a falsifiable prediction (a number, a range, or a direction). Any number of hypotheses may be open at the same time. The harness numbers them in order: if the last hypothesis in the ledger is H3, your first new one is H4, the next H5. You may use those ids in the same answer. With each new hypothesis give question: the hypothesis put as one plain question of at most 20 words, for a reader who is not a specialist; and why: one plain sentence of at most 25 words saying how answering it helps reach the goal. Also say in follows_from what it follows from: the ids of the earlier verdicts, checks or evidence tables that led you to it, or the word brief when it comes from the brief alone; an id that is not in the ledger is refused.\n3. drop: open hypotheses you give up without a verdict, each with a reason. Only a hypothesis none of whose decision rules has been checked can be dropped; once one has been checked, the hypothesis needs a verdict.\n4. experiment: at most one per turn. An experiment is a set of simulations with one purpose; the harness runs them all at once. It may hold several simulations, for example a control and variations of one setting, so that one simulation can be compared with another.\n   - kind \"test\": tests lists the ids of the open hypotheses it tests, and decision_rules has at least one decision rule for each of them.\n   - kind \"explore\": question says what you want to find out; tests and decision_rules stay empty. Use it when you do not yet have a claim to test.\n   - runs: the simulations, each with a label of its own (letters, digits and _ only) and params: a value for every knob of the brief; a knob left as it was is stated with the value it had. A simulation with the same settings and seed as one of an earlier experiment of this session is not run again: the earlier result is returned, and it does not count against the budget. Parameters outside the allowed ranges are clamped, a knob that has a step in the brief is rounded to that step, and a setting the brief fixes cannot be changed (the brief's value is used); the ledger records the value actually used.\n   - varied: the knobs that differ between the simulations. control: the label of the simulation the others are compared with, or null.\n   - decision_rules: each decision rule (stated before the simulations) belongs to one tested hypothesis (for) and is a comparison that decides whether its prediction held. The harness checks it itself from the measured values, so write decision_rule exactly in this form: numbers; measure@label, the value of an output in the simulation with that label; + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; comparisons joined by AND and OR, with parentheses to group them. An experiment with a decision rule the harness cannot read is refused, and none of its simulations is run. With each decision rule give a rival, a competing explanation of how the system behaves, and say in rival_predicts whether the decision rule would hold (held) or fail (failed) if the rival were true; a decision rule that would hold under the rival too cannot tell the two explanations apart, so the harness refuses it and you must choose simulations where the two explanations give different results.\n5. After an experiment the harness appends the evidence (one line per simulation) and, for every decision rule, a check: the decision rule with the measured numbers written into it, and HELD or FAILED. You never write evidence or checks yourself.\n6. verdicts: your judgement of hypotheses whose decision rules have been checked. Each names the hypothesis (for), says supported, refuted or inconclusive, cites the check and evidence ids in because, and says in next what you will do and why. A verdict for a hypothesis that has no checked decision rule is rejected. A verdict closes the hypothesis. A check that FAILED says that what you predicted was not measured in that test; it does not by itself say that the hypothesis is false, because the test may be the reason: another setting may have limited the result, the threshold may have been badly chosen, or the simulations may have differed in more than the one thing tested. So do not go from a failed check straight to refuted. First say in because why the check failed. If the test was a fair test of the hypothesis, the verdict is refuted. If the test itself may be the reason, give no verdict yet: the hypothesis stays open, and you test it again in a new experiment whose design removes that reason (the failed check stays in the ledger, and your later verdict cites both checks); if you cannot test it again, say inconclusive and say in next what would settle it. The same care holds for a check that HELD: it supports the hypothesis only if the rival would have failed it.\n7. requests: if you need information to design the next step, ask for it through the tools described in the brief; the results come back in the next turn.\n8. budget_request: the budget counts simulations, and it is limited: the brief gives the most a session may run (limits.simulations) and the most one experiment may hold (limits.simulations_per_experiment), and every turn record says how many are left (simulations_left). Plan for that from your first turn: decide what you most need to learn, do not spend simulations on what a result you already have answers, and keep enough for the comparison that decides your answer. When the simulations run out you get one last turn for the report and no further experiment, so do not leave the decisive test for later than you can afford. If the simulations left will not be enough to answer the task, say how many more you need and why, in a turn that also does something else. The harness grants it only up to the limit of the brief (limits.simulations) and records the grant. Otherwise leave it null.\n9. done and report: when you believe you have an answer to the task, set done to true and fill report in the same answer; the session then ends. Until then leave report null and done false, and keep testing. If the budget runs out first, the harness gives you one last turn in which no experiment is accepted and the report is required. The report has:\n   - goal: the goal your answer is best for. If the brief's goal is open, the goal you chose and why. If it is given, that goal; when it states a tolerance, two results closer than that many per cent count as equal.\n   - recommendation: the settings you recommend, as knob: value: a value for every knob of the brief, each within its range (a knob you leave as it was is stated with the value it has; a setting the brief fixes cannot be recommended). The values you expect and the claims that support the recommendation are read against exactly these settings.\n   - expected: the output values you expect at the recommendation, by the outputs' names.\n   - no_difference: the knobs whose tested values made no meaningful difference to your goal (differences inside the tolerance). List them even if that is every knob you varied; leave it empty only if every knob you varied mattered. A knob you never varied does not belong here.\n   - limit: what limits the result at your recommendation, that is, why it is not better: the cause, and the ledger ids that show it. If you did not find it, say so plainly and say what you would test next.\n   - explanation: why this setting is best, building on limit and no_difference. holds_when: the conditions under which your answer stays valid. breaks_when: the conditions under which it would change.\n   - claims: the statements your answer rests on, each with evidence: the ids of the ledger records that support it (for example E3, C5). Every id must exist in the ledger; a report that cites an id that does not exist is rejected. Give each claim its role: supports (a reason for the recommendation), background (how the system behaves), or limits (when the recommendation would change).\n   - open_questions: what you could not settle.\n   Before the report, give a verdict on every hypothesis that has a checked decision rule and no verdict yet; the verdicts can be in the same answer as the report. A hypothesis that already has its verdict is closed: do not judge it again (a second verdict for it is refused).\n\nIf one part of your answer cannot be used (for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read), the harness leaves that part out, accepts the rest, and says in a note which part it refused and why; read the note and repair that part. If several turns in a row give nothing usable, the harness gives one last turn in which only the final report is accepted.\n\nAsk why before you ask which. A hypothesis about a cause (what makes a result what it is, what limits it) is worth more than one about which of two values is larger. When a setting turns out not to matter, that is a finding, and it raises the question that matters next: what does limit the result? State that as a hypothesis and test it, with the settings you may change and with the tools: the detailed record of a simulation often shows what one number hides, and what the brief says about the system is there to be reasoned from.\n\nTell a meaningful difference from a marginal one. Two results that differ by less than the tolerance count as equal; every turn says which tolerance holds (TOLERANCE). A difference inside the tolerance is not a finding: do not write a decision rule that such a difference can decide, do not build a hypothesis on it, do not spend further simulations on it, and do not recommend a setting because of it. The harness marks every check that was decided by less than the tolerance; read such a check as \"no difference\". If no setting you can change makes a meaningful difference to the goal, do not pick the one that is ahead by a hair and present it as the best. Say that they are equal, keep the simplest (the default where it is as good), and use the explanation of your report for what limits the result and how you know.\n\nWhere the brief leaves a seed to you: a seed repeats a simulation under other start times, to see whether a result depends on chance. It is not a setting to tune. Use another seed only to answer that question, and keep the default seed in your recommendation.\n\nBe concrete and quantitative. Prefer experiments that distinguish between explanations.\n",
+ "ended": "2026-11-17T16:36:17",
+ "how": "done by the model",
+ "report": "R1",
+ "left_open": [],
+ "without_verdict": [],
+ "turns": 5,
+ "simulations": 12,
+ "calls": 6,
+ "cut_off": 1
+}

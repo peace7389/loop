@@ -38,6 +38,7 @@ const EV_DATA = {
   build(f) {
     const D = EV_DATA, recs = f.ledger || [], byId = Object.fromEntries(recs.map(r => [r.id, r])), pos = Object.fromEntries(recs.map((r, i) => [r.id, i]));
     const of = t => recs.filter(r => r.type === t), meta = f.session || null, brief = meta && meta.given ? meta.given : null;
+    if (brief && EV.netApply) EV.netApply(brief);  // a brief with a network: plain names for its settings and measures (evidence_net.js)
     // the format with experiments of several simulations: also a running session whose first experiment has no result yet, or no record at all
     const multi = recs.some(r => r.type === 'simulation' || (r.type === 'experiment' && r.body && Array.isArray(r.body.runs))) || (!!f.running && !recs.length);
     const ended = !!(meta && meta.how) || recs.some(r => r.type === 'report') || !f.running;
@@ -47,7 +48,7 @@ const EV_DATA = {
     let sims = [], exps = [];
     if (multi) {
       sims = of('simulation').map(r => ({ id: r.id, label: r.body.label, run: r.body.run_id, params: r.body.params || {}, metrics: r.body.metrics || null, error: r.body.error || null,
-                                          same_as: r.body.same_as || null, exp: r.parent, ts: r.ts, turn: r.turn }));
+                                          same_as: r.body.same_as || null, exp: r.parent, ts: r.ts, turn: r.turn, structure: r.body.structure || null, topology: r.body.topology || null }));
       exps = of('experiment').map(r => { const b = r.body, own = sims.filter(s => s.exp === r.id);
         return { id: r.id, turn: r.turn, ts: r.ts, by: D.by(r), kind: b.kind, tests: b.tests || [], question: b.question || '', varied: b.varied || [], control: b.control || null,
                  runs: b.runs || [], rules: (b.decision_rules || b.rules || []).map(q => ({ for: q.for, rule: q.decision_rule || q.rule, rival: q.rival || null, rival_predicts: q.rival_predicts || null })),

@@ -54,7 +54,7 @@ def main():
     combos = [{k: draw(rng, k, s) for k, s in brief["knobs"].items()} for _ in range(a.n)]
     st = {"id": name, "brief": brief["id"], "policy": a.policy, "total": a.n, "done": 0, "failed": 0, "running": 0, "state": "running", "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "ended": None, "seconds": 0}
     control.run_sweep(folder, brief, a.policy, combos, st, threading.Event())
-    outputs, target, direction = tools.MANIFEST["outputs"], goal["target"]["measure"], goal["target"]["direction"]
+    outputs, target, direction = tools.outputs(brief), goal["target"]["measure"], goal["target"]["direction"]
     rows = [r for r in csv.DictReader((folder / "table.csv").open()) if not r.get("error")]
     num = lambda v: tools._rate_bps(v) if str(v).endswith("bps") else float(v)
     for r in rows:

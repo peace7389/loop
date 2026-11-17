@@ -1,0 +1,122 @@
+{
+ "program": "net (ns-3.49/scratch/net: net.cc, flow-queue-disc.{h,cc})",
+ "date": "2026-11-17",
+ "program_md5": "394d94dc5433321c0fe79fdf36163f84",
+ "built": "compiled and linked by hand with the flags and the link line the build system generated for the target scratch_net_net; the ns-3 libraries and two-hosts were not rebuilt",
+ "against_two_hosts": {
+  "the default network, share": {
+   "net": "n01-default-share",
+   "two_hosts": "o01-default-share",
+   "measures_compared": [
+    "udp_goodput_bps",
+    "tcp_goodput_bps",
+    "udp_loss_frac",
+    "tcp_retrans",
+    "link_util",
+    "drops_band0",
+    "drops_band1"
+   ],
+   "equal": true,
+   "differ": {}
+  },
+  "the default network, cap": {
+   "net": "n02-default-cap",
+   "two_hosts": "o02-default-cap",
+   "measures_compared": [
+    "udp_goodput_bps",
+    "tcp_goodput_bps",
+    "udp_loss_frac",
+    "tcp_retrans",
+    "link_util",
+    "drops_band0",
+    "drops_band1"
+   ],
+   "equal": true,
+   "differ": {}
+  },
+  "UDP at 300 Mbps, a part of 0.3, share": {
+   "net": "n10-share-udp300-w30",
+   "two_hosts": "o10-share-udp300-w30",
+   "measures_compared": [
+    "udp_goodput_bps",
+    "tcp_goodput_bps",
+    "udp_loss_frac",
+    "tcp_retrans",
+    "link_util",
+    "drops_band0",
+    "drops_band1"
+   ],
+   "equal": true,
+   "differ": {}
+  }
+ },
+ "checks": [
+  {
+   "n": 1,
+   "run": "n03-largest-tcp200",
+   "what": "a largest rate of 200 Mbps for TCP (UDP 300 Mbps, share)",
+   "predicted": "TCP goodput 200 Mbps x 1448/1500 = 193.07 Mbps; UDP untouched (300 Mbps, no loss)",
+   "measured": {
+    "tcp_goodput_bps": 193067053,
+    "udp_goodput_bps": 300002080,
+    "udp_loss_frac": 0.0
+   },
+   "met": true
+  },
+  {
+   "n": 2,
+   "run": "n04-largest-udp100",
+   "what": "a largest rate of 100 Mbps for UDP offered at 300 Mbps",
+   "predicted": "UDP goodput 100 Mbps x 1400/1428 = 98.04 Mbps, loss 1 - 98.04/300 = 0.673",
+   "measured": {
+    "udp_goodput_bps": 98039200,
+    "udp_loss_frac": 0.673206
+   },
+   "met": true
+  },
+  {
+   "n": 3,
+   "run": "n05-prio-w05, n06-prio-w95",
+   "what": "the policy prio (the first flow of the list first): parts of 0.05 and 0.95 for UDP at 300 Mbps",
+   "predicted": "the two give the same measures to the last digit; no UDP loss even with a part of 0.05",
+   "measured": {
+    "equal": true,
+    "udp_loss_frac": 0.0,
+    "tcp_goodput_bps": 668633114
+   },
+   "met": true
+  },
+  {
+   "n": 4,
+   "run": "n07-prio-udp2g",
+   "what": "prio with UDP offered at 2 Gbps",
+   "predicted": "UDP takes the whole link (1 Gbps x 1400/1430 = 979 Mbps), TCP under 1 Mbps",
+   "measured": {
+    "udp_goodput_bps": 979021120,
+    "tcp_goodput_bps": 0
+   },
+   "met": true
+  },
+  {
+   "n": 5,
+   "run": "n08-dumbbell-25-75",
+   "what": "two TCP senders a and b through r to c; the link r-c is 100 Mbps with parts 0.25 and 0.75 (share)",
+   "predicted": "fa 100 x 0.25 x 1448/1500 = 24.1 Mbps, fb 72.4 Mbps",
+   "measured": {
+    "fa_goodput_bps": 24101670,
+    "fb_goodput_bps": 72303853
+   },
+   "met": true
+  },
+  {
+   "n": 6,
+   "run": "n09-dumbbell-fa-alone",
+   "what": "the same network without flow fb",
+   "predicted": "fa gets the link: 100 x 1448/1500 = 96.5 Mbps",
+   "measured": {
+    "fa_goodput_bps": 96404365
+   },
+   "met": true
+  }
+ ]
+}

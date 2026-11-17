@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s040 --brief three-hosts --draft on --policy share --baseline on
+session s040 (brief three-hosts): /home/chunguck.kim/project/sessions/s040
+stopped: session s040, done by the model, 12 simulations, 5 turns, ledger /home/chunguck.kim/project/sessions/s040/ledger.jsonl

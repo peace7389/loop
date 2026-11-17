@@ -57,6 +57,26 @@ other's way:
   - a running session is stopped only by the account that started it, or by the owner (the account that runs this server);
   - every accepted POST is noted in checks/people.jsonl (time, account, what, the id it concerned). That file holds
     account names, so it is kept out of git and out of exports.
+Looking from the network (since 2026-11-17, the operator: "I want my professor to be able to view it on webbrowser on
+computer or mobile. Consider him has technion VPN"). Started with --network on, the server also answers on the
+machine's network address, so that a browser on the campus network or its VPN opens the page with no tunnel:
+http://<this machine>:8600/viewer/. Whoever comes that way can only look:
+  - every POST is refused ("view only"): nothing is started, stopped, saved or marked from the network;
+  - only the page's own material is given: viewer/, sessions/ (never drafts.jsonl), briefs/, trace/, checks/ (never
+    people.jsonl, never exports/), and the three GET endpoints. Nothing else of the project folder, and no listing of
+    a folder;
+  - /api/status says view_only, and names no account as "you".
+A connection from this machine itself (127.0.0.1: a browser here, or an SSH tunnel) is treated as before.
+A personal link (since 2026-11-17, the operator: "I want my professor to be able to run new session and do everything
+as me"). The owner makes one with `python3 harness/invite.py NAME`; it is the page's address with a long key
+(?key=...). Opened once in a browser, the server keeps the key in a cookie of that browser and takes it out of the
+address. A visitor from the network who shows a key of checks/access.json is that person, by name, and uses the page
+as the owner does: starts sessions (one at a time, like everybody), stops any session started here, saves briefs,
+reviews. Each thing done is noted with the name and "(by link)". The key travels over plain HTTP, so it is as safe
+as the network it crosses; a line taken out of checks/access.json ends its link at once. The file is not in git, not
+in an export, and is given to nobody over HTTP. Without a key a visitor from the network can only look, as before.
+Without --network on the server listens on 127.0.0.1 only, as it always did (the scratch copies of the checks do).
+
 drafts.jsonl is given to nobody over HTTP (no page reads it). Everything else under the project folder is readable by
 every account, as before. Parameters go through tools.clamp, like the model's.
 Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the page's brief editor.
@@ -73,10 +93,12 @@ LOCK, RUN_LOCK = threading.Lock(), threading.Lock()
 SESSION = {}  # the newest session started here, if any: id, proc, flags, started, log (the older control page shows this one)
 STARTED = {}  # every session started here, by id (with "by": the account that started it); MAX_LOOPS: most loops running at the same time, wherever they were started
 MAX_LOOPS = 1  # one session at a time since the page is shared (2026-11-17); until then 6 ran side by side
+ACCESS = CHECKS / "access.json"  # {key: name}: the personal links (harness/invite.py). Whoever shows a key from the network is that person and uses the page as the owner does
 PEOPLE, PEOPLE_LOCK = CHECKS / "people.jsonl", threading.Lock()  # who did what through the page: one line per accepted POST (account names: not in git, not in exports)
 CACHE = {}    # session id -> (file times, its row in /api/sessions)
 SWEEP = {}    # the sweep running here, if any: id, thread, stop
-SERVING = {}  # the port this server answers on (main() sets it)
+SERVING = {}  # the port this server answers on, and whether it also answers on the network (main() sets both)
+OPEN_TO_NETWORK = ("viewer", "sessions", "briefs", "trace", "checks")  # the folders a visitor from the network may read (the page's own material)
 PARALLEL, SWEEP_MAX = 64, 5000  # simulations of a sweep running at the same time; most simulations one sweep may ask for
 
 
@@ -106,6 +128,15 @@ def account(uid):
 
 
 OWNER = account(os.getuid())  # the account that runs this server: the loops it starts run under it
+
+
+def invited():
+    """The personal links that hold now: {key: name}. Read each time, so a line added or taken out counts at once."""
+    try:
+        d = json.loads(ACCESS.read_text())
+        return {k: str(v) for k, v in d.items() if isinstance(k, str) and len(k) >= 16} if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
 def noted(who, did, result):
@@ -161,7 +192,7 @@ def other_loop():
     return (other_loops() or [None])[0]
 
 
-def sessions(you=None):
+def sessions(you=None, trusted=False):
     """One row per folder in sessions/, oldest first, read from the session's own files and checks/operator.jsonl.
     you: the account that asks. A row says who started the session through the page ("by"; a running session that nobody
     started through the page is the owner's) and whether the one who asks may stop it ("can_stop")."""
@@ -213,7 +244,25 @@ def sessions(you=None):
         running = d.name in here or d.name in others
         who = (STARTED.get(d.name) or {}).get("by") or by.get(d.name) or (OWNER if running else None)
         out.append({**row, "policy": None if secret else policy.get(d.name), "policy_hidden": secret, "running": running, "stoppable": d.name in here,
-                    "by": who, "can_stop": d.name in here and you in (OWNER, who)})
+                    "by": who, "can_stop": d.name in here and (trusted or you in (OWNER, who))})
+    return out
+
+
+NET_BRIEFS = {}  # brief id -> (file time, whether it has a network)
+
+
+def network_briefs():
+    """The ids of the saved briefs that have a network ("topology"), read once per change of a file."""
+    out = []
+    for p in sorted(tools.BRIEFS.glob("*.json")):
+        t = p.stat().st_mtime
+        if NET_BRIEFS.get(p.stem, (None,))[0] != t:
+            try:
+                NET_BRIEFS[p.stem] = (t, isinstance(json.loads(p.read_text()).get("topology"), dict))
+            except (OSError, ValueError, AttributeError):
+                NET_BRIEFS[p.stem] = (t, False)
+        if NET_BRIEFS[p.stem][1]:
+            out.append(p.stem)
     return out
 
 
@@ -224,7 +273,7 @@ def tail(path, n=600):
         return ""
 
 
-def status(you=None):
+def status(you=None, local=True, trusted=False):
     s = None
     if SESSION:
         rc = SESSION["proc"].poll()
@@ -234,8 +283,11 @@ def status(you=None):
     return {"control": True, "session": s, "other_loop": other_loop(), "run_busy": RUN_LOCK.locked(),
             # the page is shared: who asks, who runs the server, the sessions running now with who started each, and how somebody else reaches the page
             "you": you, "owner": OWNER, "running_now": [{"id": i, "by": w} for i, w in running_now()], "one_at_a_time": MAX_LOOPS == 1,
-            "share": {"host": socket.getfqdn(), "port": SERVING.get("port", PORT)},
-            "sessions": sessions(you), "briefs": sorted(p.stem for p in tools.BRIEFS.glob("*.json")),
+            "share": {"host": socket.getfqdn(), "port": SERVING.get("port", PORT), "network": bool(SERVING.get("network"))},  # network: the page can be opened without a tunnel, to look only
+            "view_only": not (local or trusted),  # the one who asks came from the network without a personal link: nothing can be started or changed
+            "by_link": bool(trusted and not local),  # the one who asks came through a personal link (harness/invite.py)
+            "sessions": sessions(you, trusted), "briefs": sorted(p.stem for p in tools.BRIEFS.glob("*.json")),
+            "network_briefs": network_briefs(),  # those of the briefs that have a network: the set-up page offers them to its builder, the others to the two-host form
             "operator_runs": count(CHECKS / "control.jsonl"),
             "sweeps": sorted(p.name for p in (CHECKS / "sweeps").iterdir() if (p / "status.json").is_file()) if (CHECKS / "sweeps").is_dir() else []}
 
@@ -247,8 +299,8 @@ def operator_run(body):
         brief = tools.load_brief(body.get("brief", tools.DEFAULT_BRIEF))
     except ValueError as e:
         raise Refused(400, str(e))
-    if policy not in ("share", "cap") or not isinstance(params, dict) or set(params) - set(brief["knobs"]) - set(brief["system"]):
-        raise Refused(400, "params must be settings of the brief and the scheduling policy must be share or cap")
+    if policy not in tools.policies(brief) or not isinstance(params, dict) or set(params) - set(brief["knobs"]) - set(brief["system"]):
+        raise Refused(400, f"params must be settings of the brief and the scheduling policy must be one of {', '.join(tools.policies(brief))}")
     try:
         clean, clamps = tools.clamp(params, brief)
     except (ValueError, TypeError) as e:
@@ -259,10 +311,11 @@ def operator_run(body):
         rid = "op-" + time.strftime("%Y%m%d-%H%M%S")
         out = CHECKS / rid
         out.mkdir(parents=True)
-        args = [f"--{k}={v}" for k, v in tools.options(clean, brief).items()] + [f"--out={out}"]
+        argv = tools.command(tools.options(clean, brief), out, brief)
+        args = argv[1:]
         t0 = time.time()
         try:
-            p = subprocess.run([str(BIN)] + args, cwd=out, env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy}, capture_output=True, text=True, timeout=tools.RUN_TIMEOUT)
+            p = subprocess.run(argv, cwd=out, env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy}, capture_output=True, text=True, timeout=tools.RUN_TIMEOUT)
             code, err = p.returncode, (p.stderr or p.stdout)[-800:]
         except subprocess.TimeoutExpired:
             code, err = "timeout", f"no result after {tools.RUN_TIMEOUT} s"
@@ -289,9 +342,10 @@ def save_brief(body):
     if path.exists():
         raise Refused(409, f"a brief named {bid} already exists. A brief is never overwritten: choose another id")
     knobs = b.get("knobs") if isinstance(b.get("knobs"), dict) else {}
-    b = {**{k: b.get(k) for k in ("id", "task", "description", "system")},   # only the fields a brief has, in the usual order
+    net = {k: b[k] for k in ("topology", "structure") if isinstance(b.get(k), dict)}   # a brief with a network (network.py): the network, and whether the AI may change its structure
+    b = {**{k: b.get(k) for k in ("id", "task", "description")}, **({"topology": net["topology"]} if "topology" in net else {}), "system": b.get("system"),   # only the fields a brief has, in the usual order
          "knobs": {k: {x: s[x] for x in ("min", "max", "choices", "default", "step", "meaning") if x in s} if isinstance(s, dict) else s for k, s in knobs.items()},
-         "goal": b.get("goal"), "limits": b.get("limits")}
+         "goal": b.get("goal"), "limits": b.get("limits"), **({"structure": net["structure"]} if "structure" in net else {})}
     if not (isinstance(b["task"], str) and b["task"].strip()):  # no task of its own: the harness writes it from the aim and the settings (tools.task_text), each time the brief is read
         del b["task"]
     try:
@@ -320,7 +374,8 @@ def run_sweep(folder, brief, policy, combos, st, stop, kept=()):
     """Every combination, at most PARALLEL at a time, by the built program directly. One row per simulation in
     table.csv, in the order they finish (sorted by number at the end); a run's own folder is removed once its row is written.
     kept: the rows of the table that stay as they are when combinations are added to an existing sweep."""
-    cols = ["i", *tools.OPTIONS, *[k for k in tools.EXTRA if k in brief["knobs"] or k in brief["system"]], *tools.MANIFEST["outputs"], "seconds", "error"]  # an option a brief may leave out has a column only where the brief sets it
+    cols = (["i", *tools.options({}, brief), *tools.outputs(brief), "seconds", "error"] if brief.get("topology") else   # a network: its simulation's settings and its knobs by address, then its own measures
+            ["i", *tools.OPTIONS, *[k for k in tools.EXTRA if k in brief["knobs"] or k in brief["system"]], *tools.MANIFEST["outputs"], "seconds", "error"])  # an option a brief may leave out has a column only where the brief sets it
     rows, running, nxt, t_start, first = list(kept), {}, 0, time.time(), len(kept)
     with (folder / "table.csv").open("w", newline="") as f:
         out = csv.DictWriter(f, cols)
@@ -330,7 +385,7 @@ def run_sweep(folder, brief, policy, combos, st, stop, kept=()):
             while nxt < len(combos) and len(running) < PARALLEL and not stop.is_set():
                 opts, d = tools.options(combos[nxt], brief), folder / "runs" / str(nxt)
                 d.mkdir(parents=True)
-                proc = subprocess.Popen([str(BIN)] + [f"--{k}={v}" for k, v in opts.items()] + [f"--out={d}"], cwd=d, stdout=subprocess.DEVNULL, stderr=(d / "stderr.txt").open("w"),
+                proc = subprocess.Popen(tools.command(opts, d, brief), cwd=d, stdout=subprocess.DEVNULL, stderr=(d / "stderr.txt").open("w"),
                                         env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy})
                 running[nxt] = (proc, d, time.time(), opts)
                 nxt += 1
@@ -378,8 +433,8 @@ def start_sweep(body):
         brief = tools.load_brief(body.get("brief", tools.DEFAULT_BRIEF))
     except ValueError as e:
         raise Refused(400, str(e))
-    if policy not in ("share", "cap") or not isinstance(grid, dict) or not grid or not all(isinstance(v, list) and v for v in grid.values()):
-        raise Refused(400, "a sweep needs policy (share or cap) and grid: {knob: [values, ...]} with at least one value per knob")
+    if policy not in tools.policies(brief) or not isinstance(grid, dict) or not grid or not all(isinstance(v, list) and v for v in grid.values()):
+        raise Refused(400, f"a sweep needs policy ({' or '.join(tools.policies(brief))}) and grid: {{knob: [values, ...]}} with at least one value per knob")
     if set(grid) - set(brief["knobs"]):
         raise Refused(400, f"the grid names settings that are not knobs of the brief: {', '.join(sorted(set(grid) - set(brief['knobs'])))}")
     for k, values in grid.items():
@@ -502,7 +557,7 @@ def start_session(body, who=None):
     checks/random.json: the session list then withholds its policy until the session has a score."""
     budget, draft, policy, base = body.get("budget"), body.get("draft", "on"), body.get("policy", body.get("mode", "share")), body.get("baseline", True)
     tokens, temp = body.get("max_tokens"), body.get("temperature")
-    if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or policy not in ("share", "cap", "random") or type(base) is not bool:
+    if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or policy not in ("share", "cap", "prio", "random") or type(base) is not bool:
         raise Refused(400, "budget must be a whole number of at least 1 (or left out: the brief's limit), draft on or off, policy (the scheduling policy) share, cap or random, baseline true or false")
     if (tokens is not None and (type(tokens) is not int or not 256 <= tokens <= 100000)) or (temp is not None and (type(temp) not in (int, float) or not 0 <= temp <= 2)):
         raise Refused(400, "max_tokens must be a whole number from 256 to 100000 and temperature a number from 0 to 2 (or left out: the loop's defaults)")
@@ -511,9 +566,11 @@ def start_session(body, who=None):
         raise Refused(400, "session must be the id of an existing session that has a session.json (leave it out to start a new one)")
     if brief is not None:
         try:
-            tools.load_brief(brief)
+            given = tools.load_brief(brief)
         except ValueError as e:
             raise Refused(400, str(e))
+        if policy == "prio" and "prio" not in tools.policies(given):
+            raise Refused(400, "the scheduling policy prio (the first flow of a scheduler's list first) exists only for a brief that has a network")
     with LOCK:
         now = running_now()
         running = {i for i, _ in now}
@@ -549,7 +606,7 @@ def start_session(body, who=None):
     return {"id": sid, "pid": proc.pid, "flags": shown}
 
 
-def stop_session(body=None, who=None):
+def stop_session(body=None, who=None, trusted=False):
     """Stops a session that was started here: the one named, or (the older page names none) the newest. who: the account
     that asks; only the account that started the session, or the owner, stops it."""
     with LOCK:
@@ -557,7 +614,7 @@ def stop_session(body=None, who=None):
         x = STARTED.get(sid)
         if not x or x["proc"].poll() is not None:
             raise Refused(409, "no session started here is running" if not (body or {}).get("session") else f"session {sid} is not running, or was not started from this server (stop it where it was started)")
-        if who not in (OWNER, x.get("by")):
+        if not trusted and who not in (OWNER, x.get("by")):
             raise Refused(403, f"session {sid} was started by {x.get('by')}: only {x.get('by')} or {OWNER}, who runs this page, can stop it")
         proc = x["proc"]
         os.killpg(proc.pid, signal.SIGTERM)  # the loop and the simulation it may be running
@@ -582,19 +639,66 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def local(self):
+        """Whether the connection comes from this machine itself (a browser here, or an SSH tunnel), not from the network."""
+        return self.client_address[0] == "127.0.0.1"
+
+    def key(self):
+        """The key of a personal link the request shows (its cookie, or ?key= in its address), if it is one that holds; else None."""
+        shown = [c.split("=", 1)[1].strip() for c in (self.headers.get("Cookie") or "").split(";") if c.strip().startswith("th_key=")]
+        shown += urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("key", [])
+        links = invited()
+        return next((k for k in shown if k in links), None)
+
+    def person(self):
+        """Who asks: the account of a connection from this machine; the name of a personal link shown from the network (with "(by link)"); None for any other visitor from the network."""
+        if self.local():
+            return account(peer_uid(self.client_address[1], self.server.server_address[1]))
+        k = self.key()
+        return f"{invited()[k]} (by link)" if k else None
+
     def send_head(self):
-        """The file server's own step for GET and HEAD. drafts.jsonl is given to nobody: no page reads it."""
-        if urllib.parse.unquote(self.path.split("?")[0].split("#")[0]).rstrip("/").split("/")[-1].lower() == "drafts.jsonl":
-            self.send_error(404, "drafts are not given out by this server")
+        """The file server's own step for GET and HEAD. drafts.jsonl is given to nobody: no page reads it. A visitor
+        from the network gets the page's own material only (OPEN_TO_NETWORK), never the list of accounts or the exports."""
+        path = urllib.parse.unquote(self.path.split("?")[0].split("#")[0])
+        parts = [p for p in path.split("/") if p]
+        if parts and parts[-1].lower() in ("drafts.jsonl", "access.json"):
+            self.send_error(404, "not given out by this server")
             return None
+        if "key=" in self.path and not self.local():  # a personal link, opened: the key goes into a cookie of this browser and out of the address
+            q = urllib.parse.urlparse(self.path)
+            rest = urllib.parse.urlencode([(k, v) for k, v in urllib.parse.parse_qsl(q.query, keep_blank_values=True) if k != "key"])
+            self.send_response(302)
+            if self.key():
+                self.send_header("Set-Cookie", f"th_key={self.key()}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax")
+            self.send_header("Location", (q.path if parts else "/viewer/") + ("?" + rest if rest else ""))
+            self.end_headers()
+            return None
+        if not self.local():
+            if not parts:  # the bare address: the page
+                self.send_response(302)
+                self.send_header("Location", "/viewer/")
+                self.end_headers()
+                return None
+            page_reads = parts == ["harness", "manifest.json"]  # the set-up page reads the list of measures and tools from it
+            if (parts[0] not in OPEN_TO_NETWORK and not page_reads) or ".." in parts or parts[-1].lower() == "people.jsonl" or parts[:2] == ["checks", "exports"]:
+                self.send_error(404, "not given out over the network")
+                return None
         return super().send_head()
 
+    def list_directory(self, path):
+        """A folder without an index page: listed for this machine itself, as always; not for a visitor from the network."""
+        if not self.local():
+            self.send_error(404, "folders are not listed over the network")
+            return None
+        return super().list_directory(path)
+
     def do_GET(self):
-        you = account(peer_uid(self.client_address[1], self.server.server_address[1]))
+        you, trusted = self.person(), not self.local() and self.key() is not None
         if self.path.split("?")[0] == "/api/status":
-            return self.answer(200, status(you))
+            return self.answer(200, status(you, self.local(), trusted))
         if self.path.split("?")[0] == "/api/sessions":
-            return self.answer(200, sessions(you))
+            return self.answer(200, sessions(you, trusted))
         if self.path.split("?")[0].startswith("/api/sweep/"):
             try:
                 return self.answer(200, sweep_status(self.path.split("?")[0].split("/")[3]))
@@ -604,7 +708,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         try:
-            who = account(peer_uid(self.client_address[1], self.server.server_address[1]))
+            trusted = not self.local() and self.key() is not None
+            if not self.local() and not trusted:
+                raise Refused(403, "view only: over the network this page can be read, but nothing can be started or changed. To use it fully, open it through a personal link from its owner, or through an SSH tunnel (the command is at the foot of the page)")
+            who = self.person()
             if who is None:
                 raise Refused(403, "refused: the account that opened this connection cannot be found, and everything started or changed here is noted with its account")
             origin, host = self.headers.get("Origin"), self.headers.get("Host", "")
@@ -619,7 +726,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 raise Refused(400, "the request is not JSON")
             if not isinstance(body, dict):
                 raise Refused(400, "the request must be a JSON object")
-            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body, who), "/api/stop": lambda: stop_session(body, who), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body), "/api/judge": lambda: save_judgement(body), "/api/export": lambda: export(body)}.get(self.path)
+            do = {"/api/run": lambda: operator_run(body), "/api/session": lambda: start_session(body, who), "/api/stop": lambda: stop_session(body, who, trusted), "/api/brief": lambda: save_brief(body), "/api/sweep": lambda: start_sweep(body), "/api/review": lambda: save_review(body), "/api/judge": lambda: save_judgement(body), "/api/export": lambda: export(body)}.get(self.path)
             m = re.fullmatch(r"/api/sweep/([^/]+)/stop", self.path)
             if m:
                 do = lambda: stop_sweep(m.group(1))
@@ -635,10 +742,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser(description="Serve the viewer and the operator's three controls on 127.0.0.1.")
     ap.add_argument("--port", type=int, default=PORT)
+    ap.add_argument("--network", choices=["on", "off"], default="off", help="on: also answer on the machine's network address, to look only (no POST, the page's own material only). Default off: 127.0.0.1 alone")
     a = ap.parse_args()
-    SERVING["port"] = a.port
-    srv = http.server.ThreadingHTTPServer((HOST, a.port), Handler)
-    print(f"control.py: http://{HOST}:{a.port}/viewer/  (files of {ROOT}; run by {OWNER}; every account of this machine may use the page; one session at a time)", flush=True)
+    SERVING.update(port=a.port, network=a.network == "on")
+    srv = http.server.ThreadingHTTPServer(("0.0.0.0" if a.network == "on" else HOST, a.port), Handler)
+    print(f"control.py: http://{HOST}:{a.port}/viewer/  (files of {ROOT}; run by {OWNER}; every account of this machine may use the page; one session at a time)"
+          + (f"; to look only, from the network: http://{socket.getfqdn()}:{a.port}/viewer/" if a.network == "on" else ""), flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

@@ -71,6 +71,13 @@ are given (`viewer/`, `sessions/` without the drafts, `briefs/`, `trace/`, `chec
 and the exports), and no folder is listed. The bar then says "view only". Without `--network on` the server answers
 on `127.0.0.1` alone.
 
+**A personal link** lets one person use the page fully from the network, with no tunnel and no account:
+`python3 harness/invite.py NAME` prints the page's address with a long key. Opened once in a browser (a computer or a
+phone), the key is kept in a cookie of that browser and taken out of the address; from then on that visitor is NAME
+and can do what the owner can. `invite.py --list` shows who has a link, `invite.py --remove NAME` ends one at once.
+The keys are in `checks/access.json` (the owner's file; not in git, never given over HTTP). The key travels over
+plain HTTP, so give a link only to somebody you would let work under your account.
+
 Sessions started through the page run under the account that runs the control server and use its model server.
 The draft files (`drafts.jsonl`) are given to nobody over HTTP.
 

@@ -146,6 +146,22 @@ def _value(node, values):
         raise DecisionRuleError("division by zero")
     return {"+": a + b, "-": a - b, "*": a * b, "/": a / b if b else 0}[node[1]]
 
+def pairs(text, measures, labels):
+    """Every (measure, label) a decision rule names, each once, in the order they stand in it."""
+    out = []
+    def walk(node):
+        if node[0] == "val":
+            if (node[1], node[2]) not in out:
+                out.append((node[1], node[2]))
+        else:
+            for n in node[1:]:
+                for m in (n if isinstance(n, list) else [n]):
+                    if isinstance(m, tuple):
+                        walk(m)
+    walk(parse(text, measures, labels))
+    return out
+
+
 def comparisons(text, measures, labels, values):
     """Each comparison of a decision rule with the numbers its two sides come to, in the order they stand in it:
     [(left, op, right, (left_kind, right_kind))]. A side's kind: "measured" (it holds a measured value), "number" (one number, as written),

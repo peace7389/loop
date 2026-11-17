@@ -6,3 +6,4 @@ __pycache__/
 .pre-change/
 checks/exports/
 checks/people.jsonl
+checks/access.json

@@ -43,7 +43,7 @@ Object.assign(EV, {
   tilesDone(P, sid) {
     const T = EV.tiles, base = `../sessions/${sid}/runs/`, todo = P.fresh.filter(d => { const R = T.runs[d.run] || (T.runs[d.run] = { rows: [], there: false }); R.metrics = d.sim.metrics; R.used = d.sim.params; R.collected = R.done = true; if (R.whole) return false; R.whole = true; return true; });
     if (!todo.length) return;
-    Promise.all(todo.map(async d => { const t = await EV.get(`${base}${d.run}/series.csv`), R = T.runs[d.run]; if (t != null) { R.there = true; R.rows = t.trim().split('\n').slice(1).map(l => l.split(',').slice(0, 3).map(Number)).filter(q => q.length === 3 && q.every(Number.isFinite)); } }))
+    Promise.all(todo.map(async d => { const t = await EV.get(`${base}${d.run}/series.csv`), R = T.runs[d.run]; if (t != null) { R.there = true; R.rows = EV.tileRows(t); } }))
       .then(() => { const el = document.getElementById('live-tiles'), now = EV.liveNow(); if (el && now && EV.M && EV.M.id === sid && el.dataset.exp === P.exp) el.innerHTML = EV.tilesHtml(now, true); });
   },
   // every two seconds while simulations run (from EV.liveTick, after the index was read): each tile's files, then the tiles that changed
@@ -51,7 +51,7 @@ Object.assign(EV, {
     const P = EV.tilePlan(now), T = EV.tiles; if (!P) return; if (T.key !== P.key) { T.key = P.key; T.runs = {}; T.more = false; }
     const base = `../sessions/${sid}/runs/`, idx = Object.fromEntries((EV.files.index || []).filter(q => q && q.id).map(q => [q.id, q]));
     const jobs = P.fresh.map(async d => { const R = T.runs[d.run] || (T.runs[d.run] = { rows: [], there: false }); if (R.done) return;
-      const t = await EV.get(`${base}${d.run}/series.csv`); if (t != null) { R.there = true; R.rows = t.trim().split('\n').slice(1).map(l => l.split(',').slice(0, 3).map(Number)).filter(q => q.length === 3 && q.every(Number.isFinite)); }
+      const t = await EV.get(`${base}${d.run}/series.csv`); if (t != null) { R.there = true; R.rows = EV.tileRows(t); }
       const q = idx[d.run]; if (q) { R.metrics = q.metrics; R.used = q.params; R.collected = true; }
       else if (!R.metrics && R.rows.length && R.rows[R.rows.length - 1][0] >= Number(d.params.duration) + 1 - 0.15) { const m = await EV.json(`${base}${d.run}/metrics.json`), u = m && await EV.json(`${base}${d.run}/params.json`); if (m && u) { R.metrics = m; R.used = u; } }
       R.done = !!(R.metrics && R.collected); });
@@ -83,10 +83,11 @@ Object.assign(EV, {
     // A tile says two things apart: what was SET (the settings in which this simulation differs from the brief's defaults), above the picture, and what was
     // MEASURED, under it: each measure a small name over its value (while it runs: the newest sample, under "now"). Each of the two has its label at the left.
     const val = (c, name, k, v) => `<span class="lt-v"><span class="lt-vn">${c ? `<i class="lt-sw" style="background:var(${c})"></i>` : ''}${name}</span><b>${v == null ? '–' : EV.v4(k, v)}</b></span>`;
-    const vals = R.metrics ? `${val('--series-1', 'UDP', 'udp_goodput_bps', R.metrics.udp_goodput_bps)}${val('--series-2', 'TCP', 'tcp_goodput_bps', R.metrics.tcp_goodput_bps)}${val('', 'UDP loss', 'udp_loss_frac', R.metrics.udp_loss_frac)}`
+    const N = EV.tileNames();  // the two flows a tile draws and the loss it names: UDP, TCP and UDP loss in the two-host set-up; a network's first two flows and its first UDP flow's loss
+    const vals = R.metrics ? `${val('--series-1', N.a[0], N.a[1], R.metrics[N.a[1]])}${N.b ? val('--series-2', N.b[0], N.b[1], R.metrics[N.b[1]]) : ''}${N.loss ? val('', N.loss[0], N.loss[1], R.metrics[N.loss[1]]) : ''}`
       // the three places are there from the start (a value that is not known yet is a dash, with the reason in its box), so that a tile keeps its height
       // from waiting to ended and nothing under the tiles moves; where three do not fit in one line of a narrow tile they wrap inside it (they ran out of it)
-      : `${val('--series-1', 'UDP', 'udp_bps', last ? last[1] : null)}${val('--series-2', 'TCP', 'tcp_bps', last ? last[2] : null)}${val('', 'UDP loss', 'udp_loss_frac', null)}`.replace(/<b>–<\/b>/g, `<b class="mut" title="${last ? 'Known when the simulation has ended' : 'No sample yet'}">–</b>`);
+      : `${val('--series-1', N.a[0], 'udp_bps', last ? last[1] : null)}${N.b ? val('--series-2', N.b[0], 'tcp_bps', last ? last[2] : null) : ''}${N.loss ? val('', N.loss[0], N.loss[1], null) : ''}`.replace(/<b>–<\/b>/g, `<b class="mut" title="${last ? 'Known when the simulation has ended' : 'No sample yet'}">–</b>`);
     const sig = `${state}|${rows.length}|${other ? 1 : 0}|${EV.tiles.more ? 1 : 0}`;
     // running or ended, at a glance: a badge at the right of the tile's name (the accent colour while it runs, grey once it has ended), a strip that fills as the
     // measured time passes, and the tile itself (a heavy accent edge on a bright ground while it runs; quiet once ended; a dashed edge while it waits)
@@ -115,7 +116,7 @@ Object.assign(EV, {
     const svg = ev.target.closest && ev.target.closest('svg.lt-plot'); if (!svg) return; const tile = svg.closest('.lt'), R = EV.tiles.runs[tile.dataset.run], read = tile.querySelector('.lt-read'), xl = svg.querySelector('.lt-x'); if (!R || !R.rows.length) return;
     const b = svg.getBoundingClientRect(), k = b.width / svg.viewBox.baseVal.width, px = (ev.clientX - b.left) / k, t = Number(svg.dataset.t0) + (Number(svg.dataset.t1) - Number(svg.dataset.t0)) * (px - Number(svg.dataset.l)) / Number(svg.dataset.w);
     const q = R.rows.reduce((a, c) => (Math.abs(c[0] - t) < Math.abs(a[0] - t) ? c : a)), X = Number(svg.dataset.l) + Number(svg.dataset.w) * (q[0] - Number(svg.dataset.t0)) / Math.max(Number(svg.dataset.t1) - Number(svg.dataset.t0), 1e-9);
-    xl.setAttribute('x1', X); xl.setAttribute('x2', X); xl.style.display = ''; read.innerHTML = `at ${(q[0] - 1).toFixed(1)} s: UDP <b>${EV.v4('udp_bps', q[1])}</b> · TCP <b>${EV.v4('tcp_bps', q[2])}</b>`;
+    xl.setAttribute('x1', X); xl.setAttribute('x2', X); xl.style.display = ''; const N = EV.tileNames(); read.innerHTML = `at ${(q[0] - 1).toFixed(1)} s: ${EV.e(N.a[0])} <b>${EV.v4('udp_bps', q[1])}</b>${N.b ? ` · ${EV.e(N.b[0])} <b>${EV.v4('tcp_bps', q[2])}</b>` : ''}`;
   },
   tileLeave(ev) { const svg = ev.target.closest && ev.target.closest('svg.lt-plot'); if (!svg || (ev.relatedTarget && svg.contains(ev.relatedTarget))) return;  // from the picture to one of its own lines is not leaving it
     const tile = svg.closest('.lt'), read = tile.querySelector('.lt-read'); svg.querySelector('.lt-x').style.display = 'none'; read.textContent = read.dataset.say; },

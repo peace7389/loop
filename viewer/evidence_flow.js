@@ -15,8 +15,8 @@ Object.assign(EV, {
     const cites = set => M.hyps.filter(q => q.id !== T.hyp && (q.follows || []).some(f => set.has(f))).map(q => q.id), direct = cites(own);
     return direct.length ? { ids: direct, via: '' } : { ids: cites(new Set([x.id, ...(x.evidence ? [x.evidence.id] : [])])), via: x.evidence ? x.evidence.id : x.id };
   },
-  measureOf(rules) { const t = rules.map(r => r.rule || '').join(' '), m = t.match(/([a-z_0-9]+)@/) || t.match(/\b(udp_\w+|tcp_\w+|link_util|drops_band\d)\b/); return m ? m[1] : 'tcp_goodput_bps'; },
-  measuresOf(rule) { return [...new Set([...String(rule || '').matchAll(/\b(udp_goodput_bps|tcp_goodput_bps|udp_loss_frac|drops_band0|drops_band1|tcp_retrans|link_util)\b/g)].map(m => m[1]))]; },
+  measureOf(rules) { const t = rules.map(r => r.rule || '').join(' '), m = t.match(/([a-z_0-9]+)@/) || t.match(/\b(udp_\w+|tcp_\w+|link_util|drops_band\d)\b/); return m ? m[1] : EV.outNames()[0] || 'tcp_goodput_bps'; },
+  measuresOf(rule) { const all = new Set(EV.outNames()); return [...new Set([...String(rule || '').matchAll(/\b([a-z][a-z0-9_]*)\b/g)].map(m => m[1]).filter(n => all.has(n)))]; },
   varying(sims) { return [...new Set(sims.flatMap(s => Object.keys(s.params)))].filter(k => new Set(sims.map(s => JSON.stringify(s.params[k]))).size > 1); },
   compared(T) {  // what a test compared, in a few words: the measures its rule names, at the simulations it names
     const ms = EV.measuresOf(T.rule).map(k => TH_DATA.PLAIN[k] || k).join(', ');
@@ -69,7 +69,7 @@ Object.assign(EV, {
   },
 
   // ---- the judged measure, one point per simulation, the control marked, the decision rule's threshold as a line
-  unit(k) { return /_bps$/.test(k) ? ['Mbps', v => v / 1e6] : ['udp_loss_frac', 'link_util'].includes(k) ? ['%', v => 100 * v] : ['', v => v]; },
+  unit(k) { return /_bps$/.test(k) ? ['Mbps', v => v / 1e6] : EV.measureKind(k) === 'share' ? ['%', v => 100 * v] : ['', v => v]; },
   thresholds(x, k, rules) {  // the rules' comparisons of the judged measure with something the page can work out
     const lab = Object.fromEntries(x.sims.map(s => [s.label, s.metrics || {}])), out = [];
     rules.forEach(r => String(r.rule || '').split(/\s+(?:AND|OR)\s+|&&|\|\|/i).forEach(cl => {

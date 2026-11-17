@@ -38,7 +38,8 @@ def main():
     if not (D / "session.json").is_file() or not (D / "report.json").is_file():
         ap.error(f"session {a.session} has no session.json or no report.json: only a session that ended with its report can be scored")
     meta, report = json.loads((D / "session.json").read_text()), json.loads((D / "report.json").read_text())
-    brief, outputs = meta["given"], tools.MANIFEST["outputs"]
+    brief = meta["given"]
+    outputs = tools.outputs(brief)
     lines = [json.loads(l) for l in (CHECKS / "operator.jsonl").read_text().splitlines() if l.strip()]
     policy = next((l.get("policy") or l.get("mode") for l in lines if l.get("session") == a.session), None)
     key_file = CHECKS / "keys" / f"{brief['id']}.json"
@@ -78,7 +79,7 @@ def main():
     d.mkdir(parents=True, exist_ok=True)
     stamp = [opts, policy, tools.BIN.stat().st_mtime]  # run again when the settings, the policy or the built program changed
     if not (d / "metrics.json").is_file() or not (d / "options.json").is_file() or json.loads((d / "options.json").read_text()) != stamp:
-        subprocess.run([str(tools.BIN)] + [f"--{k}={v}" for k, v in opts.items()] + [f"--out={d}"], cwd=d, check=True, capture_output=True, timeout=tools.RUN_TIMEOUT,
+        subprocess.run(tools.command(opts, d, brief), cwd=d, check=True, capture_output=True, timeout=tools.RUN_TIMEOUT,
                        env={"LD_LIBRARY_PATH": str(tools.NS3 / "build/lib"), "TWOHOSTS_SCHED": policy})
         (d / "options.json").write_text(json.dumps(stamp))
     at = json.loads((d / "metrics.json").read_text())
