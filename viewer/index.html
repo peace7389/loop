@@ -44,6 +44,8 @@
 .ev-bar label { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
 /* the top bar never changes: two groups, always all of their items, each at its own place (the buttons have one weight, so the one switched on is no wider) */
 .ev-nav .grp { display: inline-flex; gap: 6px; align-items: center; padding-right: 14px; border-right: 1px solid var(--border); }
+.ev-nav .run-now { display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--live, #1c9aa6); border-radius: 999px; padding: 2px 12px; background: color-mix(in srgb, var(--live, #1c9aa6) 10%, var(--surface-1)); color: var(--text-primary); cursor: pointer; font: inherit; font-weight: 400; } .ev-nav .run-now b { font-weight: 700; } .ev-nav .run-now span { color: var(--text-secondary); } .ev-nav .run-now .run-go { color: var(--text-primary); font-weight: 600; }
+.ev-nav .run-now.here { border-style: dashed; cursor: default; } .ev-nav .run-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--live, #1c9aa6); align-self: center; animation: run-dot 1.6s ease-in-out infinite; } @keyframes run-dot { 50% { opacity: .25; } } @media (prefers-reduced-motion: reduce) { .ev-nav .run-dot { animation: none; } }
 .ev-nav .cap { font-size: var(--f-note); font-weight: 600; color: var(--text-muted); margin-right: 2px; }
 .ev-nav select { width: 27em; max-width: 38vw; text-overflow: ellipsis; } .ev-nav button { font-weight: 600; } .ev-foot { margin-top: 18px; font-size: var(--f-sec); color: var(--text-muted); text-align: right; } .ev-bar .end { margin-left: auto; color: var(--text-secondary); font-weight: 400; }
 .ev-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; }

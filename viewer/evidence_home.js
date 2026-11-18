@@ -27,6 +27,11 @@ Object.assign(EV, {
   // a text that must stay on one line: cut with "…" by the style when its column is too narrow, and given in full on hover
   // the page is shared: which session is running and who started it, in one phrase (null when the server does not say who: an older server, an exported page)
   runningSays() { const r = ((EV.st || {}).running_now || []), you = (EV.st || {}).you; return r.length ? r.map(x => `<span id="run-who" data-id="${EV.e(x.id)}" data-by-account="${EV.e(x.by)}"><b>${EV.e(x.id)}</b> running now, started by <b>${EV.e(x.by)}</b>${x.by === you ? ' (you)' : ''}</span>`).join(' · ') : null; },
+  // the top bar of every view: a session that is running now, as one button that opens it (empty when none runs). st: the server's newest answer
+  runningPill(st) { st = st || EV.st || {}; const e = EV.e, S = EV.s, rows = st.sessions || [];
+    return (st.running_now || []).map(x => { const r = rows.find(q => q.id === x.id) || {}, here = (S.view === 'session' || S.view === 'operator') && S.sid === x.id;
+      const did = [r.brief ? `brief ${r.brief}` : '', r.turns ? `turn ${r.turns}` : 'starting', r.allowed ? `${r.simulations || 0} of ${r.allowed} simulations` : ''].filter(Boolean).join(' · ');
+      return `<button class="run-now${here ? ' here' : ''}" data-act="pick" data-id="${e(x.id)}" data-running="${e(x.id)}" aria-current="${here ? 'page' : 'false'}" title="${e(here ? `Session ${x.id} is running now, and this is its page.` : `Session ${x.id} is running now. Click to open its page and watch it.`)}"><i class="run-dot"></i><b>Running now: ${e(x.id)}</b> <span>${e(did)} · started by ${e(x.by)}${x.by === st.you ? ' (you)' : ''}</span>${here ? ' <span class="run-go">this page</span>' : ' <span class="run-go">open it →</span>'}</button>`; }).join(''); },
   // why a new session cannot start now (one session runs at a time), or null when it can
   mustWait() { const st = EV.st || {}, r = (st.running_now || [])[0];
     if (st.view_only) return 'You are looking at this page over the network, where it can only be read. To start a session, open the page through an SSH tunnel (the command is at the foot of the page).';

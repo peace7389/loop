@@ -65,6 +65,7 @@ const EV = {
   async load() {
     const st = await EV.json('../api/status'); if (!st || !Array.isArray(st.sessions)) { document.getElementById('ev').innerHTML = '<div class="ev-card">This page is served by harness/control.py, which lists the sessions. It does not answer.</div>'; return; }
     const S = EV.s, all = st.sessions, row = all.find(x => x.id === S.sid) || null, a = document.activeElement;
+    { const slot = document.getElementById('ev-running'), h = EV.runningPill(st); if (slot && EV.runH !== h) { EV.runH = h; slot.innerHTML = h; } }
     if (EV.sig && a && a.closest && a.closest('#ev') && ['INPUT', 'TEXTAREA'].includes(a.tagName) && a.type !== 'checkbox' && a.type !== 'radio') return;
     EV.st = st;
     if ((S.view === 'session' || S.view === 'operator') && !row) S.view = 'home';
@@ -95,6 +96,7 @@ const EV = {
       : `<div class="ev-bar ev-nav"><span class="grp" title="Pages about all sessions"><button data-act="view" data-id="home" class="${on('home')}">Home</button><button data-act="view" data-id="compare" class="${on('compare')}">Compare sessions</button><button data-act="new" data-id="new" class="${on('new')}" title="Set up a session: the network, who decides what, the aim, what the AI is told, the limits, and start the AI on it">New session</button></span>
       <span class="grp"><select data-ch="session" title="Choose one session to open: ${e(EV_DEF.Session)}"><option value="">choose a session…</option>${st.sessions.slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select>
       <button data-act="view" data-id="session" class="${on('session')}"${need}>Session</button><button data-act="view" data-id="operator" class="${on('operator')}"${need || ` title="${e(EV_DEF.Operator)}"`}>Operator</button></span>
+      <span id="ev-running">${EV.runH = EV.runningPill(st)}</span>
       ${st && st.view_only ? '<span class="pill" id="ev-viewonly" title="You are looking at this page over the network: it can be read, and nothing can be started or changed. The foot of the page says how to use it fully.">view only</span>' : ''}<label class="end" style="font-weight:400" title="Operator-only items: the scheduling policy, the gap to the best row of the sweep"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label></div>`;
     // the earlier pages are not part of this page's structure: one quiet line at the foot of every view
     // the page is shared with everybody who has an account on the machine it runs on: the one command that brings it to their own computer
