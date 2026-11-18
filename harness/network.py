@@ -13,6 +13,11 @@ common; where an end differs, or to put a queue on either or both of its sending
     "ends": {"a": {"rate": "200Mbps", "device_queue": 20, "queue": {"kind": "scheduler", "length": 100, "parts": {...}}},
              "b": {"queue": {"kind": "fifo", "length": 50}}}
 (the older form, "queue" with "on", describes the queue of one side and is read as before; a link may have it and, in "ends", the other side's).
+A flow is an ns-3 application and the socket it opens. "kind" is the socket (ns-3: the application's Protocol): udp or
+tcp. "app" is the application that sends: "onoff" (OnOffApplication, always on: packets of packet_bytes at a constant
+rate) or "bulk" (BulkSendApplication: as fast as the socket accepts, so it needs a TCP socket). Left out, a udp flow is
+onoff and a tcp flow is bulk, which is every flow written before 2026-11-18. So a tcp flow may send at a constant rate:
+    {"id": "t1", "kind": "tcp", "app": "onoff", "from": "a", "to": "b", "rate": "200Mbps", "packet_bytes": 1400, "type": "TcpCubic"}
 A scheduler has one queue for each of its parts. A part is named after one flow (that flow has the queue to itself), or
 after a class, a group of flows that share the queue: "classes": {"udp": ["u1", "u2"]}.
 
@@ -33,6 +38,11 @@ DEFAULT = {"hosts": [{"id": "sender"}, {"id": "receiver"}],
                       "queue": {"on": "sender", "kind": "scheduler", "length": 100, "parts": {"udp": 0.5, "tcp": 0.5}, "largest_rate": {}}}],
            "flows": [{"id": "udp", "kind": "udp", "from": "sender", "to": "receiver", "rate": "2Gbps", "packet_bytes": 1400},
                      {"id": "tcp", "kind": "tcp", "from": "sender", "to": "receiver", "type": "TcpCubic"}]}
+
+
+def app(f):
+    """The ns-3 application of a flow: 'onoff' (a constant rate) or 'bulk' (as fast as TCP accepts). Not stated: udp is onoff, tcp is bulk."""
+    return f.get("app") or ("onoff" if f.get("kind") == "udp" else "bulk")
 
 
 def rate_bps(s):
@@ -217,13 +227,19 @@ def problems(t, limits=None):
         if way is None:
             bad.append(f"flow {f['id']}: there is no way from {f['from']} to {f['to']} (no chain of links joins them)")
             continue
-        if f["kind"] == "udp":
+        if app(f) not in ("onoff", "bulk"):
+            bad.append(f"flow {f['id']}: app must be onoff (ns-3's OnOffApplication: a constant rate) or bulk (BulkSendApplication: as fast as TCP accepts)")
+            continue
+        if app(f) == "bulk" and f["kind"] == "udp":
+            bad.append(f"flow {f['id']}: ns-3's BulkSendApplication needs a TCP socket; over UDP an application sends at a constant rate (app onoff)")
+            continue
+        if app(f) == "onoff":
             mtu = min(next(l for l in t["links"] if l["id"] == link)["mtu"] for link, _ in way)
             if not ok(f"{f['id']}.rate", f.get("rate")):
                 bad.append(f"flow {f['id']}: rate = {f.get('rate')!r} is not a rate")
             if type(f.get("packet_bytes")) is not int or not 64 <= f["packet_bytes"] <= mtu - 28:
                 bad.append(f"flow {f['id']}: packet_bytes must be a whole number from 64 to {mtu - 28} (the smallest MTU on its way less 28 bytes of headers)")
-        elif f.get("type") not in TCP_TYPES:
+        if f["kind"] == "tcp" and f.get("type") not in TCP_TYPES:
             bad.append(f"flow {f['id']}: type must be one of {', '.join(TCP_TYPES)}")
     if bad:
         return bad
@@ -286,9 +302,9 @@ def settings(t):
             for f, v in (q.get("largest_rate") or {}).items():
                 out[f"{a}.largest_rate.{f}"] = v
     for f in t["flows"]:
-        if f["kind"] == "udp":
+        if app(f) == "onoff":
             out[f"{f['id']}.rate"], out[f"{f['id']}.packet_bytes"] = f["rate"], f["packet_bytes"]
-        else:
+        if f["kind"] == "tcp":
             out[f"{f['id']}.type"] = f["type"]
     return out
 
@@ -513,8 +529,9 @@ def text(t, run):
                     s += " classes=" + ",".join(f"{k}:{'+'.join(v)}" for k, v in q["classes"].items())
             lines.append(s)
     for f in t["flows"]:
-        lines.append(f"flow {f['id']} udp {f['from']} {f['to']} rate={str(f['rate']).replace(' ', '')} packet={f['packet_bytes']}" if f["kind"] == "udp"
-                     else f"flow {f['id']} tcp {f['from']} {f['to']} type={f['type']}")
+        sends = f" rate={str(f['rate']).replace(' ', '')} packet={f['packet_bytes']}" if app(f) == "onoff" else ""
+        lines.append(f"flow {f['id']} udp {f['from']} {f['to']}{sends}" if f["kind"] == "udp"   # app= is written only where it is not the kind's own (tcp with onoff), so every older network gives the same file
+                     else f"flow {f['id']} tcp {f['from']} {f['to']} type={f['type']}" + (" app=onoff" + sends if app(f) == "onoff" else ""))
     tcp = [f"{k}={run[n]}" for k, n in (("initcwnd", "tcpInitCwnd"), ("buf", "tcpBufBytes")) if run.get(n)]
     if tcp:
         lines.append("tcp " + " ".join(tcp))

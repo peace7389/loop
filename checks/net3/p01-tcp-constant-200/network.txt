@@ -1,0 +1,6 @@
+host sender
+host receiver
+link l1 sender receiver rate=1Gbps delay=50us mtu=1500 devq=10
+queue l1 sender kind=fifo length=100
+flow tcp tcp sender receiver type=TcpCubic app=onoff rate=200Mbps packet=1400
+run duration=10 seed=1

@@ -1,0 +1,5 @@
+host a
+host b
+link l a b rate=1Gbps delay=50us mtu=1500 devq=10
+flow u udp a b app=bulk
+run duration=2 seed=1

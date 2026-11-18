@@ -703,6 +703,30 @@ its queues: a name of its own (not a flow's, not used on the link's other
 side) that has a part, and the flows in it; every flow that passes the
 scheduler waits in exactly one of its queues.
 
+A flow is an ns-3 application and the socket it opens, and the two are
+separate choices (2026-11-18, at the operator's word that the page must match
+ns-3). `"kind"` is the socket, ns-3's `Protocol` of the application: `udp` or
+`tcp`. `"app"` is the application that sends: `onoff` (`OnOffApplication`,
+always on: `packet_bytes` at a time at the constant `rate`) or `bulk`
+(`BulkSendApplication`: as fast as the socket accepts). Left out, a `udp`
+flow is `onoff` and a `tcp` flow is `bulk`, which is every flow written
+before, and such a flow is still written without `app` (in the brief and in
+`network.txt`). So a TCP flow can send at a constant rate:
+`{"id": "t1", "kind": "tcp", "app": "onoff", "rate": "200Mbps",
+"packet_bytes": 1400, "type": "TcpCubic", ...}`; it has the settings
+`t1.rate`, `t1.packet_bytes` and `t1.type` and the measures of a TCP flow
+(goodput, segments sent again). `bulk` over `udp` is refused, by the harness
+and by the program, as ns-3 refuses it. The receiver of every flow is a
+`PacketSink`. The program's third build reads `app=onoff|bulk` on a flow's
+line; `checks/net3` holds its five predictions, all met (OnOff over TCP at
+200 Mbps alone delivers 200.0 Mbps; at 2 Gbps on a 1 Gbps link it delivers
+what BulkSend delivers; beside a 2 Gbps UDP flow under share it gets its
+100 Mbps and UDP the rest, 877.3 Mbps), and the 15 networks of `checks/net1`
+and `checks/net2` give byte-identical output. Not built: a change of
+structure by the AI adds a flow by its socket only (`add_flow` with `udp` or
+`tcp`), so it cannot add OnOff over TCP; on and off periods, start and stop
+times (TOPOLOGY.md, N3).
+
 Every setting has an **address**, object.property: `lc.rate`, `lc.delay`,
 `lc.mtu`, `lc.device_queue`, `lc.queue.length`, `lc.queue.parts.one`,
 `lc.queue.largest_rate.fb`, `fa.type`, `ub.rate`, `ub.packet_bytes`; of an
@@ -3250,6 +3274,7 @@ untracked until they say otherwise.
 | 2026-11-17 | The final report says what limits the result and which settings made no difference (the harness part was written on 2026-11-15 and finished now), shown on the page as "What limits the result"; the last violet edge is gone. |
 | 2026-11-17 | Two comparison arms for the question "does the hypothesis format help?": `loop.py --arm plain` (the same loop without hypotheses, decision rules and verdicts) and `random_search.py` (no model). |
 | 2026-11-17, late | The network follows ns-3's own parts (`TOPOLOGY.md`, stages N1 and N2): a link is a channel and two devices, each of which can have its own rate and transmit queue; a queue on either sending side of a link, or on both; several flows in one queue of a scheduler (a class). Second build of `net`, five predictions met (`checks/net2`), the ten earlier networks byte-identical. `network.py`, the builder and a session's page read all three; older briefs are read as before. In a hypothesis, `follows_from` may name a run id (found in s043). Session s043, the first under the mandatory look-again: a review after every tested hypothesis (9 in 6 turns). |
+| 2026-11-18 | The builder names ns-3's objects: a flow's application (OnOff, BulkSend) and its socket (UDP, TCP) are two choices of its card, so TCP can send at a constant rate (third build of `net`, `checks/net3`); the Link tool says that it brings a net device (NIC) at each end, the queue tools name their queue disc; a scheduler with a single queue is described as that. The brief `two-hosts-one-queue`. "The session at a glance" is unfolded whenever the page is loaded. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

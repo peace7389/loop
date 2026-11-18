@@ -1,0 +1,73 @@
+{
+ "program": "net (ns-3.49/scratch/net), third build: a flow line may say app=onoff|bulk; a tcp flow with app=onoff sends at a constant rate through ns-3's OnOffApplication",
+ "date": "2026-11-18",
+ "program_md5": "6f0768b29474cfc9095973496fea7324",
+ "built": "./ns3 build net in the ns-3 tree",
+ "against_the_second_build": "the 10 networks of checks/net1 and the 5 of checks/net2, run again with this build under their own scheduling policy, give byte-identical metrics.json and series.csv",
+ "harness_refuses_udp_bulk": [
+  "flow udp: ns-3's BulkSendApplication needs a TCP socket; over UDP an application sends at a constant rate (app onoff)"
+ ],
+ "checks": [
+  {
+   "n": 1,
+   "run": "p01-tcp-constant-200",
+   "what": "one TCP flow whose application is OnOff at 200 Mbps (packets of 1400 bytes), alone on a 1 Gbps link",
+   "predicted": "TCP goodput 200 Mbps (the application offers less than the link carries, and TCP delivers all of it); no segment sent again",
+   "measured": {
+    "tcp_goodput_bps": 200000640,
+    "tcp_retrans": 0,
+    "l1_util": 0.207715
+   },
+   "met": true
+  },
+  {
+   "n": 2,
+   "run": "p02-tcp-constant-2g",
+   "what": "the same flow offering 2 Gbps, twice what the link carries; beside it (p02b) the BulkSend application alone on the same link",
+   "predicted": "the link is the limit, so it delivers what BulkSend delivers alone on it (p02b), within 3 %",
+   "measured": {
+    "tcp_goodput_bps": 964048282,
+    "bulk_alone_bps": 964047123,
+    "tcp_retrans": 120,
+    "l1_util": 1.0
+   },
+   "met": true,
+   "note": "measured equal to 1 part in a million: with data waiting, TCP fills whole 1448-byte segments from what OnOff hands it, exactly as with BulkSend"
+  },
+  {
+   "n": 3,
+   "run": "p03-share-tcp-100",
+   "what": "the two-host network (scheduler 0.5 : 0.5, policy share): UDP offers 2 Gbps, TCP is OnOff at 100 Mbps, far below its half",
+   "predicted": "TCP 100 Mbps; UDP gets what TCP leaves: (1000 - 100 x 1454/1400) x 1400/1430 = 877.3 Mbps",
+   "measured": {
+    "udp_goodput_bps": 877343040,
+    "tcp_goodput_bps": 99999200,
+    "tcp_retrans": 0,
+    "l1_util": 1.0
+   },
+   "met": true
+  },
+  {
+   "n": 4,
+   "run": "p04-cap-tcp-100",
+   "what": "the same under the policy cap",
+   "predicted": "TCP 100 Mbps; UDP held to its half: 500 x 1400/1430 = 489.5 Mbps; the link is not full",
+   "measured": {
+    "udp_goodput_bps": 490196000,
+    "tcp_goodput_bps": 100000320,
+    "l1_util": 0.604558
+   },
+   "met": true
+  },
+  {
+   "n": 5,
+   "run": "p05-udp-bulk-refused",
+   "what": "a UDP flow whose application is BulkSend, written by hand into network.txt (the harness refuses it before the program is started)",
+   "predicted": "the program stops and says that BulkSendApplication needs a TCP socket",
+   "measured": {
+    "stopped": "aborted. cond=\"app == \"bulk\" && f.udp\", msg=\"flow 'u': BulkSendApplication needs a TCP socket\", file=/home/chunguck.kim/project/ns-3.49/scratch/net/net.cc, line=311"
+   },
+   "met": true
+  }
+ ]
+}

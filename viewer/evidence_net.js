@@ -28,6 +28,10 @@ Object.assign(EV, {
   },
   // the flows that wait in the queue of a scheduler's part: a class's flows, or the one flow the part is named after
   netMembers: (q, name) => ((q.classes || {})[name] || [name]),
+  // a flow is an ns-3 application and the socket it opens. kind is the socket (udp, tcp); app is the application: 'onoff' (OnOffApplication, a constant rate) or
+  // 'bulk' (BulkSendApplication, as fast as TCP accepts: TCP only). Not stated, a udp flow is onoff and a tcp flow is bulk (network.app in harness/network.py)
+  netApp: f => f.app || (f.kind === 'udp' ? 'onoff' : 'bulk'),
+  NET_APP: { onoff: ['OnOff', 'OnOffApplication', 'packets at a constant rate'], bulk: ['BulkSend', 'BulkSendApplication', 'always has data: as fast as TCP accepts'] },
   // the names of the measures of a network, as the harness makes them (network.outputs: keep the two alike)
   netOutNames(t) {
     const out = [];
@@ -53,7 +57,7 @@ Object.assign(EV, {
         for (const [f, v] of Object.entries(q.largest_rate || {})) out[`${a}.largest_rate.${f}`] = v;
       }
     }
-    for (const f of t.flows || []) { if (f.kind === 'udp') { out[`${f.id}.rate`] = f.rate; out[`${f.id}.packet_bytes`] = f.packet_bytes; } else out[`${f.id}.type`] = f.type; }
+    for (const f of t.flows || []) { if (EV.netApp(f) === 'onoff') { out[`${f.id}.rate`] = f.rate; out[`${f.id}.packet_bytes`] = f.packet_bytes; } if (f.kind === 'tcp') out[`${f.id}.type`] = f.type; }
     return out;
   },
   // the settings the network fixes (those the brief does not make knobs)
@@ -91,8 +95,8 @@ Object.assign(EV, {
           P[`${l.id}_drops_${f}`] = `drops of ${f} at ${l.id}`; W[`${l.id}_drops_${f}`] = cls ? `Packets of the flows ${who.join(', ')} thrown away at the queue they share (${f}) in the scheduler of link ${l.id} on ${h}'s side because the queue was full.` : `Packets of flow ${f} thrown away at its queue in the scheduler of link ${l.id} because the queue was full.`; } } }
     for (const f of t.flows || []) {
       P[`${f.id}_goodput_bps`] = `goodput of ${f.id}`; W[`${f.id}_goodput_bps`] = `What flow ${f.id} delivered to its receiver (${f.to}): payload bits per second over the measured time.`;
-      if (f.kind === 'udp') { K[`${f.id}.rate`] = `rate of ${f.id}`; K[`${f.id}.packet_bytes`] = `packet size of ${f.id}`; U[`${f.id}.packet_bytes`] = 'bytes';
-        P[`${f.id}_loss_frac`] = `loss of ${f.id}`; W[`${f.id}_loss_frac`] = `The share of the packets flow ${f.id} sent that never arrived.`; }
+      if (EV.netApp(f) === 'onoff') { K[`${f.id}.rate`] = `rate of ${f.id}`; K[`${f.id}.packet_bytes`] = `packet size of ${f.id}`; U[`${f.id}.packet_bytes`] = 'bytes'; }
+      if (f.kind === 'udp') { P[`${f.id}_loss_frac`] = `loss of ${f.id}`; W[`${f.id}_loss_frac`] = `The share of the packets flow ${f.id} sent that never arrived.`; }
       else { K[`${f.id}.type`] = `TCP type of ${f.id}`; P[`${f.id}_retrans`] = `segments ${f.id} sent again`; W[`${f.id}_retrans`] = `TCP segments the sender of flow ${f.id} sent a second time.`; } }
     Object.assign(TH_DATA.KNOB, K); Object.assign(EV.LABEL, K); Object.assign(TH_DATA.PLAIN, P); Object.assign(EV.SET_UNIT, U);
     Object.entries(U).forEach(([k, u]) => { TH_DATA.UNIT[k] = ' ' + u; }); EV.NET_SAYS = Object.assign(EV.NET_SAYS || {}, W);
@@ -119,7 +123,7 @@ Object.assign(EV, {
   netGeom(t) {
     const L = EV.netLayout(t), flows = t.flows || [], rowsOf = h => flows.filter(f => f.from === h || f.to === h), colGap = 190, rowGap = 44;
     // a box is as wide as its longest line needs (a flow it sends: "udp → receiver · UDP ✦ 2 Gbps"), between 178 and 290
-    const lineOf = (f, h) => (f.from === h ? `${f.id} → ${f.to} · ${f.kind === 'udp' ? 'UDP ✦ ' + f.rate : 'TCP ✦ ' + String(f.type).replace(/^Tcp/, '')}` : `${f.id} ← ${f.from}`).length;
+    const lineOf = (f, h) => (f.from === h ? `${f.id} → ${f.to} · ${f.kind === 'udp' ? 'UDP ✦ ' + f.rate : 'TCP ✦ ' + String(f.type).replace(/^Tcp/, '') + (EV.netApp(f) === 'onoff' ? ' · ✦ ' + f.rate : '')}` : `${f.id} ← ${f.from}`).length;
     const BW = Math.min(290, Math.max(178, 34 + 6.6 * Math.max(0, ...(t.hosts || []).flatMap(h => rowsOf(h.id).map(f => lineOf(f, h.id))))));
     const hOf = h => 34 + 17 * Math.max(1, rowsOf(h).length), colH = c => c.reduce((s, h) => s + hOf(h), 0) + rowGap * (c.length - 1), H = Math.max(120, ...L.cols.map(colH)) + 64, W = Math.max(1, L.cols.length) * BW + Math.max(0, L.cols.length - 1) * colGap + 24;
     const pos = {}; L.cols.forEach((c, i) => { let y = (H - colH(c)) / 2 + 6; c.forEach(h => { pos[h] = { x: 12 + i * (BW + colGap), y, w: BW, h: hOf(h) }; y += hOf(h) + rowGap; }); });
@@ -146,7 +150,7 @@ Object.assign(EV, {
       return `<g class="nl" data-link="${e(l.id)}">${lines}<text x="${mx}" y="${my - 21}" text-anchor="middle" class="sn">${e(l.id)}</text><text x="${mx}" y="${my - 8}" text-anchor="middle" class="sv">${star(`${l.id}.rate`)}${e(R(l.rate))} · ${star(`${l.id}.delay`)}${e(R(l.delay))}</text>${qmark}</g>`; }).join('');
     // hosts: a box with its name and one line for each flow it sends or receives
     const boxes = Object.keys(pos).map(h => { const p = pos[h], rows = rowsOf(h);
-      const line = (f, i) => { const sends = f.from === h, y = p.y + 38 + 17 * i, what = f.kind === 'udp' ? `UDP ${star(`${f.id}.rate`)}${R(f.rate)}` : `TCP ${star(`${f.id}.type`)}${String(f.type).replace(/^Tcp/, '')}`;
+      const line = (f, i) => { const sends = f.from === h, y = p.y + 38 + 17 * i, what = f.kind === 'udp' ? `UDP ${star(`${f.id}.rate`)}${R(f.rate)}` : `TCP ${star(`${f.id}.type`)}${String(f.type).replace(/^Tcp/, '')}${EV.netApp(f) === 'onoff' ? ` · ${star(`${f.id}.rate`)}${R(f.rate)}` : ''}`;
         return `<g data-flow="${e(f.id)}"><circle cx="${p.x + 13}" cy="${y - 4}" r="4.5" fill="${EV.netColor(t, f.id)}"/><text x="${p.x + 23}" y="${y}" class="sv"><tspan class="sn2">${e(f.id)}</tspan> ${sends ? `→ ${e(f.to)} · ${e(what)}` : `← ${e(f.from)}`}</text></g>`; };
       return `<g class="nh" data-host="${e(h)}"><rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="9"/><text x="${p.x + 10}" y="${p.y + 17}" class="sn">${e(h)}</text><text x="${p.x + p.w - 8}" y="${p.y + 17}" text-anchor="end" class="sv">${rows.length ? '' : 'forwards only'}</text>${rows.length ? rows.map(line).join('') : ''}</g>`; }).join('');
     const pol = o2.pol ? `<text x="${W / 2}" y="${H - 8}" text-anchor="middle" class="sv" id="sy-pol"${o2.op ? ' data-by="operator"' : ''}>${e(o2.pol)}</text>` : '';
@@ -155,7 +159,7 @@ Object.assign(EV, {
   // the objects of the network in words, beside the picture: its flows and its links, a ✦ before what the AI may change
   netSide(b) {
     const t = EV.net(b), e = EV.e, kn = (b && b.knobs) || {}, R = v => TASK_VIEW._rate(String(v)), s = k => (k in kn ? '<span class="nk" title="The AI may change it">✦</span> ' : '');
-    const flow = f => `<tr data-flow="${e(f.id)}"><td><i class="nf" style="background:${EV.netColor(t, f.id)}"></i><b>${e(f.id)}</b></td><td>${e(f.kind.toUpperCase())}</td><td>${e(f.from)} → ${e(f.to)}</td><td>${f.kind === 'udp' ? `${s(`${f.id}.rate`)}${e(R(f.rate))} · ${s(`${f.id}.packet_bytes`)}${e(f.packet_bytes)}-byte packets` : `${s(`${f.id}.type`)}${e(String(f.type).replace(/^Tcp/, ''))}`}</td></tr>`;
+    const flow = f => `<tr data-flow="${e(f.id)}"><td><i class="nf" style="background:${EV.netColor(t, f.id)}"></i><b>${e(f.id)}</b></td><td title="${e(`ns-3 ${EV.NET_APP[EV.netApp(f)][1]} on a ${f.kind.toUpperCase()} socket`)}">${e(EV.NET_APP[EV.netApp(f)][0])} · ${e(f.kind.toUpperCase())}</td><td>${e(f.from)} → ${e(f.to)}</td><td>${[EV.netApp(f) === 'onoff' ? `${s(`${f.id}.rate`)}${e(R(f.rate))} · ${s(`${f.id}.packet_bytes`)}${e(f.packet_bytes)}-byte packets` : 'always has data', f.kind === 'tcp' ? `${s(`${f.id}.type`)}${e(String(f.type).replace(/^Tcp/, ''))}` : ''].filter(Boolean).join(' · ')}</td></tr>`;
     const queue = ({ h, q, a }) => { const name = f => { const who = EV.netMembers(q, f); return who.length === 1 && who[0] === f ? e(f) : `${e(f)} (${e(who.join(' + '))}, one queue)`; };
       return `${e(q.kind === 'scheduler' ? 'scheduler' : 'plain queue')} on ${e(h)}'s side, ${s(`${a}.length`)}${e(q.length)} packets${q.kind === 'scheduler' ? ': ' + Object.entries(q.parts || {}).map(([f, v]) => `${s(`${a}.parts.${f}`)}${name(f)} ${e(v)}`).join(' : ') + (Object.keys(q.largest_rate || {}).length ? '; at most ' + Object.entries(q.largest_rate).map(([f, v]) => `${e(f)} ${e(R(v))}`).join(', ') : '') : ''}`; };
     // an end that states its own device: its rate and its transmit queue stand after the link's

@@ -10,7 +10,10 @@
 //   queue <link> <host> kind=fifo|scheduler length=100 [parts=<name>:<part>,...] [largest=<name>:<rate>,...] [classes=<name>:<flow>+<flow>,...]
 //         a part's name is a flow (that flow has a queue of its own), or a class: several flows that share one queue of the scheduler
 //   flow  <id> udp <from> <to> rate=2Gbps packet=1400
-//   flow  <id> tcp <from> <to> type=TcpCubic
+//   flow  <id> tcp <from> <to> type=TcpCubic [app=onoff rate=200Mbps packet=1400]
+//         udp or tcp is the socket the application opens (ns-3: its Protocol, a socket factory). app is the ns-3 application
+//         that sends: onoff (OnOffApplication, always on: packets at a constant rate) or bulk (BulkSendApplication: as fast
+//         as the socket accepts; it needs a TCP socket). Left out, a udp flow is onoff and a tcp flow is bulk.
 //   tcp   [initcwnd=10] [buf=1048576]          for every TCP flow
 //   run   duration=10 seed=1 [warmup=1]
 // A link has a queue on each of its two sending sides. A side a `queue` line names gets that queue (both sides may be
@@ -48,7 +51,8 @@ using namespace ns3;
 struct FlowState
 {
     std::string id;
-    bool udp = false;
+    bool udp = false;   // the socket: UDP, else TCP
+    bool onoff = false; // the application: OnOffApplication (a constant rate), else BulkSendApplication
     std::string from, to, type = "TcpCubic";
     std::string rate = "0bps";
     uint32_t packet = 1400;
@@ -302,6 +306,10 @@ main(int argc, char* argv[])
             f.rate = m.count("rate") ? m["rate"] : f.rate;
             f.packet = m.count("packet") ? std::stoul(m["packet"]) : f.packet;
             f.type = m.count("type") ? m["type"] : f.type;
+            std::string app = m.count("app") ? m["app"] : (f.udp ? "onoff" : "bulk");
+            NS_ABORT_MSG_IF(app != "onoff" && app != "bulk", "flow app must be onoff or bulk");
+            NS_ABORT_MSG_IF(app == "bulk" && f.udp, "flow '" << f.id << "': BulkSendApplication needs a TCP socket");
+            f.onoff = app == "onoff";
             f.port = 9000 + flows.size();
             flows.push_back(f);
         }
@@ -448,28 +456,37 @@ main(int argc, char* argv[])
         sink.Start(Seconds(0.0));
         sink.Stop(Seconds(tStop + 1.0));
         f.sink = DynamicCast<PacketSink>(sink.Get(0));
-        if (f.udp)
+        if (f.onoff)
         {
             if (DataRate(f.rate).GetBitRate() > 0)
             {
-                OnOffHelper udp(factory, dst);
-                udp.SetConstantRate(DataRate(f.rate), f.packet);
-                ApplicationContainer app = udp.Install(nodes.Get(from));
+                OnOffHelper onoff(factory, dst);
+                onoff.SetConstantRate(DataRate(f.rate), f.packet);
+                ApplicationContainer app = onoff.Install(nodes.Get(from));
                 app.Start(Seconds(f.startAt));
                 app.Stop(Seconds(tStop));
                 f.app = app.Get(0);
+            }
+        }
+        else
+        {
+            BulkSendHelper bulk(factory, dst);
+            bulk.SetAttribute("MaxBytes", UintegerValue(0));
+            ApplicationContainer app = bulk.Install(nodes.Get(from));
+            app.Start(Seconds(f.startAt));
+            app.Stop(Seconds(tStop));
+            f.app = app.Get(0);
+        }
+        if (f.udp)
+        {
+            if (f.app)
+            {
                 f.app->TraceConnectWithoutContext("Tx", MakeBoundCallback(&UdpTx, &f));
             }
             f.sink->TraceConnectWithoutContext("Rx", MakeBoundCallback(&UdpRx, &f));
         }
-        else
+        else if (f.app)
         {
-            BulkSendHelper tcp(factory, dst);
-            tcp.SetAttribute("MaxBytes", UintegerValue(0));
-            ApplicationContainer app = tcp.Install(nodes.Get(from));
-            app.Start(Seconds(f.startAt));
-            app.Stop(Seconds(tStop));
-            f.app = app.Get(0);
             // the flow's TCP type: the sending host makes its next socket of that type, just before the flow starts
             Ptr<Node> node = nodes.Get(from);
             std::string type = f.type;
@@ -478,7 +495,7 @@ main(int argc, char* argv[])
             });
             FlowState* fp = &f;
             Simulator::Schedule(Seconds(f.startAt) + MicroSeconds(1), [fp] {
-                Ptr<Socket> s = DynamicCast<BulkSendApplication>(fp->app)->GetSocket();
+                Ptr<Socket> s = DynamicCast<SourceApplication>(fp->app)->GetSocket();
                 if (s)
                 {
                     s->TraceConnectWithoutContext("CongestionWindow", MakeBoundCallback(&Cwnd, fp));
