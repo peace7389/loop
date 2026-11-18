@@ -86,18 +86,18 @@ def design_key(clean, edits):
 
 def edits_say(edits):
     """A list of changes in a few words, for an evidence line."""
-    one = lambda e: (f"+host {e['id']}" if e["do"] == "add_host" else f"+link {e['id']} {e['from']}-{e['to']}" if e["do"] == "add_link" else f"+{e['kind']} flow {e['id']} {e['from']}>{e['to']}" if e["do"] == "add_flow"
+    one = lambda e: (f"+host {e['id']}" if e["do"] == "add_host" else f"+link {e['id']} {e['from']}-{e['to']}" if e["do"] == "add_link" else f"+{e['kind']} flow {e['id']} {e['from']}>{e['to']}" + (" at a constant rate" if e.get("app") == "onoff" and e["kind"] == "tcp" else "") if e["do"] == "add_flow"
                      else f"+{e['kind'] or 'scheduler'} on {e['on']}'s side of {e['id']}" if e["do"] == "add_queue" else f"-{e['kind']} {e['id']}" + (f" ({e['on']}'s side)" if e.get("kind") == "queue" and e.get("on") else ""))
     return ", ".join(one(e) for e in edits)
 
 
 STRUCTURE = """
 
-In this session you may also change the structure of the network. A simulation of an experiment carries structure: a list of changes made, in order, to the network of the brief (always to the brief's network, never to that of an earlier simulation); an empty list runs the network as it is. A change states every field (do, id, kind, from, to, on, rate, type), with "" where one does not apply:
+In this session you may also change the structure of the network. A simulation of an experiment carries structure: a list of changes made, in order, to the network of the brief (always to the brief's network, never to that of an earlier simulation); an empty list runs the network as it is. A change states every field (do, id, kind, from, to, on, rate, type, app), with "" where one does not apply:
    - do add_host: id, a new name (at most 12 lower-case letters and digits, beginning with a letter).
    - do add_link: id, from and to (the two hosts it joins), rate (for example 1Gbps). One link for each two hosts.
-   - do add_flow: id, kind (udp or tcp), from, to, and rate for udp (for example 100Mbps) or type for tcp (for example TcpCubic). A flow needs one shortest way from its sender to its receiver.
-   - do add_queue: id (the link), on (the host whose sending side of the link it is), kind (scheduler or fifo). A scheduler gives each flow that passes it a part of the link. A link may have a queue on each of its two sides.
+   - do add_flow: id, kind (udp or tcp: the socket), from, to, and rate for udp (for example 100Mbps) or type for tcp (for example TcpCubic). app is the application that sends: "" for the usual one (udp: packets at a constant rate; tcp: always has data, as fast as TCP accepts), or onoff with kind tcp for a TCP flow that sends at the constant rate you state in rate. A flow needs one shortest way from its sender to its receiver.
+   - do add_queue: id (the link), on (the host whose sending side of the link it is), kind (scheduler, fifo, or another of ns-3's queue discs: pfifofast, codel, fqcodel, red, pie). A scheduler gives each flow that passes it a part of the link; fifo is one queue for all, first in, first out. A link may have a queue on each of its two sides.
    - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's; where the link has a queue on each side, on says which). A host goes with its links and with the flows that start or end at it.
 The brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network."""
 
@@ -851,8 +851,8 @@ def answer_format(schema, brief):
     schema["properties"]["report"]["anyOf"][0]["properties"]["no_difference"]["items"] = {"type": "string", "enum": list(props)}   # the brief's knobs
     if may_change(brief):  # a simulation may carry changes to the network, and the report recommends some: every field of a change is stated, in this order
         edit = {"type": "object", "additionalProperties": False, "required": list(network.EDIT), "properties": {
-            "do": {"type": "string", "enum": list(network.DOES)}, "id": {"type": "string"}, "kind": {"type": "string", "enum": ["", "udp", "tcp", "host", "link", "flow", "queue", "scheduler", "fifo"]},
-            "from": {"type": "string"}, "to": {"type": "string"}, "on": {"type": "string"}, "rate": {"type": "string"}, "type": {"type": "string"}}}
+            "do": {"type": "string", "enum": list(network.DOES)}, "id": {"type": "string"}, "kind": {"type": "string", "enum": ["", "udp", "tcp", "host", "link", "flow", "queue", "scheduler", *network.QUEUE_DISCS]},
+            "from": {"type": "string"}, "to": {"type": "string"}, "on": {"type": "string"}, "rate": {"type": "string"}, "type": {"type": "string"}, "app": {"type": "string", "enum": ["", "onoff", "bulk"]}}}
         item = ex["runs"]["items"]
         item["properties"]["structure"] = {"type": "array", "items": edit, "description": "the changes this simulation makes to the network of the brief, in order; an empty list: the network as it is"}
         item["required"] = [*item["required"], "structure"]

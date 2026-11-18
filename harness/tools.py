@@ -316,7 +316,8 @@ def clamp(params, brief=None, design=None):
                 while spec["min"] + n * spec["step"] > spec["max"] + 1e-12:
                     n -= 1
                 nv = round(spec["min"] + n * spec["step"], 10)
-            nv = int(round(nv)) if isinstance(spec["min"], int) else nv
+            # a whole number where the setting is one: in a network by the setting's kind (a loss or a time whose lowest value is written 0 is not), else by how the brief writes its range
+            nv = int(round(nv)) if (kind(k, b) == "int" if b.get("topology") else isinstance(spec["min"], int)) else nv
         if nv != v:
             clamps[k] = [v, nv]
         clean[k] = nv

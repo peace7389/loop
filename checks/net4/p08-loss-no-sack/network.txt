@@ -1,0 +1,7 @@
+host sender
+host receiver
+link l1 sender receiver rate=1Gbps delay=50us mtu=1500 devq=10
+flow tcp tcp sender receiver type=TcpNewReno
+dev l1 receiver loss=0.001
+tcp sack=0
+run duration=10 seed=1

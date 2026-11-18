@@ -18,6 +18,15 @@ tcp. "app" is the application that sends: "onoff" (OnOffApplication, always on: 
 rate) or "bulk" (BulkSendApplication: as fast as the socket accepts, so it needs a TCP socket). Left out, a udp flow is
 onoff and a tcp flow is bulk, which is every flow written before 2026-11-18. So a tcp flow may send at a constant rate:
     {"id": "t1", "kind": "tcp", "app": "onoff", "from": "a", "to": "b", "rate": "200Mbps", "packet_bytes": 1400, "type": "TcpCubic"}
+A flow may also state its application's times, as ns-3 has them: "start" and "stop" (StartTime and StopTime, seconds of the
+simulation; left out: 1 s and the end; the measured seconds begin at 2 s), for OnOff "on_time" and "off_time" (the lengths
+of its on and off periods, given together; left out: always on) and "max_bytes" (it stops after that many bytes).
+An end of a link may state its device's own "mtu" and its "loss": the part of the packets arriving at that device that it
+receives in error and drops (ns-3: a RateErrorModel as the device's ReceiveErrorModel); the measure <link>_lost_<host> counts them.
+A queue's kind is the queue disc of that device: one of ns-3's own (QUEUE_DISCS: fifo, pfifofast, codel, fqcodel, red, pie; each with
+ns-3's own settings and "length" as its MaxSize) or "scheduler", this project's FlowQueueDisc.
+TCP's options are settings of the whole simulation, as ns-3's attribute defaults are: tcpSack and tcpTimestamps (1 or 0), tcpDelAck
+(the segments one acknowledgement may wait for), beside tcpInitCwnd and tcpBufBytes.
 A scheduler has one queue for each of its parts. A part is named after one flow (that flow has the queue to itself), or
 after a class, a group of flows that share the queue: "classes": {"udp": ["u1", "u2"]}.
 
@@ -32,7 +41,10 @@ import copy, re
 ID = r"[a-z][a-z0-9]{0,11}"
 LIMITS = {"hosts": 8, "links": 12, "flows": 8}     # the most a network may hold
 TCP_TYPES = ("TcpCubic", "TcpNewReno", "TcpLinuxReno", "TcpBbr", "TcpVegas", "TcpBic")
-RUN = ("duration", "seed", "tcpInitCwnd", "tcpBufBytes")   # settings of a simulation that belong to no object (as in two-hosts)
+QUEUE_DISCS = {"fifo": "FifoQueueDisc", "pfifofast": "PfifoFastQueueDisc", "codel": "CoDelQueueDisc", "fqcodel": "FqCoDelQueueDisc", "red": "RedQueueDisc", "pie": "PieQueueDisc"}   # a queue's kind -> ns-3's queue disc (scheduler: the project's FlowQueueDisc)
+QUEUE_KINDS = (*QUEUE_DISCS, "scheduler")
+FLOW_TIMES = ("start", "stop", "on_time", "off_time", "max_bytes")   # what a flow may state of its application's times, in this order
+RUN = ("duration", "seed", "tcpInitCwnd", "tcpBufBytes", "tcpSack", "tcpTimestamps", "tcpDelAck")   # settings of a simulation that belong to no object (as in two-hosts)
 DEFAULT = {"hosts": [{"id": "sender"}, {"id": "receiver"}],
            "links": [{"id": "l1", "between": ["sender", "receiver"], "rate": "1Gbps", "delay": "50us", "mtu": 1500, "device_queue": 10,
                       "queue": {"on": "sender", "kind": "scheduler", "length": 100, "parts": {"udp": 0.5, "tcp": 0.5}, "largest_rate": {}}}],
@@ -64,6 +76,8 @@ def kind(address):
     last = address.split(".")
     if address in RUN:
         return "number" if address == "duration" else "int"
+    if last[-1] in ("start", "stop", "on_time", "off_time", "loss"):
+        return "number"
     if "largest_rate" in last or last[-1] == "rate":
         return "rate"
     if last[-1] == "delay":
@@ -85,15 +99,18 @@ def ok(address, v):
             return seconds(v) >= 0
         if k == "choice":
             return v in TCP_TYPES
-        if k == "number":
-            return type(v) in (int, float) and v > 0
-        least = {"mtu": 576, "packet_bytes": 64, "tcpBufBytes": 4096}.get(address.split(".")[-1], 1)
+        word = address.split(".")[-1]
+        if k == "number":   # a part and an on period are above 0; a time may be 0; a loss is a part of the packets
+            return type(v) in (int, float) and (0 <= v <= 1 if word == "loss" else v >= 0 if word in ("start", "stop", "off_time") else v > 0)
+        if word in ("tcpSack", "tcpTimestamps"):
+            return v in (0, 1) and type(v) is int
+        least = {"mtu": 576, "packet_bytes": 64, "tcpBufBytes": 4096}.get(word, 1)
         return type(v) is int and v >= least
     except (TypeError, ValueError):
         return False
 
 
-KEPT = ("duration", "seed", "queue", "parts", "ends", "classes", "largest_rate", "length", "rate", "delay", "mtu", "device_queue", "type", "packet_bytes")   # no object is named so: they are words of an address
+KEPT = ("duration", "seed", "queue", "parts", "ends", "classes", "largest_rate", "length", "rate", "delay", "mtu", "device_queue", "type", "packet_bytes", "start", "stop", "on_time", "off_time", "max_bytes", "loss")   # no object is named so: they are words of an address
 
 
 def ends(l):
@@ -102,7 +119,7 @@ def ends(l):
     e, q, out = l.get("ends") or {}, l.get("queue"), {}
     for h in l["between"]:
         x = e.get(h) or {}
-        out[h] = {"rate": x.get("rate", l.get("rate")), "device_queue": x.get("device_queue", l.get("device_queue")),
+        out[h] = {"rate": x.get("rate", l.get("rate")), "device_queue": x.get("device_queue", l.get("device_queue")), "mtu": x.get("mtu", l.get("mtu")), "loss": x.get("loss"),
                   "queue": x["queue"] if "queue" in x else ({k: v for k, v in q.items() if k != "on"} if isinstance(q, dict) and q.get("on") == h else None)}
     return out
 
@@ -207,12 +224,12 @@ def problems(t, limits=None):
                 bad.append(f"link {l['id']}: {p} = {l.get(p)!r} is not a value the program accepts")
         e = l.get("ends")
         if e is not None:   # a link whose two ends are described each by itself
-            if not isinstance(e, dict) or set(e) - set(b) or not all(isinstance(x, dict) and not set(x) - {"rate", "device_queue", "queue"} for x in e.values()) \
+            if not isinstance(e, dict) or set(e) - set(b) or not all(isinstance(x, dict) and not set(x) - {"rate", "device_queue", "mtu", "loss", "queue"} for x in e.values()) \
                     or (isinstance(l.get("queue"), dict) and "queue" in (e.get(l["queue"].get("on")) or {})):
-                bad.append(f"link {l['id']}: ends describes its two devices by their hosts ({b[0]}, {b[1]}), each with rate, device_queue and queue where it has its own; one side has one queue (the older queue, or its end's)")
+                bad.append(f"link {l['id']}: ends describes its two devices by their hosts ({b[0]}, {b[1]}), each with rate, device_queue, mtu, loss and queue where it has its own; one side has one queue (the older queue, or its end's)")
                 continue
             for h, x in e.items():
-                bad += [f"link {l['id']}, the device of {h}: {p} = {x[p]!r} is not a value the program accepts" for p in ("rate", "device_queue") if p in x and not ok(f"{l['id']}.{h}.{p}", x[p])]
+                bad += [f"link {l['id']}, the device of {h}: {p} = {x[p]!r} is not a value the program accepts" for p in ("rate", "device_queue", "mtu", "loss") if p in x and not ok(f"{l['id']}.{h}.{p}", x[p])]
     if bad:
         return bad
     for f in t["flows"]:
@@ -234,26 +251,33 @@ def problems(t, limits=None):
             bad.append(f"flow {f['id']}: ns-3's BulkSendApplication needs a TCP socket; over UDP an application sends at a constant rate (app onoff)")
             continue
         if app(f) == "onoff":
-            mtu = min(next(l for l in t["links"] if l["id"] == link)["mtu"] for link, _ in way)
+            mtu = min(min(x["mtu"] for x in ends(next(l for l in t["links"] if l["id"] == link)).values()) for link, _ in way)
             if not ok(f"{f['id']}.rate", f.get("rate")):
                 bad.append(f"flow {f['id']}: rate = {f.get('rate')!r} is not a rate")
             if type(f.get("packet_bytes")) is not int or not 64 <= f["packet_bytes"] <= mtu - 28:
                 bad.append(f"flow {f['id']}: packet_bytes must be a whole number from 64 to {mtu - 28} (the smallest MTU on its way less 28 bytes of headers)")
         if f["kind"] == "tcp" and f.get("type") not in TCP_TYPES:
             bad.append(f"flow {f['id']}: type must be one of {', '.join(TCP_TYPES)}")
+        bad += [f"flow {f['id']}: {p} = {f[p]!r} is not a value the program accepts" for p in FLOW_TIMES if p in f and not ok(f"{f['id']}.{p}", f[p])]
+        if ("on_time" in f) != ("off_time" in f):
+            bad.append(f"flow {f['id']}: on_time and off_time are given together (the lengths of the on and the off period)")
+        elif "on_time" in f and app(f) != "onoff":
+            bad.append(f"flow {f['id']}: ns-3's BulkSendApplication has no on and off periods; they belong to OnOff (app onoff)")
+        if all(type(f.get(p)) in (int, float) for p in ("start", "stop")) and f["stop"] <= f["start"]:
+            bad.append(f"flow {f['id']}: it stops (stop = {f['stop']}) before it starts (start = {f['start']})")
     if bad:
         return bad
     for l in t["links"]:   # the older form names the side of its queue
         q = l.get("queue")
         if q is not None and not (isinstance(q, dict) and q.get("on") in l["between"]):
-            bad.append(f"the queue of link {l['id']} needs on (one of its two hosts), kind (fifo or scheduler) and length (packets, at least 1)")
+            bad.append(f"the queue of link {l['id']} needs on (one of its two hosts), kind ({', '.join(QUEUE_KINDS[:-1])} or scheduler) and length (packets, at least 1)")
     if bad:
         return bad
     waits, named = through(t), {}
     for l, h, q, a in queues(t):
         of = f"the queue of link {l['id']}" + (f" on the side of {h}" if a.count(".") == 2 else "")
-        if not isinstance(q, dict) or q.get("kind") not in ("fifo", "scheduler") or type(q.get("length")) is not int or q["length"] < 1:
-            bad.append(f"{of} needs " + ("on (one of its two hosts), " if a.count(".") == 1 else "") + "kind (fifo or scheduler) and length (packets, at least 1)")
+        if not isinstance(q, dict) or q.get("kind") not in QUEUE_KINDS or type(q.get("length")) is not int or q["length"] < 1:
+            bad.append(f"{of} needs " + ("on (one of its two hosts), " if a.count(".") == 1 else "") + f"kind ({', '.join(QUEUE_KINDS[:-1])} or scheduler) and length (packets, at least 1)")
             continue
         if q["kind"] != "scheduler":
             continue
@@ -292,7 +316,7 @@ def settings(t):
         for p in ("rate", "delay", "mtu", "device_queue"):
             out[f"{l['id']}.{p}"] = l[p]
         for h, x in (l.get("ends") or {}).items():   # what an end states of its own device
-            for p in ("rate", "device_queue"):
+            for p in ("rate", "device_queue", "mtu", "loss"):
                 if p in x:
                     out[f"{l['id']}.{h}.{p}"] = x[p]
         for _, h, q, a in ((x for x in queues(t) if x[0] is l)):
@@ -306,6 +330,9 @@ def settings(t):
             out[f"{f['id']}.rate"], out[f"{f['id']}.packet_bytes"] = f["rate"], f["packet_bytes"]
         if f["kind"] == "tcp":
             out[f"{f['id']}.type"] = f["type"]
+        for p in FLOW_TIMES:   # what the flow states of its application's times (left out: the program's, and no setting)
+            if p in f:
+                out[f"{f['id']}.{p}"] = f[p]
     return out
 
 
@@ -343,6 +370,9 @@ def outputs(t):
         e = ends(l)
         out[f"{l['id']}_util"] = f"bits sent on link {l['id']} from {a} to {b}, divided by the " + ("link's rate" if e[a]["rate"] == l["rate"] else f"rate of {a}'s device")
         out[f"{l['id']}_util_back"] = f"the same from {b} to {a}" + ("" if e[b]["rate"] == l["rate"] else f", divided by the rate of {b}'s device")
+        for h in (a, b):
+            if e[h]["loss"] is not None:
+                out[f"{l['id']}_lost_{h}"] = f"packets the device of {h} on link {l['id']} received in error and dropped (its loss)"
         # the drops, named as the program names them: a scheduler's by its parts; a plain queue's <link>_drops, and <link>_drops_back for the
         # side that is not described (or, where both sides have a described plain queue, for the side of the second host)
         given, front, back = [e[h]["queue"] is not None for h in (a, b)], {}, {}
@@ -364,7 +394,7 @@ def outputs(t):
     return out
 
 
-EDIT = ("do", "id", "kind", "from", "to", "on", "rate", "type")   # the fields of one change, all stated every time ("" where one does not apply)
+EDIT = ("do", "id", "kind", "from", "to", "on", "rate", "type", "app")   # the fields of one change, all stated every time ("" where one does not apply)
 DOES = ("add_host", "add_link", "add_flow", "add_queue", "remove")
 
 
@@ -426,13 +456,16 @@ def apply(t, edits):
         elif do == "add_flow":
             if e.get("kind") not in ("udp", "tcp") or e.get("from") not in hosts or e.get("to") not in hosts:
                 raise ValueError(f"{n}: a flow needs a kind (udp or tcp) and two hosts of the network (from, to)")
+            if e.get("app") not in (None, "", "onoff", "bulk") or (e.get("app") == "bulk" and e["kind"] == "udp"):
+                raise ValueError(f"{n}: app is onoff (a constant rate), bulk (always has data: tcp only) or empty (udp: onoff, tcp: bulk)")
             t["flows"].append({"id": oid, "kind": "udp", "from": e["from"], "to": e["to"], "rate": e.get("rate") or "100Mbps", "packet_bytes": 1400} if e["kind"] == "udp"
+                              else {"id": oid, "kind": "tcp", "app": "onoff", "from": e["from"], "to": e["to"], "rate": e.get("rate") or "100Mbps", "packet_bytes": 1400, "type": e.get("type") or "TcpCubic"} if e.get("app") == "onoff"
                               else {"id": oid, "kind": "tcp", "from": e["from"], "to": e["to"], "type": e.get("type") or "TcpCubic"})
         elif do == "add_queue":
             link = next((l for l in t["links"] if l["id"] == oid), None)
             if link is None or e.get("on") not in link["between"] or ends(link)[e["on"]]["queue"] is not None:
                 raise ValueError(f"{n}: a queue is put on a side of a link that has none there (id: the link; on: one of its two hosts)")
-            new = {"kind": e.get("kind") if e.get("kind") in ("scheduler", "fifo") else "scheduler", "length": 100, "parts": {}, "largest_rate": {}}
+            new = {"kind": e.get("kind") if e.get("kind") in QUEUE_KINDS else "scheduler", "length": 100, "parts": {}, "largest_rate": {}}
             if not any(x["queue"] is not None for x in ends(link).values()):
                 link["queue"] = {"on": e["on"], **new}   # the first queue of a link: the older form, as before
             else:   # the other side's: in the link's ends (the first keeps its place and its addresses)
@@ -516,7 +549,7 @@ def text(t, run):
     for l in t["links"]:
         lines.append(f"link {l['id']} {l['between'][0]} {l['between'][1]} rate={l['rate']} delay={l['delay']} mtu={l['mtu']} devq={l['device_queue']}".replace(" Mbps", "Mbps"))
         for h, x in (l.get("ends") or {}).items():   # a device that differs from its link's line
-            own = [f"{k}={str(x[p]).replace(' ', '')}" for k, p in (("rate", "rate"), ("devq", "device_queue")) if p in x and x[p] != l[p]]
+            own = [f"{k}={str(x[p]).replace(' ', '')}" for k, p in (("rate", "rate"), ("devq", "device_queue"), ("mtu", "mtu")) if p in x and x[p] != l[p]] + ([f"loss={x['loss']}"] if "loss" in x else [])
             if own:
                 lines.append(f"dev {l['id']} {h} " + " ".join(own))
         for _, h, q, a in (x for x in queues(t) if x[0] is l):
@@ -530,9 +563,10 @@ def text(t, run):
             lines.append(s)
     for f in t["flows"]:
         sends = f" rate={str(f['rate']).replace(' ', '')} packet={f['packet_bytes']}" if app(f) == "onoff" else ""
+        sends += "".join(f" {k}={f[p]}" for k, p in (("start", "start"), ("stop", "stop"), ("on", "on_time"), ("off", "off_time"), ("maxbytes", "max_bytes")) if p in f)
         lines.append(f"flow {f['id']} udp {f['from']} {f['to']}{sends}" if f["kind"] == "udp"   # app= is written only where it is not the kind's own (tcp with onoff), so every older network gives the same file
-                     else f"flow {f['id']} tcp {f['from']} {f['to']} type={f['type']}" + (" app=onoff" + sends if app(f) == "onoff" else ""))
-    tcp = [f"{k}={run[n]}" for k, n in (("initcwnd", "tcpInitCwnd"), ("buf", "tcpBufBytes")) if run.get(n)]
+                     else f"flow {f['id']} tcp {f['from']} {f['to']} type={f['type']}" + (" app=onoff" + sends if app(f) == "onoff" else sends))
+    tcp = [f"{k}={run[n]}" for k, n in (("initcwnd", "tcpInitCwnd"), ("buf", "tcpBufBytes"), ("delack", "tcpDelAck")) if run.get(n)] + [f"{k}={run[n]}" for k, n in (("sack", "tcpSack"), ("timestamps", "tcpTimestamps")) if run.get(n) in (0, 1)]
     if tcp:
         lines.append("tcp " + " ".join(tcp))
     lines.append(f"run duration={run['duration']} seed={run['seed']}")

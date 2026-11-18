@@ -1,0 +1,118 @@
+{
+ "program": "net (ns-3.49/scratch/net), fourth build: start=, stop=, on=, off=, maxbytes= on a flow's line; mtu= and loss= on a dev line (and <link>_lost_<host>); sack=, timestamps=, delack= on the tcp line; queue kinds pfifofast, codel, fqcodel, red, pie",
+ "date": "2026-11-18",
+ "program_md5": "55493c0ac6d21c9b197986ed0d29da95",
+ "built": "./ns3 build net in the ns-3 tree",
+ "against_the_third_build": "the 20 recorded networks of checks/net1, net2 and net3, run again with this build under their own scheduling policy, give byte-identical metrics.json and series.csv",
+ "checks": [
+  {
+   "n": 1,
+   "run": "p01-start-stop",
+   "what": "a UDP flow of 100 Mbps that starts at 4 s and stops at 9 s; the measured seconds are 2 to 12",
+   "predicted": "it sends for 5 of the 10 measured seconds: goodput 50 Mbps over them, no loss",
+   "measured": {
+    "udp_goodput_bps": 49996800,
+    "udp_loss_frac": 0.0
+   },
+   "met": true
+  },
+  {
+   "n": 2,
+   "run": "p02-on-off",
+   "what": "the same flow on for 0.5 s and off for 1.5 s, again and again",
+   "predicted": "on a quarter of the time: goodput 25 Mbps",
+   "measured": {
+    "udp_goodput_bps": 24999520,
+    "udp_loss_frac": 0.0
+   },
+   "met": true
+  },
+  {
+   "n": 3,
+   "run": "p03-max-bytes",
+   "what": "a BulkSend application that starts at 3 s and sends 250 MB (2000 Mbit) in all, alone on a 1 Gbps link",
+   "predicted": "all of it arrives inside the measured seconds (it needs about 2.1 s): goodput 2000 Mbit / 10 s = 200 Mbps",
+   "measured": {
+    "tcp_goodput_bps": 200000000,
+    "tcp_retrans": 30,
+    "l1_util": 0.207459
+   },
+   "met": true
+  },
+  {
+   "n": 4,
+   "run": "p04-on-off-over-bulk-refused",
+   "what": "on and off periods on a BulkSend application",
+   "predicted": "the program stops: BulkSendApplication has no on and off periods",
+   "measured": {
+    "stopped": "aborted. cond=\"f.on >= 0 && !f.onoff\", msg=\"flow 'tcp': BulkSendApplication has no on and off periods\", file=/home/chunguck.kim/project/ns-3.49/scratch/net/net.cc, line=343"
+   },
+   "met": true
+  },
+  {
+   "n": 5,
+   "run": "p05-loss",
+   "what": "the receiver's device receives 10 % of the packets in error; UDP 100 Mbps",
+   "predicted": "UDP loss 0.10 (within 0.005), goodput 90 Mbps; l1_lost_receiver about a tenth of the 89 286 packets sent",
+   "measured": {
+    "udp_goodput_bps": 90007680,
+    "udp_loss_frac": 0.099915,
+    "l1_lost_receiver": 8921
+   },
+   "met": true
+  },
+  {
+   "n": 6,
+   "run": "p06-mtu-1000",
+   "what": "the sender's device carries packets of at most 1000 bytes on a 100 Mbps link (p06b: the same with 1500)",
+   "predicted": "a full segment is 948 bytes in a 1000-byte packet (+2 on the wire): goodput 100 x 948/1002 = 94.61 Mbps, against 100 x 1448/1502 = 96.40 with 1500",
+   "measured": {
+    "tcp_goodput_bps": 94610400,
+    "with_1500_bps": 96404365
+   },
+   "met": true
+  },
+  {
+   "n": 7,
+   "run": "p07-no-timestamps",
+   "what": "TCP without the timestamp option on a 100 Mbps link",
+   "predicted": "a segment carries 1460 bytes in place of 1448: goodput 100 x 1460/1502 = 97.20 Mbps",
+   "measured": {
+    "tcp_goodput_bps": 97203296,
+    "tcp_retrans": 13
+   },
+   "met": true
+  },
+  {
+   "n": 8,
+   "run": "p08-loss-no-sack",
+   "what": "NewReno over a link that loses 0.1 % of the packets, with SACK (p08a) and without",
+   "predicted": "both lose packets and resend; without SACK recovery from several losses in one window is slower, so the goodput is not higher than with it",
+   "measured": {
+    "tcp_goodput_bps": 865836941,
+    "tcp_retrans": 743,
+    "with_sack_bps": 959515462,
+    "with_sack_retrans": 817,
+    "l1_lost_receiver": 742
+   },
+   "met": true
+  },
+  {
+   "n": 9,
+   "run": "p09-queue-discs",
+   "what": "each of ns-3's queue discs on the sender's side, 100 packets long: UDP offers 2 Gbps beside a TCP flow that always has data",
+   "predicted": "the link is full with each; the five that keep one line for all packets (Fifo, PfifoFast, CoDel, RED, PIE) leave TCP almost nothing; FqCoDel gives each flow a queue of its own and TCP gets a large part (above 300 Mbps)",
+   "measured": {
+    "fifo": 0.0,
+    "pfifofast": 0.0,
+    "codel": 0.0,
+    "red": 0.0,
+    "pie": 0.0,
+    "fqcodel": 482.0,
+    "udp_fqcodel_mbps": 489.5,
+    "drops_fqcodel": 677374
+   },
+   "met": true
+  }
+ ]
+}

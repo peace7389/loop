@@ -1,0 +1,5 @@
+host sender
+host receiver
+link l1 sender receiver rate=1Gbps delay=50us mtu=1500 devq=10
+flow tcp tcp sender receiver type=TcpCubic start=3 maxbytes=250000000
+run duration=10 seed=1

@@ -6,15 +6,20 @@
 // network.txt, one object per line (words, then name=value pairs; a line that starts with # is skipped):
 //   host  <id>
 //   link  <id> <host> <host> rate=1Gbps delay=50us mtu=1500 devq=10
-//   dev   <link> <host> [rate=1Gbps] [devq=10]   the device of that host on that link, where it differs from the link's line
-//   queue <link> <host> kind=fifo|scheduler length=100 [parts=<name>:<part>,...] [largest=<name>:<rate>,...] [classes=<name>:<flow>+<flow>,...]
+//   dev   <link> <host> [rate=1Gbps] [devq=10] [mtu=1500] [loss=0.01]   the device of that host on that link, where it differs from the link's line;
+//         loss: the part of the packets arriving at this device that it receives in error and drops (ns-3: a RateErrorModel as its ReceiveErrorModel)
+//   queue <link> <host> kind=fifo|scheduler|pfifofast|codel|fqcodel|red|pie length=100 [parts=<name>:<part>,...] [largest=<name>:<rate>,...] [classes=<name>:<flow>+<flow>,...]
+//         the queue disc of that device: ns-3's FifoQueueDisc, PfifoFastQueueDisc, CoDelQueueDisc, FqCoDelQueueDisc, RedQueueDisc, PieQueueDisc (each with
+//         ns-3's own settings and length as its MaxSize), or scheduler, this project's FlowQueueDisc
 //         a part's name is a flow (that flow has a queue of its own), or a class: several flows that share one queue of the scheduler
 //   flow  <id> udp <from> <to> rate=2Gbps packet=1400
 //   flow  <id> tcp <from> <to> type=TcpCubic [app=onoff rate=200Mbps packet=1400]
 //         udp or tcp is the socket the application opens (ns-3: its Protocol, a socket factory). app is the ns-3 application
 //         that sends: onoff (OnOffApplication, always on: packets at a constant rate) or bulk (BulkSendApplication: as fast
 //         as the socket accepts; it needs a TCP socket). Left out, a udp flow is onoff and a tcp flow is bulk.
-//   tcp   [initcwnd=10] [buf=1048576]          for every TCP flow
+//         a flow line may also say start=<s> stop=<s> (the application's StartTime and StopTime, in seconds of the simulation; left out: 1 s and the
+//         end), on=<s> off=<s> (OnOff only: the lengths of its on and off periods; left out: always on) and maxbytes=<n> (it stops after that many bytes)
+//   tcp   [initcwnd=10] [buf=1048576] [sack=0|1] [timestamps=0|1] [delack=2]   for every TCP socket (ns-3's defaults where left out)
 //   run   duration=10 seed=1 [warmup=1]
 // A link has a queue on each of its two sending sides. A side a `queue` line names gets that queue (both sides may be
 // named); every other side gets a plain queue of 100 packets. A host with more than one link forwards.
@@ -28,6 +33,7 @@
 //   <link>_drops_<flow>           packets dropped from that flow's band of the link's scheduler
 //   <link>_drops                  packets dropped from the link's plain queue (when its queue is a plain one)
 //   <link>_drops_back             packets dropped from the plain queue of the link's other side
+//   <link>_lost_<host>            packets the device of that host received in error and dropped (only for a device with loss=)
 #include "flow-queue-disc.h"
 
 #include "ns3/applications-module.h"
@@ -58,6 +64,8 @@ struct FlowState
     uint32_t packet = 1400;
     uint16_t port = 0;
     double startAt = 0;
+    double start = -1, stop = -1, on = -1, off = -1; // StartTime, StopTime, the on and off periods, in seconds (below 0: not stated)
+    uint64_t maxBytes = 0;                           // MaxBytes (0: no limit)
     Ptr<PacketSink> sink;
     Ptr<Application> app;
     // counters
@@ -82,6 +90,9 @@ struct LinkState
     uint32_t mtu = 1500, devq = 10;
     std::string rateOf[2];        // the rate of the device of a, of b, where a `dev` line gives one (empty: the link's)
     uint32_t devqOf[2] = {0, 0}; // its transmit queue, in packets (0: the link's)
+    uint32_t mtuOf[2] = {0, 0};  // its largest packet (0: the link's)
+    double lossOf[2] = {-1, -1}; // the part of the packets it receives in error (below 0: no error model)
+    uint64_t lost[2] = {0, 0}, lost0[2] = {0, 0}, lost1[2] = {0, 0};
     QueueSpec q[2]; // on the side of a, on the side of b
     NetDeviceContainer devs;
     Ptr<QueueDisc> root[2];
@@ -130,6 +141,12 @@ LinkTx(LinkState* l, uint32_t side, Ptr<const Packet> p)
     l->tx[side] += p->GetSize();
 }
 
+static void
+LinkLost(LinkState* l, uint32_t side, Ptr<const Packet>)
+{
+    ++l->lost[side];
+}
+
 static std::map<std::string, std::string>
 Pairs(std::istringstream& in)
 {
@@ -159,10 +176,10 @@ List(const std::string& s)
 }
 
 static std::vector<uint32_t>
-Drops(Ptr<QueueDisc> root)
+Drops(Ptr<QueueDisc> root, bool scheduler)
 {
     std::vector<uint32_t> d;
-    if (root->GetNQueueDiscClasses() == 0)
+    if (!scheduler) // one figure for a queue disc of ns-3's own, whatever classes it makes for itself (FqCoDel: one for each flow)
     {
         d.push_back(root->GetStats().nTotalDroppedPackets);
         return d;
@@ -195,7 +212,11 @@ main(int argc, char* argv[])
     std::vector<LinkState> links;
     std::vector<FlowState> flows;
     double duration = 10, warmup = 1;
-    uint32_t seed = 1, initCwnd = 0, bufBytes = 0;
+    uint32_t seed = 1, initCwnd = 0, bufBytes = 0, delAck = 0;
+    int sack = -1, timestamps = -1; // TCP's options: below 0, ns-3's default (both on)
+    const std::map<std::string, std::string> discOf = {{"fifo", "ns3::FifoQueueDisc"},   {"pfifofast", "ns3::PfifoFastQueueDisc"},
+                                                       {"codel", "ns3::CoDelQueueDisc"}, {"fqcodel", "ns3::FqCoDelQueueDisc"},
+                                                       {"red", "ns3::RedQueueDisc"},     {"pie", "ns3::PieQueueDisc"}};
     std::ifstream in(netFile);
     NS_ABORT_MSG_IF(!in, "cannot read " << netFile);
     std::string line;
@@ -254,6 +275,9 @@ main(int argc, char* argv[])
             auto m = Pairs(ls);
             l.rateOf[side] = m.count("rate") ? m["rate"] : l.rateOf[side];
             l.devqOf[side] = m.count("devq") ? std::stoul(m["devq"]) : l.devqOf[side];
+            l.mtuOf[side] = m.count("mtu") ? std::stoul(m["mtu"]) : l.mtuOf[side];
+            l.lossOf[side] = m.count("loss") ? std::stod(m["loss"]) : l.lossOf[side];
+            NS_ABORT_MSG_IF(l.lossOf[side] > 1, "dev: loss is a part of the packets, from 0 to 1");
         }
         else if (what == "queue")
         {
@@ -292,7 +316,7 @@ main(int argc, char* argv[])
                     }
                 }
             }
-            NS_ABORT_MSG_IF(q.kind != "fifo" && q.kind != "scheduler", "queue kind must be fifo or scheduler");
+            NS_ABORT_MSG_IF(q.kind != "scheduler" && !discOf.count(q.kind), "queue kind must be scheduler, fifo, pfifofast, codel, fqcodel, red or pie");
             NS_ABORT_MSG_IF(q.kind == "scheduler" && q.parts.empty(), "a scheduler needs parts");
         }
         else if (what == "flow")
@@ -310,6 +334,14 @@ main(int argc, char* argv[])
             NS_ABORT_MSG_IF(app != "onoff" && app != "bulk", "flow app must be onoff or bulk");
             NS_ABORT_MSG_IF(app == "bulk" && f.udp, "flow '" << f.id << "': BulkSendApplication needs a TCP socket");
             f.onoff = app == "onoff";
+            f.start = m.count("start") ? std::stod(m["start"]) : f.start;
+            f.stop = m.count("stop") ? std::stod(m["stop"]) : f.stop;
+            f.on = m.count("on") ? std::stod(m["on"]) : f.on;
+            f.off = m.count("off") ? std::stod(m["off"]) : f.off;
+            f.maxBytes = m.count("maxbytes") ? std::stoull(m["maxbytes"]) : f.maxBytes;
+            NS_ABORT_MSG_IF((f.on >= 0) != (f.off >= 0), "flow '" << f.id << "': on= and off= are given together");
+            NS_ABORT_MSG_IF(f.on >= 0 && !f.onoff, "flow '" << f.id << "': BulkSendApplication has no on and off periods");
+            NS_ABORT_MSG_IF(f.on >= 0 && f.on <= 0, "flow '" << f.id << "': the on period is longer than 0");
             f.port = 9000 + flows.size();
             flows.push_back(f);
         }
@@ -318,6 +350,9 @@ main(int argc, char* argv[])
             auto m = Pairs(ls);
             initCwnd = m.count("initcwnd") ? std::stoul(m["initcwnd"]) : 0;
             bufBytes = m.count("buf") ? std::stoul(m["buf"]) : 0;
+            sack = m.count("sack") ? std::stoi(m["sack"]) : sack;
+            timestamps = m.count("timestamps") ? std::stoi(m["timestamps"]) : timestamps;
+            delAck = m.count("delack") ? std::stoul(m["delack"]) : delAck;
         }
         else if (what == "run")
         {
@@ -339,9 +374,25 @@ main(int argc, char* argv[])
     for (auto& l : links)
     {
         minMtu = std::min(minMtu, l.mtu);
+        for (uint32_t side = 0; side < 2; side++)
+        {
+            minMtu = l.mtuOf[side] ? std::min(minMtu, l.mtuOf[side]) : minMtu;
+        }
     }
     // 20 IP + 20 TCP + 12 timestamp option: a full segment is one packet of the smallest MTU on the way
-    Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(minMtu - 52));
+    Config::SetDefault("ns3::TcpSocket::SegmentSize", UintegerValue(minMtu - (timestamps == 0 ? 40 : 52)));
+    if (sack >= 0)
+    {
+        Config::SetDefault("ns3::TcpSocketBase::Sack", BooleanValue(sack != 0));
+    }
+    if (timestamps >= 0)
+    {
+        Config::SetDefault("ns3::TcpSocketBase::Timestamp", BooleanValue(timestamps != 0));
+    }
+    if (delAck)
+    {
+        Config::SetDefault("ns3::TcpSocket::DelAckCount", UintegerValue(delAck));
+    }
     Config::SetDefault("ns3::TcpSocket::SndBufSize", UintegerValue(bufBytes ? bufBytes : (1 << 20)));
     Config::SetDefault("ns3::TcpSocket::RcvBufSize", UintegerValue(bufBytes ? bufBytes : (1 << 20)));
     if (initCwnd)
@@ -381,6 +432,18 @@ main(int argc, char* argv[])
             {
                 DynamicCast<PointToPointNetDevice>(l.devs.Get(side))->GetQueue()->SetAttribute("MaxSize", StringValue(std::to_string(l.devqOf[side]) + "p"));
             }
+            if (l.mtuOf[side])
+            {
+                l.devs.Get(side)->SetAttribute("Mtu", UintegerValue(l.mtuOf[side]));
+            }
+            if (l.lossOf[side] >= 0)
+            {
+                Ptr<RateErrorModel> em = CreateObject<RateErrorModel>();
+                em->SetAttribute("ErrorRate", DoubleValue(l.lossOf[side]));
+                em->SetAttribute("ErrorUnit", EnumValue(RateErrorModel::ERROR_UNIT_PACKET));
+                l.devs.Get(side)->SetAttribute("ReceiveErrorModel", PointerValue(em));
+                l.devs.Get(side)->TraceConnectWithoutContext("PhyRxDrop", MakeBoundCallback(&LinkLost, &l, side));
+            }
         }
         for (uint32_t side = 0; side < 2; side++)
         {
@@ -398,7 +461,7 @@ main(int argc, char* argv[])
             }
             else
             {
-                tch.SetRootQueueDisc("ns3::FifoQueueDisc", "MaxSize", StringValue(size));
+                tch.SetRootQueueDisc(discOf.at(q.kind), "MaxSize", StringValue(size));
             }
             l.root[side] = tch.Install(l.devs.Get(side)).Get(0);
             if (q.kind == "scheduler")
@@ -448,7 +511,10 @@ main(int argc, char* argv[])
     {
         uint32_t from = hostOf(f.from), to = hostOf(f.to);
         NS_ABORT_MSG_IF(!has[to] || !has[from], "flow '" << f.id << "': a host without a link");
-        f.startAt = tStart + offset->GetValue(0.0, 0.01); // each flow starts up to 10 ms after tStart; the offsets depend on the seed
+        // each flow starts up to 10 ms after its start time (tStart where none is stated); the offsets depend on the seed
+        f.startAt = std::max((f.start >= 0 ? f.start : tStart) + offset->GetValue(0.0, 0.01), 1e-6);
+        const double stopAt = f.stop >= 0 ? std::min(f.stop, tStop) : tStop;
+        NS_ABORT_MSG_IF(stopAt <= f.startAt, "flow '" << f.id << "' stops before it starts");
         InetSocketAddress dst(addrOf[to], f.port);
         const char* factory = f.udp ? "ns3::UdpSocketFactory" : "ns3::TcpSocketFactory";
         PacketSinkHelper sinkH(factory, InetSocketAddress(Ipv4Address::GetAny(), f.port));
@@ -462,19 +528,25 @@ main(int argc, char* argv[])
             {
                 OnOffHelper onoff(factory, dst);
                 onoff.SetConstantRate(DataRate(f.rate), f.packet);
+                if (f.on >= 0)
+                {
+                    onoff.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=" + std::to_string(f.on) + "]"));
+                    onoff.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=" + std::to_string(f.off) + "]"));
+                }
+                onoff.SetAttribute("MaxBytes", UintegerValue(f.maxBytes));
                 ApplicationContainer app = onoff.Install(nodes.Get(from));
                 app.Start(Seconds(f.startAt));
-                app.Stop(Seconds(tStop));
+                app.Stop(Seconds(stopAt));
                 f.app = app.Get(0);
             }
         }
         else
         {
             BulkSendHelper bulk(factory, dst);
-            bulk.SetAttribute("MaxBytes", UintegerValue(0));
+            bulk.SetAttribute("MaxBytes", UintegerValue(f.maxBytes));
             ApplicationContainer app = bulk.Install(nodes.Get(from));
             app.Start(Seconds(f.startAt));
-            app.Stop(Seconds(tStop));
+            app.Stop(Seconds(stopAt));
             f.app = app.Get(0);
         }
         if (f.udp)
@@ -595,7 +667,8 @@ main(int argc, char* argv[])
             for (uint32_t side = 0; side < 2; side++)
             {
                 (end ? l.tx1 : l.tx0)[side] = l.tx[side];
-                (end ? l.drops1 : l.drops0)[side] = Drops(l.root[side]);
+                (end ? l.drops1 : l.drops0)[side] = Drops(l.root[side], l.q[side].kind == "scheduler");
+                (end ? l.lost1 : l.lost0)[side] = l.lost[side];
             }
         }
     };
@@ -631,6 +704,13 @@ main(int argc, char* argv[])
         double bps1 = double(DataRate(l.rateOf[1].empty() ? l.rate : l.rateOf[1]).GetBitRate());
         put(l.id + "_util", (l.tx1[0] - l.tx0[0]) * 8.0 / duration / bps0, 6);
         put(l.id + "_util_back", (l.tx1[1] - l.tx0[1]) * 8.0 / duration / bps1, 6);
+        for (uint32_t side = 0; side < 2; side++)
+        {
+            if (l.lossOf[side] >= 0)
+            {
+                put(l.id + "_lost_" + (side == 0 ? l.a : l.b), double(l.lost1[side] - l.lost0[side]), 0);
+            }
+        }
         bool given = l.q[0].given || l.q[1].given;
         bool both = l.q[0].given && l.q[1].given; // a described queue on each side: the plain one of b's side is "back"
         for (uint32_t side = 0; side < 2; side++)

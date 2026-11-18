@@ -1,0 +1,8 @@
+{
+  "tcp_goodput_bps": 200000000,
+  "tcp_retrans": 30,
+  "l1_util": 0.207459,
+  "l1_util_back": 0.003818,
+  "l1_drops": 30,
+  "l1_drops_back": 0
+}
