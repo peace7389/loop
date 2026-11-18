@@ -1,0 +1,27 @@
+{
+ "what": "the probe of the two simulator programs (--probe=<seconds>, probe.csv): trace sinks that only listen, and a sampler of their own. two-hosts build 8, net fifth build, 2026-11-18",
+ "two_hosts_md5": "833ca9f7d2b7f80314ccf151ac2ad4b9",
+ "net_md5": "0ccd4bf7813d889be6d05d4213a8c64d",
+ "columns_two_hosts": "t,udp_bps,tcp_bps,cwnd,ssthresh,inflight,rwnd,rtt_ms,rto_ms,wait_band0_ms,wait_band1_ms,q_band0,q_band1,devq",
+ "columns_net": "t, per flow <flow>_bps, per TCP flow <flow>_cwnd,_ssthresh,_inflight,_rwnd,_rtt_ms,_rto_ms, per described queue <link>_wait[_<part>]_ms and <link>_q[_<part>], per link <link>_devq and <link>_devq_back",
+ "proof": [
+  {
+   "program": "two-hosts",
+   "runs": "the 60 recorded simulations of sessions s043, s011, s031 and s036 (20 under share, 40 under cap), each run again from its params.json under its own scheduling policy, once without the probe and once with --probe=0.01",
+   "compared": "metrics.json and series.csv, byte for byte, with the recorded files",
+   "differ": 0,
+   "of": 120,
+   "probe_rows": 76000
+  },
+  {
+   "program": "net",
+   "runs": "the 35 recorded networks of checks/net1 to net4, each run again under its own scheduling policy, once without the probe and once with --probe=0.01",
+   "compared": "metrics.json and series.csv, byte for byte, with the recorded files",
+   "differ": 0,
+   "of": 70,
+   "probe_rows": 35535
+  }
+ ],
+ "read_from_one_run": "s043 r001 (trap-2 at its defaults): rtt_ms mean 20.03, rwnd max 1048576, inflight p95 903552, wait_band1_ms max 0",
+ "kept_true_in_use": "tools.probe keeps a probe's record only when the second run's metrics.json and series.csv equal the first's; an experiment with measurements of its own runs its first simulation also without the probe and compares (probe_same)"
+}

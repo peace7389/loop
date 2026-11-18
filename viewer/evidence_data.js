@@ -50,7 +50,7 @@ const EV_DATA = {
       sims = of('simulation').map(r => ({ id: r.id, label: r.body.label, run: r.body.run_id, params: r.body.params || {}, metrics: r.body.metrics || null, error: r.body.error || null,
                                           same_as: r.body.same_as || null, exp: r.parent, ts: r.ts, turn: r.turn, structure: r.body.structure || null, topology: r.body.topology || null }));
       exps = of('experiment').map(r => { const b = r.body, own = sims.filter(s => s.exp === r.id);
-        return { id: r.id, turn: r.turn, ts: r.ts, by: D.by(r), kind: b.kind, tests: b.tests || [], question: b.question || '', varied: b.varied || [], control: b.control || null,
+        return { id: r.id, turn: r.turn, ts: r.ts, by: D.by(r), kind: b.kind, measurements: Array.isArray(b.measurements) ? b.measurements : [], tests: b.tests || [], question: b.question || '', varied: b.varied || [], control: b.control || null,
                  runs: b.runs || [], rules: (b.decision_rules || b.rules || []).map(q => ({ for: q.for, rule: q.decision_rule || q.rule, rival: q.rival || null, rival_predicts: q.rival_predicts || null })),
                  sims: own, evidence: recs.find(e => e.type === 'evidence' && e.parent === r.id) || null,
                  // a void check: its decision rule names two or more labels of which at least two are the same simulation (the same run), so
