@@ -835,6 +835,63 @@ decision rule or a verdict. `session.json` records `flags.arm` ("plain"; the ord
 instructions as given; an existing session keeps its arm. Test: `harness_checks/test_arms.py`. The page has no view
 made for such a session: it shows it as a session without hypotheses.
 
+**The arm "supervised": a researcher and a supervisor** (`loop.py --arm supervised`, 2026-11-18, the operator's
+decision). A review of the loop's objects over the 43 sessions had shown that the links around the harness's check
+were nominal: no verdict ever contradicted its check (378 of 474 repeat it), the judge found 20 of 20 hypotheses to
+follow from their guesses, a rethink could call a guess supported after its only hypothesis was refuted, and the
+full format scored exactly as the plain arm did. The operator's requirements: two agents with distinct roles,
+independent as far as one model allows; every transition of the chain checked by the supervisor and by the
+harness's rules; a hypothesis said to come from earlier results must be their fruit; everything shown on the page,
+what one did on what ground and what the other said to it.
+
+- **The researcher** proposes: guesses of why, hypotheses, decision rules, experiments, the report. It does not rule
+  on its own tests. Its answer has no `verdicts` and no `rethink`; in their place `objections`
+  (`loop.supervised_format`), and its instructions are made from `prompt.txt` each time (`loop.supervised_prompt`:
+  the lines on rethinking and on verdicts are replaced by what the supervisor does). There is no judge.
+- **The supervisor** proposes nothing. It is asked in a request of its own (`loop.supervise`): its own instructions
+  (`loop.SUPERVISOR`), nothing of the researcher's conversation, temperature 0. It is shown the brief's description,
+  the guess (its result, the guess, what would make it so), the hypothesis, the decision rules, the planned
+  simulations and the measured numbers; never the researcher's observations, its reasons for a guess, or a
+  hypothesis's question and why. It acts at three places:
+  - **Gate 0, a new guess** (`ground_of`): it is shown the records the guess cites as the ledger holds them, and the
+    session's earlier guesses, hypotheses and rulings. It says what those records show, names the nearest earlier
+    guess or hypothesis, and names a defect or none (`GROUNDS`: the result is not in the records; it repeats an
+    earlier one; it ignores a ruling). A guess with a defect is refused, and no hypothesis can come from it. A guess
+    about the same records stated after that is accepted whatever the supervisor finds, and its record says that it
+    still objects: the supervisor can be wrong and must not be able to stop the work.
+  - **Gate 1, a test before any simulation** (`review_design`): for each tested hypothesis it first names the
+    strongest rival explanation and what the decision rule would do under it, then what would make it doubt the
+    test even if it comes out as predicted, then a defect or none (`DEFECTS`: not about the guess; a rival passes
+    too; already answered by the records; confounded; the threshold decides nothing). A rival under which the rule
+    would hold is the defect "a rival passes too", whatever it called it. A test with a defect is sent back: no
+    simulation is run or counted. Sent again it is run, and its review says "contested" if the supervisor still
+    objects.
+  - **Gate 2, after the checks** (`rule_on`): the harness has checked the rules; the supervisor says what the check
+    means: supported (every check held in a fair test), refuted (a check failed in a fair test) or inconclusive
+    (not a fair test: the defect, and what a fair test would compare). It is reminded of what it wrote at gate 1.
+    Its ruling is the hypothesis's verdict record, `by` "supervisor". The checks are facts: a ruling that does not
+    fit them (supported although a check failed) is recorded as inconclusive, with `changed_by_harness`.
+  - **An objection** of the researcher to a ruling (`answer_objection`), at most one for a ruling: the supervisor
+    looks at the records again, and its second ruling stands.
+- **The harness** keeps what it had: it runs, measures, checks the rules, and refuses what its own rules refuse (a
+  rule over known results, a simulation no need names, an id that does not exist). A guess all of whose hypotheses
+  were ruled refuted counts as refuted. Nothing is owed by the researcher before the report.
+- **Records**: `review` (ids G, `by` supervisor; `gate` "ground" for a guess), `verdict` by the supervisor,
+  `objection` (ids O, by the model); a guess keeps the supervisor's reading in `ground`. Beside the ledger,
+  `supervisor.jsonl` holds, for each record of the supervisor, what it was shown and what it answered.
+  `session.json` records `flags.arm` and `flags.supervisor`.
+- **The page** (12.1): a source of its own, "supervisor", with its mark and colour; on a test's card "Its ground"
+  (the guess read against its records), "Review" (the test before the simulations: sent back, approved, run
+  although it still objects; its rival; what would make it doubt the test), "Ruling" (with a researcher's objection
+  and the second look) and "So next"; in the turn's record a part "What the supervisor said, and on what ground"
+  with, for each of its records, what it was shown; a lane of its own in the session flow; in "From one hypothesis
+  to the next" the column of the judge is the supervisor's. Started from the set-up page ("who rules on the tests")
+  or with `POST /api/session {"arm": "supervised"}`.
+- **Test**: `harness_checks/test_supervised.py` (a scripted researcher and a scripted supervisor: each gate, the
+  objection, what the supervisor was shown, the other arms unchanged). Not yet measured: whether the supervisor,
+  being the same model, objects where it should; a session on `trap-2` and seeded known-bad designs are the next
+  step. Not built: the supervisor's reading of the report's claims (gate 3); measurements the researcher defines.
+
 ### 8.2 A turn
 
 1. The ledger is rendered as text (8.7). If it is over 100,000 tokens, counted
@@ -3317,6 +3374,7 @@ untracked until they say otherwise.
 | 2026-11-17, late | The network follows ns-3's own parts (`TOPOLOGY.md`, stages N1 and N2): a link is a channel and two devices, each of which can have its own rate and transmit queue; a queue on either sending side of a link, or on both; several flows in one queue of a scheduler (a class). Second build of `net`, five predictions met (`checks/net2`), the ten earlier networks byte-identical. `network.py`, the builder and a session's page read all three; older briefs are read as before. In a hypothesis, `follows_from` may name a run id (found in s043). Session s043, the first under the mandatory look-again: a review after every tested hypothesis (9 in 6 turns). |
 | 2026-11-18 | The builder names ns-3's objects: a flow's application (OnOff, BulkSend) and its socket (UDP, TCP) are two choices of its card, so TCP can send at a constant rate (third build of `net`, `checks/net3`); the Link tool says that it brings a net device (NIC) at each end, the queue tools name their queue disc; a scheduler with a single queue is described as that. The brief `two-hosts-one-queue`. "The session at a glance" is unfolded whenever the page is loaded. |
 | 2026-11-18, late | What else ns-3 has for the builder's objects ("Do it", the operator's list of six): an application's times, a device's own largest packet and loss, TCP's options, ns-3's queue discs beside the project's scheduler, the ns-3 attribute beside every setting; the AI's own change of structure can add OnOff over TCP (fourth build of `net`, `checks/net4`). Not done: one vocabulary with the ready-made two-host system. |
+| 2026-11-18, night | The arm "supervised": a researcher that proposes and a supervisor, asked apart from it, that reads each new guess against its records, reviews each test before its simulations and rules on what the checks mean; objections; everything of the supervisor on the page with its ground and what it was shown. After a review of the loop's objects: the verdict had repeated the check, the judge had never refused. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

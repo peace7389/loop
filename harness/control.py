@@ -556,12 +556,15 @@ def start_session(body, who=None):
     is running and who started it. who: the account that asks. With the scheduling policy "random" the server chooses share or cap itself and notes the session in
     checks/random.json: the session list then withholds its policy until the session has a score."""
     budget, draft, policy, base = body.get("budget"), body.get("draft", "on"), body.get("policy", body.get("mode", "share")), body.get("baseline", True)
-    tokens, temp = body.get("max_tokens"), body.get("temperature")
+    tokens, temp, arm = body.get("max_tokens"), body.get("temperature"), body.get("arm")
+    if arm not in (None, "hypotheses", "supervised", "plain"):
+        raise Refused(400, "arm is supervised (a researcher and a supervisor, a second AI that reviews each test and rules on its checks), hypotheses (one AI that judges its own tests) or plain (no hypothesis format); left out: hypotheses")
     if (budget is not None and (type(budget) is not int or budget < 1)) or draft not in ("on", "off") or policy not in ("share", "cap", "prio", "random") or type(base) is not bool:
         raise Refused(400, "budget must be a whole number of at least 1 (or left out: the brief's limit), draft on or off, policy (the scheduling policy) share, cap or random, baseline true or false")
     if (tokens is not None and (type(tokens) is not int or not 256 <= tokens <= 100000)) or (temp is not None and (type(temp) not in (int, float) or not 0 <= temp <= 2)):
         raise Refused(400, "max_tokens must be a whole number from 256 to 100000 and temperature a number from 0 to 2 (or left out: the loop's defaults)")
     sid, brief = body.get("session"), body.get("brief")
+    sid_given = sid
     if sid is not None and not (isinstance(sid, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid) and (tools.SESSIONS / sid / "session.json").is_file()):
         raise Refused(400, "session must be the id of an existing session that has a session.json (leave it out to start a new one)")
     if brief is not None:
@@ -590,7 +593,7 @@ def start_session(body, who=None):
             path.write_text(json.dumps(sorted(set(json.loads(path.read_text()) if path.is_file() else []) | {sid})) + "\n")
         (CHECKS / "sessions").mkdir(parents=True, exist_ok=True)
         log = CHECKS / "sessions" / f"{sid}.log"
-        flags = {"session": sid, "brief": brief, "budget": budget, "draft": draft, "max-tokens": tokens, "temperature": temp, "policy": chosen, "baseline": "on" if base else "off"}
+        flags = {"session": sid, "brief": brief, "budget": budget, "draft": draft, "max-tokens": tokens, "temperature": temp, "policy": chosen, "baseline": "on" if base else "off", "arm": arm if sid_given is None and arm not in (None, "hypotheses") else None}   # an existing session keeps its own arm
         cmd = LOOP + [x for k, v in flags.items() if v is not None for x in (f"--{k}", str(v))]
         with log.open("a") as f:
             f.write(" ".join(cmd) + "\n")

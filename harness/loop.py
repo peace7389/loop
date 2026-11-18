@@ -32,12 +32,12 @@ WAIT = "the report cannot be accepted yet: "   # said once per session; the answ
 NEED = WAIT + "a hypothesis that has a checked decision rule needs a verdict. Still without one: "
 UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
 PREFIX = {"why": "Y", "rethink": "K", "judge": "J", "hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
-          "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T", "turn": "U"}
+          "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T", "turn": "U", "review": "G", "objection": "O"}
 # who produced the content of a record, written into it as "by": the model (what it wrote), the simulator (what was
 # measured), the harness (what it computed, found or decided itself), the operator (the person; no record type is theirs yet)
-SOURCES = ("model", "harness", "simulator", "operator")
+SOURCES = ("model", "harness", "simulator", "operator", "supervisor")   # supervisor: the second agent of the arm "supervised" (its reviews, and there the verdicts)
 BY = {"draft": "model", "why": "model", "rethink": "model", "judge": "harness", "hypothesis": "model", "drop": "model", "experiment": "model", "verdict": "model", "report": "model",
-      "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness", "request": "model", "result": "harness", "turn": "harness"}
+      "simulation": "simulator", "evidence": "harness", "check": "harness", "malformed": "harness", "note": "harness", "request": "model", "result": "harness", "turn": "harness", "review": "supervisor", "objection": "model"}
 HIDDEN = ("draft", "scratch", "simulation", "request", "result", "turn", "judge")  # kept on disk, not replayed: what the model wrote before its answer, and the
                                              # simulation records (the evidence record has one line for each of them)
 # ---- a brief with a network whose structure the model may change (TOPOLOGY.md, stage 5): a simulation may carry "structure", a list of changes
@@ -362,8 +362,22 @@ def shown(r, st):
         close = "".join(f"  [NOTE: {q['left']} against {q['right']}: the two sides differ by {q['percent']:.3g} %, less than the tolerance of {b['tolerance']:g} %. They count as equal: "
                         "this comparison is decided by a difference that does not matter, so it is no evidence of a difference.]" for q in b.get("within_tolerance") or [])
         return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}{rival}{close}"
+    if t == "verdict" and r.get("by") == "supervisor":
+        return (f"by the supervisor on {b['for']}: {b['result']}. {flat(b['because'])}" + ("" if b.get("fair", True) else f" The test was not a fair test ({DEFECTS.get(b.get('defect'), b.get('defect'))}).")
+                + (f" A fair test: {flat(b['next'])}" if b.get("next") else "") + (f" [after your objection {b['after']}: {'the ruling stands' if b.get('stands') else 'the ruling is changed'}]" if b.get("after") else ""))
     if t == "verdict":
         return f"on {b['for']}: {b['result']}. {flat(b['because'])} Next: {flat(b['next'])}"
+    if t == "review" and b.get("gate") == "ground" and b["decision"] == "sent_back":
+        return (f"by the supervisor of a guess it did not accept (“{flat(b.get('guess'))[:200]}”): {GROUNDS.get(b['defect'], b['defect'])}. The records show: {flat(b['records_show'])} {flat(b['because'])}")
+    if t == "review" and b.get("gate") == "ground":
+        return (f"by the supervisor of the guess {b['for']}, before anything is built on it: " + ("sound: it starts from what the records show" if b["defect"] == "none" else f"accepted on its second statement, but the supervisor still objects ({GROUNDS.get(b['defect'], b['defect'])})")
+                + f". The records show: {flat(b['records_show'])} {flat(b['because'])}")
+    if t == "review":
+        return (f"by the supervisor of the test of {b['for']}, before any simulation: " + {"approved": "approved", "sent_back": "SENT BACK, the test was not run", "contested": "run, but the supervisor still objects"}[b["decision"]]
+                + (f". Defect: {DEFECTS.get(b['defect'], b['defect'])}" if b["defect"] != "none" else "") + f". {flat(b['because'])}"
+                + (f" A rival explanation: {flat(b['rival'])} (under it the rule would have {b['rival_outcome'].upper() if b['rival_outcome'] in ('held', 'failed') else 'an outcome that cannot be told'})" if b.get("rival") else ""))
+    if t == "objection":
+        return f"to {b['to']}: {flat(b['because'])}"
     if t == "malformed":
         return f"an answer the harness could not use, so nothing in it was recorded or run: {flat(b['error'])}"
     return json.dumps(b)
@@ -433,6 +447,173 @@ def judge_link(model, brief, why, hyp):
         if again:
             return True, f"read twice. The second reading: {because2} The first found no link: {because}"
     return follows, because
+
+
+# ---- the supervisor (2026-11-18, the operator's decision after the review of the loop's objects: no verdict ever contradicted its check, the judge passed 20 of 20,
+# a rethink could call a guess supported after its only hypothesis was refuted). The arm "supervised" has two agents. The researcher proposes: guesses,
+# hypotheses, decision rules, experiments, the report. It does not rule on its own tests. The supervisor proposes nothing; it acts at two gates:
+#   gate 1, before any simulation of a test is run: can this test tell whether the guess is true? A test with a named defect is sent back, once;
+#   gate 2, after the harness has checked the rules: what does the check mean? Supported, refuted, or inconclusive because the test was not a fair one.
+# The two are kept apart although they are the same model: the supervisor has its own instructions, its own request with nothing of the researcher's
+# conversation in it, its own sampling (temperature 0), and it is shown the artifacts and the measured numbers, never the researcher's observations or
+# reasons. At gate 1 it writes down what would make it doubt the test before anything is measured, and at gate 2 it is held to that. What it was shown
+# and what it answered is kept beside the ledger (supervisor.jsonl) so that a person can see on what ground it decided. Facts stay the harness's: a
+# ruling that does not fit the checks (supported although a check failed) is recorded as inconclusive.
+SUPERVISOR = ("You are the supervisor of a researcher who studies a simulated network by experiments. You are not the researcher and you do not help it to find anything: your one "
+              "task is that what goes on record is sound. You never propose a hypothesis, a setting or an experiment of your own. You are shown the system as its brief describes it, "
+              "the researcher's guess of a cause, the hypothesis it wants to test, its decision rules, the simulations and the measured numbers. You are not shown the researcher's "
+              "reasoning and you owe it no agreement: a test that cannot tell whether the guess is true wastes simulations and puts a false certainty on record. Words: a guess is the "
+              "researcher's idea of a cause; a hypothesis is a measurable consequence of it; a decision rule is the comparison, fixed before the simulations, that the harness checks "
+              "from the measured values; HELD or FAILED is the harness's finding and is a fact. Judge by the description of the system and by the numbers, name the numbers and record "
+              "ids you rest on, and say plainly when something cannot be told. Answer in the JSON format you are given, each text in one or two plain sentences.")
+DEFECTS = {"none": "no defect",
+           "not_about_the_guess": "the hypothesis would come out the same whether the guess is true or not, or is about another cause than the guess",
+           "rival_passes_too": "a rival explanation predicts the same outcome of the decision rule, so the test cannot tell the two apart",
+           "already_answered": "records already in the ledger give the result this test asks for: read it from them instead of simulating again",
+           "confounded": "another setting, at the values chosen, limits or hides the effect, so the result would not show what the hypothesis says",
+           "threshold": "the rule's threshold or margin makes it hold or fail whatever happens, or lies inside the tolerance"}
+REVIEW_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["rival", "rival_outcome", "doubt_if", "defect", "because"], "properties": {
+    "rival": {"type": "string", "description": "the strongest other explanation of the result the guess is about, in one sentence: not the researcher's guess"},
+    "rival_outcome": {"type": "string", "enum": ["held", "failed", "cannot tell"], "description": "what the decision rule would do if your rival were true and the guess false"},
+    "doubt_if": {"type": "string", "description": "written before anything is measured: what in the results would make you doubt this test even if its rule comes out as the researcher predicts"},
+    "defect": {"type": "string", "enum": list(DEFECTS)}, "because": {"type": "string", "description": "the ground of your decision, with the numbers or record ids it rests on"}}}
+RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["shows", "fair", "defect", "result", "because", "retest"], "properties": {
+    "shows": {"type": "string", "description": "what the measured numbers show, in one sentence, before any conclusion"},
+    "fair": {"type": "boolean", "description": "whether this was a fair test of the hypothesis: one that could have come out the other way if the hypothesis were false"},
+    "defect": {"type": "string", "enum": list(DEFECTS), "description": "none when the test was fair"},
+    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]}, "because": {"type": "string"},
+    "retest": {"type": "string", "description": "when the result is inconclusive: what a fair test would have to compare; else empty"}}}
+GROUNDS = {"none": "no defect",
+           "not_in_the_records": "the result the guess starts from is not what the cited records show",
+           "repeats": "the guess says again, in other words, what an earlier guess or hypothesis already said, and that one has its ruling",
+           "ignores_a_ruling": "the guess goes on as if a ruling against it had not been given: it does not say what is different now"}
+GROUND_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["records_show", "nearest_earlier", "defect", "because"], "properties": {
+    "records_show": {"type": "string", "description": "what the cited records show about the result the guess starts from, with the numbers"},
+    "nearest_earlier": {"type": "string", "description": "the id of the earlier guess or hypothesis that is nearest to this one in what it claims (for example Y2 or H3), or none"},
+    "defect": {"type": "string", "enum": list(GROUNDS)}, "because": {"type": "string"}}}
+APPEAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["answer", "stands", "result", "because"], "properties": {
+    "answer": {"type": "string", "description": "what in the records the objection gets right or wrong"}, "stands": {"type": "boolean", "description": "true: your ruling stands as it was"},
+    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]}, "because": {"type": "string"}}}
+SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of the supervisor, what it was shown and what it answered
+
+
+def supervise(model, user, schema):
+    """One request to the supervisor: its own instructions, a request of its own (nothing of the researcher's conversation), temperature 0, no draft."""
+    return json.loads(ask(model, SUPERVISOR, user, schema, False, 0, 1500)[0])
+
+
+def _system_for_supervisor(brief):
+    knobs = "; ".join(f"{k} ({', '.join(map(str, s['choices'])) if 'choices' in s else str(s['min']) + ' to ' + str(s['max'])}, default {s['default']})" for k, s in brief["knobs"].items())
+    return (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:3000]}\nTHE SETTINGS THE RESEARCHER MAY CHANGE: {knobs}\n"
+            f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
+
+
+def _measured(ledger, only=None):
+    """Every simulation measured so far as the evidence tables give it (label, run, settings changed from the defaults | measured), or those of one experiment."""
+    lines = [f"  [{r['id']}] " + l for r in ledger if r["type"] == "evidence" and (only is None or r["body"]["experiment"] == only) for l in r["body"]["lines"]]
+    return "\n".join(lines[-60:]) or "  (nothing yet)"
+
+
+def _case(ledger, hid, rules):
+    """One hypothesis as the supervisor is shown it: the result its guess is about, the guess, the hypothesis, its decision rules. Not the researcher's reasons."""
+    flat = lambda v: " ".join(str(v).split())
+    h = next(r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid)
+    w = next((r["body"] for r in ledger if r["type"] == "why" and r["id"] == h.get("from_why")), None)
+    return ((f"THE RESULT the guess is about: {flat(w['result'])}\nTHE GUESS of why it came out so: {flat(w['guess'])}\nWhat would make it so, not directly visible: {flat(w['unseen'])}\n" if w else "")
+            + f"THE HYPOTHESIS {hid}: {flat(h['text'])}\n" + "".join(f"DECISION RULE: {flat(d['decision_rule'])}\n" for d in rules))
+
+
+def review_design(model, brief, ledger, ex, hid, ask_fn=None):
+    """Gate 1. The supervisor's reading of the test of one hypothesis, before any of its simulations is run: (review, what it was shown).
+    review = {rival, rival_outcome, doubt_if, defect, because}. Its own rival decides with it: a rival under which the rule would hold as well is the
+    defect rival_passes_too, whatever it called the defect."""
+    flat = lambda v: " ".join(str(v).split())
+    rules = [d for d in ex.get("decision_rules") or [] if d.get("for") == hid]
+    need = next((n for n in ex.get("needs") or [] if n.get("for") == hid), {})
+    planned = plan(ledger, [r for r in ex["runs"] if r["label"] in (need.get("simulations") or [r["label"] for r in ex["runs"]])])
+    sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
+    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\n" + _case(ledger, hid, rules)
+            + f"What the researcher says it must know to decide it: {flat(need.get('to_know') or 'not stated')} (the one setting that differs: {need.get('varies') or 'not stated'}; the measure: {need.get('measure') or 'not stated'})\n"
+            + f"THE SIMULATIONS PLANNED FOR IT:\n{sims}\n\n"
+            "Before any of these simulations is run: can this test tell whether the guess is true? First name the strongest rival explanation you can think of and say what the decision rule would do "
+            "under it. Then say what would make you doubt the test even if it comes out as predicted. Then name the defect, or none. The defects: "
+            + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ". A test is not defective for being small or for testing only one consequence of the guess.")
+    d = (ask_fn or supervise)(model, user, REVIEW_SCHEMA)
+    rev = {"rival": flat(d["rival"]), "rival_outcome": d["rival_outcome"], "doubt_if": flat(d["doubt_if"]), "defect": d["defect"] if d["defect"] in DEFECTS else "none", "because": flat(d["because"])}
+    if rev["defect"] == "none" and rev["rival_outcome"] == "held":   # its own rival would pass the rule: by its own words the test cannot tell the two apart
+        rev["defect"] = "rival_passes_too"
+    return rev, user
+
+
+def ground_of(model, brief, ledger, why, ask_fn=None):
+    """Gate 0. The supervisor's reading of one new guess before anything is built on it: is the result it starts from what the records it cites show,
+    and is it more than an earlier guess or hypothesis said again? (ground, what it was shown). ground = {records_show, nearest_earlier, defect, because}.
+    The supervisor is shown the cited records as the ledger holds them, the session's guesses and hypotheses with their rulings, and of the new guess
+    its three statements (the result, the guess, what would make it so): not why the researcher thinks it worth verifying."""
+    flat = lambda v: " ".join(str(v).split())
+    st = states(ledger)[0]
+    cited = [r for r in ledger if r["id"] in why["about"]]
+    def record(r):
+        b = r["body"]
+        if r["type"] == "evidence":
+            return f"[{r['id']}] measured in {b['experiment']}:\n" + "\n".join("    " + l for l in b["lines"])
+        if r["type"] == "simulation":
+            return f"[{r['id']}] simulation {b.get('label')} {{{', '.join(f'{k}={v}' for k, v in (b.get('params') or {}).items())}}} | " + " ".join(f"{k}={v}" for k, v in (b.get("metrics") or {}).items())
+        if r["type"] == "check":
+            return f"[{r['id']}] check for {b['for']}: {flat(b['decision_rule'])}  ->  {b['with_numbers']}  :  {b['result'].upper()}"
+        return f"[{r['id']}] ruling on {b['for']}: {b['result']}. {flat(b['because'])}"
+    earlier = "\n".join([f"  [{r['id']}] guess: {flat(r['body']['guess'])}" for r in ledger if r["type"] == "why"]
+                        + [f"  [{r['id']}] hypothesis ({st.get(r['id'], 'open')}): {flat(r['body']['text'])}" for r in ledger if r["type"] == "hypothesis"]) or "  (none yet)"
+    rulings = "\n".join(f"  [{r['id']}] on {r['body']['for']}: {r['body']['result']}. {flat(r['body']['because'])}" for r in ledger if r["type"] == "verdict") or "  (none yet)"
+    user = (_system_for_supervisor(brief) + "\nTHE RECORDS THE NEW GUESS CITES:\n" + ("\n".join(record(r) for r in cited) or "  (it cites the brief only: nothing has been measured for it)")
+            + f"\n\nTHE NEW GUESS\nThe result it starts from, as the researcher states it: {flat(why['result'])}\nThe guess of why: {flat(why['guess'])}\nWhat would make it so, not directly visible: {flat(why['unseen'])}\n\n"
+            f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{earlier}\n\nTHE RULINGS SO FAR:\n{rulings}\n\n"
+            "Before anything is built on this guess: first say what the cited records show about the result it starts from. Then name the earlier guess or hypothesis nearest to it. Then name the defect, or none. "
+            "The defects: " + "; ".join(f"{k}: {v}" for k, v in GROUNDS.items()) + ". A guess may be wrong and still be sound here: you judge whether it starts from what was measured and adds something, "
+            "not whether it is true. A guess that takes up an earlier one with a stated difference (another cause, another range, a reason why the earlier test was not fair) is not a repetition.")
+    d = (ask_fn or supervise)(model, user, GROUND_SCHEMA)
+    return {"records_show": flat(d["records_show"]), "nearest_earlier": flat(d["nearest_earlier"]), "defect": d["defect"] if d["defect"] in GROUNDS else "none", "because": flat(d["because"])}, user
+
+
+def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None):
+    """Gate 2. The supervisor's ruling on one tested hypothesis after the harness has checked its rules: (ruling, what it was shown).
+    ruling = {shows, fair, defect, result, because, retest, checks}. The checks are facts: supported needs every check HELD, refuted needs one that
+    FAILED, and either needs a fair test; a ruling that does not fit is recorded as inconclusive, and the record says that the harness changed it."""
+    flat = lambda v: " ".join(str(v).split())
+    checks = [r for r in ledger if r["type"] == "check" and r["body"]["experiment"] == xid and r["body"]["for"] == hid]
+    rules = [{"decision_rule": c["body"]["decision_rule"]} for c in checks]
+    lines = "\n".join(f"  [{c['id']}] {flat(c['body']['decision_rule'])}  ->  {c['body']['with_numbers']}  :  {c['body']['result'].upper()}"
+                       + "".join(f"  (note: {q['left']} against {q['right']} differ by {q['percent']:.3g} %)" for q in c["body"].get("within_tolerance") or []) for c in checks)
+    user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, rules) + f"\nTHE SIMULATIONS OF THIS TEST, as measured:\n{_measured(ledger, xid)}\n\nTHE BASELINE and what was measured before:\n{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] == xid)])}\n\n"
+            f"THE HARNESS'S CHECKS (facts):\n{lines}\n\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
+            + "What does this test show about the hypothesis? supported: every check HELD and the test was a fair one. refuted: a check FAILED and the test was a fair one. inconclusive: the test "
+              "was not fair (name the defect and what a fair test would compare), or the checks disagree. A check that failed because another setting limited the result, or one that held "
+              "although it would have held under a rival explanation too, is not a fair test. The defects: " + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ".")
+    d = (ask_fn or supervise)(model, user, RULING_SCHEMA)
+    res = [c["body"]["result"] for c in checks]
+    fits = {"supported": all(x == "held" for x in res) and d["fair"], "refuted": any(x == "failed" for x in res) and d["fair"], "inconclusive": True}.get(d["result"], False)
+    ruling = {"shows": flat(d["shows"]), "fair": bool(d["fair"]), "defect": d["defect"] if d["defect"] in DEFECTS else "none", "result": d["result"] if fits else "inconclusive", "because": flat(d["because"]),
+              "retest": flat(d.get("retest") or ""), "checks": [c["id"] for c in checks], **({} if fits else {"changed_by_harness": f"the supervisor said {d['result']}, which does not fit the checks ({', '.join(res)}) or its own finding that the test was {'fair' if d['fair'] else 'not fair'}"})}
+    return ruling, user
+
+
+def answer_objection(model, brief, ledger, verdict, objection, ask_fn=None):
+    """The supervisor's second look at one of its rulings, after the researcher's objection: ({stands, result, because, answer}, what it was shown)."""
+    flat = lambda v: " ".join(str(v).split())
+    b, hid = verdict["body"], verdict["body"]["for"]
+    checks = [r for r in ledger if r["id"] in (b.get("checks") or [])]
+    xid = checks[0]["body"]["experiment"] if checks else None
+    lines = "\n".join(f"  [{c['id']}] {flat(c['body']['decision_rule'])}  ->  {c['body']['with_numbers']}  :  {c['body']['result'].upper()}" for c in checks)
+    user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, [{"decision_rule": c["body"]["decision_rule"]} for c in checks]) + f"\nTHE SIMULATIONS OF THE TEST, as measured:\n{_measured(ledger, xid)}\n\nEVERYTHING MEASURED IN THE SESSION:\n{_measured(ledger)}\n\n"
+            f"THE HARNESS'S CHECKS (facts):\n{lines}\n\nYOUR RULING [{verdict['id']}]: {b['result']}. {b['because']}" + (f" Defect: {DEFECTS.get(b.get('defect'), '')}." if not b.get("fair", True) else "")
+            + f"\n\nTHE RESEARCHER OBJECTS: {flat(objection)}\n\nLook at the records again. An objection is right only for what the records show, not for how sure it sounds. Does your ruling stand? "
+              "supported needs every check HELD, refuted needs a check that FAILED; otherwise inconclusive.")
+    d = (ask_fn or supervise)(model, user, APPEAL_SCHEMA)
+    res = [c["body"]["result"] for c in checks]
+    result = b["result"] if d["stands"] else d["result"]
+    if (result == "supported" and not all(x == "held" for x in res)) or (result == "refuted" and not any(x == "failed" for x in res)):
+        result = "inconclusive"
+    return {"stands": result == b["result"], "result": result, "because": flat(d["because"]), "answer": flat(d["answer"])}, user
 
 
 ROLES = ("supports", "background", "limits")  # what a claim of a final report does: a reason for the recommendation, how the system behaves, when the recommendation would change
@@ -631,18 +812,35 @@ def trim(ex, brief, ledger):
     needs = [{**n, "simulations": [l for l in n.get("simulations") or [] if l in left_labels]} for n in ex.get("needs") or [] if isinstance(n, dict) and n.get("for") in tests]
     return {**ex, "runs": kept, "decision_rules": rules, "tests": tests, "needs": needs, "control": ex.get("control") if ex.get("control") in left_labels else None}, cuts
 
-def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None):
+def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervised=False, ground=None):
     """The parts of an answer that can be used, and the parts that cannot, each with the reason: (ok, refused).
     ok = {verdicts, drop, hypotheses, experiment, report, budget_request}; refused = [(part, reason), ...].
     A refused part is left out and the rest is accepted. mode: None for an ordinary turn; "budget" for the last turn
     after the budget is used up (no experiment); "report" for a last turn that accepts only the final report."""
     text = lambda v: isinstance(v, str) and bool(v.strip())
     st, checked = states(ledger)
-    ok, no = {"verdicts": [], "drop": [], "rethink": [], "whys": [], "hypotheses": [], "experiment": None, "report": None, "budget_request": None}, []
+    ok, no = {"verdicts": [], "drop": [], "rethink": [], "whys": [], "hypotheses": [], "experiment": None, "report": None, "budget_request": None, "objections": []}, []
     only = "this last turn accepts only the final report"
+    # the arm "supervised": the verdicts are the supervisor's. The researcher may object to one of them, once; the supervisor then looks at it again
+    ruled = {r["id"]: r for r in ledger if r["type"] == "verdict" and r.get("by") == "supervisor"}
+    objected = {r["body"]["to"] for r in ledger if r["type"] == "objection"}
+    for o in (t.get("objections") or []) if supervised else []:
+        to = o.get("to") if isinstance(o, dict) else None
+        if mode == "report":
+            no.append(("objection", only))
+        elif to not in ruled:
+            no.append(("objection", f"an objection names a ruling of the supervisor by its id (to: for example V2): {to!r} is not one"))
+        elif to in objected or any(q["to"] == to for q in ok["objections"]) or ruled[to]["body"].get("after"):
+            no.append((f"objection to {to}", "a ruling is objected to once, and the supervisor's second look stands"))
+        elif not text(o.get("because")):
+            no.append((f"objection to {to}", "an objection says what in the records shows that the ruling is wrong (because)"))
+        else:
+            ok["objections"].append({"to": to, "because": o["because"]})
     for v in t.get("verdicts") or []:
         part = f"verdict for {v.get('for')}"
-        if mode == "report":
+        if supervised:
+            no.append((part, "in this session the verdicts are the supervisor's: it rules on each tested hypothesis after the checks. If you think a ruling is wrong, object to it (objections)"))
+        elif mode == "report":
             no.append((part, only))
         elif st.get(v.get("for")) != "open":
             no.append((part, f"{v.get('for')} is not an open hypothesis"))
@@ -682,10 +880,16 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None):
     # a why that is worth verifying AND fresh: the early guesses are looked at again in the light of each new result before anything is built on them.
     ws = why_states(ledger)
     stand = {y: w["worth"] for y, w in ws.items()}
+    if supervised:   # no rethink in this arm: a guess all of whose hypotheses the supervisor ruled refuted is refuted, and nothing more comes from it unless a new why revises it
+        of = {}
+        for r in ledger:
+            if r["type"] == "hypothesis" and r["body"].get("from_why"):
+                of.setdefault(r["body"]["from_why"], []).append(st.get(r["id"]))
+        stand.update({y: "refuted" for y, v in of.items() if stand.get(y) == "verify" and v and all(x == "refuted" for x in v)})
     revised_as = {y: w["as"] for y, w in ws.items() if w.get("as")}
     later = {y: since(ledger, w["at"]) + [f"V{sum(r['type'] == 'verdict' for r in ledger) + i + 1}" for i in range(len(ok["verdicts"]))] for y, w in ws.items()}
-    fresh = {y for y in ws if not later[y]}
-    for k in t.get("rethink") or []:
+    fresh = set(ws) if supervised else {y for y in ws if not later[y]}
+    for k in (t.get("rethink") or []) if not supervised else []:
         y = k.get("id") if isinstance(k, dict) else None
         light = [of_run(a) for a in k["in_light_of"]] if isinstance(k, dict) and isinstance(k.get("in_light_of"), list) else None
         if mode == "report":
@@ -708,7 +912,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None):
             fresh.add(y)
     # the review of the step from one hypothesis to the next: the guesses whose hypotheses were checked since they were last settled must be rethought
     # in this answer before it goes on to a new hypothesis or an experiment (and before the report). A new why that replaces one of them settles it too.
-    tested = tested_whys(ledger)
+    tested = {} if supervised else tested_whys(ledger)
     due = lambda: {y: v for y, v in tested.items() if stand.get(y) == "verify" and not any(q["id"] == y for q in ok["rethink"])}
     FIRST = ("first look again at the guesses that were just tested: {}. Give a rethink for each in this answer (id: the why's own id, for example Y4, never a K number; now: supported, "
              "refuted, verify or set_aside; because: what in those results makes it so). No new hypothesis and no experiment is accepted until then: this is the review of the step from "
@@ -731,7 +935,14 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None):
                                    "a run id for what you read in that run's series or trace (for example r001), or the word brief")))
         elif w.get("revises") is not None and (w["revises"] not in ws or stand[w["revises"]] == "revised"):
             no.append(("new why", "revises is null, or the id of an earlier why in the ledger that this one replaces with a better guess (one that has not been revised already)"))
+        elif ground is not None and (g := ground(w)) and g["refuse"]:
+            # gate 0 (the arm "supervised"): the supervisor read the records the guess cites. A guess that does not start from what they show, or that only
+            # says an earlier one again, is refused once; stated again it is accepted, and its review says that the supervisor still objects
+            no.append(("new why", f"the supervisor does not accept this guess as it stands: {GROUNDS[g['defect']]}. The records show: {g['records_show']} {g['because']} "
+                                  "State what the cited records show, and what in them is new, or leave the guess. No hypothesis can come from a guess that was not accepted"))
         else:
+            if ground is not None:
+                w = {**w, "ground": {k: g[k] for k in ("records_show", "nearest_earlier", "defect", "because")}}   # kept with the guess: what the supervisor read in the records
             ok["whys"].append(w)
             new = f"Y{n_why + len(ok['whys'])}"   # the id it is about to get
             whys[new], stand[new] = w, w["worth"]
@@ -817,6 +1028,8 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None):
         # aside; two of them, one the true cause, were never taken up): choosing which guesses to verify is a link of the chain, so it is closed too
         taken = {r["body"].get("from_why") for r in ledger if r["type"] == "hypothesis"} | {h.get("from_why") for h in ok["hypotheses"]}
         hanging = sorted((y for y, s in stand.items() if s == "verify" and y not in taken), key=lambda y: int(y[1:]))
+        if supervised:   # nothing is owed by the researcher: the rulings are the supervisor's, and a guess that was never taken up stays what it is, in the open
+            waiting, hanging = [], []
         if not why and insist and waiting and mode != "report":  # said once per session: the verdicts are asked for together with the report
             why = NEED + ", ".join(waiting) + ". Give their verdicts in the same answer as the report."
         if insist and due() and mode != "report" and (not why or why.startswith(NEED)):   # tested, and not looked at again: the last step is reviewed like every other
@@ -885,6 +1098,59 @@ def plain_format(schema):
     return schema
 
 
+def supervised_format(schema):
+    """The researcher's answer format in the arm "supervised": no verdicts and no rethink (the supervisor rules on the tests); in their place objections,
+    each to one ruling of the supervisor. Every other part is as in the ordinary arm."""
+    props = {}
+    for k, v in schema["properties"].items():
+        if k == "verdicts":
+            props["objections"] = {"type": "array", "description": "objections to rulings of the supervisor, at most one for each ruling; empty when you have none",
+                                   "items": {"type": "object", "additionalProperties": False, "required": ["to", "because"], "properties": {
+                                       "to": {"type": "string", "description": "the id of the supervisor's ruling, for example V2"}, "because": {"type": "string", "description": "what in the records shows that the ruling is wrong"}}}}
+        elif k != "rethink":
+            props[k] = v
+    schema["properties"] = props
+    schema["required"] = [("objections" if k == "verdicts" else k) for k in schema["required"] if k != "rethink"]
+    return schema
+
+
+SUPERVISED = (  # prompt.txt -> the researcher's instructions in the arm "supervised": (text as it stands in prompt.txt, what replaces it). Each must be found exactly once.
+    (" Before the final report every guess you marked verify must have led to a hypothesis, or a rethink must say what became of it.",
+     " To replace a why with a better guess, state a new why and name the old one in revises (otherwise revises is null); the old one then counts as revised. A guess all of whose hypotheses were refuted counts as refuted: nothing more comes from it unless a new why revises it."),
+    ("A second reader (the judge) checks each new hypothesis against the why it names: if testing the hypothesis would not tell whether that guess is true, the hypothesis is refused.",
+     "You do not work alone: a supervisor works apart from you. It proposes nothing and it does not see your observations or your reasons; it is shown your guess, your hypothesis, your decision rules, the planned simulations and the measured numbers. Before any simulation of a test is run it asks whether the test can tell if the guess is true. A test that could not (the hypothesis would come out the same whether the guess is true or not; a rival explanation would pass the rule as well; the ledger already holds the answer; another setting hides the effect; the threshold decides nothing) is sent back with the defect named, and none of its simulations is run or counted. Repair the design and send the experiment again, or, where the records you have already answer the question, read the answer from them instead of simulating. A test is sent back once: sent again it is run, and the record says whether the supervisor still objects."),
+    ("(for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read)", "(for example a decision rule the harness cannot read)"),
+)
+SUPERVISED_LINES = (  # whole lines of prompt.txt, by how they begin -> the line that stands there in the arm (None: the line is left out)
+    ("   - rethink:", None),
+    ("7. verdicts:", "7. rulings: the verdicts are not yours to give. After the checks the supervisor rules on each tested hypothesis: supported (every check HELD in a fair test), refuted (a check FAILED in a fair test), "
+                     "or inconclusive (the test was not a fair test of the hypothesis: it names the defect and what a fair test would compare). A ruling closes the hypothesis. After an inconclusive ruling, state the hypothesis "
+                     "again with a design that removes the defect if it still matters for the goal. If the records show that a ruling is wrong, say so in objections (to: the ruling's id, for example V2; because: what in "
+                     "the records shows it); the supervisor looks at it once more and its second ruling stands. An objection is not a second argument for your hypothesis: it points at numbers the ruling overlooked."),
+    ("   Before the report, give a verdict", "   Before the report nothing is owed for the hypotheses: each tested one has the supervisor's ruling. Your claims cite the checks and the rulings, not your own opinion of them."),
+)
+
+
+def supervised_prompt(text):
+    """The researcher's instructions in the arm "supervised", made from prompt.txt: the lines about rethinking and about verdicts are replaced by what
+    the supervisor does, and the sentence about the judge by the supervisor's review of a test. Stops if prompt.txt has changed so that one is not found."""
+    lines = text.split("\n")
+    for start, new in SUPERVISED_LINES:
+        hit = [i for i, l in enumerate(lines) if l.startswith(start)]
+        if len(hit) != 1:
+            raise ValueError(f"prompt.txt: {len(hit)} lines begin with {start!r}; the arm 'supervised' expects one")
+        lines[hit[0]:hit[0] + 1] = [] if new is None else [new]
+    text = "\n".join(lines)
+    for a, b in SUPERVISED:
+        if text.count(a) != 1:
+            raise ValueError(f"prompt.txt: {a[:50]!r}... stands {text.count(a)} times; the arm 'supervised' expects once")
+        text = text.replace(a, b)
+    left = [w for w in ("rethink", "the judge", "give a verdict", "verdicts:") if w in text]
+    if left:
+        raise ValueError(f"the instructions of the arm 'supervised' still name: {', '.join(left)}")
+    return text
+
+
 PLAIN = (  # prompt.txt -> the instructions of the arm "plain": (text as it stands in prompt.txt, what replaces it). Each must be found exactly once.
     ("everything you have hypothesised, run, observed and concluded", "everything you have run, observed and concluded"),
     ("Name the most important unexplained thing: your guesses of why are about it.", "Name the most important unexplained thing; your next experiment is about it."),
@@ -944,7 +1210,8 @@ def main():
     ap.add_argument("--policy", "--mode", dest="policy", choices=["share", "cap", "prio"], default="share", help="the scheduling policy: how the scheduler divides the link (prio: only for a brief with a network). The operator's choice, never shown to the model (--mode is its earlier name)")
     ap.add_argument("--temperature", type=float, default=0.3)
     ap.add_argument("--judge", choices=["on", "off"], default="on", help="on (the default): a second model call judges whether each new hypothesis follows from the guess of why it names, and a hypothesis that does not is refused; off: no such call")
-    ap.add_argument("--arm", choices=["hypotheses", "plain"], help="hypotheses (the default): the loop as it is. plain: the same loop, model, brief, budget and final report without the hypothesis format "
+    ap.add_argument("--arm", choices=["hypotheses", "plain", "supervised"], help="supervised: two agents. The researcher proposes and does not rule on its own tests; a supervisor, asked apart from it, reviews each test before "
+                    "its simulations are run and rules on what its checks mean (no judge, no rethink, no verdicts by the researcher). hypotheses (the default): the loop as it is. plain: the same loop, model, brief, budget and final report without the hypothesis format "
                     "(no hypotheses, decision rules or verdicts; experiments only explore), for the comparison that asks whether the format helps. An existing session keeps its own")
     ap.add_argument("--baseline", choices=["on", "off"], default="on", help="on an empty ledger, first run the harness's own default experiment X0")
     a = ap.parse_args()
@@ -967,6 +1234,8 @@ def main():
     arm = was or a.arm or "hypotheses"
     if arm == "plain":
         schema, system = plain_format(schema), plain_prompt(system)
+    if arm == "supervised":
+        schema, system = supervised_format(schema), supervised_prompt(system)
     if may_change(brief):  # only a session that may change the structure is told how
         system += STRUCTURE
     judged, judge_written = {}, set()   # each pair of a guess and a hypothesis is judged once in a session: a second attempt of the same turn gets the same reading
@@ -975,7 +1244,23 @@ def main():
         if k not in judged:
             judged[k] = judge_link(model, brief, why, h)
         return judged[k]
-    judge = judge_fn if a.judge == "on" and arm != "plain" else None
+    # gate 0 of the arm "supervised": each new guess is read by the supervisor against the records it cites, once for a statement (a second attempt of the same
+    # turn gets the same reading). A guess with a defect is refused the first time; a guess about the same records stated after that is accepted whatever the
+    # supervisor finds, and its review says so: the supervisor can be wrong, and it must not be able to stop the work
+    grounded, refused_about, ground_written = {}, {}, set()
+    def ground_fn(w):
+        k, about = (" ".join(str(w["guess"]).split()), tuple(w["about"])), tuple(sorted(w["about"]))
+        if k not in grounded:
+            try:
+                g, saw = ground_of(model, brief, ledger, w)
+            except (ValueError, KeyError, TypeError) as e:
+                g, saw = {"records_show": "", "nearest_earlier": "none", "defect": "none", "because": f"the supervisor's reading could not be read ({type(e).__name__}): the guess is accepted unread"}, ""
+            refuse = g["defect"] != "none" and not refused_about.get(about)
+            if refuse:
+                refused_about[about] = 1
+            grounded[k] = {**g, "saw": saw, "refuse": refuse, "result": w["result"], "guess": w["guess"]}
+        return grounded[k]
+    judge = judge_fn if a.judge == "on" and arm == "hypotheses" else None   # the supervised arm has the supervisor's review of the test in its place
     tol_given = type((brief.get("goal") or {}).get("tolerance")) in (int, float)   # tools.check_brief has made sure it is a number of per cent between 0 and 100
     TOLERANCE = float(brief["goal"]["tolerance"]) if tol_given else DEFAULT_TOLERANCE
     a.budget = brief["limits"]["simulations"] if a.budget is None else a.budget
@@ -989,7 +1274,8 @@ def main():
         ap.error(f"the starting budget is at most the brief's limit of {limit} simulations")
     if not meta.exists():  # the session's own record of what it was given; the scheduling policy is not in it
         meta.write_text(json.dumps({"id": SID, "brief": brief["id"], "model": model, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline, "judge": a.judge, **({"arm": arm} if arm != "hypotheses" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
+                                    "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, "temperature": a.temperature, "baseline": a.baseline, "judge": a.judge if arm == "hypotheses" else "off", **({"arm": arm} if arm != "hypotheses" else {}),
+                                              **({"supervisor": {"model": model, "temperature": 0, "sees": "the brief's description, the guess, the hypothesis, the decision rules, the planned simulations, the measured numbers; not the researcher's observations or reasons"}} if arm == "supervised" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
     print(f"session {SID} (brief {brief['id']}): {tools.SESSION}", flush=True)
     ledger = load_ledger()
     if a.baseline == "on":
@@ -999,6 +1285,11 @@ def main():
     giving_up = False  # set after UNUSABLE turns in a row without a usable answer: the next turn is the last and takes only the report
     how, unusable = None, 0  # how the session ended (None while it runs); turns in a row without a usable answer
     count = {"calls": 0, "length": 0}  # requests answered by the model server, and how many of them ended with finish_reason "length"
+
+    def sup_log(rid, gate, saw, answer):
+        """Beside the ledger: what the supervisor was shown for one of its records, and what it answered (no tool reads it; the page shows it on request)."""
+        with (tools.SESSION / SUPERVISOR_FILE).open("a") as f:
+            f.write(json.dumps({"id": rid, "turn": turn, "gate": gate, "shown": saw, "answer": answer}) + "\n")
 
     def finish():
         """session.json: when and how the session ended, the report's ledger id, the hypotheses still open."""
@@ -1033,9 +1324,9 @@ def main():
             # (s030: seventeen second verdicts, each refused)
             st_now, checked_now = states(ledger)
             waiting = sorted((h for h, v in st_now.items() if v == "open" and h in checked_now), key=lambda h: (len(h), h))
-            last_ask = (f"Give a verdict on each hypothesis that is still open and has a checked decision rule ({', '.join(waiting)}), and write the final report (report). " if waiting
+            last_ask = "Write the final report (report). The rulings on the tested hypotheses are the supervisor's; none is owed by you." if arm == "supervised" else ((f"Give a verdict on each hypothesis that is still open and has a checked decision rule ({', '.join(waiting)}), and write the final report (report). " if waiting
                    else "Every hypothesis that has a checked decision rule already has its verdict: write the final report (report). ") + \
-                "A hypothesis that already has a verdict is closed: do not judge it again (a second verdict for it is refused)."
+                "A hypothesis that already has a verdict is closed: do not judge it again (a second verdict for it is refused).")
             user = (f"BRIEF:\n{json.dumps(brief, indent=1)}\n\nSIMULATION BUDGET: " + ("used up. THIS IS THE LAST TURN: no experiment is accepted and budget_request is no longer possible. "
                     + last_ask if mode == "budget" else
                     f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
@@ -1043,7 +1334,7 @@ def main():
                     f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). This turn's experiment may run at most {spend_cap(budget - sims, per)} new simulations: never more than half of what is left, so that something remains for what its results raise.")
                     + (f"\n\nLOOK AGAIN FIRST: results have come in for hypotheses of these guesses since you last settled them: {look_again(tested_whys(ledger))}. Before anything new, give a rethink "
                        "for each in this answer (id: the why's own id; now: supported, refuted, verify or set_aside; because of what in those results). No new hypothesis and no experiment "
-                       "is accepted until each has its rethink." if arm != "plain" and mode != "report" and tested_whys(ledger) else "")
+                       "is accepted until each has its rethink." if arm == "hypotheses" and mode != "report" and tested_whys(ledger) else "")
                     + f"\n\nTOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal ({'stated by the brief' if tol_given else 'the default of the harness: the brief states none'}). "
                       "A difference inside it is not a finding, and a setting is not better for it."
                     + f"\n\nLEDGER:\n{text}")
@@ -1067,7 +1358,7 @@ def main():
                 except ValueError as e:
                     err, parsed = f"invalid JSON: {e}", None
                     continue
-                ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked, judge=judge)
+                ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked, judge=judge, supervised=arm == "supervised", ground=ground_fn if arm == "supervised" else None)
                 rq = [] if mode else (parsed.get("requests") or [])[:3]
                 if any(r.startswith(WAIT) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
                     asked = need_now = True
@@ -1097,6 +1388,11 @@ def main():
                 f.write(json.dumps({"turn": turn, "answer": parsed}) + "\n")
             for part, why in no:  # each refused part: a note, shown to the model in the next turn; the rest of the answer was accepted
                 append(ledger, turn, "note", last, {"text": f"refused part of the answer: {part}. Reason: {why.rstrip('.')}. The other parts of that answer were accepted.", "part": part, "reason": why})
+            for k, g in grounded.items():   # a guess the supervisor did not accept: its reading is a record of its own, so that a person sees on what ground
+                if g["refuse"] and k not in ground_written:
+                    ground_written.add(k)
+                    gid = append(ledger, turn, "review", None, {"for": None, "gate": "ground", "decision": "sent_back", "result": g["result"], "guess": g["guess"], "about": list(k[1]), **{q: g[q] for q in ("records_show", "nearest_earlier", "defect", "because")}})
+                    sup_log(gid, "ground", g["saw"], {q: g[q] for q in ("records_show", "nearest_earlier", "defect", "because")})
             br = ok["budget_request"]
             if br:  # granted up to the brief's limit, before this turn's experiment is counted
                 granted = max(0, min(br["simulations"], limit - budget))
@@ -1108,7 +1404,7 @@ def main():
                 append(ledger, turn, "result", qid, {"tool": q.get("tool"), "result": out})
                 pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{out}")
             ex, report = ok["experiment"], ok["report"]
-            if not (ok["rethink"] or ok["whys"] or ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ex is not None or report is not None or br):  # only requests
+            if not (ok["rethink"] or ok["whys"] or ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ok["objections"] or ex is not None or report is not None or br):  # only requests
                 tool_only += 1
                 if tool_only > 3:
                     pending = [" (tool-only turn limit reached: results withheld, decide now)"]
@@ -1119,6 +1415,17 @@ def main():
             obs = lambda: {"observations": seen.pop()} if seen else {}
             for v in ok["verdicts"]:
                 append(ledger, turn, "verdict", v["for"], {k: v.get(k) for k in ("for", "result", "because", "next")} | obs())
+            for o in ok["objections"]:   # the researcher's objection to one ruling, and the supervisor's second look at it: a new ruling record, which stands
+                was = next(r for r in ledger if r["id"] == o["to"])
+                oid = append(ledger, turn, "objection", o["to"], {"to": o["to"], "for": was["body"]["for"], "because": o["because"]} | obs())
+                try:
+                    again, saw = answer_objection(model, brief, ledger, was, o["because"])
+                    vid = append(ledger, turn, "verdict", was["body"]["for"], {"for": was["body"]["for"], "result": again["result"], "because": again["because"], "next": was["body"].get("next") or "" if again["stands"] else "",
+                                                                             "fair": was["body"].get("fair", True) if again["stands"] else again["result"] != "inconclusive", "defect": was["body"].get("defect", "none") if again["stands"] else "none",
+                                                                             "checks": was["body"].get("checks") or [], "after": oid, "stands": again["stands"], "answer": again["answer"]}, by="supervisor")
+                    sup_log(vid, "objection", saw, again)
+                except (ValueError, KeyError, TypeError) as e:
+                    append(ledger, turn, "note", oid, {"text": f"the supervisor's answer to the objection {oid} could not be read ({type(e).__name__}): the ruling {o['to']} stands as it was"})
             for d in ok["drop"]:
                 append(ledger, turn, "drop", d["id"], {"for": d["id"], "why": d["why"]} | obs())
             for k, (follows, because) in judged.items():  # what the judge read in this turn, kept for a person (not shown to the model: a refusal reaches it as a note)
@@ -1128,11 +1435,53 @@ def main():
             for k in ok["rethink"]:
                 append(ledger, turn, "rethink", k["id"], {"for": k["id"], "in_light_of": k["in_light_of"], "now": k["now"], "because": k["because"]} | obs())
             for w in ok["whys"]:
-                last = append(ledger, turn, "why", last, {k: w[k] for k in ("about", "result", "guess", "unseen", "matters", "worth", "reason")} | ({"revises": w["revises"]} if w.get("revises") else {}) | obs())
+                last = append(ledger, turn, "why", last, {k: w[k] for k in ("about", "result", "guess", "unseen", "matters", "worth", "reason")} | ({"revises": w["revises"]} if w.get("revises") else {}) | ({"ground": w["ground"]} if w.get("ground") else {}) | obs())
+                if w.get("ground"):   # the supervisor's reading of the records this guess cites
+                    k = (" ".join(str(w["guess"]).split()), tuple(w["about"]))
+                    ground_written.add(k)
+                    gid = append(ledger, turn, "review", last, {"for": last, "gate": "ground", "decision": "approved" if w["ground"]["defect"] == "none" else "contested", **w["ground"]})
+                    sup_log(gid, "ground", (grounded.get(k) or {}).get("saw", ""), w["ground"])
             for h in ok["hypotheses"]:
                 last = append(ledger, turn, "hypothesis", last, {"text": h["text"], "question": h["question"], "why": h["why"], "prediction": h.get("prediction"), "follows_from": h["follows_from"], "from_why": h["from_why"]} | ({"judge": h["judge"]} if h.get("judge") else {}) | obs())
+            if ex is not None and arm == "supervised" and ex.get("kind") == "test":
+                # gate 1: before any simulation of the test is run, the supervisor reads the design of each tested hypothesis. A defect sends the whole
+                # experiment back, once for a hypothesis: sent again it is run, and the record says that the supervisor still objects ("contested")
+                back = []
+                for hid in ex["tests"]:
+                    before = sum(r["type"] == "review" and r["body"]["for"] == hid and r["body"]["decision"] == "sent_back" for r in ledger)
+                    try:
+                        rev, saw = review_design(model, brief, ledger, ex, hid)
+                    except (ValueError, KeyError, TypeError) as e:
+                        append(ledger, turn, "note", hid, {"text": f"the supervisor's review of the test of {hid} could not be read ({type(e).__name__}): the test is run unreviewed"})
+                        continue
+                    decision = "approved" if rev["defect"] == "none" else "contested" if before else "sent_back"
+                    gid = append(ledger, turn, "review", hid, {"for": hid, "decision": decision, **rev, "rules": [d["decision_rule"] for d in ex.get("decision_rules") or [] if d.get("for") == hid],
+                                                               "simulations": next((n.get("simulations") for n in ex.get("needs") or [] if n.get("for") == hid), [r["label"] for r in ex["runs"]])})
+                    sup_log(gid, "design", saw, rev)
+                    if decision == "sent_back":
+                        back.append(f"{hid} ({gid}: {DEFECTS[rev['defect']]})")
+                if back:   # nothing of this experiment is run or counted
+                    append(ledger, turn, "note", last, {"text": "the experiment was not run: the supervisor sent back the test of " + "; ".join(back) + ". Its reasons stand in those review records. Repair the design and send the "
+                                                                "experiment again, or read the answer from the records you have. A test is sent back once: sent again, it is run.", "part": "experiment", "reason": "sent back by the supervisor"})
+                    ex = None
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
+                if arm == "supervised" and ex.get("kind") == "test":
+                    # gate 2: the harness has checked the rules; the supervisor says what each check means. Its ruling is the hypothesis's verdict
+                    xid = next(r["id"] for r in reversed(ledger) if r["type"] == "experiment")
+                    for hid in ex["tests"]:
+                        if not any(r["type"] == "check" and r["body"]["experiment"] == xid and r["body"]["for"] == hid and r["body"]["result"] in ("held", "failed") for r in ledger):
+                            continue   # nothing was checked for it (a simulation its rule names failed): it stays open
+                        doubt = next((r["body"]["doubt_if"] for r in reversed(ledger) if r["type"] == "review" and r["body"]["for"] == hid), "")
+                        try:
+                            ruling, saw = rule_on(model, brief, ledger, xid, hid, doubt)
+                        except (ValueError, KeyError, TypeError) as e:
+                            append(ledger, turn, "note", hid, {"text": f"the supervisor's ruling on {hid} could not be read ({type(e).__name__}): {hid} stays open"})
+                            continue
+                        vid = append(ledger, turn, "verdict", hid, {"for": hid, "result": ruling["result"], "because": ruling["because"], "next": ruling["retest"], "fair": ruling["fair"], "defect": ruling["defect"],
+                                                                   "shows": ruling["shows"], "checks": ruling["checks"], "experiment": xid, **({"doubt_if": doubt} if doubt else {}),
+                                                                   **({"changed_by_harness": ruling["changed_by_harness"]} if ruling.get("changed_by_harness") else {})}, by="supervisor")
+                        sup_log(vid, "ruling", saw, ruling)
             if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over
                 append(ledger, turn, "report", last, report | obs())
                 (tools.SESSION / "report.json").write_text(json.dumps(report, indent=1) + "\n")

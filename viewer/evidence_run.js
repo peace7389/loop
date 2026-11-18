@@ -3,11 +3,13 @@
 // The operator's own simulation and sweep, on the Operator tab, are in evidence_oprun.js.
 // ======================================================================================================
 Object.assign(EV, {
-  nw: { policy: 'share', budget: '', draft: 'on', tokens: '', temp: '', baseline: true },  // blocks 6 and 7 of the set-up page
+  nw: { policy: 'share', budget: '', draft: 'on', tokens: '', temp: '', baseline: true, arm: 'hypotheses' },  // blocks 6 and 7 of the set-up page
   briefs: {},  // brief id -> its file (null: it cannot be read), fetched once
   briefOf(id) { if (id && !(id in EV.briefs)) { EV.briefs[id] = undefined; EV.json(`../briefs/${id}.json`).then(b => { EV.briefs[id] = b; EV.draw(); }); } return EV.briefs[id]; },
+  // who rules on a test (block 7 of the set-up page): one AI that judges its own tests, or a researcher and a supervisor, a second AI asked apart from it
+  armField() { const a = EV.nw.arm || 'hypotheses'; return `<select data-ch="nw" data-k="arm" id="nw-arm" title="With a supervisor: the researcher proposes and does not rule on its own tests. A second AI, asked apart from it and never shown its reasons, reads each new guess against the records it cites, reviews each test before any simulation is run, and rules on what the checks mean"><option value="hypotheses"${a === 'hypotheses' ? ' selected' : ''}>one AI, which judges its own tests</option><option value="supervised"${a === 'supervised' ? ' selected' : ''}>a researcher and a supervisor</option></select>`; },
   flags() {  // the choices of the panel as control.py takes them; a field left empty keeps the loop's default
-    const n = EV.nw, o = { policy: n.policy, draft: n.draft, baseline: !!n.baseline }, num = (k, to) => { if (String(n[k]).trim()) o[to] = Number(n[k]); };
+    const n = EV.nw, o = { policy: n.policy, draft: n.draft, baseline: !!n.baseline, ...(n.arm && n.arm !== 'hypotheses' ? { arm: n.arm } : {}) }, num = (k, to) => { if (String(n[k]).trim()) o[to] = Number(n[k]); };
     num('budget', 'budget'); num('tokens', 'max_tokens'); num('temp', 'temperature'); return o;
   },
 

@@ -2,14 +2,14 @@
 // data-step (the step of the session flow at which it was recorded), so the replay can grey everything later.
 // ======================================================================================================
 Object.assign(EV, {
-  LANES: { model: [0, 232], harness: [240, 166], simulator: [414, 150] },  // x and width of each lane
+  LANES: { model: [0, 232], harness: [240, 166], simulator: [414, 150], supervisor: [572, 176] },  // x and width of each lane (the supervisor's only in a supervised session)
 
   // ---- View 1: one box per step in the lane of whoever did it, joined in time order; a band marks each turn
   viewLanes() {
-    const M = EV.M, S = EV.s, e = EV.e, L = EV.LANES, W = 564, out = [], arrows = [];
+    const M = EV.M, S = EV.s, e = EV.e, L = M.supervised ? EV.LANES : Object.fromEntries(Object.entries(EV.LANES).filter(([b]) => b !== 'supervisor')), W = M.supervised ? 748 : 564, out = [], arrows = [];
     const info = EV.selInfo(), selSteps = new Set([...info.recs].map(id => M.recStep[id]).filter(k => k != null));  // the boxes that hold a part of the selected item
     const hit = new Set(); if (S.claim) { const c = M.claims[S.claim - 1]; (c ? c.evidence : []).forEach(id => { if (id in M.recStep) hit.add(M.recStep[id]); }); }
-    const icon = { start: EV_ICON.brief, answer: '✎', refused: EV_ICON.malformed, accepted: EV_ICON.experiment, sims: EV_ICON.simulation, checks: EV_ICON.check, report: EV_ICON.report };
+    const icon = { start: EV_ICON.brief, answer: '✎', refused: EV_ICON.malformed, accepted: EV_ICON.experiment, sims: EV_ICON.simulation, checks: EV_ICON.check, report: EV_ICON.report, review: EV_ICON.review, ruling: EV_ICON.verdict };
     let y = 30, prev = null;
     const head = Object.entries(L).map(([b, [x, w]]) => `<g data-by="${b}"><rect class="stripe" x="${x}" y="4" width="10" height="10" rx="3"/><text x="${x + 15}" y="13" style="font-weight:600;fill:var(--text-primary)">the ${b}</text></g>`).join('');
     const lines = Object.entries(L).map(([, [x, w]]) => `<line x1="${x + w / 2}" y1="22" x2="${x + w / 2}" y2="@H" stroke="var(--grid)" stroke-dasharray="2 4"/>`).join('');

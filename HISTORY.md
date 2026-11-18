@@ -217,6 +217,9 @@ be written as Y and a number. On the page, "From one hypothesis to the next" sta
 step in five columns (the results it had, its guess, the judge's reading, the hypothesis, what its test showed), each
 turn's look-again at its head, and a turn that went on without it marked (s042, turn 3).
 *Status:* partly: tested with scripted sessions; no real session has run under the rule yet.
+**A16. What the AI writes about its own test repeats the test; a second voice needs a different view, not a second name.**
+*Evidence:* a review of the 43 ledgers on 2026-11-18: of 474 verdicts none contradicted its check (378 repeat it); the judge, the same model given the same words, found 20 of 20 hypotheses to follow from their guesses; a rethink called a guess supported after its only hypothesis was refuted (s043); full format and plain arm scored the same gap on the one scored brief. *What we changed:* the arm "supervised": the researcher proposes and does not rule on its own tests; a supervisor, asked in a request of its own and never shown the researcher's reasons, reads each new guess against the records it cites, reviews each test before any simulation, and rules on what the checks mean. The checks stay facts: a ruling that does not fit them is recorded as inconclusive. *Status:* built and tested with a scripted supervisor; not yet measured whether the same model, asked this way, objects where it should.
+
 
 ### B. Measuring and judging
 

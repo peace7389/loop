@@ -459,7 +459,8 @@ const BRIEF_EDITOR = {
         ${field('draft before the answer', `<select data-ch="nw" data-k="draft"><option${nw.draft === 'on' ? ' selected' : ''}>on</option><option${nw.draft === 'off' ? ' selected' : ''}>off</option></select>`, 'default: on')}
         ${field('most tokens of one answer', `<input type="number" min="256" data-ch="nw" data-k="tokens" value="${e(nw.tokens)}" placeholder="${nw.draft === 'on' ? 32000 : 3000}">`, 'default: 32000 with a draft, 3000 without', 'tokens')}
         ${field('temperature', `<input type="number" min="0" max="2" step="0.1" data-ch="nw" data-k="temp" value="${e(nw.temp)}" placeholder="0.3">`, 'default: 0.3', 'temp')}
-        ${field('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on · every knob at its default, by the harness')}</div>`;
+        ${field('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on · every knob at its default, by the harness')}
+        ${field('who rules on the tests', EV.armField(), 'default: one AI · a supervisor is a second AI, asked apart from the researcher')}</div>`;
     const blk = (i, body, cls) => EV.setBlock(i, body, { says: true, cls });
     const top = `<div class="be-top"><div><label>Start from a saved brief<small>its content fills the seven blocks</small><select id="be-open"${s.none ? ' disabled' : ''}>${B.openOpts(briefs)}</select></label>
         <label class="be-none"><input type="checkbox" id="be-none"${s.none ? ' checked' : ''}><span>or start from an empty set-up<small>no saved brief: you write the description, every setting starts fixed</small></span></label></div>

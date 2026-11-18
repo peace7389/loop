@@ -365,7 +365,8 @@ const BRIEF_NET = {
     const fl = (label, html, note) => `<div><span>${label}</span>${html}<span>${note}</span></div>`;
     const b7 = `<div class="kv" id="bn-flags">${fl('simulations allowed at the start', `<input type="number" min="1" data-ch="nw" data-k="budget" value="${e(nw.budget)}" placeholder="${e(s.sims)}">`, "default: the brief's limit")}
         ${fl('draft before the answer', `<select data-ch="nw" data-k="draft"><option${nw.draft === 'on' ? ' selected' : ''}>on</option><option${nw.draft === 'off' ? ' selected' : ''}>off</option></select>`, 'default: on')}
-        ${fl('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on')}</div>`;
+        ${fl('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on')}
+        ${fl('who rules on the tests', EV.armField(), 'default: one AI')}</div>`;
     const nets = (N.ctx.st || {}).network_briefs || [];
     const top = `<div class="be-top"><div><label>Start from<small>a saved brief that has a network, or one of two examples</small><select id="bn-open"><option value="">choose…</option><option value="~default">example: two hosts, one link (UDP and TCP)</option><option value="~dumbbell">example: two senders through a third host</option>${nets.map(b => `<option value="${e(b)}"${b === s.base ? ' selected' : ''}>${e(b)}</option>`).join('')}</select></label></div>
         <label>Name of the new brief<small>lower-case letters, digits, - and _ · a saved brief is never overwritten</small>${N.field('id', s.id, 'e.g. three-hosts')}</label></div>`;
