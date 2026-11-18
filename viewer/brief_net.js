@@ -200,6 +200,8 @@ const BRIEF_NET = {
   problems() {
     const N = BRIEF_NET, s = N.s, t = s.t, bad = []; N.syncDesc();
     if (t.hosts.length < 2 || !t.links.length || !t.flows.length) bad.push('A network needs at least two hosts, one link and one flow.');
+    const bf = N.node && N.node.querySelector('#bn-flags input[data-k=budget]'), start = String(bf ? bf.value : (EV.nw || {}).budget || '').trim();
+    if (start && /^\d+$/.test(String(s.sims).trim()) && Number(start) > Number(s.sims)) bad.push(`Block 7 allows ${start} simulations at the start, more than the limit of ${String(s.sims).trim()} in block 5 (“Simulations in all”). Lower it, or empty the field to start with the limit.`);
     t.hosts.filter(h => !t.links.some(l => l.between.includes(h.id))).forEach(h => bad.push(`Host ${h.id} has no link.`));
     t.flows.forEach(f => { const adj = {}; t.hosts.forEach(h => { adj[h.id] = []; }); t.links.forEach(l => { adj[l.between[0]].push(l.between[1]); adj[l.between[1]].push(l.between[0]); });
       const dist = { [f.from]: 0 }, ways = { [f.from]: 1 }; let fr = [f.from]; while (fr.length) { const nx = []; fr.forEach(h => adj[h].forEach(o => { if (!(o in dist)) { dist[o] = dist[h] + 1; ways[o] = ways[h]; nx.push(o); } else if (dist[o] === dist[h] + 1) ways[o] += ways[h]; })); fr = nx; }
@@ -502,6 +504,7 @@ const BRIEF_NET = {
     const N = BRIEF_NET, s = N.s, t = ev.target, f = t.dataset && t.dataset.f, done = ev.type === 'change';
     if (t.id === 'bn-open' && done) return N.open(t.value);
     if (t.id === 'bn-structure') { s.structure = t.checked; return N.draw(); }
+    if (t.dataset && t.dataset.ch === 'nw') return setTimeout(N.paintTask, 0);
     if (t.dataset && t.dataset.goal) { s.goal = t.dataset.goal; return N.draw(); }
     // a condition's row: a chosen measure or comparison, or a typed number, rewrites its line (the number is shown in the measure's unit and kept as the harness reads it)
     if (t.dataset && t.dataset.condF) { const [i, part] = t.dataset.condF.split(':'), rows = N.condRows(), r = rows[Number(i)]; if (!r) return;
@@ -529,7 +532,9 @@ const BRIEF_NET = {
     s[f] = t.value; if (f === 'description') s.descAuto = !t.value.trim();   // typed: the operator's own text from now on (emptied: written from the network again)
     if (done && ['measure', 'direction', 'tcpBufBytes', 'tcpInitCwnd', 'tcpSack', 'tcpTimestamps', 'tcpDelAck'].includes(f)) return N.soon(); N.paintTask();
   },
-  paintTask() { const N = BRIEF_NET, $ = id => N.node.querySelector('#' + id); const task = $('bn-task'); if (task) task.textContent = EV.taskText(N.toBrief()); const bad = N.problems(), wait = EV.mustWait ? EV.mustWait() : null; $('bn-save').disabled = !!N.s.busy || !!bad.length; $('bn-start').disabled = !!N.s.busy || !!bad.length || !!wait; $('bn-state').innerHTML = bad.length ? `<span class="bn-bad"><b>Not ready yet:</b></span><ul id="bn-bad">${bad.map(x => `<li>${EV.e(x)}</li>`).join('')}</ul>` : 'Ready.'; },
+  // block 7's "simulations allowed at the start": empty means the brief's limit, and the grey number in the empty field is that limit as it stands now (block 5)
+  budgetHint() { const N = BRIEF_NET, f = N.node.querySelector('#bn-flags input[data-k=budget]'); if (f) f.placeholder = String(N.s.sims).trim(); },
+  paintTask() { const N = BRIEF_NET, $ = id => N.node.querySelector('#' + id); const task = $('bn-task'); if (task) task.textContent = EV.taskText(N.toBrief()); N.budgetHint(); const bad = N.problems(), wait = EV.mustWait ? EV.mustWait() : null; $('bn-save').disabled = !!N.s.busy || !!bad.length; $('bn-start').disabled = !!N.s.busy || !!bad.length || !!wait; $('bn-state').innerHTML = bad.length ? `<span class="bn-bad"><b>Not ready yet:</b></span><ul id="bn-bad">${bad.map(x => `<li>${EV.e(x)}</li>`).join('')}</ul>` : 'Ready.'; },
   key(ev) {
     const N = BRIEF_NET, s = N.s, t = ev.target, typing = t.matches && t.matches('input, textarea, select'); if (!N.node || !N.node.isConnected || !s) return;
     if (ev.key === 'Escape' && (s.placing || s.pending)) { s.placing = s.pending = null; N.paint(); return; }

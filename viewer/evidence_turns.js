@@ -7,7 +7,7 @@ Object.assign(EV, {
     supervisor: ['Supervisor', 'the AI asked apart', 'reads each guess against its records, reviews each test before it runs, rules on each tested hypothesis'],
     judge: ['Judge', 'the AI asked apart', 'reads whether each hypothesis follows from the guess it names'],
     harness: ['Harness', 'the program, fixed rules', 'what it accepts and refuses, what the tools return, the result tables, the checks computed from the numbers'],
-    simulator: ['ns-3', 'the simulator', 'the simulations: the only source of measured numbers'] },
+    simulator: ['ns-3', 'runs the simulations', 'each simulation and what it measured: the only source of measured numbers'] },
   TN_TOGETHER: ['simulation', 'request', 'result', 'note'],   // kinds that come many at a time: those that follow each other share one box; every other object has a box of its own
   // the column of a record: who made it. A verdict is the supervisor's in a two-agent session and the researcher's otherwise
   tnCol(r) { return r.type === 'judge' ? 'judge' : r.type === 'review' ? 'supervisor' : r.type === 'simulation' ? 'simulator' : r.type === 'verdict' ? (r.by === 'supervisor' ? 'supervisor' : 'model') : r.by === 'model' ? 'model' : EV_BY[r.type] === 'model' && r.by !== 'harness' ? 'model' : 'harness'; },

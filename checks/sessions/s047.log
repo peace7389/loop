@@ -1,0 +1,2 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s047 --brief lets_seee --draft on --policy share --baseline on --arm supervised
+session s047 (brief lets_seee): /home/chunguck.kim/project/sessions/s047

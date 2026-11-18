@@ -478,6 +478,7 @@ const BRIEF_EDITOR = {
   paint() {
     const B = BRIEF_EDITOR, s = B.s, e = B.ctx.e, st = B.ctx.st || {}, $ = id => B.node.querySelector('#' + id), nw = EV.nw;
     if (!s || !s.set || !$('be-save')) return;
+    { const bf = B.node.querySelector('input[data-k=budget]'); if (bf) bf.placeholder = String(s.sims).trim(); }
     const briefs = st.briefs || [];
     if (briefs.map(b => b + briefAsks(b)).join('|') !== B.list && document.activeElement !== $('be-open')) { B.list = briefs.map(b => b + briefAsks(b)).join('|'); $('be-open').innerHTML = B.openOpts(briefs); }
     const svg = $('be-svg'); if (svg) svg.innerHTML = B.picSvg();  // the picture follows the form as it is typed
