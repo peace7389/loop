@@ -142,6 +142,7 @@ const EV = {
     if (a === 'open') { S.inset = null; S.sel = { t: t.dataset.t, id: /^\d+$/.test(id || '') && t.dataset.t === 'log' ? Number(id) : id, test: t.dataset.test || undefined };  // test: the test a simulation was opened from
       S.item = null; return S.view !== 'session' ? EV.go({ view: 'session' }) : EV.draw(); }  // from the heat map: to the session's page (S.item: the address named no item, and must not clear this choice)
     if (a === 'tnfold') return EV.tnfold(id);
+    if (a === 'tnmore') return EV.tnmore(id);
     if (a === 'step') { const o = EV.M.steps[Number(id)].open; S.sel = { t: o.t, id: o.t === 'log' ? o.turn : o.t === 'brief' ? 'brief' : o.t === 'report' ? 'report' : o.id }; return EV.draw(); }
     if (a === 'replay') return EV.replay(id);
     if (a === 'claim') { S.claim = S.claim === Number(id) ? null : Number(id); const c = EV.M.claims[Number(id) - 1]; if (S.claim && c && (c.tests[0] || c.exps[0])) S.sel = c.tests[0] ? { t: 'test', id: c.tests[0] } : { t: 'exp', id: c.exps[0] };

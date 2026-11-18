@@ -11,32 +11,45 @@ Object.assign(EV, {
   TN_TOGETHER: ['simulation', 'request', 'result', 'note'],   // kinds that come many at a time: those that follow each other share one box; every other object has a box of its own
   // the column of a record: who made it. A verdict is the supervisor's in a two-agent session and the researcher's otherwise
   tnCol(r) { return r.type === 'judge' ? 'judge' : r.type === 'review' ? 'supervisor' : r.type === 'simulation' ? 'simulator' : r.type === 'verdict' ? (r.by === 'supervisor' ? 'supervisor' : 'model') : r.by === 'model' ? 'model' : EV_BY[r.type] === 'model' && r.by !== 'harness' ? 'model' : 'harness'; },
-  // one record in words: [what it is, what it says, warn]
+  // a text of an agent or of the harness, with every record id in it that exists (and is on the page at this step of the replay) as a link
+  tnText(t) { const M = EV.M; return EV.e(String(t == null ? '' : t).replace(/\s+/g, ' ').trim()).replace(/\b[A-Z]{1,2}\d+\b/g, id => (M.byId[id] && EV.seen(id) ? EV.link(id) : id)); },
+  // one record: { what: its kind in words, says: what was said or done (in full), ground: [label, html] rows of what it rests on, more: [label, long text] kept folded, warn }
   tnSays(r) {
-    const b = r.body || {}, cut = (s, n) => { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; }, n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+    const M = EV.M, b = r.body || {}, T = EV.tnText, e = EV.e, n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`, ids = a => (a || []).map(x => (M.byId[x] && EV.seen(x) ? EV.link(x) : e(x))).join(', ');
+    const cut = (t, k) => { t = String(t == null ? '' : t).replace(/\s+/g, ' ').trim(); return t.length > k ? t.slice(0, k - 1) + '…' : t; }, G = rows => rows.filter(q => q && q[1]);
     switch (r.type) {
-      case 'why': return ['guess of why', cut(b.guess, 190)];
-      case 'rethink': return ['looks again at ' + (b.for || 'a guess'), `now ${b.now || ''}: ${cut(b.because, 150)}`];
-      case 'hypothesis': return ['hypothesis' + (b.from_why ? ' from ' + b.from_why : ''), cut(b.text, 190)];
-      case 'judge': return ['reads a new hypothesis against its guess', `${b.follows ? 'the hypothesis follows from the guess' : 'the hypothesis does not follow from the guess'}: ${cut(b.because, 150)}`, !b.follows];
-      case 'drop': return ['gives up ' + (b.for || 'a hypothesis'), cut(b.reason, 150)];
-      case 'experiment': { const rules = (b.decision_rules || []).map(d => d.decision_rule).filter(Boolean);
-        return [b.kind === 'test' ? 'test of ' + (b.tests || []).join(', ') : r.by === 'harness' ? 'baseline' : 'exploration', `${n((b.runs || []).length, 'simulation')} planned${rules.length ? ' · decided by: ' + cut(rules.join(' ; '), 150) : b.question ? ' · ' + cut(b.question, 150) : ''}`]; }
-      case 'simulation': return ['simulation', `${b.label || ''}${b.same_as ? ' (returned from ' + b.same_as + ', not run again)' : ''}${b.error ? ' · no measurements' : ''}`, !!b.error];
-      case 'evidence': return ['result table', n((b.lines || []).length, 'line') + ', one for each simulation'];
-      case 'check': return ['check for ' + (b.for || ''), `${b.result === 'held' ? 'HELD' : b.result === 'failed' ? 'FAILED' : String(b.result || '')}: ${cut(b.with_numbers || b.decision_rule, 140)}`];
-      case 'verdict': return [(r.by === 'supervisor' ? (b.after ? 'second ruling on ' : 'ruling on ') : 'verdict on ') + (b.for || ''), `${b.result || ''}: ${cut(b.because, 150)}`];
-      case 'review': { const ok = b.decision === 'approved', what = b.gate === 'ground' ? `reads the guess ${b.for || ''} against its records` : `reviews the test of ${b.for || ''} before any simulation`;
-        return [what, `${ok ? 'approved' : b.decision === 'contested' ? 'still objects (it is run all the same)' : 'sent back'}${ok ? '' : ': ' + cut(b.because, 150)}`, !ok]; }
-      case 'objection': return ['objects to the ruling ' + (b.to || ''), cut(b.because, 160)];
-      case 'request': return ['asks to look', `${b.tool || ''}(${cut(Object.entries(b.args || {}).filter(([, v]) => v != null).map(([k, v]) => `${k}: ${v}`).join(', '), 110)})`];
-      case 'result': return ['returns what ' + (b.tool || 'the tool') + ' read', cut(b.result, 120), /^error/.test(String(b.result || ''))];
-      case 'note': return r.by === 'model' ? ['observations', cut(b.observations || b.text, 190)] : b.part ? ['refuses a part of the answer: ' + b.part, cut(b.reason || b.text, 190), true] : ['note', cut(b.text, 190)];
-      case 'malformed': return ['cannot use the answer', cut(((b.refused || []).map(q => `${q.part}: ${q.reason}`).join(' | ')) || b.error, 190), true];
-      case 'report': return ['final report', 'recommends ' + cut(Object.entries(b.recommendation || {}).map(([k, v]) => `${k} ${v}`).join(', '), 170)];
-      default: return [r.type, cut(b.text || '', 150)];
+      case 'why': return { what: 'guess of why', says: T(b.guess), ground: G([['the result it starts from', T(b.result)], ['read in', ids(b.about)], b.revises && ['replaces', ids([b.revises])]]) };
+      case 'rethink': return { what: 'looks again at ' + (b.for || 'a guess'), says: `now ${e(b.now || '')}`, ground: G([['because', T(b.because)], ['in the light of', ids(b.in_light_of)]]) };
+      case 'hypothesis': { const y = b.from_why && M.byId[b.from_why]; return { what: 'hypothesis', says: T(b.text), ground: G([['follows from the guess', b.from_why ? `${ids([b.from_why])}${y ? ': ' + T(cut(y.body.guess, 160)) : ''}` : ''], b.prediction && ['predicts', T(b.prediction)]]) }; }
+      case 'judge': return { what: 'reads a new hypothesis against its guess', says: b.follows ? 'the hypothesis follows from the guess' : 'the hypothesis does not follow from the guess', ground: G([['because', T(b.because)], ['the hypothesis', T(cut(b.hypothesis, 160))], ['the guess', T(cut(b.guess, 160))]]), warn: !b.follows };
+      case 'drop': return { what: 'gives up ' + (b.for || 'a hypothesis'), says: '', ground: G([['because', T(b.why || b.reason)]]) };
+      case 'experiment': { const rules = (b.decision_rules || []).filter(d => d.decision_rule), ms = b.measurements || [];
+        return { what: b.kind === 'test' ? 'test of ' + (b.tests || []).join(', ') : r.by === 'harness' ? 'baseline' : 'exploration', says: `${n((b.runs || []).length, 'simulation')}: ${e((b.runs || []).map(q => q.label).join(', '))}${b.question ? ' · ' + T(b.question) : ''}`,
+          ground: G([...rules.map(d => ['rule for ' + (d.for || ''), `<code>${e(d.decision_rule)}</code>`]), ms.length && ['its own measurements', e(ms.map(m => `${m.name} = ${m.stat} of ${m.of}`).join('; '))], b.kind === 'test' && ['tests', ids(b.tests)]]) }; }
+      case 'simulation': return { what: 'simulation', says: `${e(b.label || '')}${b.same_as ? ' (returned from ' + e(b.same_as) + ', not run again)' : ''}${b.error ? ' · no measurements' : ''}`, ground: [], warn: !!b.error };
+      case 'evidence': return { what: 'result table', says: n((b.lines || []).length, 'line') + ', one for each simulation', ground: [], more: ['the lines', (b.lines || []).join('\n')] };
+      case 'check': return { what: 'check for ' + (b.for || ''), says: b.result === 'held' ? 'HELD' : b.result === 'failed' ? 'FAILED' : e(String(b.result || '')), ground: G([['the rule', `<code>${e(b.decision_rule || '')}</code>`], ['with the measured numbers', `<code>${e(b.with_numbers || '')}</code>`], ['computed by the harness from', ids([b.experiment])]]), warn: b.result === 'failed' };
+      case 'verdict': { const sup = r.by === 'supervisor';
+        return { what: (sup ? (b.after ? 'second ruling on ' : 'ruling on ') : 'verdict on ') + (b.for || ''), says: e(b.result || ''), ground: G([['because', T(b.because)], sup && b.shows && ['the checks show', T(b.shows)], sup && b.fair === false && ['not a fair test', e(EV.SUP_DEFECT[b.defect] || b.defect || '')], b.changed && ['changed by the harness', T(b.changed)],
+          b.after && ['after the objection', ids([b.after])], b.answer && ['its answer to the objection', T(b.answer)], b.checks && ['the checks', ids(b.checks)], b.next && ['next', T(b.next)]]), more: sup ? EV.tnShown(r.id) : null }; }
+      case 'review': { const ok = b.decision === 'approved', ground = b.gate === 'ground';
+        return { what: ground ? `reads the guess ${b.for || ''} against its records` : `reviews the test of ${b.for || ''} before it is run`, says: ok ? 'approved' : b.decision === 'contested' ? 'it still objects (the step goes on all the same)' : 'sent back',
+          ground: G([b.defect && b.defect !== 'none' && ['the defect it names', e((ground ? { not_in_the_records: 'the result the guess starts from is not what the cited records show', repeats: 'the guess repeats an earlier one that has its ruling', ignores_a_ruling: 'the guess goes on as if a ruling against it had not been given' }[b.defect] : EV.SUP_DEFECT[b.defect]) || b.defect)],
+            ['because', T(b.because)], ground && ['the records show', T(b.records_show)], ground && b.nearest_earlier && b.nearest_earlier !== 'none' && ['nearest earlier', T(b.nearest_earlier)],
+            !ground && ['the rival it weighed', T(b.rival)], !ground && b.rival_outcome && ['under that rival the rule would', e(b.rival_outcome === 'held' ? 'hold too' : 'fail')], !ground && ['it would doubt the test if', T(b.doubt_if)], !ground && (b.rules || []).length && ['the rules it read', (b.rules || []).map(q => `<code>${e(q)}</code>`).join(' ; ')]]),
+          more: EV.tnShown(r.id), warn: !ok }; }
+      case 'objection': return { what: 'objects to the ruling ' + (b.to || ''), says: '', ground: G([['because', T(b.because)]]) };
+      case 'request': return { what: 'asks to look', says: `${e(b.tool || '')}(${e(Object.entries(b.args || {}).filter(([, v]) => v != null).map(([k, v]) => `${k}: ${v}`).join(', '))})`, ground: [] };
+      case 'result': { const t = String(b.result == null ? '' : b.result); return { what: 'returns what ' + (b.tool || 'the tool') + ' read', says: e(cut(t, 150)), ground: [], more: t.length > 150 ? ['all of it', t.slice(0, 6000) + (t.length > 6000 ? '\n… (' + (t.length - 6000) + ' more characters in the record)' : '')] : null, warn: /^error/.test(t) }; }
+      case 'note': return r.by === 'model' ? { what: 'observations', says: T(b.observations || b.text), ground: [] } : b.part ? { what: 'refuses a part of the answer: ' + b.part, says: '', ground: G([['because', T(b.reason || b.text)], b.reason && b.text && b.text !== b.reason && ['what it told the researcher', T(b.text)]]), warn: true } : { what: 'note', says: T(b.text), ground: [] };
+      case 'malformed': return { what: 'cannot use the answer', says: '', ground: G([['because', T(((b.refused || []).map(q => `${q.part}: ${q.reason}`).join(' | ')) || b.error)]]), warn: true };
+      case 'report': return { what: 'final report', says: 'recommends ' + e(Object.entries(b.recommendation || {}).map(([k, v]) => `${k} ${v}`).join(', ')), ground: G([['what limits the result', T(b.limit)], ['why', T(b.explanation)], ...(b.claims || []).map(c => ['it rests on', `${T(c.text)} (${ids(c.evidence)})`])]) };
+      default: return { what: r.type, says: T(b.text || ''), ground: [] };
     }
   },
+  // what the supervisor was shown when it made this decision (supervisor.jsonl), kept folded
+  tnShown(id) { const q = (EV.files.supervisor || {})[id]; return q && q.shown ? ['what the supervisor was shown for this', q.shown] : null; },
+  tnmore(id) { const S = EV.s; S.tnOpen = S.tnOpen || {}; S.tnOpen[id] = !S.tnOpen[id]; EV.draw(); },
   tnfold(id) { const S = EV.s; S.tnShut = S.tnShut || {}; S.tnShut[id] = !S.tnShut[id]; EV.draw(); },
   turnsCard() {
     const M = EV.M, e = EV.e, recs = (M.recs || []).filter(r => r.type !== 'draft' && r.type !== 'scratch'); if (!recs.length) return '';
@@ -49,14 +62,17 @@ Object.assign(EV, {
       // boxes in the order of the ledger; the simulations of an experiment, the requests of a turn and what the tools return share a box where they follow each other
       body.forEach(r => { const c = EV.tnCol(r), g = groups[groups.length - 1]; if (g && g.c === c && g.type === r.type && EV.TN_TOGETHER.includes(r.type)) g.rs.push(r); else groups.push({ c, type: r.type, rs: [r] }); });
       const count = cols.map(c => groups.filter(g => g.c === c).reduce((a, g) => a + g.rs.length, 0));
-      const boxes = groups.map(g => { const items = g.rs.map(r => { const [what, says, warn] = EV.tnSays(r);
-          return `<div class="tn-item${warn ? ' warnc' : ''}" data-step="${st(r.id)}"${EV.freshAttr ? EV.freshAttr(r.id) : ''}><span class="tn-id">${EV.link(r.id)}</span> <b>${e(what)}</b>${says ? `<span class="tn-says" title="${e(says)}">${e(says)}</span>` : ''}</div>`; }).join('');
+      const open = EV.s.tnOpen || {};
+      const boxes = groups.map(g => { const items = g.rs.map(r => { const q = EV.tnSays(r), more = q.more && q.more[1] ? q.more : null;
+          return `<div class="tn-item${q.warn ? ' warnc' : ''}" data-step="${st(r.id)}"${EV.freshAttr ? EV.freshAttr(r.id) : ''}><span class="tn-id">${EV.link(r.id)}</span> <b>${e(q.what)}</b>${q.says ? `<span class="tn-says">${q.says}</span>` : ''}
+            ${q.ground.length ? `<dl class="tn-ground">${q.ground.map(([k, v]) => `<dt>${e(k)}</dt><dd>${v}</dd>`).join('')}</dl>` : ''}
+            ${more ? `<button class="tn-more" data-act="tnmore" data-id="${e(r.id)}" aria-expanded="${!!open[r.id]}">${open[r.id] ? '▾' : '▸'} ${e(more[0])}</button>${open[r.id] ? `<pre class="tn-pre">${e(more[1])}</pre>` : ''}` : ''}</div>`; }).join('');
         return `<div class="tn-box" data-by="${g.c === 'judge' ? 'supervisor' : g.c}" data-kind="${g.type}" data-step="${Math.min(...g.rs.map(r => st(r.id)))}" style="grid-column:${cols.indexOf(g.c) + 1}">${items}</div>`; }).join('');
       const left = U ? `${U.body.simulations_left} simulations left` : t === 0 ? 'before the first turn: the harness runs the baseline' : '', k = Math.min(...rs.map(r => st(r.id)));
       return `<section class="tn-turn" data-turn="${t}" data-step="${k}"><button class="tn-band" data-act="tnfold" data-id="${t}" aria-expanded="${!shut[t]}" title="${shut[t] ? 'Show' : 'Fold'} this turn"><span class="lc-tw">${shut[t] ? '▸' : '▾'}</span> <b>${t === 0 ? 'Start' : 'Turn ' + t}</b> <span class="sm">${e(left)}</span>
           <span class="sm tn-count">${cols.map((c, i) => count[i] ? `${EV.TN_COLS[c][0]} ${count[i]}` : '').filter(Boolean).join(' · ')}</span></button>
         ${shut[t] ? '' : `<div class="tn-grid tn-rows" style="--n:${cols.length}">${boxes}</div>`}</section>`; }).join('');
-    return `<div class="ev-card" id="s-turns"><h2>Turn by turn: who did what <small>time runs down · each record is a box in the column of whoever made it · a box's id opens it</small></h2>
+    return `<div class="ev-card" id="s-turns"><h2>Turn by turn: who did what <small>time runs down · each record is a box in the column of whoever made it: what it says, and on what ground · a box's id opens it</small></h2>
       <p class="sm tn-op"><i class="sw" data-by="operator"></i><b>Operator</b> (you): the ${EV.link('brief')}, written before the first turn. Nothing below changes it.</p>
       ${head}${bands}</div>`;
   },
