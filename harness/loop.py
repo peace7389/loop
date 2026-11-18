@@ -73,10 +73,51 @@ def structure_problem(edits, brief=None):
     return "; ".join(bad) or None
 
 
+MEASURES = {}   # the measurements the experiment in hand defines itself: {name: its definition}. Set when an answer's experiment is read (sort_out)
+TWO_HOSTS_COLUMNS = (["udp_bps", "tcp_bps", "cwnd", "drops_band0", "drops_band1", "q_band0", "q_band1", "qmin_band0", "qmin_band1"],
+                     ["udp_bps", "tcp_bps", "cwnd", "ssthresh", "inflight", "rwnd", "rtt_ms", "rto_ms", "wait_band0_ms", "wait_band1_ms", "q_band0", "q_band1", "devq"])   # what two-hosts records: its series, its probe
+
+
 def outputs_of(edits, brief=None):
-    """The measures of the brief's network with these changes made (the brief's own where there is none)."""
+    """The measures of the brief's network with these changes made (the brief's own where there is none), and the measurements the experiment
+    in hand defines itself: a decision rule and a need may name those like any measure."""
     b = brief or tools.describe_system()
-    return network.outputs(network.apply(b["topology"], edits)) if edits else tools.outputs(b)
+    own = {n: f"your own measurement: {m['stat']} of {m['of']}" for n, m in MEASURES.items()}
+    return {**(network.outputs(network.apply(b["topology"], edits)) if edits else tools.outputs(b)), **own}
+
+
+def measurement_problem(ex, brief):
+    """None if the measurements an experiment defines can be made; otherwise what is wrong (2026-11-18, the operator: the researcher comes up with
+    the measurements it needs, the simulator produces them, and it cannot change what a simulation gives). A measurement is a name, a column of
+    what a simulation records over time or arithmetic over columns (of), a statistic (stat), a window in seconds, and a level where the statistic
+    compares with one. The simulations of such an experiment are run with the program's probe, which only listens."""
+    import ast
+    ms = ex.get("measurements")
+    if ms in (None, []):
+        return None
+    if not isinstance(ms, list) or not all(isinstance(m, dict) for m in ms) or len(ms) > 8:
+        return "measurements is a list of at most 8, each with name, of, stat, t_from, t_to and level"
+    series, fine = network.record_columns(brief["topology"]) if brief.get("topology") else TWO_HOSTS_COLUMNS
+    outs, seen = tools.outputs(brief), set()
+    for m in ms:
+        n = m.get("name")
+        if not (isinstance(n, str) and re.fullmatch(r"[a-z][a-z0-9_]{1,30}", n)) or n in outs or n in seen:
+            return f"a measurement needs a name of its own: 2 to 31 lower-case letters, digits and _, beginning with a letter, not the name of an output and not used twice ({n!r})"
+        seen.add(n)
+        if m.get("stat") not in tools.MEASURE_STATS:
+            return f"measurement {n}: stat must be one of {', '.join(tools.MEASURE_STATS)}"
+        if m["stat"] in ("time_above", "time_below", "first_time_above", "first_time_below") and type(m.get("level")) not in (int, float):
+            return f"measurement {n}: {m['stat']} needs level, the number to compare with"
+        if any(m.get(k) is not None and type(m.get(k)) not in (int, float) for k in ("t_from", "t_to")) or (type(m.get("t_from")) in (int, float) and type(m.get("t_to")) in (int, float) and m["t_to"] <= m["t_from"]):
+            return f"measurement {n}: t_from and t_to are seconds of the simulation (or null: the measured seconds), t_from before t_to"
+        try:
+            used = {x.id for x in ast.walk(ast.parse(str(m.get("of")), mode="eval")) if isinstance(x, ast.Name)} - {"abs", "min", "max"}
+        except SyntaxError:
+            used = None
+        if not used or not (used <= set(series) or used <= set(fine)):
+            return (f"measurement {n}: of must be a column a simulation records, or arithmetic over columns of one record. The series (every 0.1 s): {', '.join(series)}. "
+                    f"The probe (every {tools.PROBE_EVERY} s; it only listens): {', '.join(fine)}")
+    return None
 
 
 def design_key(clean, edits):
@@ -275,13 +316,28 @@ def experiment(ledger, turn, parent, ex, zero=False):
     one evidence record, a line per simulation; then one check record per decision rule. Returns how many were run."""
     brief = tools.describe_system()
     runs, stated = plan(ledger, ex["runs"], complete=not zero), ex.get("decision_rules") or []
+    own = [m for m in ex.get("measurements") or [] if isinstance(m, dict) and m.get("name") in MEASURES] if not zero else []   # the measurements this experiment defines itself
     xid = append(ledger, turn, "experiment", parent, {"kind": ex["kind"], "tests": ex.get("tests") or [], "question": ex.get("question") or "", "varied": ex.get("varied") or [],
                                                       "control": ex.get("control") or None, "runs": [{k: r[k] for k in ("label", "params", "clamped") + (("structure",) if r["structure"] else ())} for r in runs], "decision_rules": stated,
-                                                      **({"needs": ex["needs"]} if ex.get("needs") else {}),
+                                                      **({"needs": ex["needs"]} if ex.get("needs") else {}), **({"measurements": own} if own else {}),
                                                       **({"observations": ex["observations"]} if ex.get("observations") else {})},
                  rid="X0" if zero else None, by="harness" if zero else None)
     fresh = [r for r in runs if not r["prior"] and not r["twin"]]
-    results = dict(zip((r["label"] for r in fresh), tools.run_many([r["params"] for r in fresh], [r["structure"] for r in fresh])))
+    results = dict(zip((r["label"] for r in fresh), tools.run_many([r["params"] for r in fresh], [r["structure"] for r in fresh], probe=tools.PROBE_EVERY if own else None)))
+    def measured(run_id):
+        """The experiment's own measurements of one simulation: {name: value}. A simulation that ran earlier has no finer record yet: the harness
+        runs it again with the probe, and uses that record only if the result is the same."""
+        out = {}
+        if own and "probe.csv" not in [p.name for p in tools._dir(run_id).iterdir()]:
+            said = tools.probe(run_id)
+            if said.startswith("error"):
+                return {}
+        for m in own:
+            said = tools.measure(run_id, m["of"], m["stat"], m.get("t_from"), m.get("t_to"), m.get("level"))
+            v = json.loads(said).get("value") if said.startswith("{") else None
+            if v is not None:
+                out[m["name"]] = v
+        return out
     OPERATOR.parent.mkdir(parents=True, exist_ok=True)
     with OPERATOR.open("a") as f:  # the operator's line of each simulation run: session, run, scheduling policy, seconds. No tool reads that file
         for res in results.values():
@@ -299,6 +355,12 @@ def experiment(ledger, turn, parent, ex, zero=False):
             res = results.get(r["label"]) or results[r["twin"]]  # (a twin of a simulation that failed shares its failure)
             body = {"label": r["label"], "run_id": res["id"], "params": res.get("used") or r["params"], **({"metrics": res["metrics"]} if "metrics" in res else {"error": res["error"]}),
                     **({"structure": r["structure"], "topology": res["topology"]} if r["structure"] and "topology" in res else {})}   # a simulation on a changed network: the changes, and the network it was run on
+        if own and "metrics" in body:
+            if (results.get(r["label"]) or {}).get("probe_same") is False:   # the simulation without the probe gave another result: its finer record is not used
+                body["probe"] = "not used: the same simulation run without the probe gave another result"
+            else:
+                mine = measured(body["run_id"])
+                body["metrics"], body["own"] = {**body["metrics"], **mine}, sorted(mine)   # own: which of its measures the experiment defined itself
         sid = append(ledger, turn, "simulation", xid, body, rid="S0" if zero else None)
         made[r["label"]] = ledger[-1]
         if "same_as" in body:
@@ -306,7 +368,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
                                                        "nothing was run again, and it is not counted against the budget", "simulation": sid, "same_as": first["id"]})
         if "metrics" in body:
             values[r["label"]] = body["metrics"]
-            lines.append(f"{r['label']} {body['run_id']} {changed} | " + " ".join(f"{k}={body['metrics'][k]}" for k in (body["metrics"] if "structure" in body else evidence_measures()) if k in body["metrics"])
+            lines.append(f"{r['label']} {body['run_id']} {changed} | " + " ".join(f"{k}={body['metrics'][k]}" for k in (body["metrics"] if "structure" in body else evidence_measures() + list(body.get("own") or [])) if k in body["metrics"])
                          + (f" (the result of {first['id']}: same settings and seed, not run again)" if "same_as" in body else ""))
         else:
             lines.append(f"{r['label']} {body['run_id']} {changed} | FAILED: {' '.join(body['error'].split())[:300]}")
@@ -558,6 +620,7 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None):
     planned = plan(ledger, [r for r in ex["runs"] if r["label"] in (need.get("simulations") or [r["label"] for r in ex["runs"]])])
     sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
     user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nWHAT THE TOOLS RETURNED WHEN THE RESEARCHER LOOKED AT THOSE SIMULATIONS (measurements too):\n{_looked(ledger, room=6000)}\n\n" + _case(ledger, hid, rules)
+            + "".join(f"A MEASUREMENT THE RESEARCHER DEFINES FOR THIS TEST: {m['name']} = {m['stat']} of {m['of']}" + (f" against the level {m['level']}" if m.get("level") is not None else "") + f", from {m.get('t_from') if m.get('t_from') is not None else 2} s to {m.get('t_to') if m.get('t_to') is not None else 'the end'} (computed by the harness from what each simulation records; the probe only listens)\n" for m in ex.get("measurements") or [])
             + f"What the researcher says it must know to decide it: {flat(need.get('to_know') or 'not stated')} (the one setting that differs: {need.get('varies') or 'not stated'}; the measure: {need.get('measure') or 'not stated'})\n"
             + f"THE SIMULATIONS PLANNED FOR IT:\n{sims}\n\n"
             "Before any of these simulations is run: can this test tell whether the guess is true? First name the strongest rival explanation you can think of and say what the decision rule would do "
@@ -820,7 +883,7 @@ def trim(ex, brief, ledger):
     except (ValueError, TypeError):
         prior = {}
     for i, d in enumerate(rules):
-        if i not in refused and named[i] and all(l in prior for l in named[i]):
+        if i not in refused and named[i] and all(l in prior for l in named[i]) and not any(re.search(rf"(?<![A-Za-z0-9_]){re.escape(n)}@", d["decision_rule"]) for n in MEASURES):   # a measurement of its own is made only now: its result is not known
             refused.add(i)
             cuts.append((f"decision rule for {d['for']}", f"this decision rule names only results that are already in the ledger ({', '.join(f'{l} = {prior[l]}' for l in dict.fromkeys(named[i]))}), so it cannot fail and is no test. "
                                                           "What the known results show belongs in a why or in observations; a test needs a simulation whose result you do not know yet"))
@@ -1024,6 +1087,15 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             ok["hypotheses"].append(h)
             st[f"H{known + len(ok['hypotheses'])}"] = "open"  # the id it is about to get
     ex = t.get("experiment")
+    global MEASURES
+    MEASURES = {}
+    if isinstance(ex, dict) and mode is None:
+        bad = measurement_problem(ex, brief)
+        if bad:
+            no.append(("experiment", bad))
+            ex = None
+        else:
+            MEASURES = {m["name"]: m for m in ex.get("measurements") or []}
     if ex is not None:
         why = only if mode == "report" else "the simulation budget is used up: no experiment is accepted in the last turn" if mode == "budget" else FIRST.format(look_again(due())) if due() else experiment_problem(ex, brief, ledger, None, st)
         if not why:  # readable as sent: now cut back what cannot test anything, then count what is left against the budget

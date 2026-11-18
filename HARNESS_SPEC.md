@@ -928,15 +928,42 @@ what one did on what ground and what the other said to it.
   optimiser). In this arm a turn takes up to six requests (`loop.LOOKS`; three in the other arms), six turns in a
   row may only look, and the instructions of item 8 say: look before you simulate, a test whose answer the ledger
   holds is sent back, stop when you can say what makes the system behave as it does.
-- **A measurement the researcher defines**: the tool `measure(run_id, of, stat, t_from, t_to, level)` (`tools.py`,
-  in every arm). `of` is a column of a simulation's recorded series or arithmetic over columns
-  (`udp_bps + tcp_bps`, `cwnd / 1448`); `stat` one of `tools.MEASURE_STATS` (mean, min, max, std, first, last,
-  p05, p50, p95, slope, rate, time above or below a level, the first time above or below it); the window in
-  seconds, by default the measured seconds. The harness computes it from the series the simulation wrote when it
-  ran: nothing is simulated for it, so it cannot change any result, and it costs no simulation. The expression is
-  read as arithmetic only (anything else is refused). Not built: a measurement of something the simulation did not
-  record (a round-trip time, the time a packet waits, a buffer's filling): that needs new trace taps in the
-  programs, each proven harmless by identical results with and without it.
+- **Measurements the researcher defines, produced by the simulator without changing any result** (the operator,
+  2026-11-18: it may come up with the measurements it needs, and may not change what a simulation gives; in every
+  arm).
+  - *The probe.* Both programs take `--probe=<seconds>` and then write `probe.csv`, a finer record made by trace
+    sinks only and a sampler of its own: TCP's round-trip time (`rtt_ms`), its retransmission timeout (`rto_ms`),
+    the bytes sent and not yet acknowledged (`inflight`), the slow-start threshold (`ssthresh`), the receiver's
+    window as the sender knows it (`rwnd`), the longest time a packet waited in each queue (`wait_..._ms`), the
+    packets in the device's transmit queue (`devq`), with the throughputs, the window and the queue lengths at the
+    same instants. In `net` the columns carry the flow's and the link's names (`network.record_columns`). Nothing
+    that sends, queues, drops or times a packet is added, and no random number is drawn. Proof, in
+    `checks/probe1`: 60 recorded simulations of four sessions and the 35 recorded networks, each run again
+    without the probe and with it, give `metrics.json` and `series.csv` byte for byte as recorded (0 of 190 runs
+    differ).
+  - *Looking.* `measure(run_id, of, stat, t_from, t_to, level)` computes a statistic over a column, or over
+    arithmetic over columns, of what a simulation recorded (`tools.MEASURE_STATS`: mean, min, max, std, first,
+    last, p05, p50, p95, slope, rate, time above or below a level, the first time above or below it).
+    `probe(run_id, every)` runs a simulation that already ran again with the probe, same settings, seed and
+    scheduling policy, and keeps its record only if `metrics.json` and `series.csv` of that second run equal the
+    first's (logged in the session's `probes.jsonl`); `measure` then reads its columns, and
+    `series(run_id, every_n, probe=true)` its rows. Neither costs a simulation.
+  - *Testing.* An experiment may define `measurements` of its own (a name, `of`, `stat`, a window, a level;
+    `loop.measurement_problem` refuses one that names no recorded column, with the columns there are). Its
+    simulations are run with the probe; the first is also run without it, beside it, and the two are compared
+    (`probe_same`). The harness computes each measurement for each simulation, keeps it with the simulation's
+    measures (`own` names them) and in its evidence line, and a decision rule or a need names it like an output
+    (`rwnd_max@a >= 1000000`): the check is the harness's, as for any measure. A rule on such a measurement may
+    be about simulations that already ran: the measurement is new, so the rule can fail, nothing is simulated
+    and nothing is counted; the harness makes that earlier simulation's finer record itself.
+  - The supervisor is shown the definitions with the test and the values with the results. The page shows them on
+    the test's card ("Measures": what each is, its value in each simulation).
+  - Test: `harness_checks/test_measure.py` (the probe kept because the result was the same; a rule on
+    `rwnd_max` checked; a rule on a new measurement of an earlier simulation at no cost; a measurement of no
+    recorded column refused; the same on a network: a flow's packets wait 65 ms with a small part and 15 ms with a
+    large one). Not yet shown: that the model, in a real session, reaches a cause through measurements of its
+    own. Not built: a tap the program does not have (the delay of single packets end to end, the instants of
+    acknowledgements); a tap is a change to the program and needs the same proof.
 
 ### 8.2 A turn
 
@@ -3421,6 +3448,7 @@ untracked until they say otherwise.
 | 2026-11-18 | The builder names ns-3's objects: a flow's application (OnOff, BulkSend) and its socket (UDP, TCP) are two choices of its card, so TCP can send at a constant rate (third build of `net`, `checks/net3`); the Link tool says that it brings a net device (NIC) at each end, the queue tools name their queue disc; a scheduler with a single queue is described as that. The brief `two-hosts-one-queue`. "The session at a glance" is unfolded whenever the page is loaded. |
 | 2026-11-18, late | What else ns-3 has for the builder's objects ("Do it", the operator's list of six): an application's times, a device's own largest packet and loss, TCP's options, ns-3's queue discs beside the project's scheduler, the ns-3 attribute beside every setting; the AI's own change of structure can add OnOff over TCP (fourth build of `net`, `checks/net4`). Not done: one vocabulary with the ready-made two-host system. |
 | 2026-11-18, night | The arm "supervised": a researcher that proposes and a supervisor, asked apart from it, that reads each new guess against its records, reviews each test before its simulations and rules on what the checks mean; objections; everything of the supervisor on the page with its ground and what it was shown. After a review of the loop's objects: the verdict had repeated the check, the judge had never refused. |
+| 2026-11-18, night | Measurements the researcher defines: both programs get a probe that only listens (0 of 190 re-runs of recorded simulations differ), the tools `measure` and `probe`, and measurements an experiment defines and its decision rules name. The first real supervised session (s044) showed the supervisor refusing guesses it could not check, because it was not shown the tool results: repaired. The builder says who decides a setting in words, takes the aim's conditions as rows, and needs nothing typed but a name; the page's card "Two agents". |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

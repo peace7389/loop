@@ -243,6 +243,73 @@
        },
        "description": "test: one entry for each tested hypothesis, written before the simulations: what must be known to decide it, and the simulations made for that; explore: empty"
       },
+      "measurements": {
+       "type": "array",
+       "description": "measurements of your own that this experiment takes of each of its simulations, beside the outputs; empty when you need none. A decision rule and a need may name them like an output",
+       "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+         "name",
+         "of",
+         "stat",
+         "t_from",
+         "t_to",
+         "level"
+        ],
+        "properties": {
+         "name": {
+          "type": "string",
+          "description": "a name of its own: lower-case letters, digits and _, for example rwnd_mean"
+         },
+         "of": {
+          "type": "string",
+          "description": "a column a simulation records over time, or arithmetic over columns of one record, for example rwnd or inflight / rwnd"
+         },
+         "stat": {
+          "type": "string",
+          "enum": [
+           "mean",
+           "min",
+           "max",
+           "std",
+           "first",
+           "last",
+           "p05",
+           "p50",
+           "p95",
+           "slope",
+           "rate",
+           "time_above",
+           "time_below",
+           "first_time_above",
+           "first_time_below"
+          ]
+         },
+         "t_from": {
+          "type": [
+           "number",
+           "null"
+          ],
+          "description": "the window's start in seconds of the simulation; null: the start of the measured seconds (2)"
+         },
+         "t_to": {
+          "type": [
+           "number",
+           "null"
+          ],
+          "description": "the window's end; null: the end of the simulation"
+         },
+         "level": {
+          "type": [
+           "number",
+           "null"
+          ],
+          "description": "the number time_above and the like compare with; null for the other statistics"
+         }
+        }
+       }
+      },
       "varied": {
        "type": "array",
        "items": {
@@ -327,6 +394,7 @@
       "tests",
       "question",
       "needs",
+      "measurements",
       "varied",
       "control",
       "runs",
@@ -534,6 +602,7 @@
        "metrics",
        "series",
        "measure",
+       "probe",
        "grep_trace",
        "list_runs"
       ]

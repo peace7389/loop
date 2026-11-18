@@ -398,6 +398,33 @@ EDIT = ("do", "id", "kind", "from", "to", "on", "rate", "type", "app")   # the f
 DOES = ("add_host", "add_link", "add_flow", "add_queue", "remove")
 
 
+def record_columns(t):
+    """Every column a simulation of this network records over time: the series (a sample every 0.1 s) and the probe (a finer record that only
+    listens), named as the program `net` names them."""
+    series, fine = [], []
+    for f in t["flows"]:
+        series.append(f"{f['id']}_bps")
+        fine.append(f"{f['id']}_bps")
+        if f["kind"] == "tcp":
+            series.append(f"{f['id']}_cwnd")
+            fine += [f"{f['id']}_{k}" for k in ("cwnd", "ssthresh", "inflight", "rwnd", "rtt_ms", "rto_ms")]
+    for l in t["links"]:
+        e = ends(l)
+        both = all(e[h]["queue"] is not None for h in l["between"])
+        for side, h in enumerate(l["between"]):
+            q = e[h]["queue"]
+            if q and q["kind"] == "scheduler":
+                for name in q["parts"]:
+                    series += [f"{l['id']}_q_{name}", f"{l['id']}_drops_{name}"]
+                    fine += [f"{l['id']}_wait_{name}_ms", f"{l['id']}_q_{name}"]
+            elif q:
+                back = "_back" if both and side == 1 else ""
+                series += [f"{l['id']}_q{back}", f"{l['id']}_drops{back}"]
+                fine += [f"{l['id']}_wait{back}_ms", f"{l['id']}_q{back}"]
+            fine.append(f"{l['id']}_devq" + ("_back" if side == 1 else ""))
+    return series, fine
+
+
 def sync(t):
     """After a change: every scheduler has a part for exactly the flows that pass it. A flow that is new there gets a queue of its own with the
     mean of the parts that stand (0.5 where there is none); a flow that no longer passes leaves its queue, and a part (with its largest rate, and
@@ -540,6 +567,15 @@ def tools_told(tools):
     told["series"] = ("series(run_id, every_n): per-100ms samples of a run: t, then for each flow <flow>_bps (and <flow>_cwnd for a TCP flow), then for each "
                       "described queue the packets waiting at the sample time (<link>_q_<flow> for a scheduler's queue, named after its flow or its class; <link>_q for a plain queue) and the packets dropped "
                       "since traffic began (<link>_drops_<flow>, <link>_drops) (at most 100 rows; the measured seconds begin at t = 2)")
+    told["measure"] = ("measure(run_id, of, stat, t_from, t_to, level): a measurement you define, computed from what a simulation recorded over time (nothing is simulated again, and it costs no simulation). "
+                       "of: a column or arithmetic over columns of one record, by the names of this network (the bits per second of two flows added, or, once the simulation has its probe, a flow's bytes in flight divided by "
+                       "its receiver's window: <flow>_inflight / <flow>_rwnd); stat: mean, min, max, std, first, last, p05, p50, p95, slope (change per second), rate ((last - first) / seconds, for a column that counts up), "
+                       "time_above, time_below (seconds spent above or below level), first_time_above, first_time_below; t_from, t_to: the window in seconds (left out: the measured seconds, from 2 s to the end)")
+    told["probe"] = ("probe(run_id, every): a finer look at a simulation you already ran. The harness runs the same simulation again (same settings, same seed) with trace sinks that only listen, and keeps their record only "
+                     "if the result is byte for byte the same: no result can change by it, and it costs no simulation. Sampled every `every` seconds (left out: 0.01), it records, for each flow, <flow>_bps, and for a TCP flow <flow>_cwnd, "
+                     "<flow>_ssthresh, <flow>_inflight (bytes sent and not yet acknowledged), <flow>_rwnd (the receiver's window as the sender knows it), <flow>_rtt_ms and <flow>_rto_ms; for each described queue the longest time a packet "
+                     "waited in it since the last sample (<link>_wait_<flow or class>_ms for a scheduler's queue, <link>_wait_ms for a plain one) and the packets waiting; for each link the packets in its devices' transmit queues "
+                     "(<link>_devq, <link>_devq_back). It answers with the columns it recorded; read them with measure, or with series(run_id, every_n, probe=true)")
     return told
 
 

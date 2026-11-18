@@ -2,7 +2,7 @@
 session's folder (sessions/<id>/); a run id is accepted only if that session's own runs/index.json lists it.
 A session works on one brief (briefs/<id>.json): the task, the fixed settings (system), the settings the model may
 change (knobs), the goal and the limits. The brief is read once, when the session is created."""
-import json, os, re, subprocess, time
+import json, os, re, shutil, subprocess, time
 from pathlib import Path
 import network
 
@@ -345,15 +345,17 @@ def same(opts):
         return tuple((k, val(k, opts[k])) for k in sorted(opts))
     return tuple((k, _rate_bps(opts[k]) if k in RATES else _seconds(opts[k]) if k == "linkDelay" else float(opts[k]) if type(opts[k]) in (int, float) else str(opts[k])) for k in OPTIONS + EXTRA if k in OPTIONS or k in opts)
 
-def run_many(param_sets, structures=None):
+def run_many(param_sets, structures=None, probe=None):
     """Several simulations at once, each in its own runs/<id>/ of the session: clamp, start the built program for all
     of them, wait, parse the metrics, append to the session's runs/index.json in order. One result per set, in order.
     structures: for a brief with a network whose structure the model may change, the changes of each simulation
-    (network.apply), or None; a simulation that has some is run on the changed network, which its result names."""
+    (network.apply), or None; a simulation that has some is run on the changed network, which its result names.
+    probe: seconds between the samples of a finer record that only listens (probe.csv), or None. The first simulation is then also run without
+    it, beside it, and each result says whether the two gave the same measures ("probe_same"): the probe must not change what a simulation gives."""
     RUNS = _runs()
     first = max([int(p.name[1:]) for p in RUNS.iterdir() if re.fullmatch(r"r\d{3}", p.name)], default=0) + 1
     jobs, results, deadline = [], [], time.time() + RUN_TIMEOUT
-    nets = {}
+    nets, twin, same = {}, None, None
     for i, params in enumerate(param_sets):
         clean, clamps = clamp(params)
         rid = f"r{first + i:03d}"
@@ -361,8 +363,13 @@ def run_many(param_sets, structures=None):
         out.mkdir()
         if structures and structures[i]:
             nets[rid] = network.apply(BRIEF["topology"], structures[i])
-        proc = subprocess.Popen(command(options(clean), out, topology=nets.get(rid)), cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        cmd = command(options(clean), out, topology=nets.get(rid))
+        proc = subprocess.Popen(cmd + ([f"--probe={probe}"] if probe else []), cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         jobs.append((rid, clean, clamps, out, time.time(), proc))
+        if probe and twin is None:   # the same simulation without the probe, into a folder of its own that is not kept
+            plain = out / "_plain"
+            plain.mkdir()
+            twin = (rid, plain, subprocess.Popen([c.replace(str(out), str(plain)) if c.startswith("--out=") else c for c in cmd], cwd=plain, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     for rid, clean, clamps, out, t0, proc in jobs:
         try:
             said = proc.communicate(timeout=max(1, deadline - time.time()))[0]
@@ -370,6 +377,13 @@ def run_many(param_sets, structures=None):
             proc.kill()
             proc.communicate()
             said = f"no result after {RUN_TIMEOUT} s"
+        if twin and twin[0] == rid:   # the probe changed nothing if the simulation without it wrote the same measures and the same series
+            try:
+                twin[2].communicate(timeout=max(1, deadline - time.time()))
+            except subprocess.TimeoutExpired:
+                twin[2].kill()
+            same = all((twin[1] / f).is_file() and (out / f).is_file() and (twin[1] / f).read_bytes() == (out / f).read_bytes() for f in ("metrics.json", "series.csv"))
+            shutil.rmtree(twin[1], ignore_errors=True)
         res = {"id": rid, "params": clean, "clamped": clamps, "seconds": round(time.time() - t0, 1), **({"topology": nets[rid]} if rid in nets else {})}
         if proc.returncode or not (out / "metrics.json").exists():
             results.append({**res, "error": (said or f"exit {proc.returncode}")[-800:]})
@@ -378,6 +392,9 @@ def run_many(param_sets, structures=None):
         with (RUNS / "index.json").open("a") as f:
             f.write(json.dumps({"id": rid, "params": res["used"], "metrics": res["metrics"]}) + "\n")
         results.append(res)
+    if probe:
+        for res in results:
+            res["probe_same"] = same
     return results
 
 def run(params):
@@ -393,10 +410,53 @@ def _dir(run_id):
 def metrics(run_id):
     return json.loads((_dir(run_id) / "metrics.json").read_text())
 
-def series(run_id, every_n=1):
-    rows = (_dir(run_id) / "series.csv").read_text().splitlines()
+def series(run_id, every_n=1, probe=False):
+    if probe and not (_dir(run_id) / "probe.csv").is_file():
+        return "this simulation has no probe record yet: ask for probe(run_id) first"
+    rows = (_dir(run_id) / ("probe.csv" if probe else "series.csv")).read_text().splitlines()
     step = max(int(every_n), 1, -(-(len(rows) - 1) // 100))
     return "\n".join([rows[0]] + rows[1::step][:100])
+
+PROBE_EVERY = 0.01   # seconds between the probe's samples when none is asked for
+PROBE_LOG = "probes.jsonl"   # in the session's folder: each probe the harness ran on a simulation that existed, and whether the result was the same
+
+
+def _columns(run_id):
+    """The columns of a run's two records over time: (series.csv, probe.csv or [])."""
+    d = _dir(run_id)
+    head = lambda f: (d / f).open().readline().strip().split(",")[1:] if (d / f).is_file() else []
+    return head("series.csv"), head("probe.csv")
+
+
+def probe(run_id, every=PROBE_EVERY):
+    """A finer look at a simulation that has already run (2026-11-18, the operator: the researcher may ask for measurements the simulator did
+    not record, and may not change what a simulation gives). The harness runs the same simulation again, same settings, same seed, same
+    scheduling policy, with the program's probe: trace sinks that only listen (TCP's round-trip time, retransmission timeout, bytes in flight,
+    slow-start threshold and the receiver's window; the longest wait in each queue; the device's transmit queue), sampled every `every` seconds.
+    It keeps probe.csv only if metrics.json and series.csv of that second run are byte for byte those of the first. Costs no simulation."""
+    d = _dir(run_id)
+    every = min(max(float(every), 0.001), 1.0)
+    tmp = d / "_probe"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir()
+    try:
+        if (d / "network.txt").is_file():
+            cmd = [str(NET_BIN), f"--net={d / 'network.txt'}", f"--out={tmp}"]
+        else:
+            cmd = [str(BIN)] + [f"--{k}={v}" for k, v in json.loads((d / "params.json").read_text()).items()] + [f"--out={tmp}"]
+        r = subprocess.run(cmd + [f"--probe={every}"], cwd=tmp, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, capture_output=True, text=True, timeout=RUN_TIMEOUT)
+        same = r.returncode == 0 and all((tmp / f).is_file() and (tmp / f).read_bytes() == (d / f).read_bytes() for f in ("metrics.json", "series.csv"))
+        with (SESSION / PROBE_LOG).open("a") as f:
+            f.write(json.dumps({"run": run_id, "every": every, "same_result": same, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}) + "\n")
+        if not same:
+            return f"error: the simulation run again with the probe did not give the same result as before ({(r.stderr or '')[-200:] or 'its measures or its series differ'}): the probe's record is not kept"
+        shutil.move(str(tmp / "probe.csv"), str(d / "probe.csv"))
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    rows = (d / "probe.csv").read_text().splitlines()
+    return json.dumps({"run": run_id, "every_s": every, "samples": len(rows) - 1, "columns": rows[0].split(",")[1:], "same_result": True,
+                       "note": "the same simulation run again with trace sinks that only listen; its measures and its series are byte for byte those of the first run. Read it with measure (of: any of these columns) or series(run_id, every_n, probe=true)"})
+
 
 MEASURE_STATS = {"mean": "the average", "min": "the lowest sample", "max": "the highest sample", "std": "the standard deviation", "first": "the first sample", "last": "the last sample",
                  "p05": "the value 5 % of the samples lie below", "p50": "the median", "p95": "the value 95 % of the samples lie below", "slope": "the change per second (a straight line through the samples)",
@@ -411,15 +471,27 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
     (+ - * /, parentheses, abs, min, max), for example "udp_bps + tcp_bps" or "cwnd / 1448". stat: one of MEASURE_STATS. t_from, t_to: the
     window in seconds of the simulation (left out: the measured seconds, from 2 s to the end). level: the number time_above and the like compare with."""
     import ast, math
-    rows = (_dir(run_id) / "series.csv").read_text().splitlines()
-    cols = rows[0].split(",")
-    data = [dict(zip(cols, map(float, r.split(",")))) for r in rows[1:] if r.strip()]
     if stat not in MEASURE_STATS:
         return f"error: stat must be one of {', '.join(MEASURE_STATS)}"
+    coarse, fine = _columns(run_id)
     try:
         tree = ast.parse(str(of), mode="eval")
     except SyntaxError:
-        return f"error: of must be a column of the series or arithmetic over columns: {', '.join(cols[1:])}"
+        return f"error: of must be a column of the series or arithmetic over columns: {', '.join(coarse)}" + (f"; of the probe: {', '.join(fine)}" if fine else "")
+    # arithmetic over columns and nothing else: a call of anything but abs, min, max, an attribute, an index or a text is refused before any column is looked up
+    plain = lambda n: (isinstance(n, (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Name, ast.Load, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.USub)) or (isinstance(n, ast.Constant) and type(n.value) in (int, float))
+                       or (isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("abs", "min", "max") and not n.keywords))
+    if not all(plain(n) for n in ast.walk(tree)):
+        return f"error: cannot read {str(of)[:80]} in of: use the columns of the series ({', '.join(coarse)}), numbers, + - * /, parentheses, abs, min, max"
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} - {"abs", "min", "max"}
+    # the record that holds every column named: the series the simulation wrote, or the probe's finer one (probe(run_id) makes it)
+    source = "series.csv" if used <= set(coarse) else "probe.csv" if fine and used <= set(fine) else None
+    if source is None:
+        return (f"error: {', '.join(sorted(used - set(coarse) - set(fine))) or of} is not recorded for this simulation. The series has: {', '.join(coarse)}. "
+                + (f"The probe has: {', '.join(fine)}" if fine else "A finer record with TCP's round-trip time, its retransmission timeout, bytes in flight, the receiver's window and the waiting times in the queues is made by probe(run_id): ask for it first"))
+    rows = (_dir(run_id) / source).read_text().splitlines()
+    cols = rows[0].split(",")
+    data = [dict(zip(cols, map(float, r.split(",")))) for r in rows[1:] if r.strip()]
     funcs = {"abs": abs, "min": min, "max": max}
     def val(n, row):
         if isinstance(n, ast.Expression):
@@ -461,7 +533,8 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
                  "slope": sum((t - tm) * (x - mean) for t, x in zip(ts, xs)) / den if den else 0.0, "rate": (xs[-1] - xs[0]) / (ts[-1] - ts[0]) if ts[-1] > ts[0] else 0.0}[stat]
         value = round(value, 6)
     return json.dumps({"run": run_id, "of": str(of), "stat": stat, **({"level": level} if level is not None else {}), "from_s": lo, "to_s": hi, "samples": len(xs), "value": value,
-                       "note": "computed by the harness from the series this simulation recorded when it ran: nothing was simulated again"})
+                       "note": "computed by the harness from the series this simulation recorded when it ran: nothing was simulated again" if source == "series.csv" else
+                               "computed by the harness from the probe's record of this simulation (the same simulation run again with trace sinks that only listen, its result unchanged)"})
 
 def grep_trace(run_id, pattern, limit=50):
     rx, hits = re.compile(str(pattern)[:200]), []
@@ -478,4 +551,4 @@ def list_runs():
     p = _runs() / "index.json"
     return [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
 
-TOOLS = {"describe_system": describe_system, "metrics": metrics, "series": series, "measure": measure, "grep_trace": grep_trace, "list_runs": list_runs}
+TOOLS = {"describe_system": describe_system, "metrics": metrics, "series": series, "measure": measure, "probe": probe, "grep_trace": grep_trace, "list_runs": list_runs}
