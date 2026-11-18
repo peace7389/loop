@@ -1,0 +1,87 @@
+{
+ "goal": "Maximize tcp_goodput_bps subject to udp_loss_frac <= 0.01.",
+ "recommendation": {
+  "l1.queue.length": 100,
+  "tcp.type": "TcpCubic"
+ },
+ "expected": {
+  "udp_goodput_bps": 299773600,
+  "udp_loss_frac": 0.000739,
+  "tcp_goodput_bps": 668859002,
+  "tcp_retrans": 294,
+  "l1_util": 1.0,
+  "l1_util_back": 0.013028,
+  "l1_drops": 492,
+  "l1_drops_back": 0
+ },
+ "no_difference": [
+  "l1.queue.length"
+ ],
+ "limit": "At the recommendation the result is limited by the fixed 1 Gbps link capacity and packet overhead, together with the UDP-loss constraint, not by TCP loss backoff. Saturated runs deliver about 968.6 Mbps of UDP+TCP payload. UDP is offered at about 300.003 Mbps payload, so udp_loss_frac <= 0.01 forces UDP delivered to be at least about 297.003 Mbps, leaving at most about 671.63 Mbps for TCP. The 1% improvement threshold over the default is 675.55 Mbps, so no feasible setting can exceed the default by a meaningful margin. Evidence: E0, E1, E2, C1, C2, C3, C4.",
+ "explanation": "Default Cubic at queue 100 saturates the link and reaches the feasible ceiling. Queue length does not raise the ceiling: larger queues (500, 1000) remove drops but TCP remains about 668.6-669.8 Mbps; smaller queues can shift drops toward UDP, raising TCP only when UDP loss exceeds the allowed 1% (Q4) or still below the 1% threshold (Q10). TCP type matters only in that loss-based controls (Cubic, NewReno, LinuxReno, Bic) saturate and are equivalent within tolerance, while BBR and Vegas keep UDP loss zero but leave capacity unused (411.4 and 519.6 Mbps TCP). Therefore the best feasible setting is the simplest default. Among feasible queue lengths tested (12-1000), queue length is not a goodput knob; it only controls whether the UDP-loss constraint is met.",
+ "holds_when": "UDP offered rate remains 300 Mbps, link rate remains 1 Gbps, packet sizes and overhead remain fixed, the queue is FIFO, TCP is always backlogged, and the UDP-loss constraint is 1%.",
+ "breaks_when": "If the UDP-loss constraint were relaxed to about 3% or more, Q4 Cubic would give 677.6 Mbps; if UDP offered rate, packet overhead, or link rate changed so that the total delivered-payload ceiling rose above about 972.6 Mbps, a >1% feasible TCP gain could become possible; if TCP packetization changed, the ceiling would change.",
+ "claims": [
+  {
+   "text": "Saturated runs have a fixed total delivered-payload ceiling of about 968.6 Mbps.",
+   "role": "background",
+   "evidence": [
+    "E0",
+    "E1",
+    "E2"
+   ]
+  },
+  {
+   "text": "With udp_loss_frac <= 0.01, UDP must deliver at least about 297.0 Mbps, so TCP cannot exceed about 671.6 Mbps, below the 1% threshold of 675.5 Mbps.",
+   "role": "limits",
+   "evidence": [
+    "E1",
+    "E2"
+   ]
+  },
+  {
+   "text": "No tested Cubic queue length from 12 to 1000 packets gave a feasible TCP goodput more than 1% above default.",
+   "role": "supports",
+   "evidence": [
+    "E1",
+    "E2",
+    "C2",
+    "C3"
+   ]
+  },
+  {
+   "text": "No tested non-Cubic TCP type gave a feasible TCP goodput more than 1% above default; BBR and Vegas underutilize the link.",
+   "role": "supports",
+   "evidence": [
+    "E1",
+    "E2",
+    "C1",
+    "C4"
+   ]
+  },
+  {
+   "text": "Smaller queues can raise TCP only by reallocating drops to UDP, which violates the UDP-loss constraint when the TCP gain is large.",
+   "role": "limits",
+   "evidence": [
+    "E1",
+    "C2"
+   ]
+  },
+  {
+   "text": "Default Cubic at queue 100 is best among feasible settings because it is within tolerance of all feasible near-max settings and is the simplest safe choice.",
+   "role": "supports",
+   "evidence": [
+    "E0",
+    "E1",
+    "E2",
+    "C3",
+    "C4"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Exact packet overhead was inferred from total delivered payload, not measured directly from headers.",
+  "I did not simulate every integer queue length or every TCP type at every queue length; the capacity ceiling makes a >1% feasible gain impossible under the fixed overhead, but direct exhaustive confirmation was not run.",
+  "The internal reason BBR and Vegas underutilize the link was not tested; it does not affect the maximum because they are far below the feasible ceiling."
+ ]
+}

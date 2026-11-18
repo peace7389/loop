@@ -1,0 +1,7 @@
+host sender
+host receiver
+link l1 sender receiver rate=1Gbps delay=50us mtu=1500 devq=10
+queue l1 sender kind=fifo length=15
+flow udp udp sender receiver rate=300Mbps packet=1400
+flow tcp tcp sender receiver type=TcpCubic
+run duration=10 seed=1

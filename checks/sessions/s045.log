@@ -1,2 +1,3 @@
 /home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s045 --brief one-combined-queue --draft on --policy share --baseline on
 session s045 (brief one-combined-queue): /home/chunguck.kim/project/sessions/s045
+stopped: session s045, done by the model, 20 simulations, 4 turns, ledger /home/chunguck.kim/project/sessions/s045/ledger.jsonl
