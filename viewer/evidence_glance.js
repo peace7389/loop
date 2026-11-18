@@ -55,7 +55,8 @@ Object.assign(EV, {
   },
 
   glance() {
-    const fold = !EV.s.full && EV.store('ev-made') === '1', foldBtn = EV.s.full ? '' : `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`, n = EV.glCounts(), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
+    const fold = !EV.s.full && EV.glFolded === true, foldBtn = EV.s.full ? '' : `<button class="cl noprint" data-act="glfold" style="float:right">${fold ? 'unfold' : 'fold'}</button>`, n = EV.glCounts(), pl = (k, w, many) => `${k} ${k === 1 ? w : many || w + 's'}`;
+    // the card is unfolded whenever the page is loaded: a fold holds only while this page stays open (EV.glFolded), the browser does not keep it
     // folded, its line carries its content: the counts, from the records
     if (fold) return `<div class="ev-card noprint" id="s-made"><h2>The session at a glance <small id="gl-fold" data-counts="${[n.turn, n.hyp, n.check, n.held, n.failed, n.sim].join(',')}">${pl(n.turn, 'turn')} · ${pl(n.hyp, 'hypothesis', 'hypotheses')} · ${EV.M.old ? 'checks ' + EV.nr : `${pl(n.check, 'check')}, ${EV.tally(n.held, n.failed, n.void)}`} · ${pl(n.sim, 'simulation')}</small> ${foldBtn}</h2></div>`;
     const M = EV.M, S = EV.s, e = EV.e, seen = EV.seen, live = S.step == null, sel = S.sel || {}, info = EV.glInfo(S.sel), st = live ? null : EV_DATA.stateAt(M, S.step);
@@ -121,7 +122,7 @@ Object.assign(EV, {
     say.innerHTML = EV.glSay(sel || EV.s.sel);
   },
 });
-EV.act = Object.assign(EV.act || {}, { glfold() { EV.store('ev-made', EV.store('ev-made') === '1' ? '0' : '1'); EV.draw(); },
+EV.act = Object.assign(EV.act || {}, { glfold() { EV.glFolded = !EV.glFolded; EV.draw(); },
   // a turn's name: its work log opens in the detail pane, and the notebook comes to that turn (a stated exception to "a click never moves the page")
   turn(id) { const n = Number(id); EV.s.sel = { t: 'log', id: n }; EV.draw(); const el = document.querySelector(n ? `#s-notebook .nb-turn[data-turn="${n}"]` : '#s-notebook .nb-start'); if (el) el.scrollIntoView({ block: 'start' }); } });
 document.getElementById('ev').addEventListener('mouseover', EV.glHover);

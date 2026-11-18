@@ -2473,8 +2473,10 @@ it: the whole session as one picture.
 - During the replay an item recorded after the chosen step is an empty dot,
   with no text, state or title; the key and the sentence under the table name
   only what is recorded by then.
-- The card folds like "The system": a "fold" button in its heading, and the
-  browser remembers it. Folded, its line carries its content: the counts from
+- The card folds like "The system": a "fold" button in its heading. Unlike
+  "The system" the browser does not remember it: the card is unfolded whenever
+  the page is loaded, and a fold holds only while that page stays open (the
+  operator's word, 2026-11-18). Folded, its line carries its content: the counts from
   the records by the replay's step ("5 turns · 12 hypotheses · 12 checks, 10
   held and 2 failed as marks · 44 simulations"). It is not printed.
 

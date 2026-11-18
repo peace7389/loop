@@ -189,10 +189,12 @@ const BRIEF_NET = {
     return s;
   },
   // a description written from the network, to start from: each setting by its name in braces, so that it stays true whoever decides it
+  // a scheduler with a single queue (every flow in one shared queue) is described as that: it has nothing to divide, so no parts are named
   describe() {
     const N = BRIEF_NET, t = N.s.t;
     const and = list => (list.length > 1 ? list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1] : list[0] || '');
     const queue = ({ h, q, a }) => { const ps = Object.keys(q.parts || {}), name = f => { const who = EV.netMembers(q, f); return who.length === 1 && who[0] === f ? f : `${f} (${and(who)}, which wait in one queue)`; };
+      if (q.kind === 'scheduler' && ps.length === 1) { const who = EV.netMembers(q, ps[0]); return ` On ${h}'s side a scheduler hands packets to the link from one queue${who.length > 1 ? `, ${ps[0]}, in which ${and(who)} wait together` : `, in which ${who[0] || ps[0]} waits`}. The queue holds {${a}.length} packets, and a packet that arrives when it is full is dropped. The scheduler has no second queue to divide the link with.`; }
       return q.kind === 'scheduler' ? ` On ${h}'s side a scheduler divides it between ${and(ps.map(name)) || 'its flows'} by the parts ${ps.map(f => `{${a}.parts.${f}}`).join(' : ')} (the parts are divided by their sum); each of them waits in a queue of {${a}.length} packets, and a packet that arrives at a full queue is dropped. How the scheduler behaves when one of them has less to send than its part allows is not described here; finding that out is part of the work.` : ` On ${h}'s side packets wait in one queue of {${a}.length} packets; a packet that arrives when it is full is dropped.`; };
     const device = l => Object.entries(l.ends || {}).map(([h, x]) => ('rate' in x ? ` The device of ${h} on it sends at {${l.id}.${h}.rate}.` : '') + ('device_queue' in x ? ` The transmit queue of ${h}'s device holds {${l.id}.${h}.device_queue} packets.` : '')).join('');
     const links = t.links.map(l => `Link ${l.id} joins ${l.between[0]} and ${l.between[1]}: it carries {${l.id}.rate} with a one-way delay of {${l.id}.delay}.${device(l)}${N.queues(t).filter(x => x.l === l).map(queue).join('')}`);
