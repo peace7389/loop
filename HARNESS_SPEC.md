@@ -761,6 +761,13 @@ optional, and a brief that states none of them is written and run as before.
   each setting of the builder a switch of two halves, "fixed" with the operator's mark and "AI may change" with
   the AI's; the half that holds is filled, a click on the other switches, and the row of a setting the AI may
   change is tinted and shows its lowest, highest and starting value under their names (`BRIEF_NET.whoSeg`).
+- **The conditions of a given aim are rows filled by choosing** (the operator, 2026-11-18): a measure by its plain
+  name, a comparison in words (at most, at least, below, above), a number in the unit a person uses (Mbps for
+  bits per second, per cent for a loss or a use), with a button to add a row and one to remove it. Each row says
+  how it reads and the line the harness checks (`fb_loss_frac <= 0.05`); the brief holds those lines as before. A
+  line of another shape in a saved brief stays a text field. A given aim always has a target the network
+  measures (the form showed the first measure while holding none: the page said "Ready" and the brief was
+  refused).
 - **Nothing has to be typed but a name**: "Start from" is marked optional (the builder opens on the two-host
   network, ready to build on and to start), and the description writes itself from the network until the
   operator types one of their own (`descAuto`).

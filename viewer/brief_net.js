@@ -61,6 +61,8 @@ const BRIEF_NET = {
 .bn-seg .bn-who + .bn-who { border-left: 1px solid var(--border); } .bn-seg .bn-who:not(.on):hover { background: var(--surface-1); color: var(--text-primary); }
 .bn-seg .bn-who.on { color: var(--text-primary); font-weight: 600; cursor: default; } .bn-seg .bn-who.on[data-who=operator] { background: color-mix(in srgb, var(--by-operator) 20%, var(--surface-1)); }
 .bn-seg .bn-who.on[data-who=model] { background: color-mix(in srgb, var(--by-model) 20%, var(--surface-1)); } .bn-seg .bn-who:not(.on) i.sw { opacity: .55; }
+.bn-conds { margin-top: 2px; } .bn-cond { display: grid; grid-template-columns: 40px minmax(150px, 280px) 104px 96px 44px 28px; gap: 4px 6px; align-items: center; margin: 5px 0; } .bn-cond select, .bn-cond input { width: 100%; box-sizing: border-box; min-width: 0; }
+.bn-cond .bn-cond-says { grid-column: 2 / -1; } .bn-cond .bn-cond-says code { font-size: inherit; } .bn-cond button[data-cond-rm] { height: 26px; padding: 0; } .bn-cond .bn-cond-u { color: var(--text-secondary); }
 .bn-row .tri .bn-tri { display: block; font-weight: 400; min-width: 0; } .bn-row .tri .bn-tri small { display: block; } .bn-list tr:has(td[data-decides=model]), .bn-list tr:has(.bn-seg[data-decides=model]) { background: color-mix(in srgb, var(--by-model) 7%, transparent); }
 .bn-bad { color: var(--critical); } .bn-list td { padding: 2px 10px 2px 0; vertical-align: top; }`,
   DEFAULT: { hosts: [{ id: 'sender' }, { id: 'receiver' }],
@@ -169,8 +171,32 @@ const BRIEF_NET = {
   },
 
   // ---- what cannot be saved, said in words (the harness checks again when the brief is saved)
+  // The conditions of a given aim. The brief holds each as a line the harness reads ("fb_loss_frac <= 0.1"); the form shows a line of that shape as a row:
+  // a measure by its plain name, a comparison in words, a number in the unit a person uses (Mbps for bits per second, per cent for a part). A line
+  // of another shape (written by hand in a saved brief) stays a text field of its own. s.conds stays the one place they are kept.
+  COND_OPS: [['<=', 'at most'], ['>=', 'at least'], ['<', 'below'], ['>', 'above']],
+  condUnit: m => (/_bps$/.test(m) ? ['Mbps', 1e6] : /(_loss_frac|_util|_util_back)$/.test(m) ? ['%', 0.01] : ['', 1]),
+  condRows() { return String(BRIEF_NET.s.conds || '').split('\n').map(c => c.trim()).filter(Boolean).map(line => { const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*(<=|>=|<|>)\s*(-?[0-9.]+(?:[eE][-+]?[0-9]+)?)$/.exec(line); return m ? { measure: m[1], op: m[2], raw: Number(m[3]) } : { text: line }; }); },
+  condSet(rows) { BRIEF_NET.s.conds = rows.map(r => (r.text != null ? r.text : `${r.measure} ${r.op} ${r.raw}`)).join('\n'); },
+  condShown: r => +(r.raw / BRIEF_NET.condUnit(r.measure)[1]).toPrecision(10),
+  condNew(outs) { const N = BRIEF_NET, used = new Set(N.condRows().map(r => r.measure)), m = outs.find(o => /_loss_frac$/.test(o) && !used.has(o)) || outs.find(o => o !== N.s.measure && !used.has(o)) || outs[0];
+    return { measure: m, op: /_bps$/.test(m) ? '>=' : '<=', raw: /_bps$/.test(m) ? 100e6 : /(_loss_frac|_util|_util_back)$/.test(m) ? 0.01 : 0 }; },
+  condsHtml(outs) {
+    const N = BRIEF_NET, e = EV.e, rows = N.condRows(), plain = k => TH_DATA.PLAIN[k] || k;
+    const row = (r, i) => (r.text != null ? `<div class="bn-cond bn-cond-raw" data-cond="${i}"><span class="sm">${i ? 'and' : 'while'}</span><input type="text" data-cond-f="${i}:text" value="${e(r.text)}" aria-label="Condition ${i + 1}, as written" style="grid-column:2 / 6"><button type="button" data-cond-rm="${i}" title="Remove this condition" aria-label="Remove condition ${i + 1}">×</button><span class="sm bn-cond-says">written by hand: kept as it is, and read by the harness as it stands</span></div>`
+      : (([unit]) => `<div class="bn-cond" data-cond="${i}"><span class="sm">${i ? 'and' : 'while'}</span><select data-cond-f="${i}:measure" aria-label="Condition ${i + 1}: the measure">${(outs.includes(r.measure) ? outs : [r.measure, ...outs]).map(k => `<option value="${e(k)}"${k === r.measure ? ' selected' : ''}>${e(plain(k))}${outs.includes(k) ? '' : ' (not measured in this network)'}</option>`).join('')}</select>
+        <select data-cond-f="${i}:op" aria-label="Condition ${i + 1}: the comparison">${N.COND_OPS.map(([o, w]) => `<option value="${e(o)}"${o === r.op ? ' selected' : ''}>${w}</option>`).join('')}</select><input type="text" data-cond-f="${i}:value" value="${e(N.condShown(r))}" aria-label="Condition ${i + 1}: the number" inputmode="decimal"><span class="bn-cond-u">${e(unit)}</span>
+        <button type="button" data-cond-rm="${i}" title="Remove this condition" aria-label="Remove condition ${i + 1}">×</button><span class="sm bn-cond-says" data-cond-says="${i}">${N.condSays(r)}</span></div>`)(N.condUnit(r.measure)));
+    return `<div class="bn-conds" id="bn-conds" style="grid-column:1/-1"><b>Conditions</b> <small>what must hold while the target is made as ${N.s.direction === 'min' ? 'small' : 'large'} as possible. ${rows.length ? 'All of them must hold.' : 'None yet: any setting counts.'}</small>${rows.map(row).join('')}
+      <div><button type="button" class="cl" id="bn-cond-add" title="One more condition: choose its measure, the comparison and the number">+ add a condition</button></div></div>`;
+  },
+  // a row in a sentence, and beside it the line the harness checks
+  condSays(r) { const N = BRIEF_NET, [unit] = N.condUnit(r.measure), w = (N.COND_OPS.find(q => q[0] === r.op) || [])[1] || r.op;
+    return `reads: ${EV.e(TH_DATA.PLAIN[r.measure] || r.measure)} ${w} ${EV.e(N.condShown(r))}${unit ? ' ' + EV.e(unit) : ''} · the harness checks: <code>${EV.e(`${r.measure} ${r.op} ${r.raw}`)}</code>`; },
   // the description follows the network while the operator has not written one of their own (descAuto): nothing has to be typed before a session can start
-  syncDesc() { const s = BRIEF_NET.s; if (s.descAuto) s.description = BRIEF_NET.describe(); },
+  syncDesc() { const N = BRIEF_NET, s = N.s; if (s.descAuto) s.description = N.describe();
+    // a given aim always has a target the network measures: the one the form shows (it showed the first measure while holding none, and the brief was then refused)
+    if (s.goal === 'given') { const outs = Object.keys(N.outputs(s.t)); if (!outs.includes(s.measure)) s.measure = outs.find(o => /_goodput_bps$/.test(o)) || outs[0] || ''; } },
   problems() {
     const N = BRIEF_NET, s = N.s, t = s.t, bad = []; N.syncDesc();
     if (t.hosts.length < 2 || !t.links.length || !t.flows.length) bad.push('A network needs at least two hosts, one link and one flow.');
@@ -181,6 +207,8 @@ const BRIEF_NET = {
     const through = N.passing(t); N.queues(t).forEach(x => { if (x.q.kind === 'scheduler' && !through[x.id].length) bad.push(`No flow passes the scheduler of link ${x.l.id}${x.id === x.l.id ? '' : ` on ${x.h}'s side`}: put it on the side that sends, make it a plain queue, or remove it.`); });
     if (t.hosts.length > 8 || t.links.length > 12 || t.flows.length > 8) bad.push('A network holds at most 8 hosts, 12 links and 8 flows.');
     if (!s.description.trim()) bad.push('The description is empty (block 4).');
+    if (s.goal === 'given') { const outs = Object.keys(N.outputs(t)); N.condRows().forEach((r, i) => { if (r.text != null) return;
+      if (!outs.includes(r.measure)) bad.push(`Condition ${i + 1} names ${r.measure}, which this network does not measure (block 3).`); else if (!isFinite(r.raw)) bad.push(`Condition ${i + 1} needs a number (block 3).`); }); }
     if (!/^[a-z0-9][a-z0-9_-]{1,59}$/.test(s.id.trim())) bad.push('The brief needs a name of 2 to 60 lower-case letters, digits, - and _ (above).');
     return bad;
   },
@@ -374,7 +402,7 @@ const BRIEF_NET = {
     const b3 = `<div class="be-aim" id="bn-aim"><label><input type="radio" name="bn-goal" data-goal="open"${s.goal === 'open' ? ' checked' : ''}> <b>open</b>: the AI chooses its own aim and has to justify it</label><label><input type="radio" name="bn-goal" data-goal="given"${s.goal === 'given' ? ' checked' : ''}> a target with conditions</label></div>
       ${s.goal === 'given' ? `<div class="be-two"><label>Target<small>the measure to make as large or as small as possible</small><select data-f="measure">${outs.map(k => `<option value="${e(k)}"${k === s.measure ? ' selected' : ''}>${e(TH_DATA.PLAIN[k] || k)}</option>`).join('')}</select></label>
         <label>Direction<select data-f="direction"><option value="max"${s.direction === 'max' ? ' selected' : ''}>as large as possible</option><option value="min"${s.direction === 'min' ? ' selected' : ''}>as small as possible</option></select></label>
-        <label style="grid-column:1/-1">Conditions<small>one on each line: a measure, a comparison, a number, for example ${e(outs.find(o => /_loss_frac$/.test(o)) || outs[0] || 'measure')} &lt;= 0.01 · the measures: ${e(outs.join(', '))}</small><textarea data-f="conds" rows="2">${e(s.conds)}</textarea></label>
+        ${N.condsHtml(outs)}
         <label>Tolerance, per cent (optional)<small>two results closer than this count as equal</small>${N.field('tolerance', s.tolerance, 'none')}</label></div>` : ''}`;
     const b4 = `<div class="be-two"><label>The task<small>written by the harness from the aim and the settings the AI may change</small><span id="bn-task" class="be-task" data-own="harness"></span></label>
         <label>The description of the system<small id="bn-desc-says">${s.descAuto ? 'written from the network as you build it: nothing to type. Type in it to write your own' : 'your own text: it no longer follows the network'} · a setting's address in braces is filled with its value where it is fixed and reads “the knob …” where the AI may change it <button class="cl" id="bn-describe" type="button">${s.descAuto ? 'write it from the network' : 'write it from the network again'}</button></small><textarea data-f="description" rows="5">${e(s.description)}</textarea></label></div>`;
@@ -459,6 +487,8 @@ const BRIEF_NET = {
     const ap = c('[data-addapp]'); if (ap && s.sel && s.sel[0] === 'host') { const to = (N.node.querySelector('#bn-app-to') || {}).value; if (to) return N.add.app(ap.dataset.addapp, s.sel[1], to); return; }
     const al = c('[data-addlink]'); if (al) { const to = (N.node.querySelector('#bn-link-to') || {}).value; if (to) return N.add.link(al.dataset.addlink, to); return; }
     const aq = c('[data-addq]'); if (aq) { const [l, h] = aq.dataset.addq.split(':'); return N.add.queue(l, h, aq.dataset.qk); }
+    if (c('#bn-cond-add')) { const rows = N.condRows(); rows.push(N.condNew(Object.keys(N.outputs(s.t)))); N.condSet(rows); return N.draw(); }
+    const crm = c('[data-cond-rm]'); if (crm) { const rows = N.condRows(); rows.splice(Number(crm.dataset.condRm), 1); N.condSet(rows); return N.draw(); }
     const tm = c('[data-time]'); if (tm) { const [fl, p] = tm.dataset.time.split(':'); return N.add.time(fl, p); }
     const ow = c('[data-own]'); if (ow) { const [l, h, p] = ow.dataset.own.split(':'); return N.add.own(l, h, p); }
     const rm = c('[data-remove]'); if (rm) { const [k, id] = rm.dataset.remove.split(':'); return N.remove(k, id); }
@@ -473,6 +503,12 @@ const BRIEF_NET = {
     if (t.id === 'bn-open' && done) return N.open(t.value);
     if (t.id === 'bn-structure') { s.structure = t.checked; return N.draw(); }
     if (t.dataset && t.dataset.goal) { s.goal = t.dataset.goal; return N.draw(); }
+    // a condition's row: a chosen measure or comparison, or a typed number, rewrites its line (the number is shown in the measure's unit and kept as the harness reads it)
+    if (t.dataset && t.dataset.condF) { const [i, part] = t.dataset.condF.split(':'), rows = N.condRows(), r = rows[Number(i)]; if (!r) return;
+      if (part === 'text') r.text = t.value; else if (part === 'op') r.op = t.value; else if (part === 'measure') { const shown = N.condShown(r); r.measure = t.value; r.raw = +(shown * N.condUnit(r.measure)[1]).toPrecision(12); }
+      else { const v = Number(String(t.value).trim().replace(',', '.')); r.raw = String(t.value).trim() !== '' && isFinite(v) ? +(v * N.condUnit(r.measure)[1]).toPrecision(12) : NaN; }
+      N.condSet(rows); if (done && part !== 'value' && part !== 'text') return N.draw();
+      const says = N.node.querySelector(`[data-cond-says="${i}"]`); if (says && r.text == null) says.innerHTML = N.condSays(r); return N.paintTask(); }
     if (t.dataset && t.dataset.lock) { s.locked[t.dataset.lock] = t.checked; return; }
     if (t.dataset && t.dataset.qkind && done) return N.change(() => { const q = N.qOf(t.dataset.qkind).q; q.kind = t.value; if (t.value === 'scheduler') { q.parts = q.parts || {}; q.largest_rate = q.largest_rate || {}; } else { delete q.parts; delete q.largest_rate; delete q.classes; } });
     if (t.dataset && t.dataset.qclass && done) { const [qid, fl] = t.dataset.qclass.split(':'); return N.add.queueOf(qid, fl, t.value); }

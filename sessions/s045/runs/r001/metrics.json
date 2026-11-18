@@ -1,0 +1,10 @@
+{
+  "udp_goodput_bps": 299773600,
+  "udp_loss_frac": 0.000739,
+  "tcp_goodput_bps": 668859002,
+  "tcp_retrans": 294,
+  "l1_util": 1.000000,
+  "l1_util_back": 0.013028,
+  "l1_drops": 492,
+  "l1_drops_back": 0
+}

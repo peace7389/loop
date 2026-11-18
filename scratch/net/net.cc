@@ -72,6 +72,10 @@ struct FlowState
     uint64_t txWin = 0, rxWin = 0, uidFirst = 0, uidLast = 0, retrans = 0;
     uint32_t cwnd = 0;
     uint64_t lastRx = 0, rx0 = 0, rx1 = 0, retrans0 = 0, retrans1 = 0;
+    // the probe (--probe): what TCP last reported, and the bytes received at the probe's last sample
+    uint32_t ssthresh = 0, inflight = 0, rwnd = 0;
+    double rttMs = 0, rtoMs = 0;
+    uint64_t probeRx = 0;
 };
 
 struct QueueSpec
@@ -93,6 +97,7 @@ struct LinkState
     uint32_t mtuOf[2] = {0, 0};  // its largest packet (0: the link's)
     double lossOf[2] = {-1, -1}; // the part of the packets it receives in error (below 0: no error model)
     uint64_t lost[2] = {0, 0}, lost0[2] = {0, 0}, lost1[2] = {0, 0};
+    std::vector<double> waitMs[2]; // the probe: the longest time a packet leaving each queue of that side had waited, since the last sample
     QueueSpec q[2]; // on the side of a, on the side of b
     NetDeviceContainer devs;
     Ptr<QueueDisc> root[2];
@@ -139,6 +144,40 @@ static void
 LinkTx(LinkState* l, uint32_t side, Ptr<const Packet> p)
 {
     l->tx[side] += p->GetSize();
+}
+
+// ---- the probe (--probe=<seconds>): a second, finer record, probe.csv. It only listens (trace sinks, and a sampler of its own): nothing
+// that sends, queues, drops or times a packet is added, and no random number is drawn. The harness keeps the file only when the
+// simulation run again with it gives metrics.json and series.csv byte for byte as without it.
+static void
+PSsThresh(FlowState* f, uint32_t, uint32_t now)
+{
+    f->ssthresh = now;
+}
+static void
+PInFlight(FlowState* f, uint32_t, uint32_t now)
+{
+    f->inflight = now;
+}
+static void
+PRwnd(FlowState* f, uint32_t, uint32_t now)
+{
+    f->rwnd = now;
+}
+static void
+PRtt(FlowState* f, Time, Time now)
+{
+    f->rttMs = now.GetSeconds() * 1e3;
+}
+static void
+PRto(FlowState* f, Time, Time now)
+{
+    f->rtoMs = now.GetSeconds() * 1e3;
+}
+static void
+PWait(double* w, Time t)
+{
+    *w = std::max(*w, t.GetSeconds() * 1e3);
 }
 
 static void
@@ -196,9 +235,11 @@ main(int argc, char* argv[])
 {
     std::string netFile;
     std::string out;
+    double probe = 0;
     CommandLine cmd(__FILE__);
     cmd.AddValue("net", "Absolute path of the network description", netFile);
     cmd.AddValue("out", "Absolute output directory", out);
+    cmd.AddValue("probe", "Seconds between the samples of probe.csv, a finer record that only listens (0 = none)", probe);
     cmd.Parse(argc, argv);
     if (out.empty() || out[0] != '/' || netFile.empty() || netFile[0] != '/')
     {
@@ -482,6 +523,15 @@ main(int argc, char* argv[])
                 DynamicCast<FlowQueueDisc>(l.root[side])->SetBands(bands);
             }
             l.devs.Get(side)->TraceConnectWithoutContext("PhyTxEnd", MakeBoundCallback(&LinkTx, &l, side));
+            if (probe > 0 && q.given) // how long a packet waited in each described queue (ns-3's SojournTime, which every queue disc reports)
+            {
+                l.waitMs[side].assign(q.kind == "scheduler" ? q.parts.size() : 1, 0.0);
+                for (uint32_t i = 0; i < l.waitMs[side].size(); i++)
+                {
+                    Ptr<QueueDisc> d = q.kind == "scheduler" ? l.root[side]->GetQueueDiscClass(i)->GetQueueDisc() : l.root[side];
+                    d->TraceConnectWithoutContext("SojournTime", MakeBoundCallback(&PWait, &l.waitMs[side][i]));
+                }
+            }
         }
         Ipv4AddressHelper addr;
         std::string base = "10." + std::to_string(1 + k / 250) + "." + std::to_string(1 + k % 250) + ".0";
@@ -574,6 +624,20 @@ main(int argc, char* argv[])
                     s->TraceConnectWithoutContext("Retransmission", MakeBoundCallback(&Retrans, fp));
                 }
             });
+            if (probe > 0)
+            {
+                Simulator::Schedule(Seconds(f.startAt) + MicroSeconds(1), [fp] {
+                    Ptr<Socket> s = DynamicCast<SourceApplication>(fp->app)->GetSocket();
+                    if (s)
+                    {
+                        s->TraceConnectWithoutContext("SlowStartThreshold", MakeBoundCallback(&PSsThresh, fp));
+                        s->TraceConnectWithoutContext("BytesInFlight", MakeBoundCallback(&PInFlight, fp));
+                        s->TraceConnectWithoutContext("RWND", MakeBoundCallback(&PRwnd, fp));
+                        s->TraceConnectWithoutContext("RTT", MakeBoundCallback(&PRtt, fp));
+                        s->TraceConnectWithoutContext("RTO", MakeBoundCallback(&PRto, fp));
+                    }
+                });
+            }
         }
     }
 
@@ -656,6 +720,71 @@ main(int argc, char* argv[])
         }
     };
     Simulator::Schedule(Seconds(tStart + period), [&sample] { sample(); });
+    // ---- the probe's own record: a row every `probe` seconds. Per flow its bits per second over the row; per TCP flow what its socket last
+    // reported; per described queue the longest wait of a packet that left it since the last row, and the packets waiting; per device its transmit queue
+    std::ofstream pcsv;
+    const double pper = std::max(probe, 0.001);
+    std::function<void()> psample = [&]() {
+        pcsv << std::fixed << std::setprecision(4) << Simulator::Now().GetSeconds();
+        for (auto& f : flows)
+        {
+            uint64_t rx = f.sink->GetTotalRx();
+            pcsv << "," << std::setprecision(0) << (rx - f.probeRx) * 8.0 / pper;
+            f.probeRx = rx;
+            if (!f.udp)
+            {
+                pcsv << "," << f.cwnd << "," << f.ssthresh << "," << f.inflight << "," << f.rwnd << "," << std::setprecision(3) << f.rttMs << "," << f.rtoMs;
+            }
+        }
+        for (auto& l : links)
+        {
+            for (uint32_t side = 0; side < 2; side++)
+            {
+                const QueueSpec& q = l.q[side];
+                for (uint32_t i = 0; i < l.waitMs[side].size(); i++)
+                {
+                    Ptr<QueueDisc> d = q.kind == "scheduler" ? l.root[side]->GetQueueDiscClass(i)->GetQueueDisc() : l.root[side];
+                    pcsv << "," << std::setprecision(3) << l.waitMs[side][i] << "," << d->GetNPackets();
+                    l.waitMs[side][i] = 0;
+                }
+                pcsv << "," << DynamicCast<PointToPointNetDevice>(l.devs.Get(side))->GetQueue()->GetNPackets();
+            }
+        }
+        pcsv << "\n";
+        if (Simulator::Now().GetSeconds() + pper <= tStop + 1e-9)
+        {
+            Simulator::Schedule(Seconds(pper), [&psample] { psample(); });
+        }
+    };
+    if (probe > 0)
+    {
+        pcsv.open(out + "/probe.csv");
+        pcsv << "t";
+        for (auto& f : flows)
+        {
+            pcsv << "," << f.id << "_bps";
+            if (!f.udp)
+            {
+                pcsv << "," << f.id << "_cwnd," << f.id << "_ssthresh," << f.id << "_inflight," << f.id << "_rwnd," << f.id << "_rtt_ms," << f.id << "_rto_ms";
+            }
+        }
+        for (auto& l : links)
+        {
+            for (uint32_t side = 0; side < 2; side++)
+            {
+                const QueueSpec& q = l.q[side];
+                const char* back = l.q[0].given && l.q[1].given && side == 1 ? "_back" : "";
+                for (uint32_t i = 0; i < l.waitMs[side].size(); i++)
+                {
+                    std::string name = q.kind == "scheduler" ? "_" + q.parts[i].first : std::string(back);
+                    pcsv << "," << l.id << "_wait" << name << "_ms," << l.id << "_q" << name;
+                }
+                pcsv << "," << l.id << "_devq" << (side == 1 ? "_back" : "");
+            }
+        }
+        pcsv << "\n";
+        Simulator::Schedule(Seconds(tStart + pper), [&psample] { psample(); });
+    }
     auto take = [&](bool end) {
         for (auto& f : flows)
         {

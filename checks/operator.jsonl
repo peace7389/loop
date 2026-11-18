@@ -1308,3 +1308,13 @@
 {"session": "s043", "id": "r015", "policy": "share", "seconds": 15.2}
 {"session": "s043", "id": "r016", "policy": "share", "seconds": 28.6}
 {"session": "s044", "id": "r001", "policy": "share", "seconds": 12.7}
+{"session": "s045", "id": "r001", "policy": "share", "seconds": 16.6}
+{"session": "s045", "id": "r002", "policy": "share", "seconds": 17.0}
+{"session": "s045", "id": "r003", "policy": "share", "seconds": 17.2}
+{"session": "s045", "id": "r004", "policy": "share", "seconds": 17.2}
+{"session": "s045", "id": "r005", "policy": "share", "seconds": 17.2}
+{"session": "s045", "id": "r006", "policy": "share", "seconds": 18.2}
+{"session": "s045", "id": "r007", "policy": "share", "seconds": 18.2}
+{"session": "s045", "id": "r008", "policy": "share", "seconds": 18.2}
+{"session": "s045", "id": "r009", "policy": "share", "seconds": 19.0}
+{"session": "s045", "id": "r010", "policy": "share", "seconds": 21.2}

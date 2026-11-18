@@ -177,6 +177,55 @@ static void Retrans(Ptr<const Packet> p, const TcpHeader& h, const Address&, con
 static void Q0(uint32_t, uint32_t now) { g_qMin[0] = std::min(g_qMin[0], now); }
 static void Q1(uint32_t, uint32_t now) { g_qMin[1] = std::min(g_qMin[1], now); }
 
+// ---- the probe (--probe=<seconds>, 0: none): a second, finer record of what the simulation does, written to probe.csv.
+// It only listens: trace sinks on the TCP socket and on the two queues, and a sampler of its own. Nothing that sends,
+// queues, drops or times a packet is added or changed, and no random number is drawn. The harness runs a simulation
+// again with it and keeps probe.csv only when metrics.json and series.csv are byte for byte those of the run without it.
+static uint32_t g_ssthresh = 0;  // TCP's slow-start threshold, bytes (very large until the first loss)
+static uint32_t g_inflight = 0;  // bytes sent and not yet acknowledged
+static uint32_t g_rwnd = 0;      // the receiver's window as the sender last heard it, bytes
+static double g_rttMs = 0;       // the last round-trip time TCP measured
+static double g_rtoMs = 0;       // its retransmission timeout
+static double g_waitMs[2] = {0, 0}; // the longest time a packet leaving each queue had waited there, since the last sample
+static void PSsThresh(uint32_t, uint32_t now) { g_ssthresh = now; }
+static void PInFlight(uint32_t, uint32_t now) { g_inflight = now; }
+static void PRwnd(uint32_t, uint32_t now) { g_rwnd = now; }
+static void PRtt(Time, Time now) { g_rttMs = now.GetSeconds() * 1e3; }
+static void PRto(Time, Time now) { g_rtoMs = now.GetSeconds() * 1e3; }
+static void PWait(uint32_t band, Time t) { g_waitMs[band] = std::max(g_waitMs[band], t.GetSeconds() * 1e3); }
+
+struct FineSampler
+{
+    Ptr<PacketSink> udpSink;
+    Ptr<PacketSink> tcpSink;
+    Ptr<QueueDisc> root;
+    Ptr<Queue<Packet>> devq;
+    std::ofstream csv;
+    uint64_t lastUdp = 0;
+    uint64_t lastTcp = 0;
+    double period = 0.01;
+    double tStop = 0;
+
+    void Sample()
+    {
+        uint64_t u = udpSink->GetTotalRx();
+        uint64_t t = tcpSink->GetTotalRx();
+        csv << std::fixed << std::setprecision(4) << Simulator::Now().GetSeconds() << "," << std::setprecision(0)
+            << (u - lastUdp) * 8.0 / period << "," << (t - lastTcp) * 8.0 / period << "," << g_cwnd << "," << g_ssthresh
+            << "," << g_inflight << "," << g_rwnd << "," << std::setprecision(3) << g_rttMs << "," << g_rtoMs << ","
+            << g_waitMs[0] << "," << g_waitMs[1] << "," << root->GetQueueDiscClass(0)->GetQueueDisc()->GetNPackets() << ","
+            << root->GetQueueDiscClass(1)->GetQueueDisc()->GetNPackets() << "," << devq->GetNPackets() << "\n";
+        g_waitMs[0] = 0;
+        g_waitMs[1] = 0;
+        lastUdp = u;
+        lastTcp = t;
+        if (Simulator::Now().GetSeconds() + period <= tStop + 1e-9)
+        {
+            Simulator::Schedule(Seconds(period), &FineSampler::Sample, this);
+        }
+    }
+};
+
 // Counter values at one instant; metrics are the difference between two of these.
 struct Counters
 {
@@ -266,6 +315,7 @@ main(int argc, char* argv[])
     uint32_t udpTos = 0x10;
     double events = 0;
     double eventsAt = 0;
+    double probe = 0;
 
     CommandLine cmd(__FILE__);
     cmd.AddValue("linkRate", "Link rate", linkRate);
@@ -289,6 +339,7 @@ main(int argc, char* argv[])
     cmd.AddValue("udpTos", "TOS byte of the UDP sender", udpTos);
     cmd.AddValue("events", "Milliseconds of packet-level events to write to events.csv (0 = none)", events);
     cmd.AddValue("eventsAt", "Start of that window in seconds (0 = half a second into the measured time)", eventsAt);
+    cmd.AddValue("probe", "Seconds between the samples of probe.csv, a finer record that only listens (0 = none)", probe);
     cmd.Parse(argc, argv);
 
     if (out.empty() || out[0] != '/')
@@ -391,6 +442,23 @@ main(int argc, char* argv[])
         Config::ConnectWithoutContextFailSafe("/NodeList/0/$ns3::TcpL4Protocol/SocketList/*/Retransmission",
                                               MakeCallback(&Retrans));
     });
+    FineSampler prober;
+    if (probe > 0)
+    {
+        // the same instant as the hook above, as an event of its own: the sockets exist by then
+        Simulator::Schedule(Seconds(tcpAt) + MicroSeconds(1), [] {
+            const std::string s = "/NodeList/0/$ns3::TcpL4Protocol/SocketList/*/";
+            Config::ConnectWithoutContextFailSafe(s + "SlowStartThreshold", MakeCallback(&PSsThresh));
+            Config::ConnectWithoutContextFailSafe(s + "BytesInFlight", MakeCallback(&PInFlight));
+            Config::ConnectWithoutContextFailSafe(s + "RWND", MakeCallback(&PRwnd));
+            Config::ConnectWithoutContextFailSafe(s + "RTT", MakeCallback(&PRtt));
+            Config::ConnectWithoutContextFailSafe(s + "RTO", MakeCallback(&PRto));
+        });
+        for (uint32_t b = 0; b < 2; b++)
+        {
+            qdiscs.Get(0)->GetQueueDiscClass(b)->GetQueueDisc()->TraceConnectWithoutContext("SojournTime", MakeBoundCallback(&PWait, b));
+        }
+    }
     qdiscs.Get(0)->GetQueueDiscClass(0)->GetQueueDisc()->TraceConnectWithoutContext("PacketsInQueue", MakeCallback(&Q0));
     qdiscs.Get(0)->GetQueueDiscClass(1)->GetQueueDisc()->TraceConnectWithoutContext("PacketsInQueue", MakeCallback(&Q1));
 
@@ -429,6 +497,18 @@ main(int argc, char* argv[])
     sampler.csv.open(out + "/series.csv");
     sampler.csv << "t,udp_bps,tcp_bps,cwnd,drops_band0,drops_band1,q_band0,q_band1,qmin_band0,qmin_band1\n";
     Simulator::Schedule(Seconds(tStart + sampler.period), &Sampler::Sample, &sampler);
+    if (probe > 0)
+    {
+        prober.udpSink = sampler.udpSink;
+        prober.tcpSink = sampler.tcpSink;
+        prober.root = qdiscs.Get(0);
+        prober.devq = DynamicCast<PointToPointNetDevice>(devs.Get(0))->GetQueue();
+        prober.period = std::max(probe, 0.001);
+        prober.tStop = tStop;
+        prober.csv.open(out + "/probe.csv");
+        prober.csv << "t,udp_bps,tcp_bps,cwnd,ssthresh,inflight,rwnd,rtt_ms,rto_ms,wait_band0_ms,wait_band1_ms,q_band0,q_band1,devq\n";
+        Simulator::Schedule(Seconds(tStart + prober.period), &FineSampler::Sample, &prober);
+    }
     Counters c0;
     Counters c1;
     Simulator::Schedule(Seconds(tMeasure), &Sampler::Take, &sampler, &c0);
