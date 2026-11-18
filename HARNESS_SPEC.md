@@ -975,6 +975,37 @@ what one did on what ground and what the other said to it.
     large one). Not yet shown: that the model, in a real session, reaches a cause through measurements of its
     own. Not built: a tap the program does not have (the delay of single packets end to end, the instants of
     acknowledgements); a tap is a change to the program and needs the same proof.
+- **The researcher's short reply** (2026-11-18, the operator's "ok do it"). In this arm the researcher states only
+  what nobody else can state; the harness derives the rest and the supervisor does what the dropped fields were
+  for. The reply has: `observations` (one or two sentences), `requests`, `whys` (`about`, `result`, `guess`,
+  `revises`), `hypotheses` (`from_why`, `text`), `drop`, `experiment` (`kind`, `tests`, `question`, `runs`,
+  `measurements`, `decision_rules` with `for` and `decision_rule`), `objections`, `report` (`goal`,
+  `recommendation`, `limit`, `explanation`, `claims` with `text` and `evidence`). Not asked any more: a why's
+  `unseen`, `matters`, `worth`, `reason`; a hypothesis's `question`, `why`, `prediction`, `follows_from`; an
+  experiment's `needs`, `varied`, `control`; a rule's `rival` and `rival_predicts` (the supervisor names the rival
+  at gate 1); the report's `expected`, `no_difference`, `holds_when`, `breaks_when`, `open_questions`; `verdicts`,
+  `rethink`, `budget_request`, `done` (a report ends the session). `supervised_format()` makes the format,
+  `LEAN_PROMPT` is the instructions (6,348 characters; `prompt.txt` is not used in this arm), `lean_fill()` puts
+  the dropped fields back empty so that the ledger keeps one shape, `lean_needs()` derives each test's needs from
+  its rules (the simulations a rule names, the one setting in which they differ, the first measure it names; marked
+  `derived`). A rule whose simulations differ in more than one setting is refused; a simulation no rule names is
+  left out and noted. The page hides the empty rows and writes "Compares" (by the harness) for a derived need.
+  Test: `harness_checks/test_supervised.py`. One reply of the real model to the first turn on `trap-2` (no
+  session): 3,099 characters, 6 requests, 3 guesses, 3 hypotheses, every part accepted. Not yet shown: a whole
+  session in this form.
+
+**The draft has a limit of its own** (all arms, 2026-11-18). The model reasons before it answers (its draft), and
+`--max-tokens` (32,000) counted draft and answer together. In s045 and s046, 5 of 11 answers were empty with
+`finish_reason=length`: the draft alone had used all 32,000 tokens, six minutes each, and no answer was written.
+The length of the answer was not the cause (a whole answer is about 6,000 characters). `ask()` now sends
+`thinking_token_budget = draft_tokens(max_tokens)`, half of the limit (16,000 for the researcher, 4,500 for the
+supervisor): the model server (vLLM 0.32, `--reasoning-parser qwen3`) ends the draft there and the model writes
+its answer. Measured on the server with a puzzle and a limit of 6,000: without the budget 6,000 draft tokens and
+no answer; with a budget of 300 or 1,500 the draft stops at 299 or 1,499 tokens and a valid answer follows. A
+server that refuses the field is asked once more without it, and not again. `session.json` states `draft_tokens`.
+Not changed, and to be decided by the operator: the model's card advises temperature 1.0, top_p 0.95, top_k 20
+when it reasons (the harness uses 0.3, and 0 for the supervisor), and the model reasons at its highest effort
+(`reasoning_effort` xhigh, the template's default; medium and low exist).
 
 ### 8.2 A turn
 
@@ -3460,6 +3491,7 @@ untracked until they say otherwise.
 | 2026-11-18, late | What else ns-3 has for the builder's objects ("Do it", the operator's list of six): an application's times, a device's own largest packet and loss, TCP's options, ns-3's queue discs beside the project's scheduler, the ns-3 attribute beside every setting; the AI's own change of structure can add OnOff over TCP (fourth build of `net`, `checks/net4`). Not done: one vocabulary with the ready-made two-host system. |
 | 2026-11-18, night | The arm "supervised": a researcher that proposes and a supervisor, asked apart from it, that reads each new guess against its records, reviews each test before its simulations and rules on what the checks mean; objections; everything of the supervisor on the page with its ground and what it was shown. After a review of the loop's objects: the verdict had repeated the check, the judge had never refused. |
 | 2026-11-18, night | Measurements the researcher defines: both programs get a probe that only listens (0 of 190 re-runs of recorded simulations differ), the tools `measure` and `probe`, and measurements an experiment defines and its decision rules name. The first real supervised session (s044) showed the supervisor refusing guesses it could not check, because it was not shown the tool results: repaired. The builder says who decides a setting in words, takes the aim's conditions as rows, and needs nothing typed but a name; the page's card "Two agents". |
+| 2026-11-18, late | The researcher's short reply in the arm "supervised" (the harness derives a test's needs from its rules); a limit on the draft, half of the answer's tokens, in all arms, because empty answers came from drafts that used the whole limit; the builder's row "simulation time, s". |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

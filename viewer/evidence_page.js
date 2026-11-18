@@ -88,7 +88,10 @@ Object.assign(EV, {
     const roles = M.claims.length > 0 && M.claims.every(q => q.role), of = r => M.claims.filter(q => q.role === r), group = ([r, , says]) => (of(r).length ? `<p class="pr-role sm" data-role="${r}">${EV.term('Claim', 'claims')} that ${says}</p><div class="claims">${of(r).map(EV.claimBtn).join('')}</div>` : '');
     // what limits the result (why it is not better) and the settings whose tested values made no meaningful difference: two parts of a report since
     // 2026-11-15, in the AI's words and by its own list; a report recorded before has neither, and then the page shows no such part
-    const nd = Array.isArray(rep.no_difference) ? rep.no_difference : null, hasLim = typeof rep.limit === 'string' && rep.limit.trim() !== '';
+    // the short report of a supervised session (2026-11-18) states its aim, its recommendation, what limits the result, its explanation and its claims: the parts it is
+    // not asked for (the expected values, the list of settings that made no difference, when it holds and breaks) have no block here
+    const short = !!M.supervised && typeof rep.holds_when === 'string' && !rep.holds_when.trim() && !rep.breaks_when.trim() && !Object.keys(rep.expected || {}).length; let nth = 0; const nx = () => ++nth;
+    const nd = short ? null : Array.isArray(rep.no_difference) ? rep.no_difference : null, hasLim = typeof rep.limit === 'string' && rep.limit.trim() !== '';
     const lim = hasLim || nd ? `${hasLim ? `<p id="pr-limit" data-own="model">${txt(rep.limit)}</p>` : ''}${nd ? `<p class="sm" id="pr-nodiff" data-exact="1">${nd.length ? `Made no meaningful difference, by its own list: ${nd.map(k => `<span class="nd-k" data-knob="${e(k)}">${lab(k)}</span>`).join(', ')}` : 'Its list of settings that made no meaningful difference is empty.'}</p>` : ''}` : '';
     const diag = roles && of('background').length ? EV.ROLES.filter(q => q[1] === 'diagnosis').map(group).join('') : '', nb = i => i + (diag ? 1 : 0) + (lim ? 1 : 0);  // the diagnosis: a part of its own, before the reasons
     // the line of the counts, and under it the print button, which is always there (greyed until a claim is chosen): choosing a claim changes no height
@@ -98,9 +101,9 @@ Object.assign(EV, {
     const but = `${roles ? EV.ROLES.filter(q => q[1] === 'but').map(group).join('') || '<p class="sm">No claim says when the recommendation would change.</p>' : ''}${when}`;
     const blk = (n, key, title, body) => `<div class="pr-b" data-pr="${key}"><h3><span class="st-n">${n}</span>${title}</h3>${body}</div>`;
     return `<div class="ev-card" id="s-proposes">${head}<div id="s-report" data-by="model">
-        ${blk(1, 'aim', 'The aim', aim)}${blk(2, 'adjust', 'The proposed adjustment', adj)}${blk(3, 'expected', 'The expected result', exp)}
-        ${lim ? blk(4, 'limit', 'What limits the result', lim) : ''}${diag ? `<div class="pr-b" data-pr="diagnosis"><h3><span class="st-n">${lim ? 5 : 4}</span>${EV.term('Diagnosis', 'Its diagnosis')}</h3>${diag}</div>` : ''}${blk(nb(4), 'because', roles || !M.claims.length ? 'Because' : 'Its claims', because + counts)}${blk(nb(5), 'but', 'But', but)}
-        <details class="pr-b" data-pr="explanation" id="pr-expl"${S.more || S.full ? ' open' : ''}><summary><h3 style="display:inline"><span class="st-n">${nb(6)}</span>The explanation</h3> <span class="sm">folded · the model's own words</span></summary><div id="ov-expl" data-own="model">${txt(rep.explanation)}</div></details>
+        ${blk(nx(), 'aim', 'The aim', aim)}${blk(nx(), 'adjust', 'The proposed adjustment', adj)}${short ? '' : blk(nx(), 'expected', 'The expected result', exp)}
+        ${lim ? blk(nx(), 'limit', 'What limits the result', lim) : ''}${diag ? `<div class="pr-b" data-pr="diagnosis"><h3><span class="st-n">${nx()}</span>${EV.term('Diagnosis', 'Its diagnosis')}</h3>${diag}</div>` : ''}${blk(nx(), 'because', roles || !M.claims.length ? 'Because' : 'Its claims', because + counts)}${short ? '' : blk(nx(), 'but', 'But', but)}
+        <details class="pr-b" data-pr="explanation" id="pr-expl"${S.more || S.full ? ' open' : ''}><summary><h3 style="display:inline"><span class="st-n">${nx()}</span>The explanation</h3> <span class="sm">folded · the model's own words</span></summary><div id="ov-expl" data-own="model">${txt(rep.explanation)}</div></details>
         ${mis ? `<p class="sm" data-step="${mis.step}">${EV.warn('a number in the report differs from its measurement', `It wrote “${mis.rows[0].written}”; measured ${mis.rows[0].measured}`)} · <a data-act="open" data-t="report" data-id="report">the report's numbers against the measurements</a></p>` : ''}</div>${open}${EV.shareBar()}</div>`;
   },
 

@@ -114,7 +114,7 @@ Object.assign(EV, {
       ${line('Hypothesis', ['model'], h && !h.question ? `<span class="lc3"><b>${e(T.hyp)}</b> ${e(h.text)}</span>` : `<b>${e(T.hyp)}</b> ${h ? EV.question(h) : EV.nr}`, st(T.hyp) < kx ? kx : st(T.hyp), 'nb-q', 'data-own="model"')}
       ${h && h.why ? line('Why', ['model'], `<span class="lc2" title="${e(h.why)}">${e(h.why)}</span>`, st(T.hyp) < kx ? kx : st(T.hyp), 'nb-why', 'data-own="model"') : ''}
 </div>
-      <div class="nb-blk nb-blk-t">${T.need ? line('Needs', ['model'], `<span class="lc2" title="${e(T.need.to_know)}">${e(T.need.to_know)}</span><div class="sm">${T.need.varies === 'none' ? 'one simulation against a number it states' : `only ${e(T.need.varies === 'structure' ? 'the structure' : TH_DATA.KNOB[T.need.varies] || T.need.varies)} differs between its simulations`} · decided by ${e(TH_DATA.PLAIN[T.need.measure] || T.need.measure)}</div>`, kx, 'nb-need', 'data-own="model"') : ''}
+      <div class="nb-blk nb-blk-t">${T.need && T.need.derived ? line('Compares', ['harness'], `<span class="sm">${T.need.varies === 'none' ? 'one simulation against a number its rule states' : `simulations that differ only in ${e(T.need.varies === 'structure' ? 'the structure' : TH_DATA.KNOB[T.need.varies] || T.need.varies)}`} · decided by ${e(TH_DATA.PLAIN[T.need.measure] || T.need.measure)} · worked out by the harness from its rule</span>`, kx, 'nb-need') : T.need ? line('Needs', ['model'], `<span class="lc2" title="${e(T.need.to_know)}">${e(T.need.to_know)}</span><div class="sm">${T.need.varies === 'none' ? 'one simulation against a number it states' : `only ${e(T.need.varies === 'structure' ? 'the structure' : TH_DATA.KNOB[T.need.varies] || T.need.varies)} differs between its simulations`} · decided by ${e(TH_DATA.PLAIN[T.need.measure] || T.need.measure)}</div>`, kx, 'nb-need', 'data-own="model"') : ''}
       ${(x.measurements || []).length ? line('Measures', ['model', 'harness'], EV.ownMeasures(x), kx, 'nb-own') : ''}
       ${line('Plan', ['model'], EV.nbPlan(T), kx, '', 'data-exact="1"')}
       ${line('Expected', ['model'], `${EV.ruleList(T, 3)}${T.rival ? `<div class="sm lc2" title="${e(T.rival)}">${EV.term('Rival', 'rival')}: <span data-own="model">${e(T.rival)}</span></div>` : ''}`, kx)}
@@ -192,8 +192,8 @@ Object.assign(EV, {
         <div class="nb-whyh"><b class="nb-whyid" data-wd="y:${e(w.id)}">${e(w.id)}</b> ${EV.whyPill(w)}${w.revises ? ` <span class="sm">replaces ${EV.whyLink(w.revises, true)}</span>` : ''}${hs.length ? ` <span class="nb-whyto" title="the hypotheses that come from this guess">→ ${hs.map(h => EV.link(h.id)).join(', ')}</span>` : ''}</div>
         <div class="nb-whyb"><p><span class="nb-wk">It saw</span><span><span data-own="model">${e(w.result)}</span> <span class="sm">(${about(w)})</span></span></p>
           <p class="nb-whyq"><span class="nb-wk">Why?</span><span data-own="model">${e(w.guess)}</span></p>
-          <p class="sm"><span class="nb-wk">Not visible</span><span data-own="model">${e(w.unseen)}</span></p><p class="sm"><span class="nb-wk">For the goal</span><span data-own="model">${e(w.matters)}</span></p>
-          <p class="sm"><span class="nb-wk">${w.worth === 'verify' ? 'Worth verifying' : 'Set aside'}</span><span data-own="model">${e(w.reason)}</span></p></div></div>`; }).join('')}</div>`;
+          ${w.unseen ? `<p class="sm"><span class="nb-wk">Not visible</span><span data-own="model">${e(w.unseen)}</span></p>` : ''}${w.matters ? `<p class="sm"><span class="nb-wk">For the goal</span><span data-own="model">${e(w.matters)}</span></p>` : ''}
+          ${w.reason ? `<p class="sm"><span class="nb-wk">${w.worth === 'verify' ? 'Worth verifying' : 'Set aside'}</span><span data-own="model">${e(w.reason)}</span></p>` : ''}${w.ground ? `<p class="sm"><span class="nb-wk"><i class="sw" data-by="supervisor"></i>Its ground</span><span>${EV.supGround(w)}</span></p>` : ''}</div></div>`; }).join('')}</div>`;
   },
   // ---- the links of the chain, on hover (2026-11-17, the operator: the relations between whys, hypotheses and claims, in a short box):
   // a guess of why: what it saw, what became of it, the hypotheses that come from it and the claims of the report that rest on those
@@ -205,7 +205,7 @@ Object.assign(EV, {
     const became = [...ks.map(k => `turn ${k.turn}: looked at again, now ${e(EV.WHY_NOW[k.now] || k.now)}`), by ? `turn ${by.turn}: replaced by the better guess ${e(by.id)}` : ''].filter(Boolean);
     return `<div class="hp" data-why-pop="${e(id)}"><p class="hp-h"><b class="hp-id">${EV_ICON.why}${e(id)}</b><span class="hp-badge">${e(EV.WHY_NOW[now.worth] + (now.worth === 'revised' ? ' by ' + now.by : ''))}</span><span class="hp-turn">guess of why · turn ${w.turn}</span></p>
       <p class="hp-q" data-own="model">${e(w.guess)}</p>
-      ${line('It saw', `<span data-own="model">${e(w.result)}</span>`, 'hp-clamp')}${line('Not visible', `<span data-own="model">${e(w.unseen)}</span>`, 'hp-clamp')}
+      ${line('It saw', `<span data-own="model">${e(w.result)}</span>`, 'hp-clamp')}${w.unseen ? line('Not visible', `<span data-own="model">${e(w.unseen)}</span>`, 'hp-clamp') : ''}
       ${became.length ? line('Became of it', became.join('<br>')) : ''}
       ${line('Hypotheses', hs.length ? hs.map(h => `<span class="hp-chip">${e(h.id)}</span> <span data-own="model">${e(cut(h.question || h.text, 76))}</span> <span class="sm">· ${e(state(h))}</span>`).join('<br>') : none(now.worth === 'verify' ? 'none comes from it yet' : 'none came from it'))}
       ${EV.repNow() ? line('Claims', cl.length ? cl.map(q => `<span class="hp-chip">claim ${q.n}</span> <span data-own="model">${e(cut(q.text, 70))}</span>`).join('<br>') : none('no claim of the final report rests on it')) : ''}
@@ -287,8 +287,8 @@ Object.assign(EV, {
     const state = h => (EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open');
     return `<h2 class="td-head">${EV_ICON.why} Guess of why ${e(id)} ${EV.whyPill(w)} <small>stated in turn ${w.turn}</small></h2>
       <div class="td td-top" id="why-card" data-why="${e(id)}">${row('About', (w.about || []).map(a => (a === 'brief' ? 'the brief' : EV.link(a))).join(', ') + (w.revises ? ` <span class="sm">· replaces the earlier guess ${EV.whyLink(w.revises)}</span>` : ''))}
-        ${row('It saw', e(w.result), 1)}${row('Why?', `<b>${e(w.guess)}</b>`, 1)}${row('Not visible', e(w.unseen), 1)}${row('For the goal', e(w.matters), 1)}
-        ${row(w.worth === 'verify' ? 'Worth verifying' : 'Set aside', e(w.reason), 1)}
+        ${row('It saw', e(w.result), 1)}${row('Why?', `<b>${e(w.guess)}</b>`, 1)}${w.unseen ? row('Not visible', e(w.unseen), 1) : ''}${w.matters ? row('For the goal', e(w.matters), 1) : ''}
+        ${w.reason ? row(w.worth === 'verify' ? 'Worth verifying' : 'Set aside', e(w.reason), 1) : ''}
         ${row('What became of it', (ks.length || by ? '' : `<p>Not looked at again since it was stated: it stands as “${e(EV.WHY_NOW[now.worth])}”.</p>`)
           + ks.map(k => `<p data-again="${e(k.id)}">${EV_ICON.rethink} turn ${k.turn}: looked at again in the light of ${(k.in_light_of || []).map(EV.link).join(', ')}: now <span class="pill">${e(EV.WHY_NOW[k.now] || k.now)}</span> <span data-own="model">${e(k.because)}</span></p>`).join('')
           + (by ? `<p>turn ${by.turn}: replaced by the better guess ${EV.whyLink(by.id)}: <span data-own="model">${e(by.guess)}</span></p>` : ''))}
