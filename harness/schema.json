@@ -533,6 +533,7 @@
        "describe_system",
        "metrics",
        "series",
+       "measure",
        "grep_trace",
        "list_runs"
       ]

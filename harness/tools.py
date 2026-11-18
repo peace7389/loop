@@ -398,6 +398,71 @@ def series(run_id, every_n=1):
     step = max(int(every_n), 1, -(-(len(rows) - 1) // 100))
     return "\n".join([rows[0]] + rows[1::step][:100])
 
+MEASURE_STATS = {"mean": "the average", "min": "the lowest sample", "max": "the highest sample", "std": "the standard deviation", "first": "the first sample", "last": "the last sample",
+                 "p05": "the value 5 % of the samples lie below", "p50": "the median", "p95": "the value 95 % of the samples lie below", "slope": "the change per second (a straight line through the samples)",
+                 "rate": "(last - first) / seconds: for a column that counts up, like drops", "time_above": "the seconds spent above level", "time_below": "the seconds spent below level",
+                 "first_time_above": "the first time it is above level (null: never)", "first_time_below": "the first time it is below level (null: never)"}
+
+
+def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
+    """A measurement the researcher defines (2026-11-18, the operator: it may come up with the measurements it needs, and may not change what a
+    simulation gives). The harness computes it from what a simulation that has already run recorded over time (series.csv): nothing is simulated
+    for it, so no result can change by it, and it costs no simulation. of: a column of the series, or arithmetic over columns and numbers
+    (+ - * /, parentheses, abs, min, max), for example "udp_bps + tcp_bps" or "cwnd / 1448". stat: one of MEASURE_STATS. t_from, t_to: the
+    window in seconds of the simulation (left out: the measured seconds, from 2 s to the end). level: the number time_above and the like compare with."""
+    import ast, math
+    rows = (_dir(run_id) / "series.csv").read_text().splitlines()
+    cols = rows[0].split(",")
+    data = [dict(zip(cols, map(float, r.split(",")))) for r in rows[1:] if r.strip()]
+    if stat not in MEASURE_STATS:
+        return f"error: stat must be one of {', '.join(MEASURE_STATS)}"
+    try:
+        tree = ast.parse(str(of), mode="eval")
+    except SyntaxError:
+        return f"error: of must be a column of the series or arithmetic over columns: {', '.join(cols[1:])}"
+    funcs = {"abs": abs, "min": min, "max": max}
+    def val(n, row):
+        if isinstance(n, ast.Expression):
+            return val(n.body, row)
+        if isinstance(n, ast.Constant) and type(n.value) in (int, float):
+            return float(n.value)
+        if isinstance(n, ast.Name) and n.id in row:
+            return row[n.id]
+        if isinstance(n, ast.UnaryOp) and isinstance(n.op, ast.USub):
+            return -val(n.operand, row)
+        if isinstance(n, ast.BinOp) and type(n.op) in (ast.Add, ast.Sub, ast.Mult, ast.Div):
+            a, b = val(n.left, row), val(n.right, row)
+            return a + b if isinstance(n.op, ast.Add) else a - b if isinstance(n.op, ast.Sub) else a * b if isinstance(n.op, ast.Mult) else (a / b if b else float("nan"))
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in funcs and not n.keywords:
+            return funcs[n.func.id](*[val(a, row) for a in n.args])
+        raise ValueError(ast.unparse(n) if hasattr(ast, "unparse") else "that")
+    lo, hi = (2.0 if t_from is None else float(t_from)), (data[-1]["t"] if t_to is None else float(t_to))
+    win = [r for r in data if lo - 1e-9 <= r["t"] <= hi + 1e-9]
+    if not win:
+        return f"error: no sample between {lo:g} s and {hi:g} s (the series runs from {data[0]['t']:g} s to {data[-1]['t']:g} s)"
+    try:
+        ts, xs = [r["t"] for r in win], [val(tree, r) for r in win]
+    except ValueError as e:
+        return f"error: cannot read {e} in of: use the columns of the series ({', '.join(cols[1:])}), numbers, + - * /, parentheses, abs, min, max"
+    xs = [x for x in xs if not math.isnan(x)]
+    step = (ts[-1] - ts[0]) / (len(ts) - 1) if len(ts) > 1 else 0.1
+    if stat in ("time_above", "time_below", "first_time_above", "first_time_below"):
+        if type(level) not in (int, float):
+            return f"error: {stat} needs level, the number to compare with"
+        hit = [(t, x) for t, x in zip(ts, xs) if (x > level if "above" in stat else x < level)]
+        value = round(len(hit) * step, 3) if stat.startswith("time_") else (hit[0][0] if hit else None)
+    else:
+        n, srt = len(xs), sorted(xs)
+        mean = sum(xs) / n
+        pct = lambda q: srt[min(n - 1, max(0, round(q * (n - 1))))]
+        tm = sum(ts) / n
+        den = sum((t - tm) ** 2 for t in ts)
+        value = {"mean": mean, "min": srt[0], "max": srt[-1], "std": (sum((x - mean) ** 2 for x in xs) / n) ** 0.5, "first": xs[0], "last": xs[-1], "p05": pct(0.05), "p50": pct(0.5), "p95": pct(0.95),
+                 "slope": sum((t - tm) * (x - mean) for t, x in zip(ts, xs)) / den if den else 0.0, "rate": (xs[-1] - xs[0]) / (ts[-1] - ts[0]) if ts[-1] > ts[0] else 0.0}[stat]
+        value = round(value, 6)
+    return json.dumps({"run": run_id, "of": str(of), "stat": stat, **({"level": level} if level is not None else {}), "from_s": lo, "to_s": hi, "samples": len(xs), "value": value,
+                       "note": "computed by the harness from the series this simulation recorded when it ran: nothing was simulated again"})
+
 def grep_trace(run_id, pattern, limit=50):
     rx, hits = re.compile(str(pattern)[:200]), []
     if not (_dir(run_id) / "flowmon.xml").is_file():
@@ -413,4 +478,4 @@ def list_runs():
     p = _runs() / "index.json"
     return [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
 
-TOOLS = {"describe_system": describe_system, "metrics": metrics, "series": series, "grep_trace": grep_trace, "list_runs": list_runs}
+TOOLS = {"describe_system": describe_system, "metrics": metrics, "series": series, "measure": measure, "grep_trace": grep_trace, "list_runs": list_runs}

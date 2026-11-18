@@ -494,6 +494,7 @@ GROUND_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["
 APPEAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["answer", "stands", "result", "because"], "properties": {
     "answer": {"type": "string", "description": "what in the records the objection gets right or wrong"}, "stands": {"type": "boolean", "description": "true: your ruling stands as it was"},
     "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]}, "because": {"type": "string"}}}
+LOOKS = 6   # the arm "supervised": the most requests in one turn, and the most turns in a row that only look (the operator, 2026-11-18: observe the system whenever it wants, rather than try many simulations)
 SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of the supervisor, what it was shown and what it answered
 
 
@@ -1120,6 +1121,11 @@ SUPERVISED = (  # prompt.txt -> the researcher's instructions in the arm "superv
     ("A second reader (the judge) checks each new hypothesis against the why it names: if testing the hypothesis would not tell whether that guess is true, the hypothesis is refused.",
      "You do not work alone: a supervisor works apart from you. It proposes nothing and it does not see your observations or your reasons; it is shown your guess, your hypothesis, your decision rules, the planned simulations and the measured numbers. Before any simulation of a test is run it asks whether the test can tell if the guess is true. A test that could not (the hypothesis would come out the same whether the guess is true or not; a rival explanation would pass the rule as well; the ledger already holds the answer; another setting hides the effect; the threshold decides nothing) is sent back with the defect named, and none of its simulations is run or counted. Repair the design and send the experiment again, or, where the records you have already answer the question, read the answer from them instead of simulating. A test is sent back once: sent again it is run, and the record says whether the supervisor still objects."),
     ("(for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read)", "(for example a decision rule the harness cannot read)"),
+    ("8. requests: if you need information to design the next step, ask for it through the tools described in the brief; the results come back in the next turn.",
+     "8. requests: look before you simulate. Looking costs nothing: metrics, series and measure read what a simulation you already ran recorded, and no simulation is run for them. Read how a value moves over time in the series of "
+     "the runs you have (the windows, the queues, what happens at the start and what settles), and define the measurement you need with measure (a column or arithmetic over columns, a statistic, a window of seconds). "
+     "Spend a simulation only on a question the records cannot answer: a test whose answer the ledger already holds is sent back. Up to six requests in a turn, and a turn may consist of requests only; the results come back in the next turn. "
+     "You are not here to try as many settings as the budget allows: stop when you can say what makes the system behave as it does, and what that means for the goal."),
 )
 SUPERVISED_LINES = (  # whole lines of prompt.txt, by how they begin -> the line that stands there in the arm (None: the line is left out)
     ("   - rethink:", None),
@@ -1359,7 +1365,7 @@ def main():
                     err, parsed = f"invalid JSON: {e}", None
                     continue
                 ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked, judge=judge, supervised=arm == "supervised", ground=ground_fn if arm == "supervised" else None)
-                rq = [] if mode else (parsed.get("requests") or [])[:3]
+                rq = [] if mode else (parsed.get("requests") or [])[:LOOKS if arm == "supervised" else 3]   # looking is cheap in the supervised arm: more requests in one turn
                 if any(r.startswith(WAIT) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
                     asked = need_now = True
                 if any(ok.values()) or rq:  # something in the answer can be used: it is accepted, without the refused parts
@@ -1406,7 +1412,7 @@ def main():
             ex, report = ok["experiment"], ok["report"]
             if not (ok["rethink"] or ok["whys"] or ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ok["objections"] or ex is not None or report is not None or br):  # only requests
                 tool_only += 1
-                if tool_only > 3:
+                if tool_only > (LOOKS if arm == "supervised" else 3):
                     pending = [" (tool-only turn limit reached: results withheld, decide now)"]
                 append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq}, by="model")
                 continue

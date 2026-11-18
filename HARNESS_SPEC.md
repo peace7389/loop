@@ -888,9 +888,22 @@ what one did on what ground and what the other said to it.
   to the next" the column of the judge is the supervisor's. Started from the set-up page ("who rules on the tests")
   or with `POST /api/session {"arm": "supervised"}`.
 - **Test**: `harness_checks/test_supervised.py` (a scripted researcher and a scripted supervisor: each gate, the
-  objection, what the supervisor was shown, the other arms unchanged). Not yet measured: whether the supervisor,
-  being the same model, objects where it should; a session on `trap-2` and seeded known-bad designs are the next
-  step. Not built: the supervisor's reading of the report's claims (gate 3); measurements the researcher defines.
+  objection, what the supervisor was shown, looking, the other arms unchanged). Not yet measured: whether the
+  supervisor, being the same model, objects where it should; a session on `trap-2` and seeded known-bad designs
+  are the next step. Not built: the supervisor's reading of the report's claims (gate 3).
+- **Looking before simulating** (the operator: the researcher observes the system whenever it wants, and is no
+  optimiser). In this arm a turn takes up to six requests (`loop.LOOKS`; three in the other arms), six turns in a
+  row may only look, and the instructions of item 8 say: look before you simulate, a test whose answer the ledger
+  holds is sent back, stop when you can say what makes the system behave as it does.
+- **A measurement the researcher defines**: the tool `measure(run_id, of, stat, t_from, t_to, level)` (`tools.py`,
+  in every arm). `of` is a column of a simulation's recorded series or arithmetic over columns
+  (`udp_bps + tcp_bps`, `cwnd / 1448`); `stat` one of `tools.MEASURE_STATS` (mean, min, max, std, first, last,
+  p05, p50, p95, slope, rate, time above or below a level, the first time above or below it); the window in
+  seconds, by default the measured seconds. The harness computes it from the series the simulation wrote when it
+  ran: nothing is simulated for it, so it cannot change any result, and it costs no simulation. The expression is
+  read as arithmetic only (anything else is refused). Not built: a measurement of something the simulation did not
+  record (a round-trip time, the time a packet waits, a buffer's filling): that needs new trace taps in the
+  programs, each proven harmless by identical results with and without it.
 
 ### 8.2 A turn
 
