@@ -722,10 +722,51 @@ line; `checks/net3` holds its five predictions, all met (OnOff over TCP at
 200 Mbps alone delivers 200.0 Mbps; at 2 Gbps on a 1 Gbps link it delivers
 what BulkSend delivers; beside a 2 Gbps UDP flow under share it gets its
 100 Mbps and UDP the rest, 877.3 Mbps), and the 15 networks of `checks/net1`
-and `checks/net2` give byte-identical output. Not built: a change of
-structure by the AI adds a flow by its socket only (`add_flow` with `udp` or
-`tcp`), so it cannot add OnOff over TCP; on and off periods, start and stop
-times (TOPOLOGY.md, N3).
+and `checks/net2` give byte-identical output.
+
+The same day, the rest of what ns-3 has for these objects and the builder
+could not say (the program's fourth build; `checks/net4`, nine predictions,
+all met; the 20 networks of `checks/net1` to `net3` byte-identical). Each is
+optional, and a brief that states none of them is written and run as before.
+
+- **An application's times.** A flow may state `start` and `stop`
+  (`StartTime`, `StopTime`: seconds of the simulation; left out, 1 s and the
+  end; the measured seconds begin at 2 s), for OnOff `on_time` and `off_time`
+  (the lengths of its on and off periods, together; left out, always on) and
+  `max_bytes` (`MaxBytes`). Each stated one is a setting (`udp.start`, ...)
+  and can be a knob. On a quarter of the time a 100 Mbps flow delivers
+  25.0 Mbps; BulkSend with on and off periods is refused.
+- **A device's own largest packet and its loss.** An end of a link may state
+  `mtu` and `loss`: the part of the packets arriving at that device that it
+  receives in error and drops (a `RateErrorModel` as the device's
+  `ReceiveErrorModel`). A device with a loss gives the measure
+  `<link>_lost_<host>`. A loss of 0.1 measures 0.0999.
+- **TCP's options.** `tcpSack`, `tcpTimestamps` (1 or 0) and `tcpDelAck`
+  beside `tcpInitCwnd` and `tcpBufBytes`: settings of the whole simulation,
+  because in ns-3 they are attributes of every TCP socket with one default.
+  Only the congestion control is the host's own (`TcpL4Protocol`'s
+  `SocketType`); the program sets it for each flow just before the flow's
+  socket is made. Without timestamps a segment carries 1460 bytes.
+- **ns-3's queue discs.** A queue's `kind` is the queue disc of its device:
+  `fifo`, `pfifofast`, `codel`, `fqcodel`, `red`, `pie` (`network.QUEUE_DISCS`,
+  each with ns-3's own settings and `length` as its `MaxSize`) or `scheduler`,
+  the project's `FlowQueueDisc`. Beside 2 Gbps of UDP, FqCoDel leaves a TCP
+  flow 482 Mbps where the five single-line discs leave it nothing. A side
+  with no described queue still gets a `FifoQueueDisc` of 100 packets, not
+  ns-3's own default (FqCoDel); the page says so.
+- **The AI's own change of structure** states a ninth field, `app`: with
+  `onoff` and `kind` `tcp` it adds a TCP flow at a constant rate; `add_queue`
+  takes any of the queue discs.
+- **The page** shows beside each setting the ns-3 attribute it is
+  (`EV.NET_ATTR`: `DataRate`, `Mtu`, `TxQueue · MaxSize`, `StartTime`, ...).
+- A knob of a network is a whole number by its setting's kind
+  (`network.kind`), not by how its lowest value is written: a loss or a time
+  whose range begins at 0 was rounded to whole numbers before.
+
+Not built: the ready-made two-host system still has its own program and its
+own names (`weightUdp`, `udpRate`, `queuePkts`), because its answer keys and
+the comparison arms rest on them; a route that can be chosen; on and off
+periods drawn from a random variable; TCP options per socket.
 
 Every setting has an **address**, object.property: `lc.rate`, `lc.delay`,
 `lc.mtu`, `lc.device_queue`, `lc.queue.length`, `lc.queue.parts.one`,
@@ -3275,6 +3316,7 @@ untracked until they say otherwise.
 | 2026-11-17 | Two comparison arms for the question "does the hypothesis format help?": `loop.py --arm plain` (the same loop without hypotheses, decision rules and verdicts) and `random_search.py` (no model). |
 | 2026-11-17, late | The network follows ns-3's own parts (`TOPOLOGY.md`, stages N1 and N2): a link is a channel and two devices, each of which can have its own rate and transmit queue; a queue on either sending side of a link, or on both; several flows in one queue of a scheduler (a class). Second build of `net`, five predictions met (`checks/net2`), the ten earlier networks byte-identical. `network.py`, the builder and a session's page read all three; older briefs are read as before. In a hypothesis, `follows_from` may name a run id (found in s043). Session s043, the first under the mandatory look-again: a review after every tested hypothesis (9 in 6 turns). |
 | 2026-11-18 | The builder names ns-3's objects: a flow's application (OnOff, BulkSend) and its socket (UDP, TCP) are two choices of its card, so TCP can send at a constant rate (third build of `net`, `checks/net3`); the Link tool says that it brings a net device (NIC) at each end, the queue tools name their queue disc; a scheduler with a single queue is described as that. The brief `two-hosts-one-queue`. "The session at a glance" is unfolded whenever the page is loaded. |
+| 2026-11-18, late | What else ns-3 has for the builder's objects ("Do it", the operator's list of six): an application's times, a device's own largest packet and loss, TCP's options, ns-3's queue discs beside the project's scheduler, the ns-3 attribute beside every setting; the AI's own change of structure can add OnOff over TCP (fourth build of `net`, `checks/net4`). Not done: one vocabulary with the ready-made two-host system. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

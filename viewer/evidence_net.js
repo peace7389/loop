@@ -14,7 +14,7 @@ Object.assign(EV, {
   // link (the link's values unless the end states its own, in "ends") and the queue in front of it (null: not described, a plain queue of 100 packets).
   netEnds(l) {
     const E = l.ends || {}, q = l.queue, out = {};
-    (l.between || []).forEach(h => { const x = E[h] || {}; out[h] = { rate: 'rate' in x ? x.rate : l.rate, device_queue: 'device_queue' in x ? x.device_queue : l.device_queue, queue: x.queue ? x.queue : (q && q.on === h ? q : null) }; });
+    (l.between || []).forEach(h => { const x = E[h] || {}; out[h] = { rate: 'rate' in x ? x.rate : l.rate, device_queue: 'device_queue' in x ? x.device_queue : l.device_queue, mtu: 'mtu' in x ? x.mtu : l.mtu, loss: 'loss' in x ? x.loss : null, queue: x.queue ? x.queue : (q && q.on === h ? q : null) }; });
     return out;
   },
   // Every described queue of the network (network.queues): [{ l, h, q, a, id }]: its link, the host whose sending side it is, the queue, the address its
@@ -31,6 +31,21 @@ Object.assign(EV, {
   // a flow is an ns-3 application and the socket it opens. kind is the socket (udp, tcp); app is the application: 'onoff' (OnOffApplication, a constant rate) or
   // 'bulk' (BulkSendApplication, as fast as TCP accepts: TCP only). Not stated, a udp flow is onoff and a tcp flow is bulk (network.app in harness/network.py)
   netApp: f => f.app || (f.kind === 'udp' ? 'onoff' : 'bulk'),
+  // what a flow may state of its application's times (network.FLOW_TIMES), each with its plain name, its unit and what the program does when it is left out
+  NET_TIMES: ['start', 'stop', 'on_time', 'off_time', 'max_bytes'],
+  NET_TIME_SAYS: { start: ['start time', 's', '1 s'], stop: ['stop time', 's', 'the end'], on_time: ['on period', 's', 'always on'], off_time: ['off period', 's', 'always on'], max_bytes: ['byte limit', 'bytes', 'no limit'] },
+  // a queue's kind is the queue disc of one net device: [plain name, the ns-3 class, what it does]. scheduler is the project's own; the others are ns-3's (network.QUEUE_DISCS)
+  NET_DISC: { scheduler: ['scheduler', 'FlowQueueDisc', "this project's queue disc: its queues, and a part of the link for each"], fifo: ['shared queue', 'FifoQueueDisc', 'one queue for all the flows, first in, first out'],
+    pfifofast: ['three-band queue', 'PfifoFastQueueDisc', "three queues by a packet's priority, the highest served first"], codel: ['CoDel queue', 'CoDelQueueDisc', 'one queue; a packet that waited too long is dropped'],
+    fqcodel: ['FqCoDel queue', 'FqCoDelQueueDisc', "a queue for each flow, served in turn, each with CoDel; ns-3's own default"], red: ['RED queue', 'RedQueueDisc', 'one queue; packets are dropped at random before it is full'],
+    pie: ['PIE queue', 'PieQueueDisc', 'one queue; packets are dropped at random to hold the waiting time'] },
+  netDisc: k => EV.NET_DISC[k] || EV.NET_DISC.fifo,
+  // the ns-3 attribute a setting is, by its address: shown beside the setting's plain name
+  NET_ATTR: { delay: 'Channel · Delay', mtu: 'NetDevice · Mtu', device_queue: 'TxQueue · MaxSize', length: 'QueueDisc · MaxSize', parts: 'FlowQueueDisc · part', largest_rate: 'FlowQueueDisc · largest rate', packet_bytes: 'PacketSize', type: 'TcpL4Protocol · SocketType',
+    start: 'StartTime', stop: 'StopTime', on_time: 'OnTime', off_time: 'OffTime', max_bytes: 'MaxBytes', loss: 'ReceiveErrorModel · ErrorRate', tcpInitCwnd: 'TcpSocket · InitialCwnd', tcpBufBytes: 'TcpSocket · SndBufSize, RcvBufSize',
+    tcpSack: 'TcpSocketBase · Sack', tcpTimestamps: 'TcpSocketBase · Timestamp', tcpDelAck: 'TcpSocket · DelAckCount', duration: 'the measured seconds', seed: 'RngRun' },
+  netAttr(addr, t) { const p = String(addr).split('.'), w = p.includes('parts') ? 'parts' : p.includes('largest_rate') ? 'largest_rate' : p[p.length - 1]; if (w !== 'rate') return EV.NET_ATTR[w] || '';
+    return ((t && t.flows) || []).some(f => f.id === p[0]) ? 'OnOffApplication · DataRate' : 'NetDevice · DataRate'; },
   NET_APP: { onoff: ['OnOff', 'OnOffApplication', 'packets at a constant rate'], bulk: ['BulkSend', 'BulkSendApplication', 'always has data: as fast as TCP accepts'] },
   // the names of the measures of a network, as the harness makes them (network.outputs: keep the two alike)
   netOutNames(t) {
@@ -42,7 +57,7 @@ Object.assign(EV, {
         else if (q) (both && side === 1 ? back : front).push(`${l.id}_drops${both && side === 1 ? '_back' : ''}`);
         else if (given[0] || given[1] || side === 1) back.push(`${l.id}_drops_back`);
         else front.push(`${l.id}_drops`); });
-      out.push(`${l.id}_util`, `${l.id}_util_back`, ...front, ...back); });
+      out.push(`${l.id}_util`, `${l.id}_util_back`, ...hs.filter(h => E[h].loss != null).map(h => `${l.id}_lost_${h}`), ...front, ...back); });
     return out;
   },
   // {address: value} in the order of the description
@@ -50,14 +65,14 @@ Object.assign(EV, {
     const out = {}, qs = EV.netQueues(t);
     for (const l of t.links || []) {
       for (const p of ['rate', 'delay', 'mtu', 'device_queue']) out[`${l.id}.${p}`] = l[p];
-      for (const [h, x] of Object.entries(l.ends || {})) for (const p of ['rate', 'device_queue']) if (x && p in x) out[`${l.id}.${h}.${p}`] = x[p];
+      for (const [h, x] of Object.entries(l.ends || {})) for (const p of ['rate', 'device_queue', 'mtu', 'loss']) if (x && p in x) out[`${l.id}.${h}.${p}`] = x[p];
       for (const { q, a } of qs.filter(x => x.l === l)) {
         out[`${a}.length`] = q.length;
         for (const [f, v] of Object.entries(q.parts || {})) out[`${a}.parts.${f}`] = v;
         for (const [f, v] of Object.entries(q.largest_rate || {})) out[`${a}.largest_rate.${f}`] = v;
       }
     }
-    for (const f of t.flows || []) { if (EV.netApp(f) === 'onoff') { out[`${f.id}.rate`] = f.rate; out[`${f.id}.packet_bytes`] = f.packet_bytes; } if (f.kind === 'tcp') out[`${f.id}.type`] = f.type; }
+    for (const f of t.flows || []) { if (EV.netApp(f) === 'onoff') { out[`${f.id}.rate`] = f.rate; out[`${f.id}.packet_bytes`] = f.packet_bytes; } if (f.kind === 'tcp') out[`${f.id}.type`] = f.type; for (const p of EV.NET_TIMES) if (p in f) out[`${f.id}.${p}`] = f[p]; }
     return out;
   },
   // the settings the network fixes (those the brief does not make knobs)
@@ -87,7 +102,9 @@ Object.assign(EV, {
       P[`${l.id}_drops`] = `drops at ${l.id}`; W[`${l.id}_drops`] = `Packets thrown away at the queue in front of link ${l.id}${both ? ` on ${a}'s side` : ''} because it was full.`;
       P[`${l.id}_drops_back`] = `drops at ${l.id}, other side`; W[`${l.id}_drops_back`] = `Packets thrown away at the plain queue on ${both ? `${c}'s side` : 'the other side'} of link ${l.id}.`;
       // what an end states of its own device (a link is a channel and two devices)
-      for (const h of Object.keys(l.ends || {})) { K[`${l.id}.${h}.rate`] = `rate of ${h}'s device on ${l.id}`; K[`${l.id}.${h}.device_queue`] = `device queue of ${h} on ${l.id}`; U[`${l.id}.${h}.device_queue`] = 'packets'; }
+      for (const h of Object.keys(l.ends || {})) { K[`${l.id}.${h}.rate`] = `rate of ${h}'s device on ${l.id}`; K[`${l.id}.${h}.device_queue`] = `device queue of ${h} on ${l.id}`; U[`${l.id}.${h}.device_queue`] = 'packets';
+        K[`${l.id}.${h}.mtu`] = `largest packet of ${h}'s device on ${l.id}`; U[`${l.id}.${h}.mtu`] = 'bytes'; K[`${l.id}.${h}.loss`] = `loss at ${h}'s device on ${l.id}`;
+        P[`${l.id}_lost_${h}`] = `lost at ${h}'s device on ${l.id}`; W[`${l.id}_lost_${h}`] = `Packets the device of ${h} on link ${l.id} received in error and dropped: its loss, a part of the packets arriving there.`; }
       for (const { h, q, a, id } of EV.netQueues(t).filter(x => x.l === l)) { const at = id === l.id ? l.id : `${l.id}, ${h}'s side`;
         K[`${a}.length`] = `queue length at ${at}`; U[`${a}.length`] = 'packets';
         for (const f of Object.keys(q.parts || {})) { const who = EV.netMembers(q, f), cls = !(who.length === 1 && who[0] === f);
@@ -96,6 +113,7 @@ Object.assign(EV, {
     for (const f of t.flows || []) {
       P[`${f.id}_goodput_bps`] = `goodput of ${f.id}`; W[`${f.id}_goodput_bps`] = `What flow ${f.id} delivered to its receiver (${f.to}): payload bits per second over the measured time.`;
       if (EV.netApp(f) === 'onoff') { K[`${f.id}.rate`] = `rate of ${f.id}`; K[`${f.id}.packet_bytes`] = `packet size of ${f.id}`; U[`${f.id}.packet_bytes`] = 'bytes'; }
+      for (const p of EV.NET_TIMES) { K[`${f.id}.${p}`] = `${EV.NET_TIME_SAYS[p][0]} of ${f.id}`; U[`${f.id}.${p}`] = EV.NET_TIME_SAYS[p][1]; }
       if (f.kind === 'udp') { P[`${f.id}_loss_frac`] = `loss of ${f.id}`; W[`${f.id}_loss_frac`] = `The share of the packets flow ${f.id} sent that never arrived.`; }
       else { K[`${f.id}.type`] = `TCP type of ${f.id}`; P[`${f.id}_retrans`] = `segments ${f.id} sent again`; W[`${f.id}_retrans`] = `TCP segments the sender of flow ${f.id} sent a second time.`; } }
     Object.assign(TH_DATA.KNOB, K); Object.assign(EV.LABEL, K); Object.assign(TH_DATA.PLAIN, P); Object.assign(EV.SET_UNIT, U);
@@ -161,7 +179,7 @@ Object.assign(EV, {
     const t = EV.net(b), e = EV.e, kn = (b && b.knobs) || {}, R = v => TASK_VIEW._rate(String(v)), s = k => (k in kn ? '<span class="nk" title="The AI may change it">✦</span> ' : '');
     const flow = f => `<tr data-flow="${e(f.id)}"><td><i class="nf" style="background:${EV.netColor(t, f.id)}"></i><b>${e(f.id)}</b></td><td title="${e(`ns-3 ${EV.NET_APP[EV.netApp(f)][1]} on a ${f.kind.toUpperCase()} socket`)}">${e(EV.NET_APP[EV.netApp(f)][0])} · ${e(f.kind.toUpperCase())}</td><td>${e(f.from)} → ${e(f.to)}</td><td>${[EV.netApp(f) === 'onoff' ? `${s(`${f.id}.rate`)}${e(R(f.rate))} · ${s(`${f.id}.packet_bytes`)}${e(f.packet_bytes)}-byte packets` : 'always has data', f.kind === 'tcp' ? `${s(`${f.id}.type`)}${e(String(f.type).replace(/^Tcp/, ''))}` : ''].filter(Boolean).join(' · ')}</td></tr>`;
     const queue = ({ h, q, a }) => { const name = f => { const who = EV.netMembers(q, f); return who.length === 1 && who[0] === f ? e(f) : `${e(f)} (${e(who.join(' + '))}, one queue)`; };
-      return `${e(q.kind === 'scheduler' ? 'scheduler' : 'plain queue')} on ${e(h)}'s side, ${s(`${a}.length`)}${e(q.length)} packets${q.kind === 'scheduler' ? ': ' + Object.entries(q.parts || {}).map(([f, v]) => `${s(`${a}.parts.${f}`)}${name(f)} ${e(v)}`).join(' : ') + (Object.keys(q.largest_rate || {}).length ? '; at most ' + Object.entries(q.largest_rate).map(([f, v]) => `${e(f)} ${e(R(v))}`).join(', ') : '') : ''}`; };
+      return `${e(q.kind === 'scheduler' ? 'scheduler' : q.kind === 'fifo' ? 'plain queue' : EV.netDisc(q.kind)[0])} on ${e(h)}'s side, ${s(`${a}.length`)}${e(q.length)} packets${q.kind === 'scheduler' ? ': ' + Object.entries(q.parts || {}).map(([f, v]) => `${s(`${a}.parts.${f}`)}${name(f)} ${e(v)}`).join(' : ') + (Object.keys(q.largest_rate || {}).length ? '; at most ' + Object.entries(q.largest_rate).map(([f, v]) => `${e(f)} ${e(R(v))}`).join(', ') : '') : ''}`; };
     // an end that states its own device: its rate and its transmit queue stand after the link's
     const dev = l => Object.entries(l.ends || {}).filter(([, x]) => x && ('rate' in x || 'device_queue' in x)).map(([h, x]) => ` · ${e(h)}'s device: ${[('rate' in x) ? `${s(`${l.id}.${h}.rate`)}${e(R(x.rate))}` : '', ('device_queue' in x) ? `${s(`${l.id}.${h}.device_queue`)}a transmit queue of ${e(x.device_queue)} packets` : ''].filter(Boolean).join(', ')}`).join('');
     const link = l => { const qs = EV.netQueues(t).filter(x => x.l === l); return `<tr data-link="${e(l.id)}"><td><b>${e(l.id)}</b></td><td>${e(l.between.join(' – '))}</td><td>${s(`${l.id}.rate`)}${e(R(l.rate))} · ${s(`${l.id}.delay`)}${e(R(l.delay))}${dev(l)}</td><td>${qs.length ? qs.map(queue).join('<br>') : 'a plain queue of 100 packets on each side'}</td></tr>`; };
@@ -219,5 +237,5 @@ Object.assign(EV, {
 Object.assign(EV, {
   // a simulation's changes to the network, in words (the harness's own short form is in its evidence line)
   editsSay(edits) { return (edits || []).map(e => (e.do === 'add_host' ? `added host ${e.id}` : e.do === 'add_link' ? `added link ${e.id} between ${e.from} and ${e.to}${e.rate ? ' (' + TASK_VIEW._rate(e.rate) + ')' : ''}` : e.do === 'add_flow' ? `added ${String(e.kind).toUpperCase()} flow ${e.id} from ${e.from} to ${e.to}`
-    : e.do === 'add_queue' ? `put a ${e.kind === 'fifo' ? 'plain queue' : 'scheduler'} on ${e.on}'s side of link ${e.id}` : `removed ${e.kind === 'queue' ? 'the queue of link' : e.kind} ${e.id}${e.kind === 'queue' && e.on ? ` on ${e.on}'s side` : ''}`)).join('; ') || 'nothing'; },
+    : e.do === 'add_queue' ? `put a ${e.kind === 'fifo' ? 'plain queue' : EV.netDisc(e.kind || 'scheduler')[0]} on ${e.on}'s side of link ${e.id}` : `removed ${e.kind === 'queue' ? 'the queue of link' : e.kind} ${e.id}${e.kind === 'queue' && e.on ? ` on ${e.on}'s side` : ''}`)).join('; ') || 'nothing'; },
 });
