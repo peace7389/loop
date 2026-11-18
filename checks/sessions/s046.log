@@ -1,0 +1,2 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s046 --brief trap-2 --draft on --policy share --baseline on --arm supervised
+session s046 (brief trap-2): /home/chunguck.kim/project/sessions/s046

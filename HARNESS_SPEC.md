@@ -924,6 +924,17 @@ what one did on what ground and what the other said to it.
   reasons before it answers (the model's reasoning step is on for its requests; that text is not kept); a guess
   that was set aside is taken up by a new guess that names it in `revises`. Counted with
   `harness_checks/supervisor_figures.py`.
+- **The second real session, s046 on `trap-2`** (with the repaired supervisor, the probe and measurements in
+  rules; stopped at the operator's word after 5 turns and 40 minutes, no simulation run). What it showed: the
+  supervisor judged fairly (6 guesses accepted; 2 refused, one a repetition, one for a number that is not in
+  the records). The researcher asked for the probe of the baseline in its first turn and measured, of its own
+  accord, what `trap-2` hides: the receiver's window 1,048,576 bytes, the bytes in flight at 72 % of it, a round
+  trip of 20.03 ms, no waiting in the TCP queue; its hypotheses were about exactly that. What it did not show:
+  a test. Two experiments were refused by the harness's own rules (a rule on a measurement of its own while the
+  need still named an output: the instructions said "the output that decides it", corrected; a hypothesis
+  from a guess it had itself set aside), and 3 of the researcher's 6 replies were cut off at 32,000 tokens. A
+  turn took 6 to 13 minutes, the supervisor's reasoning included. So the chain to a checked finding is not yet
+  demonstrated with the real model: the researcher's answer asks too much of it in one reply.
 - **Looking before simulating** (the operator: the researcher observes the system whenever it wants, and is no
   optimiser). In this arm a turn takes up to six requests (`loop.LOOKS`; three in the other arms), six turns in a
   row may only look, and the instructions of item 8 say: look before you simulate, a test whose answer the ledger
