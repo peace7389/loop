@@ -135,7 +135,7 @@ Object.assign(EV, {
   },
 
   sessionTab() {
-    return `${EV.headStrip()}${EV.legendBar()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.M.supervised ? EV.agentsCard() : ''}${EV.glance()}${EV.findCard()}
+    return `${EV.headStrip()}${EV.legendBar()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.M.supervised ? EV.agentsCard() : ''}${EV.glance()}${EV.turnsCard()}${EV.findCard()}
       <div class="ev-main"><div>${EV.notebookCard()}${EV.proposesCard()}${EV.researchCard()}${EV.closerCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },
