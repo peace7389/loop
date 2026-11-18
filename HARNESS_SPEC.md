@@ -901,6 +901,13 @@ what one did on what ground and what the other said to it.
   with, for each of its records, what it was shown; a lane of its own in the session flow; in "From one hypothesis
   to the next" the column of the judge is the supervisor's. Started from the set-up page ("who rules on the tests")
   or with `POST /api/session {"arm": "supervised"}`.
+- **"Two agents"** (`EV.agentsCard`, the operator: show that there are two independent agents and what they do
+  differently): on a supervised session's page, before the work itself, three lanes side by side (the researcher
+  proposes; the harness measures: the facts; the supervisor checks each step), each with what it is shown, what
+  it writes and what it may not do, and under them the nine steps of the work in order with who acts at each and
+  what was done in this session by the replay's step, counted from the records (looks and measurements of its
+  own; guesses accepted; guesses sound, not accepted, accepted with the objection standing; tests approved, sent
+  back, run with the objection standing; simulations and checks; rulings; objections; the report).
 - **Test**: `harness_checks/test_supervised.py` (a scripted researcher and a scripted supervisor: each gate, the
   objection, what the supervisor was shown, looking, the other arms unchanged). Not yet measured: whether the
   supervisor, being the same model, objects where it should; a session on `trap-2` and seeded known-bad designs

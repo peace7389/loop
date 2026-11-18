@@ -16,7 +16,7 @@
 // ======================================================================================================
 Object.assign(EV, {
   WALK: [['s-system', 'The setting'], ['s-made', 'The session at a glance'], ['s-find', 'What it needed to find out'], ['s-notebook', 'The work, step by step'], ['s-proposes', 'What it proposes'], ['s-research', 'How it worked as a researcher']],
-  walkSteps() { return EV.WALK.filter(q => q[0] !== 's-proposes' || EV.M.report); },
+  walkSteps() { return EV.WALK.flatMap(q => (q[0] === 's-made' && EV.M.supervised ? [['s-agents', 'Two agents'], q] : [q])).filter(q => q[0] !== 's-proposes' || EV.M.report); },
   // the first comparison of a rule, in words: what was expected, and what was measured on its left side
   walkExpected(T) {
     const tree = EV.readTree(T.rule); let n = tree; while (n && (n[0] === 'and' || n[0] === 'or' || n[0] === 'all')) n = n[0] === 'all' ? n[1] : n[1][0];
