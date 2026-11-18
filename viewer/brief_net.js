@@ -53,6 +53,15 @@ const BRIEF_NET = {
 .bn-card h5 { margin: 9px 0 3px; font-size: var(--f-note); font-weight: 700; color: var(--text-muted); } .bn-in { display: block; width: 100%; text-align: left; margin: 2px 0; font-weight: 400; } .bn-adds { margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 4px; } .bn-add { display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; margin: 5px 0 0; padding: 5px 7px; border: 1px dashed var(--border); border-radius: 8px; font-size: var(--f-sec); } .bn-add select { flex: 1 1 90px; min-width: 0; }
 .bn-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); padding: 8px 12px; } .bn-card h4 { margin: 0 0 6px; font-size: var(--f-text); } .bn-row { display: grid; grid-template-columns: 128px 30px minmax(0, 1fr); gap: 4px 8px; align-items: center; margin: 3px 0; }
 .bn-row input[type=text] { width: 100%; box-sizing: border-box; } .bn-row .tri { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; } .bn-row small { color: var(--text-secondary); font-size: var(--f-note); } .bn-row .bn-attr { display: block; line-height: 1.2; overflow-wrap: anywhere; } .bn-who { border: 1px solid var(--border); border-radius: 6px; background: var(--surface-0); cursor: pointer; font: inherit; height: 24px; }
+.bn-row.bn-set, .bn-pc .bn-row.bn-set { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; padding: 4px 6px 5px; margin: 3px -6px; border-left: 3px solid transparent; border-radius: 6px; align-items: start; }
+.bn-row.bn-set[data-decides=model] { border-left-color: var(--bt-model); background: color-mix(in srgb, var(--by-model) 7%, transparent); }
+.bn-set .bn-val { grid-column: 1 / -1; display: block; min-width: 0; } .bn-set .bn-val select { max-width: 100%; }
+.bn-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface-0); align-self: start; }
+.bn-seg .bn-who { border: 0; border-radius: 0; height: 22px; padding: 0 8px 0 6px; font-size: var(--f-note); display: inline-flex; align-items: center; background: transparent; color: var(--text-secondary); white-space: nowrap; }
+.bn-seg .bn-who + .bn-who { border-left: 1px solid var(--border); } .bn-seg .bn-who:not(.on):hover { background: var(--surface-1); color: var(--text-primary); }
+.bn-seg .bn-who.on { color: var(--text-primary); font-weight: 600; cursor: default; } .bn-seg .bn-who.on[data-who=operator] { background: color-mix(in srgb, var(--by-operator) 20%, var(--surface-1)); }
+.bn-seg .bn-who.on[data-who=model] { background: color-mix(in srgb, var(--by-model) 20%, var(--surface-1)); } .bn-seg .bn-who:not(.on) i.sw { opacity: .55; }
+.bn-row .tri .bn-tri { display: block; font-weight: 400; min-width: 0; } .bn-row .tri .bn-tri small { display: block; } .bn-list tr:has(td[data-decides=model]), .bn-list tr:has(.bn-seg[data-decides=model]) { background: color-mix(in srgb, var(--by-model) 7%, transparent); }
 .bn-bad { color: var(--critical); } .bn-list td { padding: 2px 10px 2px 0; vertical-align: top; }`,
   DEFAULT: { hosts: [{ id: 'sender' }, { id: 'receiver' }],
              links: [{ id: 'l1', between: ['sender', 'receiver'], rate: '1Gbps', delay: '50us', mtu: 1500, device_queue: 10, queue: { on: 'sender', kind: 'scheduler', length: 100, parts: { udp: 0.5, tcp: 0.5 }, largest_rate: {} } }],
@@ -69,7 +78,7 @@ const BRIEF_NET = {
     }
     if (N.node.parentNode !== host) { host.appendChild(N.node); N.draw(); } else N.paint();
   },
-  fresh(t) { return { t, knobs: {}, id: '', description: '', goal: 'open', measure: '', direction: 'max', conds: '', tolerance: '', sims: '40', per: '12', duration: '10', seed: '1', sel: null, pos: {}, tcpInitCwnd: '', tcpBufBytes: '', tcpSack: '', tcpTimestamps: '', tcpDelAck: '', placing: null, pending: null, drag: null, msg: null, busy: '', base: '', structure: false, most: { hosts: '', links: '', flows: '' }, locked: {} }; },
+  fresh(t) { return { t, knobs: {}, id: '', description: '', descAuto: true, goal: 'open', measure: '', direction: 'max', conds: '', tolerance: '', sims: '40', per: '12', duration: '10', seed: '1', sel: null, pos: {}, tcpInitCwnd: '', tcpBufBytes: '', tcpSack: '', tcpTimestamps: '', tcpDelAck: '', placing: null, pending: null, drag: null, msg: null, busy: '', base: '', structure: false, most: { hosts: '', links: '', flows: '' }, locked: {} }; },
 
   // ---- the network as data
   newId(prefix) { const N = BRIEF_NET, t = N.s.t, all = new Set([...t.hosts, ...t.links, ...t.flows].map(x => x.id).concat(EV.netQueues(t).flatMap(x => Object.keys(x.q.classes || {})))); let i = 1; while (all.has(prefix + i)) i++; return prefix + i; },
@@ -160,8 +169,10 @@ const BRIEF_NET = {
   },
 
   // ---- what cannot be saved, said in words (the harness checks again when the brief is saved)
+  // the description follows the network while the operator has not written one of their own (descAuto): nothing has to be typed before a session can start
+  syncDesc() { const s = BRIEF_NET.s; if (s.descAuto) s.description = BRIEF_NET.describe(); },
   problems() {
-    const N = BRIEF_NET, s = N.s, t = s.t, bad = [];
+    const N = BRIEF_NET, s = N.s, t = s.t, bad = []; N.syncDesc();
     if (t.hosts.length < 2 || !t.links.length || !t.flows.length) bad.push('A network needs at least two hosts, one link and one flow.');
     t.hosts.filter(h => !t.links.some(l => l.between.includes(h.id))).forEach(h => bad.push(`Host ${h.id} has no link.`));
     t.flows.forEach(f => { const adj = {}; t.hosts.forEach(h => { adj[h.id] = []; }); t.links.forEach(l => { adj[l.between[0]].push(l.between[1]); adj[l.between[1]].push(l.between[0]); });
@@ -177,6 +188,7 @@ const BRIEF_NET = {
   kindOf(addr) { const p = addr.split('.'); return addr === 'duration' ? 'duration' : p.includes('largest_rate') ? 'largest_rate' : p.includes('parts') ? 'parts' : p[p.length - 1]; },
   isText(addr) { return ['rate', 'delay', 'largest_rate', 'type'].includes(BRIEF_NET.kindOf(addr)); },
   toBrief() {
+    BRIEF_NET.syncDesc();
     const N = BRIEF_NET, s = N.s, t = JSON.parse(JSON.stringify(s.t)), cast = (k, v) => (N.isText(k) ? String(v).trim() : N.num(v));
     const have = EV.netSettings(t), fixed = {}; Object.keys(have).forEach(k => { fixed[k] = cast(k, have[k]); }); const net = EV.netWith(t, fixed);
     const knobs = {}; Object.entries(s.knobs).forEach(([k, q]) => { knobs[k] = q.choices ? { choices: q.choices, default: q.default, meaning: q.meaning } : { min: cast(k, q.min), max: cast(k, q.max), default: cast(k, q.default), meaning: q.meaning }; });
@@ -187,7 +199,7 @@ const BRIEF_NET = {
   },
   fromBrief(b) {
     const N = BRIEF_NET, s = N.fresh(JSON.parse(JSON.stringify(b.topology))), g = b.goal || {}, st = b.structure || {};
-    Object.assign(s, { knobs: JSON.parse(JSON.stringify(b.knobs || {})), description: b.description || '', goal: g.kind === 'given' ? 'given' : 'open', measure: (g.target || {}).measure || '', direction: (g.target || {}).direction || 'max', conds: (g.conditions || []).join('\n'), tolerance: g.tolerance == null ? '' : String(g.tolerance),
+    Object.assign(s, { knobs: JSON.parse(JSON.stringify(b.knobs || {})), description: b.description || '', descAuto: !String(b.description || '').trim(), goal: g.kind === 'given' ? 'given' : 'open', measure: (g.target || {}).measure || '', direction: (g.target || {}).direction || 'max', conds: (g.conditions || []).join('\n'), tolerance: g.tolerance == null ? '' : String(g.tolerance),
       sims: String((b.limits || {}).simulations ?? 40), per: String((b.limits || {}).simulations_per_experiment ?? 12), seed: String((b.system || {}).seed ?? 1), tcpInitCwnd: String((b.system || {}).tcpInitCwnd ?? ''), tcpBufBytes: String((b.system || {}).tcpBufBytes ?? ''), tcpSack: String((b.system || {}).tcpSack ?? ''), tcpTimestamps: String((b.system || {}).tcpTimestamps ?? ''), tcpDelAck: String((b.system || {}).tcpDelAck ?? ''), duration: String((b.system || {}).duration ?? ((b.knobs || {}).duration || {}).default ?? 10), base: b.id || '',
       structure: !!st.may_change, most: { hosts: String((st.most || {}).hosts ?? ''), links: String((st.most || {}).links ?? ''), flows: String((st.most || {}).flows ?? '') }, locked: Object.fromEntries((st.locked || []).map(k => [k, true])) });
     return s;
@@ -210,15 +222,22 @@ const BRIEF_NET = {
 
   // ---- the page
   field(f, v, hint) { return `<input type="text" data-f="${f}" value="${EV.e(v ?? '')}" placeholder="${EV.e(hint || '')}">`; },
-  // one setting of an object, in its card: who decides it (✧ the operator: one value; ✦ the AI: lowest, highest, where it starts; a TCP type: the list it may choose from)
+  // who decides a setting, as a switch of two halves in words: "fixed" (the operator sets one value) and "AI may change" (within a range the operator gives).
+  // The half that holds is filled; a click on the other one switches (it alone carries data-knob). 2026-11-18, the operator: a small ✧ or ✦ said it too vaguely
+  whoSeg(addr, k) {
+    const e = EV.e, half = (on, by, word, title) => `<button type="button" class="bn-who${on ? ' on' : ''}" data-who="${by}" aria-pressed="${on}"${on ? '' : ` data-knob="${e(addr)}"`} title="${title}"><i class="sw" data-by="${by}"></i>${word}</button>`;
+    return `<span class="bn-seg" role="group" aria-label="Who decides this setting" data-decides="${k ? 'model' : 'operator'}">${half(!k, 'operator', 'fixed', k ? 'Click: fix it yourself, at one value the AI cannot change' : 'Fixed: you set its value, and the AI cannot change it')}${half(!!k, 'model', 'AI may change', k ? 'The AI may change it, within the range you give: lowest, highest, and the value it starts from' : 'Click: leave it to the AI, within a range you give')}</span>`;
+  },
+  // one setting of an object, in its card: its name (and the ns-3 attribute it is), who decides it, and under them its value: one value when it is fixed; lowest, highest and
+  // where it starts when the AI may change it (a TCP type: the list it may choose from)
   row(addr, label, value) {
     const N = BRIEF_NET, e = EV.e, k = N.s.knobs[addr], kind = N.kindOf(addr);
-    const who = `<button class="bn-who" data-knob="${e(addr)}" title="${k ? 'The AI may change it. Click: fixed by the operator' : 'Fixed by the operator. Click: the AI may change it'}">${k ? '✦' : '✧'}</button>`;
+    const who = N.whoSeg(addr, k);
     const body = !k ? (kind === 'type' ? `<select data-f="v:${e(addr)}">${N.TCP.map(c => `<option${c === value ? ' selected' : ''}>${c}</option>`).join('')}</select>` : N.field('v:' + addr, value))
       : k.choices ? `<span data-choices="${e(addr)}">${N.TCP.map(c => `<label style="font-weight:400;display:inline-block;margin-right:8px"><input type="checkbox" data-choice="${e(addr)}" value="${c}"${k.choices.includes(c) ? ' checked' : ''}> ${c.replace(/^Tcp/, '')}</label>`).join('')}<small>starts at ${e(String(k.default).replace(/^Tcp/, ''))}</small></span>`
-      : `<span class="tri">${N.field(`k:${addr}:min`, k.min, 'lowest')}${N.field(`k:${addr}:max`, k.max, 'highest')}${N.field(`k:${addr}:default`, k.default, 'starts at')}</span>`;
+      : `<span class="tri">${['min', 'max', 'default'].map((q, i) => `<label class="bn-tri"><small>${['lowest', 'highest', 'starts at'][i]}</small>${N.field(`k:${addr}:${q}`, k[q], ['lowest', 'highest', 'starts at'][i])}</label>`).join('')}</span>`;
     const attr = EV.netAttr(addr, N.s.t);
-    return `<div class="bn-row" data-row="${e(addr)}"><span>${e(label)}${attr ? `<small class="bn-attr" title="What this setting is in ns-3">${e(attr)}</small>` : ''}</span>${who}${body}</div>${k && !k.choices ? '<div class="bn-row"><span></span><span></span><small>lowest · highest · starts at</small></div>' : ''}`;
+    return `<div class="bn-row bn-set" data-row="${e(addr)}" data-decides="${k ? 'model' : 'operator'}"><span class="bn-name">${e(label)}${attr ? `<small class="bn-attr" title="What this setting is in ns-3">${e(attr)}</small>` : ''}</span>${who}<span class="bn-val">${body}</span></div>`;
   },
   // the same in the cards under the picture: what is stated as a setting, the rest as what the program fixes
   timeFacts(f, fact) { const N = BRIEF_NET, T = EV.NET_TIME_SAYS, cap = w => w[0].toUpperCase() + w.slice(1);
@@ -294,7 +313,7 @@ const BRIEF_NET = {
     const N = BRIEF_NET, s = N.s, t = s.t, e = EV.e, passing = N.passing(t), plain = v => TASK_VIEW._rate(String(v)).replace(/^Tcp/, ''), far = (l, h) => l.between.find(x => x !== h);
     const fact = (label, text) => `<div class="bn-row bn-factrow"><span>${label}</span><span></span><span class="bn-fact">${text}</span></div>`;
     const card = (keys, pick, title, where, rows) => `<div class="bn-pc" data-keys="${e(keys.join(' '))}" data-part="${e(title + ' @ ' + where)}"><h5 class="bn-pc-h" data-pick="${e(pick)}" title="Click: choose this part in the picture"><b>${e(title)}</b> <span>${e(where)}</span></h5>${rows}</div>`;
-    const shared = (f, label, v, hint) => `<div class="bn-row"><span>${label}</span><span title="The same for the whole network">✧</span>${N.field(f, v, hint)}</div>`;
+    const shared = (f, label, v, hint) => `<div class="bn-row"><span>${label}</span><span title="Fixed by the operator, and the same for the whole network"><i class="sw" data-by="operator"></i></span>${N.field(f, v, hint)}</div>`;
     const seg = f => { const way = (EV.netPath(t, f) || []).map(([l]) => N.linkOf(l)).filter(Boolean), m = Math.min(...way.map(l => Number(l.mtu) || 1500)); return way.length ? `${m - 52} bytes` : 'no way yet'; };
     const order = t.hosts.slice().sort((a, b) => ((s.pos[a.id] || {}).x ?? 0) - ((s.pos[b.id] || {}).x ?? 0)), seen = new Set(); let out = '';
     order.forEach(h => { const H = h.id, src = t.flows.filter(f => f.from === H), dst = t.flows.filter(f => f.to === H), ls = t.links.filter(l => l.between.includes(H));
@@ -310,7 +329,7 @@ const BRIEF_NET = {
           : N.row(`${a}.length`, 'Room for, packets', q.length) + fact('Holds', fl.length ? 'the packets of ' + fl.map(e).join(', ') + ', together' : 'no flow passes it yet') + fact('Order', 'first in, first out') + fact('When full', 'the new packet is dropped')) + fact('Link rate (read from its device)', e(plain(EV.netEnds(l)[H].rate)))); });
       ls.forEach(l => { out += card([`host:${H}`, `link:${l.id}`], `link:${l.id}`, 'Point-to-point device', `${H} · net device · link ${l.id}`, N.ownRows(l, H, { rate: 'Rate', device_queue: 'Transmit queue, packets' }) + fact('Queue kind', 'DropTailQueue'));
         if (!seen.has(l.id)) { seen.add(l.id); out += card([`link:${l.id}`], `link:${l.id}`, `Point-to-point link ${l.id}`, `between ${l.between[0]} and ${l.between[1]}`, N.row(`${l.id}.delay`, 'Delay, one way', l.delay) + fact('Capacity', (() => { const E = EV.netEnds(l), [a, b] = l.between; return E[a].rate === E[b].rate ? `${e(plain(E[a].rate))} (set by the two devices)` : `${e(plain(E[a].rate))} from ${e(a)}, ${e(plain(E[b].rate))} from ${e(b)} (each device sends at its own rate)`; })())); } }); });
-    return `<div id="bn-panels-box"><p class="sm bn-panels-h"><b>Every part, with everything it has</b> · one card for each part of the network; a part you add brings its cards · ✧ fixed by the operator, ✦ left to the AI (click the mark to switch) · point at a part of the picture to find its cards, and at a card to find its part</p><div class="bn-panels" id="bn-panels">${out}</div></div>`;
+    return `<div id="bn-panels-box"><p class="sm bn-panels-h"><b>Every part, with everything it has</b> · one card for each part of the network; a part you add brings its cards · beside each setting, who decides it: <i class="sw" data-by="operator"></i>fixed (you set one value) or <i class="sw" data-by="model"></i>AI may change (within a range you give); click the other one to switch · in the picture a ✦ before a value says the AI may change it · point at a part of the picture to find its cards, and at a card to find its part</p><div class="bn-panels" id="bn-panels">${out}</div></div>`;
   },
   // the highlight between the picture and the cards: the cards of the part the pointer is on, and the part of the card it is on (no drawing again, nothing moves)
   hot(keys) {
@@ -333,7 +352,7 @@ const BRIEF_NET = {
     return `<div class="bn-canvas" id="bn-canvas"><div id="bn-paper"></div>${BRIEF_NET.s.t.hosts.length ? '' : '<p class="sm bn-empty">An empty network: drag a host from the palette onto this field.</p>'}<div id="bn-zones"></div></div>`;
   },
   draw() {
-    const N = BRIEF_NET, s = N.s, e = EV.e, briefs = ((N.ctx.st || {}).briefs || []), nw = EV.nw, outs = Object.keys(N.outputs(s.t)), have = EV.netSettings(s.t);
+    const N = BRIEF_NET, s = N.s, e = EV.e, briefs = ((N.ctx.st || {}).briefs || []), nw = EV.nw, outs = Object.keys(N.outputs(s.t)), have = EV.netSettings(s.t); N.syncDesc();
     const act = document.activeElement, keep = act && N.node.contains(act) && act.dataset && act.dataset.f ? { f: act.dataset.f, part: act.closest('.bn-pc') ? act.closest('.bn-pc').dataset.part : act.closest('#bn-card') ? '#card' : '', at: act.selectionStart } : null;
     const sched = N.queues(s.t).some(x => x.q.kind === 'scheduler'), name = k => (TH_DATA.KNOB[k] || k);
     EV.netApply({ id: 'setup-' + Date.now(), topology: s.t });
@@ -345,11 +364,11 @@ const BRIEF_NET = {
       <span class="sm bn-hint">drag a host to move it anywhere · choose it and drag a handle (right edge, lower edge, corner) to resize it · drag its <b>+</b> onto another host to link them · drag the background to move the picture · scroll to zoom</span>
       <span class="bn-acts"><button id="bn-zout" title="Smaller" aria-label="Smaller">−</button><button id="bn-zin" title="Larger" aria-label="Larger">+</button><button id="bn-fit" title="Show the whole network (key F)">fit <span class="sm">F</span></button></span></div>`;
     const b1 = `<div class="bn-three">${pal}<div>${bar}${N.canvas()}<p class="sm bn-say" id="bn-say"></p></div><div id="bn-side">${N.card()}</div></div>${N.panels()}`;
-    const who = k => (s.knobs[k] ? `<td>${e(s.knobs[k].choices ? 'one of ' + s.knobs[k].choices.map(c => c.replace(/^Tcp/, '')).join(', ') : `${s.knobs[k].min} to ${s.knobs[k].max}, starts at ${s.knobs[k].default}`)}</td><td>✦ the AI</td>` : `<td><b>${e(have[k])}</b></td><td>✧ the operator</td>`);
+    const who = k => (s.knobs[k] ? `<td>${e(s.knobs[k].choices ? 'one of ' + s.knobs[k].choices.map(c => c.replace(/^Tcp/, '')).join(', ') : `${s.knobs[k].min} to ${s.knobs[k].max}, starts at ${s.knobs[k].default}`)}</td><td data-decides="model"><i class="sw" data-by="model"></i>the AI may change it</td>` : `<td><b>${e(have[k])}</b></td><td data-decides="operator"><i class="sw" data-by="operator"></i>fixed by the operator</td>`);
     const b2 = `<table class="bn-list" id="bn-who"><tbody>${Object.keys(have).map(k => `<tr data-k="${e(k)}"><td>${e(name(k))}</td>${who(k)}</tr>`).join('')}
-        <tr data-k="duration"><td>measured time, s</td><td>${s.knobs.duration ? `${e(s.knobs.duration.min)} to ${e(s.knobs.duration.max)}, starts at ${e(s.knobs.duration.default)}` : N.field('duration', s.duration)}</td><td><button class="bn-who" data-knob="duration">${s.knobs.duration ? '✦' : '✧'}</button> ${s.knobs.duration ? 'the AI' : 'the operator'}</td></tr>
-        <tr data-k="seed"><td>seed</td><td>${N.field('seed', s.seed)}</td><td>✧ the operator</td></tr></tbody></table>
-      <p class="sm">A setting is changed in its object's card (block 1): click the object, then ✧ or ✦.</p>
+        <tr data-k="duration"><td>measured time, s</td><td>${s.knobs.duration ? `${e(s.knobs.duration.min)} to ${e(s.knobs.duration.max)}, starts at ${e(s.knobs.duration.default)}` : N.field('duration', s.duration)}</td><td>${N.whoSeg('duration', s.knobs.duration)}</td></tr>
+        <tr data-k="seed"><td>seed</td><td>${N.field('seed', s.seed)}</td><td data-decides="operator"><i class="sw" data-by="operator"></i>fixed by the operator</td></tr></tbody></table>
+      <p class="sm">A setting is changed in its object's card (block 1): click the object; beside each setting, “fixed” or “AI may change” says who decides it, and a click on the other one switches.</p>
       <p style="margin-top:8px"><label style="font-weight:400"><input type="checkbox" id="bn-structure"${s.structure ? ' checked' : ''}> <b>The AI may change the structure</b>: add and remove hosts, links, flows and queues in the simulations it asks for</label></p>
       ${s.structure ? `<div class="bn-row" style="grid-template-columns:auto 80px 80px 80px"><span>at most (empty: 8 hosts, 12 links, 8 flows)</span>${['hosts', 'links', 'flows'].map(k => N.field('most:' + k, s.most[k], k)).join('')}</div><p class="sm">An object can be kept from it: click the object, then tick “the AI may not remove or change this object”. What the aim names is kept by itself.</p>` : ''}`;
     const b3 = `<div class="be-aim" id="bn-aim"><label><input type="radio" name="bn-goal" data-goal="open"${s.goal === 'open' ? ' checked' : ''}> <b>open</b>: the AI chooses its own aim and has to justify it</label><label><input type="radio" name="bn-goal" data-goal="given"${s.goal === 'given' ? ' checked' : ''}> a target with conditions</label></div>
@@ -358,7 +377,7 @@ const BRIEF_NET = {
         <label style="grid-column:1/-1">Conditions<small>one on each line: a measure, a comparison, a number, for example ${e(outs.find(o => /_loss_frac$/.test(o)) || outs[0] || 'measure')} &lt;= 0.01 · the measures: ${e(outs.join(', '))}</small><textarea data-f="conds" rows="2">${e(s.conds)}</textarea></label>
         <label>Tolerance, per cent (optional)<small>two results closer than this count as equal</small>${N.field('tolerance', s.tolerance, 'none')}</label></div>` : ''}`;
     const b4 = `<div class="be-two"><label>The task<small>written by the harness from the aim and the settings the AI may change</small><span id="bn-task" class="be-task" data-own="harness"></span></label>
-        <label>The description of the system<small>plain words; a setting's address in braces is filled with its value where it is fixed and reads “the knob …” where the AI may change it <button class="cl" id="bn-describe" type="button">write it from the network</button></small><textarea data-f="description" rows="5">${e(s.description)}</textarea></label></div>`;
+        <label>The description of the system<small id="bn-desc-says">${s.descAuto ? 'written from the network as you build it: nothing to type. Type in it to write your own' : 'your own text: it no longer follows the network'} · a setting's address in braces is filled with its value where it is fixed and reads “the knob …” where the AI may change it <button class="cl" id="bn-describe" type="button">${s.descAuto ? 'write it from the network' : 'write it from the network again'}</button></small><textarea data-f="description" rows="5">${e(s.description)}</textarea></label></div>`;
     const b5 = `<div class="be-two"><label>Simulations in all${N.field('sims', s.sims, 'e.g. 40')}</label><label>In one turn${N.field('per', s.per, 'e.g. 12')}</label></div>`;
     const pol = (v, says) => `<label style="font-weight:400;margin:3px 0;display:block"><input type="radio" name="nw-policy" data-ch="nw" data-k="policy" value="${v}"${nw.policy === v ? ' checked' : ''}> <b>${v}</b> <span class="sm" style="display:inline">${says}</span></label>`;
     const b6 = sched ? `<div id="bn-policy" data-by="operator">${pol('share', 'what one flow leaves unused goes to the others · the default')}${pol('cap', 'each flow is held to its part, whatever the others send')}${pol('prio', 'the first flow of a scheduler\'s list goes first; the parts are not used')}${pol('random', 'the harness chooses share or cap')}<p class="sm">How a scheduler divides its link is never told to the AI.</p></div>` : '<p class="sm" id="bn-policy">This network has no scheduler: there is no scheduling policy to choose.</p>';
@@ -368,7 +387,7 @@ const BRIEF_NET = {
         ${fl('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on')}
         ${fl('who rules on the tests', EV.armField(), 'default: one AI')}</div>`;
     const nets = (N.ctx.st || {}).network_briefs || [];
-    const top = `<div class="be-top"><div><label>Start from<small>a saved brief that has a network, or one of two examples</small><select id="bn-open"><option value="">choose…</option><option value="~default">example: two hosts, one link (UDP and TCP)</option><option value="~dumbbell">example: two senders through a third host</option>${nets.map(b => `<option value="${e(b)}"${b === s.base ? ' selected' : ''}>${e(b)}</option>`).join('')}</select></label></div>
+    const top = `<div class="be-top"><div><label>Start from <span class="sm" style="font-weight:400">(optional)</span><small>the network below is ready to build on and to start. Or load another to change: a saved brief that has a network, or one of two examples</small><select id="bn-open"><option value="">the network below, as it is</option><option value="~default">example: two hosts, one link (UDP and TCP)</option><option value="~dumbbell">example: two senders through a third host</option>${nets.map(b => `<option value="${e(b)}"${b === s.base ? ' selected' : ''}>${e(b)}</option>`).join('')}</select></label></div>
         <label>Name of the new brief<small>lower-case letters, digits, - and _ · a saved brief is never overwritten</small>${N.field('id', s.id, 'e.g. three-hosts')}</label></div>`;
     const blk = (i, body, cls) => EV.setBlock(i, body, { says: true, cls });
     const first = blk(0, b1, 'st-wide').replace(/(<p class="st-says[^>]*>)[^<]*/, '$1Hosts, links, flows and queues, drawn as in the two-host picture. Drag a tool onto the picture to add one; choose an object and press its × (or Delete) to remove it.');
@@ -446,7 +465,7 @@ const BRIEF_NET = {
     const kn = c('[data-knob]'); if (kn) { const a = kn.dataset.knob; return N.change(() => { if (s.knobs[a]) { delete s.knobs[a]; return; }
       const kind = N.kindOf(a), v = a === 'duration' ? s.duration : EV.netSettings(s.t)[a], name = TH_DATA.KNOB[a] || (a === 'duration' ? 'seconds of measured traffic' : a);
       s.knobs[a] = kind === 'type' ? { choices: N.TCP.slice(), default: v, meaning: `${name} (TCP congestion control)` } : { min: N.RANGE[kind][0], max: N.RANGE[kind][1], default: v, meaning: name }; }); }
-    if (c('#bn-describe')) { s.description = N.describe(); return N.draw(); }
+    if (c('#bn-describe')) { s.descAuto = true; s.description = N.describe(); return N.draw(); }
     if (c('#bn-save')) return N.save(false); if (c('#bn-start')) return N.save(true);
   },
   input(ev) {
@@ -471,7 +490,8 @@ const BRIEF_NET = {
     if (f.startsWith('k:')) { const [, a, part] = f.split(':'); s.knobs[a][part] = N.isText(a) ? t.value : N.num(t.value); if (done) N.soon(); return; }
     if (f.startsWith('lr:')) { const [, l, fl] = f.split(':'), q = N.qOf(l).q; q.largest_rate = q.largest_rate || {}; if (t.value.trim()) q.largest_rate[fl] = t.value.trim(); else delete q.largest_rate[fl]; if (done) N.soon(); return; }
     if (f.startsWith('most:')) { s.most[f.slice(5)] = t.value; return; }
-    s[f] = t.value; if (done && ['measure', 'direction', 'tcpBufBytes', 'tcpInitCwnd', 'tcpSack', 'tcpTimestamps', 'tcpDelAck'].includes(f)) return N.soon(); N.paintTask();
+    s[f] = t.value; if (f === 'description') s.descAuto = !t.value.trim();   // typed: the operator's own text from now on (emptied: written from the network again)
+    if (done && ['measure', 'direction', 'tcpBufBytes', 'tcpInitCwnd', 'tcpSack', 'tcpTimestamps', 'tcpDelAck'].includes(f)) return N.soon(); N.paintTask();
   },
   paintTask() { const N = BRIEF_NET, $ = id => N.node.querySelector('#' + id); const task = $('bn-task'); if (task) task.textContent = EV.taskText(N.toBrief()); const bad = N.problems(), wait = EV.mustWait ? EV.mustWait() : null; $('bn-save').disabled = !!N.s.busy || !!bad.length; $('bn-start').disabled = !!N.s.busy || !!bad.length || !!wait; $('bn-state').innerHTML = bad.length ? `<span class="bn-bad"><b>Not ready yet:</b></span><ul id="bn-bad">${bad.map(x => `<li>${EV.e(x)}</li>`).join('')}</ul>` : 'Ready.'; },
   key(ev) {

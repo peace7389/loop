@@ -757,6 +757,13 @@ optional, and a brief that states none of them is written and run as before.
 - **The AI's own change of structure** states a ninth field, `app`: with
   `onoff` and `kind` `tcp` it adds a TCP flow at a constant rate; `add_queue`
   takes any of the queue discs.
+- **Who decides a setting** is said in words (the operator, 2026-11-18: a small sign said it too vaguely): beside
+  each setting of the builder a switch of two halves, "fixed" with the operator's mark and "AI may change" with
+  the AI's; the half that holds is filled, a click on the other switches, and the row of a setting the AI may
+  change is tinted and shows its lowest, highest and starting value under their names (`BRIEF_NET.whoSeg`).
+- **Nothing has to be typed but a name**: "Start from" is marked optional (the builder opens on the two-host
+  network, ready to build on and to start), and the description writes itself from the network until the
+  operator types one of their own (`descAuto`).
 - **The page** shows beside each setting the ns-3 attribute it is
   (`EV.NET_ATTR`: `DataRate`, `Mtu`, `TxQueue · MaxSize`, `StartTime`, ...).
 - A knob of a network is a whole number by its setting's kind
