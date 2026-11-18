@@ -472,25 +472,27 @@ DEFECTS = {"none": "no defect",
            "already_answered": "records already in the ledger give the result this test asks for: read it from them instead of simulating again",
            "confounded": "another setting, at the values chosen, limits or hides the effect, so the result would not show what the hypothesis says",
            "threshold": "the rule's threshold or margin makes it hold or fail whatever happens, or lies inside the tolerance"}
-REVIEW_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["rival", "rival_outcome", "doubt_if", "defect", "because"], "properties": {
+REVIEW_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["rival", "rival_outcome", "doubt_if", "because", "defect"], "properties": {
     "rival": {"type": "string", "description": "the strongest other explanation of the result the guess is about, in one sentence: not the researcher's guess"},
     "rival_outcome": {"type": "string", "enum": ["held", "failed", "cannot tell"], "description": "what the decision rule would do if your rival were true and the guess false"},
     "doubt_if": {"type": "string", "description": "written before anything is measured: what in the results would make you doubt this test even if its rule comes out as the researcher predicts"},
-    "defect": {"type": "string", "enum": list(DEFECTS)}, "because": {"type": "string", "description": "the ground of your decision, with the numbers or record ids it rests on"}}}
-RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["shows", "fair", "defect", "result", "because", "retest"], "properties": {
+    "because": {"type": "string", "description": "your reasoning to the decision, with the numbers or record ids it rests on: written before you name the defect"},
+    "defect": {"type": "string", "enum": list(DEFECTS), "description": "the one defect your reasoning ends in, or none"}}}
+RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["shows", "because", "fair", "defect", "result", "retest"], "properties": {
     "shows": {"type": "string", "description": "what the measured numbers show, in one sentence, before any conclusion"},
+    "because": {"type": "string", "description": "your reasoning from the numbers to the ruling: written before you rule"},
     "fair": {"type": "boolean", "description": "whether this was a fair test of the hypothesis: one that could have come out the other way if the hypothesis were false"},
     "defect": {"type": "string", "enum": list(DEFECTS), "description": "none when the test was fair"},
-    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]}, "because": {"type": "string"},
+    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]},
     "retest": {"type": "string", "description": "when the result is inconclusive: what a fair test would have to compare; else empty"}}}
 GROUNDS = {"none": "no defect",
            "not_in_the_records": "the result the guess starts from is not what the cited records show",
            "repeats": "the guess says again, in other words, what an earlier guess or hypothesis already said, and that one has its ruling",
            "ignores_a_ruling": "the guess goes on as if a ruling against it had not been given: it does not say what is different now"}
-GROUND_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["records_show", "nearest_earlier", "defect", "because"], "properties": {
+GROUND_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["records_show", "nearest_earlier", "because", "defect"], "properties": {
     "records_show": {"type": "string", "description": "what the cited records show about the result the guess starts from, with the numbers"},
     "nearest_earlier": {"type": "string", "description": "the id of the earlier guess or hypothesis that is nearest to this one in what it claims (for example Y2 or H3), or none"},
-    "defect": {"type": "string", "enum": list(GROUNDS)}, "because": {"type": "string"}}}
+    "because": {"type": "string", "description": "your reasoning to the decision: written before you name the defect"}, "defect": {"type": "string", "enum": list(GROUNDS), "description": "the one defect your reasoning ends in, or none"}}}
 APPEAL_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["answer", "stands", "result", "because"], "properties": {
     "answer": {"type": "string", "description": "what in the records the objection gets right or wrong"}, "stands": {"type": "boolean", "description": "true: your ruling stands as it was"},
     "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]}, "because": {"type": "string"}}}
@@ -499,8 +501,9 @@ SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of t
 
 
 def supervise(model, user, schema):
-    """One request to the supervisor: its own instructions, a request of its own (nothing of the researcher's conversation), temperature 0, no draft."""
-    return json.loads(ask(model, SUPERVISOR, user, schema, False, 0, 1500)[0])
+    """One request to the supervisor: its own instructions, a request of its own (nothing of the researcher's conversation), temperature 0. The model
+    reasons before it answers, as the researcher does; that reasoning is not kept (its answer says its ground)."""
+    return json.loads(ask(model, SUPERVISOR, user, schema, True, 0, 9000)[0])
 
 
 def _system_for_supervisor(brief):
@@ -513,6 +516,27 @@ def _measured(ledger, only=None):
     """Every simulation measured so far as the evidence tables give it (label, run, settings changed from the defaults | measured), or those of one experiment."""
     lines = [f"  [{r['id']}] " + l for r in ledger if r["type"] == "evidence" and (only is None or r["body"]["experiment"] == only) for l in r["body"]["lines"]]
     return "\n".join(lines[-60:]) or "  (nothing yet)"
+
+
+def _looked(ledger, runs=None, room=9000):
+    """What the tools returned in this session (series, measure, metrics, a trace search), newest first up to `room` characters, for the simulations
+    `runs` (run ids; None: all). They are the harness's readings of what a simulation recorded, so the supervisor is shown them as it is shown the
+    metrics (s044, 2026-11-18: the researcher's guesses rested on a series and on measurements of its own, the supervisor was shown only the
+    simulation's summary and refused nine guesses as "not in the records")."""
+    out, used = [], 0
+    for r in reversed(ledger):
+        if r["type"] != "result":
+            continue
+        q = next((x for x in ledger if x["id"] == r["parent"]), None)
+        args = (q or {}).get("body", {}).get("args") or {}
+        if r["body"].get("tool") in ("describe_system", "list_runs") or (runs is not None and args.get("run_id") not in runs):
+            continue
+        text = f"  {r['body'].get('tool')}({', '.join(f'{k}={v}' for k, v in args.items())}) ->\n    " + str(r["body"].get("result"))[:1800].replace("\n", "\n    ")
+        if used + len(text) > room:
+            break
+        out.append(text)
+        used += len(text)
+    return "\n".join(reversed(out)) or "  (the researcher has asked the tools for nothing about them)"
 
 
 def _case(ledger, hid, rules):
@@ -533,7 +557,7 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None):
     need = next((n for n in ex.get("needs") or [] if n.get("for") == hid), {})
     planned = plan(ledger, [r for r in ex["runs"] if r["label"] in (need.get("simulations") or [r["label"] for r in ex["runs"]])])
     sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
-    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\n" + _case(ledger, hid, rules)
+    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nWHAT THE TOOLS RETURNED WHEN THE RESEARCHER LOOKED AT THOSE SIMULATIONS (measurements too):\n{_looked(ledger, room=6000)}\n\n" + _case(ledger, hid, rules)
             + f"What the researcher says it must know to decide it: {flat(need.get('to_know') or 'not stated')} (the one setting that differs: {need.get('varies') or 'not stated'}; the measure: {need.get('measure') or 'not stated'})\n"
             + f"THE SIMULATIONS PLANNED FOR IT:\n{sims}\n\n"
             "Before any of these simulations is run: can this test tell whether the guess is true? First name the strongest rival explanation you can think of and say what the decision rule would do "
@@ -543,6 +567,8 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None):
     rev = {"rival": flat(d["rival"]), "rival_outcome": d["rival_outcome"], "doubt_if": flat(d["doubt_if"]), "defect": d["defect"] if d["defect"] in DEFECTS else "none", "because": flat(d["because"])}
     if rev["defect"] == "none" and rev["rival_outcome"] == "held":   # its own rival would pass the rule: by its own words the test cannot tell the two apart
         rev["defect"] = "rival_passes_too"
+    elif rev["defect"] == "rival_passes_too" and rev["rival_outcome"] != "held":   # it names that defect, but says its own rival would not pass the rule (s044: G14, G15): the defect does not stand
+        rev["defect"], rev["because"] = "none", rev["because"] + f" [the harness: it named “a rival passes too”, but under its own rival the rule would {'fail' if rev['rival_outcome'] == 'failed' else 'come out in a way it could not tell'}; no defect stands]"
     return rev, user
 
 
@@ -566,7 +592,9 @@ def ground_of(model, brief, ledger, why, ask_fn=None):
     earlier = "\n".join([f"  [{r['id']}] guess: {flat(r['body']['guess'])}" for r in ledger if r["type"] == "why"]
                         + [f"  [{r['id']}] hypothesis ({st.get(r['id'], 'open')}): {flat(r['body']['text'])}" for r in ledger if r["type"] == "hypothesis"]) or "  (none yet)"
     rulings = "\n".join(f"  [{r['id']}] on {r['body']['for']}: {r['body']['result']}. {flat(r['body']['because'])}" for r in ledger if r["type"] == "verdict") or "  (none yet)"
+    runs = {r["body"].get("run_id") for r in cited if r["type"] == "simulation"} | {q["body"].get("run_id") for r in cited if r["type"] == "evidence" for q in ledger if q["type"] == "simulation" and q.get("parent") == r["body"]["experiment"]}
     user = (_system_for_supervisor(brief) + "\nTHE RECORDS THE NEW GUESS CITES:\n" + ("\n".join(record(r) for r in cited) or "  (it cites the brief only: nothing has been measured for it)")
+            + "\n\nWHAT THE TOOLS RETURNED ABOUT THESE SIMULATIONS (the researcher asked; the harness read it from what the simulation recorded over time: these are measurements too, and a guess may start from them):\n" + _looked(ledger, runs - {None})
             + f"\n\nTHE NEW GUESS\nThe result it starts from, as the researcher states it: {flat(why['result'])}\nThe guess of why: {flat(why['guess'])}\nWhat would make it so, not directly visible: {flat(why['unseen'])}\n\n"
             f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{earlier}\n\nTHE RULINGS SO FAR:\n{rulings}\n\n"
             "Before anything is built on this guess: first say what the cited records show about the result it starts from. Then name the earlier guess or hypothesis nearest to it. Then name the defect, or none. "
@@ -586,7 +614,7 @@ def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None):
     lines = "\n".join(f"  [{c['id']}] {flat(c['body']['decision_rule'])}  ->  {c['body']['with_numbers']}  :  {c['body']['result'].upper()}"
                        + "".join(f"  (note: {q['left']} against {q['right']} differ by {q['percent']:.3g} %)" for q in c["body"].get("within_tolerance") or []) for c in checks)
     user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, rules) + f"\nTHE SIMULATIONS OF THIS TEST, as measured:\n{_measured(ledger, xid)}\n\nTHE BASELINE and what was measured before:\n{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] == xid)])}\n\n"
-            f"THE HARNESS'S CHECKS (facts):\n{lines}\n\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
+            f"WHAT THE TOOLS RETURNED WHEN THE RESEARCHER LOOKED AT SIMULATIONS (measurements too):\n{_looked(ledger, room=5000)}\n\nTHE HARNESS'S CHECKS (facts):\n{lines}\n\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
             + "What does this test show about the hypothesis? supported: every check HELD and the test was a fair one. refuted: a check FAILED and the test was a fair one. inconclusive: the test "
               "was not fair (name the defect and what a fair test would compare), or the checks disagree. A check that failed because another setting limited the result, or one that held "
               "although it would have held under a rival explanation too, is not a fair test. The defects: " + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ".")
@@ -1117,7 +1145,7 @@ def supervised_format(schema):
 
 SUPERVISED = (  # prompt.txt -> the researcher's instructions in the arm "supervised": (text as it stands in prompt.txt, what replaces it). Each must be found exactly once.
     (" Before the final report every guess you marked verify must have led to a hypothesis, or a rethink must say what became of it.",
-     " To replace a why with a better guess, state a new why and name the old one in revises (otherwise revises is null); the old one then counts as revised. A guess all of whose hypotheses were refuted counts as refuted: nothing more comes from it unless a new why revises it."),
+     " To replace a why with a better guess, or to take up one you had set aside, state a new why and name the old one in revises (otherwise revises is null); the old one then counts as revised, and a hypothesis comes from the new one. A guess all of whose hypotheses were refuted counts as refuted: nothing more comes from it unless a new why revises it. When a guess rests on what you read with a tool (a series, a measurement), say the numbers in result: the supervisor is shown what the tools returned and reads your guess against it."),
     ("A second reader (the judge) checks each new hypothesis against the why it names: if testing the hypothesis would not tell whether that guess is true, the hypothesis is refused.",
      "You do not work alone: a supervisor works apart from you. It proposes nothing and it does not see your observations or your reasons; it is shown your guess, your hypothesis, your decision rules, the planned simulations and the measured numbers. Before any simulation of a test is run it asks whether the test can tell if the guess is true. A test that could not (the hypothesis would come out the same whether the guess is true or not; a rival explanation would pass the rule as well; the ledger already holds the answer; another setting hides the effect; the threshold decides nothing) is sent back with the defect named, and none of its simulations is run or counted. Repair the design and send the experiment again, or, where the records you have already answer the question, read the answer from them instead of simulating. A test is sent back once: sent again it is run, and the record says whether the supervisor still objects."),
     ("(for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read)", "(for example a decision rule the harness cannot read)"),

@@ -898,6 +898,18 @@ what one did on what ground and what the other said to it.
   objection, what the supervisor was shown, looking, the other arms unchanged). Not yet measured: whether the
   supervisor, being the same model, objects where it should; a session on `trap-2` and seeded known-bad designs
   are the next step. Not built: the supervisor's reading of the report's claims (gate 3).
+- **The first real session, s044 on `trap-2`** (stopped after 7 turns and 27 minutes at the operator's word, no
+  simulation run): the researcher looked first (24 tool requests, 19 of them measurements of its own) and the
+  supervisor was no rubber stamp (of 14 guesses 5 sound, 1 refused, 8 accepted with its objection standing; all 5
+  tests sent back). But 8 of its 9 objections to guesses were unfair, by a fault of the design: it was shown the
+  simulation's summary and not what the tools had returned, and the guesses rested on a series and on
+  measurements. Two of the five send-backs named "a rival passes too" while its own rival would have failed the
+  rule; one argued itself out of the defect in the field after it. Repaired the same evening: the supervisor is
+  shown what the tools returned about the simulations (`loop._looked`); in each of its answers the reasoning is
+  written before the decision; "a rival passes too" stands only when its own rival would pass the rule; it
+  reasons before it answers (the model's reasoning step is on for its requests; that text is not kept); a guess
+  that was set aside is taken up by a new guess that names it in `revises`. Counted with
+  `harness_checks/supervisor_figures.py`.
 - **Looking before simulating** (the operator: the researcher observes the system whenever it wants, and is no
   optimiser). In this arm a turn takes up to six requests (`loop.LOOKS`; three in the other arms), six turns in a
   row may only look, and the instructions of item 8 say: look before you simulate, a test whose answer the ledger
