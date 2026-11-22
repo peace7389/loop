@@ -78,6 +78,7 @@ const EV = {
       row.score ? EV.json(`../checks/scores/${S.sid}.json`) : null, row.review && row.review.n ? EV.json(`../checks/reviews/${S.sid}.json`) : null]);
     // the scheduling policy comes from control.py only: it withholds a policy the harness chose until the session is scored
     EV.files = { row, score, index: EV_DATA.lines(idx), policy: row.policy || null, key: row.brief ? await EV.json(`../checks/keys/${row.brief}.json`) : null };
+    EV.files.now = row.running ? await EV.json(base + 'now.json') : null;   // the step a running session is at, as the harness wrote it when the step began (since 2026-11-22)
     // a supervised session: what the supervisor was shown and answered for each of its records (supervisor.jsonl, beside the ledger), by the record's id
     EV.files.supervisor = meta && meta.flags && meta.flags.arm === 'supervised' ? Object.fromEntries(EV_DATA.lines(await EV.get(base + 'supervisor.jsonl')).map(q => [q.id, q])) : {};
     EV.marks = marks || {}; EV.marksFor = S.sid;
