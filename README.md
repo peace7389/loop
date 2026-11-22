@@ -1,12 +1,23 @@
-# Two hosts, one link: an AI hypothesis loop over an ns-3 simulation
+# An AI research loop over ns-3 network simulations
 
-<p align="center"><img src="docs/two-hosts.svg" alt="Two simulated computers and one link: a UDP and a TCP source, a queue for each, a scheduler whose policy the AI is not told, and the loop the AI works in: a result, a guess of why, a hypothesis, what it needs to know, simulations." width="900"></p>
+<p align="center"><img src="docs/two-hosts.svg" alt="The first network the loop worked on: two simulated computers and one link, a UDP and a TCP source, a queue for each, a scheduler whose policy the AI is not told, and the loop the AI works in: a result, a guess of why, a hypothesis, what it needs to know, simulations." width="900"></p>
+<p align="center"><em>The first network the loop worked on (two hosts, one link). Any network can now be described in a brief.</em></p>
 
-A local language model is asked a networking question about a simulated system it cannot see inside. It works only
-through a ledger, along a fixed chain: a result -> its informed guesses of why it came out so (whys) -> the ones worth
-verifying -> hypothesis and prediction -> what it needs to know to decide it -> only the simulations that need asks
-for (with a decision rule stated first) -> evidence from the simulator -> verdict. The harness runs the experiments; a viewer shows what the numbers did and why the model chose
-each run. This repository is a snapshot of the working folder (`~/project` on the research server).
+A local language model (the researcher) is asked a networking question about a simulated network it cannot see inside.
+The network is described in a brief: the original two hosts and one link (`scratch/two-hosts`), or any network built
+from a description of hosts, links, queues, schedulers and flows (`scratch/net`, drawn and edited in the page's network
+builder). The researcher works only through a ledger, along a fixed chain: a result -> its informed guesses of why it
+came out so (whys) -> a hypothesis -> a test whose decision rule is stated before the simulations, with a rival
+explanation under which it would fail -> evidence from ns-3 -> a verdict. It can also look before it simulates: read
+what a simulation recorded, compute measurements of its own, or record a run again with taps on ns-3's trace sources.
+
+Sessions run in one of three arms: one AI ("hypotheses", the default), the same loop without the hypothesis format
+("plain", for comparison), or two AIs ("supervised"): a second model call, the supervisor, asked apart from the
+researcher, reads each guess against its records, reviews each test before it runs and rules on what the checks mean.
+The harness runs the experiments and checks the rules from the measured numbers; a viewer shows what the numbers did,
+why each run was chosen, and what each agent was given and wrote. This repository is a snapshot of the working folder
+(`~/project` on the research server). Changes under review before they go live are on the branch
+`review/harness-2026-11-22` (its `REVIEW.md`); plans waiting for a decision are in `plans/`.
 
 ## What is where
 
@@ -14,7 +25,8 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 |---|---|
 | `HARNESS_SPEC.md` | The specification: the system as it is (rewritten as a whole on 2026-11-12), with the results so far, the open items and every source file |
 | `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` | The operator's two plans the viewer was built from: what the evidence page must show, and how one page serves the whole cycle of work |
-| `scratch/two-hosts/` | The ns-3 scenario: `two-hosts.cc` and the scheduler `link-queue-disc.{h,cc}` (a copy; it is built inside an ns-3.49 tree) |
+| `scratch/two-hosts/` | The first ns-3 scenario: `two-hosts.cc` and the scheduler `link-queue-disc.{h,cc}` (a copy; it is built inside an ns-3.49 tree) |
+| `scratch/net/` | The ns-3 program that builds any network from a description (hosts, links, queues, schedulers, flows) and runs it; the briefs with a `topology` use it (a copy, built inside an ns-3.49 tree) |
 | `briefs/<id>.json` | A brief: the assignment a person writes before a session. A plain-language description of the system (the task sentence is written by the harness from the aim and the open settings, `tools.task_text`; a brief made before 2026-11-17 states its own), the fixed settings (`system`), the settings the model may change (`knobs`: any option of the program, each with a range and a default, a numeric one optionally with a `step` its values are rounded to), the goal (open, or a target with conditions and optionally a `tolerance` in per cent) and the limits |
 | `harness/loop.py` | The loop: builds the prompt from the ledger, asks the model once per turn, does what its answer asks. A turn may state whys and hypotheses, drop them, give verdicts and design one experiment of several simulations, run at once; each simulation must serve a tested hypothesis, and one experiment may use at most half of the simulations that are left. `--brief <id>` chooses the brief of a new session, `--session <id>` the session (default: a new id `sNNN`) |
 | `viewer/vendor/joint.min.js` | JointJS 4.3.4 (`@joint/core`), the open-source diagram library the network builder draws on; unchanged, with its licence (MPL-2.0) beside it in `joint.LICENSE.txt` |
@@ -27,11 +39,11 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 | `harness/session_figures.py` | Figures counted from a session's records (verdicts against checks, the checks in order, simulations returned, simulations no decision rule names), which `control.py` puts in each session's row for Home and Compare |
 | `harness/control.py` | The small server for the viewer (port 8600), shared by every account of the machine (one session at a time; see "Using the page together"): lists sessions and briefs, starts sessions, operator runs and sweeps, saves new briefs; `make_trace.py` records packet events |
 | `sessions/<id>/` | One session = one complete attempt by the model, in its own folder; sessions know nothing about each other. `s001` is the first session (2026-11-09) |
-| `sessions/<id>/ledger.jsonl` | The session's record: draft (a short record: length and token count; the text is in `drafts.jsonl`), hypothesis, drop, experiment, simulation, evidence (one line per simulation), check (a decision rule with the measured numbers, held or failed), verdict, request and result (a tool request and what came back), note, malformed. Each record has `by`: who produced it (`model`, `harness`, `simulator` or `operator`), written by the harness. `s001` is in the earlier format: one simulation per experiment, no checks |
+| `sessions/<id>/ledger.jsonl` | The session's record: draft (a short record: length and token count; the text is in `drafts.jsonl`), hypothesis, drop, experiment, simulation, evidence (one line per simulation), check (a decision rule with the measured numbers, held or failed), verdict, request and result (a tool request and what came back), note, malformed. Each record has `by`: who produced it (`model`, the researcher; `supervisor`; `harness`; `simulator`; `operator`), written by the harness. `s001` is in the earlier format: one simulation per experiment, no checks |
 | `sessions/<id>/runs/index.json` | The session's own simulations, the only ones its tools can see: id, params, metrics |
 | `sessions/<id>/runs/<run>/` | One simulation: `params.json`, `metrics.json`, `series.csv` (a sample every 0.1 s) |
 | `sessions/<id>/session.json` | What the session was given (`given`: its brief with the description filled in, plus the output and tool descriptions), the model, the start time and the flags; at the end: when and how it ended (`how`), the report's ledger id, and the hypotheses left open. `s001` was made before briefs and has none |
-| `sessions/<id>/drafts.jsonl` | The text of each draft, one line per draft, by its ledger id |
+| `sessions/<id>/drafts.jsonl`, `calls.jsonl` | What each agent was given and wrote, word for word: kept on the lab machine and shown on the page's Agent transcripts, not in the repository (since 2026-11-22) |
 | `sessions/<id>/answers.jsonl` | Each turn's accepted answer as it was received (the JSON content only), before any part of it was refused: what was asked, to compare with what was run. Sessions from `s020` on |
 | `sessions/<id>/report.json` | The model's final report, as accepted by the harness: goal, recommendation, expected values, explanation, when it holds and breaks, claims with the ledger ids that support them, open questions |
 | `checks/` | Operator-only: nothing here is reachable through `harness/tools.py` |
@@ -47,7 +59,8 @@ each run. This repository is a snapshot of the working folder (`~/project` on th
 
 ## Not in the repository
 
-The ns-3.49 source tree and its build, the per-run `flowmon.xml` files, packet captures. The harness expects the
+The ns-3.49 source tree and its build, the per-run `flowmon.xml` files, packet captures, the agents' word-for-word
+transcripts (`drafts.jsonl`, `calls.jsonl`), and the server's visit log (`checks/visits.jsonl`). The harness expects the
 project at `~/project` with ns-3 built in `~/project/ns-3.49`, and a model served at `http://127.0.0.1:18000/v1`,
 so the Python parts read here but do not run without those.
 
