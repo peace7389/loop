@@ -104,6 +104,13 @@ r1 = next((r["body"] for r in of(led, "review") if r["body"].get("round") == 1),
 say(calm(err, meta) and rr[:3] == [("H1", 1, "sent_back", "supervisor"), ("H1", 2, "sent_back", "harness"), ("H1", 3, "approved", "supervisor")] and (r1.get("again") or {}).get("still"),
     f"round 1 a refusal (its follow-up still contradicted), round 2 refused by the harness (Y9 is no guess), round 3 approved: {rr}")
 
+reps = [(r["body"].get("round"), r["body"].get("competes_with")) for r in of(led, "repair")]
+say(reps == [(2, "Y9"), (3, "Y2")] and users and "(competes with Y2; under it: FAILED)" in users[-1] and "rival: None" not in users[-1],
+    f"each repair keeps the guess it competes with, and the researcher's ledger text says it (s055: \"rival: None\"): {reps}")
+rq = next((c["user"] for c in calls if (c.get("step") or {}).get("step") == "design"), "")
+say("THE RESEARCHER'S GUESSES SO FAR" in rq and "[Y1] the scheduler gives each flow its part" in rq and "[Y2] UDP's own sending rate limits it | competes with Y1" in rq,
+    "the test review lists every guess of the researcher, so that a competing cause is called missing only when none states it (s055: H4 held for a cause Y2 stated)")
+
 print("E  EQUAL PREDICTIONS WITH \"CORRECT: PASS\", SETTLED BY ONE QUESTION")
 EQ = {**OK3, "if_tested": "held", "if_competitor": "held"}
 FIX = {"because": "under Y2 the rule fails", "if_tested": "held", "if_competitor": "failed", "correct": "pass"}

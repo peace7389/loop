@@ -646,3 +646,29 @@ not "H1"; matching ids exactly, the harness would have dropped every batched tes
 are now an enum of the exact values (and read by the id they begin with); a rule's and a repair's competes_with must be a guess id (a pattern).
 The real call made again returned "H1"; test_stage4 and test_stage5 pass. Session s055 (arm "supervised", brief after_fix, budget 12) started on
 this build at 00:46.
+
+# After the deploy, part 2 (2026-11-23, night): what session s055 and the page checks found
+
+Session s055 (the operator's brief after_fix, arm "supervised", competitors on) ran on the deployed build from 00:46. It used what the stages built:
+four guesses and one test reviewed in one request (106 s; before, one call each of about 50 s), a guess written as a competitor (Y4 of Y1), Y1 and
+Y2 refuted by rulings because they did not fit fair results, a test held for a missing competitor and run in the next turn once the researcher wrote
+it (H4), tests on simulations already run decided by measurements of the researcher's own. It found two faults of stage 5, fixed here (p2_comp.py;
+deployed when s055 has ended, since a session runs alone):
+- a repair's record kept "rival", not the competes_with the repair named: the researcher's own ledger text read "rival: None" for its repairs;
+- the supervisor judged "missing" without being shown the researcher's guesses: it held H4 for "TCP still cannot establish", which Y2 stated.
+  The test review, single and batched, now lists every guess with its standing; "missing" is only a cause none of them states, and where one
+  does the feedback names it, so that the repair tests against it in the same turn. test_stage5.py checks both (21 checks, pass).
+
+The page checks that failed on main's page as well (format, live, net, polish, readable, settings, shared, stepc, usable) were each looked at:
+- real faults of the page, fixed and live: the strip wrapped to a second row with the operator's columns at 1440 px ("Walk" fell below: the gaps
+  close to 12 px when those columns are shown); the turn-by-turn columns and boxes, the supervisor's block of the work log and two parts of the
+  hidden "two agents" card were edged in the supervisor's colour, against the operator's rule that who wrote a part is its small icon in the
+  neutral colour;
+- a fault of a check of the harness's own: check_objects.py read the probe's sampling period (0.01 s) for the series' (0.1 s, as the page says);
+- checks that still described the page before the operator's changes (lesson D3), brought up to date: a click on "Reply" opens what the researcher
+  wrote (since 20:15); a flow named after its kind is named once (15:33); "The session at a glance" is not drawn (11-22): its tally and marks are
+  read only where it is; the hypothesis's card quotes the hypothesis, its question stands on the test's panel; the set-up page has no budget field
+  (a session starts with its brief's limit); "The AI can" lists the tools the session was given, not today's;
+- checks with a race: the live view's replay read the page while the page's own refresh of the stage before was still loading (one record behind
+  at a different stage each run); a hover on the first "TCP type" word, which stands in a section that is not shown.
+Copies of the six page checks changed: page_checks/.
