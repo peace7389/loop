@@ -166,7 +166,12 @@ Object.assign(EV, {
         const key = (k, cls, text) => (kinds.has(k) ? it(k, ln(cls), text, `data-k="${k}"`) : '');
         const arrows = key('good', 'good', 'one that was supported') + key('bad', 'bad', 'one that was refuted') + key('mixed', 'mixed', 'results of both kinds') + key('neutral', 'neutral', 'an inconclusive result')
           + key('weak', 'weak', 'an experiment’s result table') + key('brief', 'brief', 'the brief or the baseline');
-        const row = (g, name, is, items) => `<div class="mk-grp" data-g="${g}"><b class="mk-h">${name}</b><span class="mk-is${items ? '' : ' mk-all'}">${is}</span>${items ? `<span class="mk-items">${items}</span>` : ''}</div>`;
+        // each row starts with the mark it explains, drawn, not named (2026-11-22, the operator: "instead of words 'a box', 'an arrow', 'a ruler' we should
+        // present it as matching icons"); the name stays for a screen reader and in the hover box
+        const ICON = { box: '<svg class="mk-ic" width="26" height="16" viewBox="0 0 26 16"><rect class="bx" x="1" y="1" width="24" height="14" rx="4"/></svg>',
+                       arrow: '<svg class="mk-ic" width="28" height="16" viewBox="0 0 28 16"><path class="edge mk-shaft" d="M2,8 H20"/><path class="mk-head" d="M19,3.5 L27,8 L19,12.5 z"/></svg>',
+                       meas: '<svg class="ms-key mk-ic" viewBox="0 0 20 15" width="24" height="17"><rect x="0.5" y="0.5" width="19" height="14" rx="4"/><path d="M4 11h12M5.5 11V8M8.5 11V5M11.5 11V8M14.5 11V5"/></svg>' };
+        const row = (g, name, is, items) => `<div class="mk-grp" data-g="${g}"><b class="mk-h" title="${e(name)}">${ICON[g] || ''}<span class="mk-sr">${e(name)}</span></b><span class="mk-is${items ? '' : ' mk-all'}">${is}</span>${items ? `<span class="mk-items">${items}</span>` : ''}</div>`;
         return row('box', 'A box', 'is a hypothesis, as the AI judged it', boxes)
           + (recorded ? (arrows ? row('arrow', 'An arrow', 'leads to a hypothesis that follows from', arrows) : '')
             : row('arrow', 'Arrows', `none: what each hypothesis follows from is ${EV.nr} (this session was recorded before that field existed)`, ''))

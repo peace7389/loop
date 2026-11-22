@@ -97,6 +97,7 @@ SESSION = {}  # the newest session started here, if any: id, proc, flags, starte
 STARTED = {}  # every session started here, by id (with "by": the account that started it); MAX_LOOPS: most loops running at the same time, wherever they were started
 MAX_LOOPS = 1  # one session at a time since the page is shared (2026-11-17); until then 6 ran side by side
 ACCESS = CHECKS / "access.json"  # {key: name}: the personal links (harness/invite.py). Whoever shows a key from the network is that person and uses the page as the owner does
+VISITS, VISITS_LOCK, SEEN = CHECKS / "visits.jsonl", threading.Lock(), {}   # who opened the page and from where (2026-11-22, the operator: "Any other IPs who accessed the viewer? ... we should record from now"): not in git, not served to the network, not in exports
 PEOPLE, PEOPLE_LOCK = CHECKS / "people.jsonl", threading.Lock()  # who did what through the page: one line per accepted POST (account names: not in git, not in exports)
 CACHE = {}    # session id -> (file times, its row in /api/sessions)
 SWEEP = {}    # the sweep running here, if any: id, thread, stop
@@ -149,6 +150,27 @@ def noted(who, did, result):
         PEOPLE.parent.mkdir(parents=True, exist_ok=True)
         with PEOPLE.open("a") as f:
             f.write(json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "account": who, "did": did, "id": thing}) + "\n")
+
+
+def visited(h):
+    """One line in checks/visits.jsonl for each page opened (an .html page, or the page's own address) and for the first request of each address and
+    visitor in each hour (a page left open asks every minute; that is not written again): when, the address, who (the account of a connection from
+    this machine, the name of a personal link, or none), what, the browser. It never stops a request."""
+    try:
+        path = urllib.parse.urlparse(h.path).path
+        page = path.endswith((".html", "/viewer/", "/viewer")) or path == "/"
+        who, ip, hour = h.person(), h.client_address[0], time.strftime("%Y-%m-%dT%H")
+        if not page and SEEN.get((ip, who)) == hour:
+            return
+        SEEN[(ip, who)] = hour
+        line = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "ip": ip, "who": who or ("this machine" if ip == "127.0.0.1" else "the network, without a personal link"),
+                "what": f"{h.command} {path}" if page else f"first request this hour: {h.command} {path}", "browser": (h.headers.get("User-Agent") or "")[:160]}
+        with VISITS_LOCK:
+            VISITS.parent.mkdir(parents=True, exist_ok=True)
+            with VISITS.open("a") as f:
+                f.write(json.dumps(line) + "\n")
+    except Exception:
+        pass
 
 
 def starters():
@@ -721,7 +743,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 return None
             page_reads = parts == ["harness", "manifest.json"]  # the set-up page reads the list of measures and tools from it
-            if (parts[0] not in OPEN_TO_NETWORK and not page_reads) or ".." in parts or parts[-1].lower() == "people.jsonl" or parts[:2] == ["checks", "exports"]:
+            if (parts[0] not in OPEN_TO_NETWORK and not page_reads) or ".." in parts or parts[-1].lower() in ("people.jsonl", "visits.jsonl") or parts[:2] == ["checks", "exports"]:
                 self.send_error(404, "not given out over the network")
                 return None
         return super().send_head()
@@ -734,6 +756,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().list_directory(path)
 
     def do_GET(self):
+        visited(self)
         you, trusted = self.person(), not self.local() and self.key() is not None
         if self.path.split("?")[0] == "/api/status":
             return self.answer(200, status(you, self.local(), trusted))
@@ -752,6 +775,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        visited(self)
         try:
             trusted = not self.local() and self.key() is not None
             if not self.local() and not trusted:

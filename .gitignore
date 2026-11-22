@@ -10,3 +10,4 @@ checks/access.json
 # what the AI agents were given and wrote, word for word: kept on this machine only (the operator, 2026-11-22)
 sessions/*/drafts.jsonl
 sessions/*/calls.jsonl
+checks/visits.jsonl

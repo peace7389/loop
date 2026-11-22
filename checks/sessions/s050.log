@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s050 --brief shared_queue_supervised --draft on --policy share --baseline on --arm supervised
+session s050 (brief shared_queue_supervised): /home/chunguck.kim/project/sessions/s050
+stopped: session s050, done by the model, 7 simulations, 9 turns, ledger /home/chunguck.kim/project/sessions/s050/ledger.jsonl
