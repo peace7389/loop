@@ -353,3 +353,9 @@ there", which nothing caught: the loop stopped, and session.json said "stopped f
 Check: `test_repair_structure.py` (new; brief again_again, real ns-3 runs): round 1 sent back by the supervisor; round 2 carries s052's change
 and is refused by the harness with the network's reason; round 3 is approved, runs and is ruled on in the same turn; the session ends only when
 the script has no more answers. On the live harness of 17:05 the same check stops with s052's error (FAIL, as expected).
+
+**Deployed on 2026-11-22 at 19:46** (the eighth and ninth parts, and the exporter: `export_session.py` copies every script of the page's own
+list; brief_canvas.js, the network's schema, was missing, so an exported session opened blank). Deploy build = `derive_dep.py` of this branch:
+22 harness checks pass, 3 report SKIP (parts 2 and 3 off). Page checks on the live page: bar, home, lean, map, nr, page, random, replay_s006,
+replay_s011, test_s006 ok; views ok with the exporter fixed; polish: 4 failures that the 17:05 page has too (the operator columns on the strip,
+the folded line during the replay), not from these parts.

@@ -43,7 +43,8 @@ def make(sid, operator, row):
         sweep = json.loads(files[f"checks/scores/{sid}.json"]).get("sweep") if f"checks/scores/{sid}.json" in files else None
         if sweep and (CHECKS / "sweeps" / sweep / "table.csv").is_file():
             files[f"checks/sweeps/{sweep}/table.csv"] = (CHECKS / "sweeps" / sweep / "table.csv").read_text()
-    scripts = ["adrs_view.js"] + [p.name for p in sorted(viewer.glob("evidence*.js")) if p.name not in LEFT_OUT]
+    page_list = re.search(r"\[('adrs_view\.js'.*?)\]\.reduce", (viewer / "index.html").read_text(), re.S)   # every script of the page's own list (2026-11-22: brief_canvas.js, which draws the network, was left behind)
+    scripts = [n for n in re.findall(r"'([^']+\.js)'", page_list.group(1)) if n not in LEFT_OUT and (viewer / n).is_file()]
     for n in scripts:
         shutil.copy(viewer / n, out / n)
     cache = CHECKS / "exports" / "chart.umd.min.js"  # fetched once, then copied into every export
