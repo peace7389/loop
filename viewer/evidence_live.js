@@ -153,19 +153,10 @@ Object.assign(EV, {
       document.querySelectorAll('#ev [data-fresh]').forEach(el => { el.style.animationDelay = `-${el.dataset.fresh}s`; }); }
     EV.liveNote();
   },
-  // The page never moves by itself. When a new turn begins, a small note under the banner says so for a quarter of a minute; its button takes the
-  // reader to that turn in the notebook, at the reader's own click. The note is drawn again with the page, without starting afresh.
-  liveNote() {
-    const L = EV.live, M = EV.M, now = EV.liveNow(), old = document.getElementById('live-note'); if (old) old.remove(); if (!M || !now) return;
-    const was = L.turnOf[M.id]; L.turnOf[M.id] = now.turn; if (was != null && now.turn > was) L.note = { sid: M.id, turn: now.turn, until: performance.now() + 15000, fresh: true };
-    // and when an experiment's simulations start: they take seconds, and their pictures are in another part of the page
-    const sim = now.phase === 'sims' ? now.exp : null, simWas = L.expOf[M.id]; L.expOf[M.id] = sim; if (was != null && sim && sim !== simWas) L.note = { sid: M.id, exp: sim, n: now.n, until: performance.now() + 15000, fresh: true };
-    const n = L.note; if (!n || n.sid !== M.id || performance.now() > n.until) { L.note = null; return; }
-    const el = document.createElement('div'); el.id = 'live-note'; el.className = `live-note noprint${n.fresh ? ' in' : ''}`; n.fresh = false; el.setAttribute('role', 'status'); el.dataset.turn = n.turn;
-    el.innerHTML = (n.exp ? `<span class="lv-ico" data-by="simulator"><i class="sw"></i></span><span><b>ns-3 is running the ${n.n} simulation${n.n === 1 ? '' : 's'} of ${EV.e(n.exp)}</b> <span class="sm">· ${now.phase === 'sims' && now.exp === n.exp ? 'their pictures grow as they run' : 'they have ended: their pictures stay'}</span></span><button class="cl" data-act="livego" data-id="tiles" title="To the pictures of these simulations, in “What it needed to find out”">watch them</button>`
-      : `${EV.nowDot()}<span><b>Turn ${n.turn} has started</b> <span class="sm">· ${now.turn === n.turn && now.phase === 'reply' ? 'the AI is writing its reply' : 'its records are arriving'}</span></span><button class="cl" data-act="livego" data-id="${n.turn}" title="To this turn in the notebook">show it</button>`) + `<button class="cl" data-act="liveclose" data-id="1" aria-label="close this note" title="close">×</button>`; if (n.exp) el.dataset.exp = n.exp;
-    document.getElementById('ev').appendChild(el); clearTimeout(L.noteT); L.noteT = setTimeout(() => { const q = document.getElementById('live-note'); if (q) q.remove(); L.note = null; }, n.until - performance.now());
-  },
+  // The page never moves by itself. Until 2026-11-22 a small note under the banner said for a quarter of a minute that a turn had started or that
+  // simulations were running; the operator: "Isn't it redundant ... while we already have on top?" The banner (Running now: ... turn N) and the
+  // status card at the head of the session say both, so no note appears any more. A note still on the page from before is taken away.
+  liveNote() { const old = document.getElementById('live-note'); if (old) old.remove(); },
   // the place the reader is at: the part of the page that stands at the top of the window, and how far from the top. When records arrive and the page is
   // drawn again, parts above it may have grown; the page is then set so that this part stands where it stood (EV.draw)
   liveAnchor() {
