@@ -16,7 +16,7 @@ Each turn's accepted answer is kept as received in sessions/<id>/answers.jsonl, 
 A session ends with the model's final report: when the model sets done, or in one last turn after the budget is used
 up. The accepted report goes to the ledger and to report.json; session.json records how the session ended.
 Who else may write what: control.py's docstring."""
-import argparse, json, re, signal, sys, time
+import argparse, json, os, re, signal, sys, time
 from pathlib import Path
 import requests
 import decision_rules, network, tools
@@ -335,6 +335,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
                                                       **({"observations": ex["observations"]} if ex.get("observations") else {})},
                  rid="X0" if zero else None, by="harness" if zero else None)
     fresh = [r for r in runs if not r["prior"] and not r["twin"]]
+    stage("sims", xid)
     results = dict(zip((r["label"] for r in fresh), tools.run_many([r["params"] for r in fresh], [r["structure"] for r in fresh], probe=tools.PROBE_EVERY if own else None)))
     def measured(run_id):
         """The experiment's own measurements of one simulation: {name: value}. A simulation that ran earlier has no finer record yet: the harness
@@ -385,6 +386,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
         else:
             lines.append(f"{r['label']} {body['run_id']} {changed} | FAILED: {' '.join(body['error'].split())[:300]}")
     append(ledger, turn, "evidence", xid, {"experiment": xid, "lines": lines}, rid="E0" if zero else None)
+    stage("checks", xid)
     labels = [r["label"] for r in runs]
     for d in stated:
         try:
@@ -569,6 +571,22 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
 # answer, its answer, the counts of tokens, why it stopped and how long it took. No tool and no model reads it; the server gives it only to the
 # page of the account that runs it (control.py, /api/agents). The calls go through here, so a scripted session (harness_checks) writes it too.
 CALLS = {"n": 0, "turn": 0}
+def stage(step, about=None, round_no=None, by=None, again=False):
+    """now.json beside the ledger (2026-11-22, the operator, on the page's strip of the steps of a turn): the step the session is at, written as it
+    begins, so that the page can say who works on what while no record is written yet (a supervisor's reading is recorded only when its step is
+    done). step: reply (the researcher), judge, ground (the supervisor reads a guess), restate (the researcher restates a guess; by: who did not
+    accept it), design (the supervisor reviews a test; round_no of REVIEW_ROUNDS), repair (the researcher repairs a test for round_no), sims, checks,
+    ruling (the supervisor rules on a test), look (the supervisor looks at results with no ruling for findings). Never stops the session."""
+    try:
+        p = tools.SESSION / "now.json"
+        tmp = p.with_name("now.json.tmp")
+        tmp.write_text(json.dumps({"turn": CALLS["turn"], "step": step, "about": about, "round": round_no, "rounds": REVIEW_ROUNDS if step in ("design", "repair") else None,
+                                   "by": by, "again": again, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}) + "\n")
+        os.replace(tmp, p)
+    except (OSError, TypeError, ValueError, NameError):
+        pass
+
+
 def called(agent, model, system, user, schema, draft, temperature, max_tokens):
     t0 = time.time()
     content, reasoning, finish_reason, usage = ask(model, system, user, schema, draft, temperature, max_tokens)
@@ -1732,9 +1750,17 @@ ACTIONS = {"work": "working", "park": "parked", "close": "closed", "same_as": "s
 RESTS = ("evidence", "simulation", "check", "verdict", "result", "review")             # what a finding may rest on (about)
 WORKS = ("why", "hypothesis", "experiment", "result", "check", "evidence", "rethink")  # what a "work" decision may name
 CLOSES = ("evidence", "check", "verdict", "result", "simulation", "review")           # what a "close" decision may name
-FINDING_ITEM = {"type": "object", "additionalProperties": False, "required": ["about", "text"], "properties": {
+FINDING_ITEM = {"type": "object", "additionalProperties": False, "required": ["about", "text", "name"], "properties": {
     "about": {"type": "array", "items": {"type": "string"}, "description": "the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings (for example E2, C3, T7)"},
-    "text": {"type": "string", "description": "one sentence: what the results do not explain, with its numbers"}}}
+    "text": {"type": "string", "description": "one sentence: what the results do not explain, with its numbers"},
+    "name": {"type": "string", "description": "at most 5 words, to show it by (for example: TCP gets nothing)"}}}   # the name (2026-11-22, the operator: the page shows it on the finding's bar)
+NAME_WORDS, NAME_CHARS = 6, 48   # a longer name is cut to this
+
+
+def finding_name(f):
+    """{"name": ...} of a finding as it was stated, cut to NAME_WORDS words and NAME_CHARS characters; {} without one (a finding is never refused for it)."""
+    n = " ".join(str(f.get("name") or "").split()[:NAME_WORDS])[:NAME_CHARS].strip(" .,;:") if isinstance(f, dict) and isinstance(f.get("name"), str) else ""
+    return {"name": n} if n else {}
 DECISION_ITEM = {"type": "object", "additionalProperties": False, "required": ["id", "action", "refs", "reason"], "properties": {
     "id": {"type": "string", "description": "the finding, for example F2"}, "action": {"type": "string", "enum": list(ACTIONS)},
     "refs": {"type": "array", "items": {"type": "string"}, "description": "work: what works on it; close: what explains it; same_as: the other finding; park: empty"},
@@ -1876,7 +1902,7 @@ def settle_findings(t, ledger, turn, due_before, made, whys_made):
             _note(ledger, turn, "finding", "about must name the records it rests on: ids of evidence tables, simulations, checks, verdicts or readings in the ledger (for example E2, C3, T7)"
                   + (f"; not such a record: {', '.join(map(str, bad))}" if bad else ""))
         else:
-            append(ledger, turn, "finding", None, {"about": list(dict.fromkeys(about)), "text": _flat(f["text"])})
+            append(ledger, turn, "finding", None, {"about": list(dict.fromkeys(about)), "text": _flat(f["text"]), **finding_name(f)})
     kinds, of_run = _ref_kinds(ledger)
     fs, done = finding_states(ledger), set()
     allowed = {"work": WORKS, "close": CLOSES, "same_as": ("finding",)}
@@ -1953,7 +1979,7 @@ def findings_end(ledger, turn):
 # The supervisor's findings (the arm "supervised"): when it rules on a test, and after the baseline and each explore experiment, where results come in
 # without a ruling. What is unexplained, never why. One is kept only if every id it cites is in the ledger and its text holds a measured number.
 SUP_FINDINGS_ASK = ("FINDINGS (findings, at most 2, or none): a measured result in what you are shown that nothing on record explains yet. State WHAT is "
-                    "unexplained, never why: no cause, no guess, no test to run. Each with its numbers (text) and the ids of the records it rests on (about). "
+                    "unexplained, never why: no cause, no guess, no test to run. Each with its numbers (text), a name of at most 5 words to show it by (name) and the ids of the records it rests on (about). "
                     "Do not raise again one of the findings so far.")
 SUP_FINDINGS_ITEMS = {"type": "array", "maxItems": SUP_FINDINGS, "items": FINDING_ITEM, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}
 FINDINGS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["findings"], "properties": {"findings": SUP_FINDINGS_ITEMS}}
@@ -1984,7 +2010,7 @@ def take_sup_findings(ledger, turn, items, parent):
         elif not re.search(r"\d", text):
             append(ledger, turn, "note", parent, {"text": "a finding of the supervisor was left out: it states no measured number"})
         else:
-            out.append(append(ledger, turn, "finding", parent, {"about": list(dict.fromkeys(about)), "text": text, "from": parent}, by="supervisor"))
+            out.append(append(ledger, turn, "finding", parent, {"about": list(dict.fromkeys(about)), "text": text, **finding_name(f), "from": parent}, by="supervisor"))
     return out
 
 # what the researcher is told about findings, by arm (appended to its instructions)
@@ -1992,7 +2018,7 @@ FINDINGS_TEXT = {
     "hypotheses": """
 
 FINDINGS. A finding is one thing the results do not yet explain. Each stays on the list at the top of every turn until you close it, so that nothing unexplained is lost.
-- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings, for example E2, C3, T7) and text (one sentence: what is unexplained, with its numbers). The harness numbers them F1, F2, ...{sup}
+- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings, for example E2, C3, T7) text (one sentence: what is unexplained, with its numbers) and name (at most 5 words, to show it by). The harness numbers them F1, F2, ...{sup}
 - decisions: one for each finding the list marks DUE, and for any other you act on: id (F1), action, and refs or reason. work: refs names the guess, hypothesis, experiment or reading that works on it (one of this answer by the id it will get; left empty, it counts as worked on but not as looked at). close: refs names the evidence, checks, verdicts or readings that explain it. same_as: refs names the finding it repeats. park: reason says why not now. A parked finding, and one you work on with nothing new about it for 2 turns, comes back as DUE.
 - A guess of why whose about names a finding (for example F2) works on it.
 - "It does not change the recommendation" is not a reason to park a finding: the task asks why the settings you recommend are best, so explaining a measured result is part of the goal.
@@ -2001,7 +2027,7 @@ FINDINGS. A finding is one thing the results do not yet explain. Each stays on t
     "plain": """
 
 FINDINGS. A finding is one thing the results do not yet explain. Each stays on the list at the top of every turn until you close it, so that nothing unexplained is lost.
-- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations or readings, for example E2, T7) and text (one sentence: what is unexplained, with its numbers). The harness numbers them F1, F2, ...
+- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations or readings, for example E2, T7) text (one sentence: what is unexplained, with its numbers) and name (at most 5 words, to show it by). The harness numbers them F1, F2, ...
 - decisions: one for each finding the list marks DUE, and for any other you act on: id (F1), action, and refs or reason. work: refs names the experiment or reading that works on it (left empty, it counts as worked on but not as looked at). close: refs names the evidence tables or readings that explain it. same_as: refs names the finding it repeats. park: reason says why not now. A parked finding, and one you work on with nothing new about it for 2 turns, comes back as DUE.
 - "It does not change the recommendation" is not a reason to park a finding: the task asks why the settings you recommend are best, so explaining a measured result is part of the goal.
 - A final report is held back while a finding was never looked at (no reading or experiment about it) and you can still work: look at each one first. In the report, name each finding that is not closed in open_questions, with its id (F3: ...).
@@ -2117,6 +2143,7 @@ def main():
     def judge_fn(why, h):
         k = (why["guess"], h["text"])
         if k not in judged:
+            stage("judge")
             judged[k] = judge_link(model, brief, why, h)
         return judged[k]
     # gate 0 of the arm "supervised": each new guess is read by the supervisor against the records it cites, once for a statement (a second attempt of the same
@@ -2127,6 +2154,7 @@ def main():
         k, about = (" ".join(str(w["guess"]).split()), tuple(w["about"])), tuple(sorted(w["about"]))
         if k not in grounded:
             try:
+                stage("ground")
                 g, saw = ground_of(model, brief, ledger, w)
             except (ValueError, KeyError, TypeError) as e:
                 g, saw = {"records_show": "", "nearest_earlier": "none", "defect": "none", "because": f"the supervisor's reading could not be read ({type(e).__name__}): the guess is accepted unread"}, ""
@@ -2151,6 +2179,7 @@ def main():
                 "guess (what in the system would make it so), revises (the id of an earlier guess it states more exactly, or null). It is taken as you restate it; if it still does not meet "
                 "the rule above, it is recorded as contested. Answer with one JSON object.")
         try:
+            stage("restate", by=by)
             content, _d, _f, _u = called("researcher", model, RESTATE_SYSTEM, user, why_schema, a.draft == "on", a.temperature, a.max_tokens)
             count["calls"] += 1
             out = json.loads(content)
@@ -2242,6 +2271,7 @@ def main():
         for hid in ex["tests"]:
             test = test_of(ex, hid)
             try:
+                stage("design", hid, 1)
                 rev, saw = review_design(model, brief, ledger, ex, hid)
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", hid, {"text": f"the supervisor's review of the test of {hid} could not be read ({type(e).__name__}): the test is run unreviewed"})
@@ -2303,6 +2333,7 @@ def main():
             who, feedback = earlier[-1][1], earlier[-1][2]
             user = repair_user(hid, test, n + 1, who, feedback)
             try:
+                stage("repair", hid, n + 1)
                 content, _d, _f, _u = called("researcher", model, REPAIR_SYSTEM, user, repair_schema, a.draft == "on", a.temperature, a.max_tokens)
                 count["calls"] += 1
                 rp = json.loads(content)
@@ -2326,6 +2357,7 @@ def main():
                 parent, test = gid, t2
                 continue
             try:
+                stage("design", hid, n)
                 rev, saw = review_design(model, brief, ledger, t2, hid, round_no=n, earlier=earlier)
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", rid, {"text": f"the supervisor's review of the repaired test of {hid} could not be read ({type(e).__name__}): the test is run unreviewed"})
@@ -2350,6 +2382,7 @@ def main():
                 continue   # nothing was checked for it (a simulation its rule names failed): it stays open
             doubt = next((r["body"]["doubt_if"] for r in reversed(ledger) if r["type"] == "review" and r["body"]["for"] == hid), "")
             try:
+                stage("ruling", hid)
                 ruling, saw = rule_on(model, brief, ledger, xid, hid, doubt, contested=objected.get(hid))
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", hid, {"text": f"the supervisor's ruling on {hid} could not be read ({type(e).__name__}): {hid} stays open"})
@@ -2376,6 +2409,7 @@ def main():
         signal.signal(sig, lambda *_: sys.exit(143))
     if arm == "supervised" and fresh and any(r["id"] == "E0" for r in ledger):   # findings (2026-11-22): the baseline's results come in with no ruling, so the supervisor looks at them
         try:
+            stage("look", "X0")
             items, saw = sup_findings_of(model, brief, ledger, "X0")
             take_sup_findings(ledger, 0, items, "E0")
             sup_log("X0", "findings", saw, {"findings": items})
@@ -2429,6 +2463,7 @@ def main():
             again = ""   # the second attempt of a turn is told why the first could not be used (it was asked the very same thing before: a refused answer cost a whole reply and taught nothing)
             CALLS["turn"] = turn
             for _attempt in range(2):
+                stage("reply", again=_attempt > 0)
                 content, draft, finish_reason, usage = called("researcher", model, system, user + again, schema, a.draft == "on", a.temperature, a.max_tokens)
                 count["calls"] += 1
                 count["length"] += finish_reason == "length"
@@ -2557,6 +2592,7 @@ def main():
                 if arm == "supervised" and ex.get("kind") != "test":   # results with no ruling (an explore experiment): the supervisor looks at them for findings (2026-11-22)
                     xid = next(r["id"] for r in reversed(ledger) if r["type"] == "experiment")
                     try:
+                        stage("look", xid)
                         items, saw = sup_findings_of(model, brief, ledger, xid)
                         take_sup_findings(ledger, turn, items, xid)
                         sup_log(xid, "findings", saw, {"findings": items})

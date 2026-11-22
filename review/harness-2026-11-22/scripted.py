@@ -87,10 +87,23 @@ class Models:
 loop.ask, loop.count_tokens, loop.requests.get = ask, (lambda model, text: 100), (lambda *a, **k: Models())
 # the judge of a scripted session: every hypothesis follows from its guess, except one whose text says UNRELATED (test_chain.py)
 loop.judge_link = lambda model, brief, why, hyp: (("UNRELATED" not in hyp.get("text", "")), "the script's judge: its text says so" if "UNRELATED" in hyp.get("text", "") else "the script's judge")
+# the steps the harness says the session is at (now.json, 2026-11-22): each one as it is written, for the test to read
+stages = []
+if hasattr(loop, "stage"):
+    _stage = loop.stage
+    def _stage_kept(*a, **k):
+        _stage(*a, **k)
+        try:
+            stages.append(json.loads((loop.tools.SESSION / "now.json").read_text()))
+        except (OSError, ValueError):
+            stages.append(None)
+    loop.stage = _stage_kept
 sys.argv = ["loop.py", "--draft", "off"] + sys.argv[2:]
 try:
     loop.main()
 finally:
+    if stages:
+        (loop.tools.SESSION / "stages_sent.json").write_text(json.dumps(stages) + "\n")
     if formats:  # the answer format the session sent with each request, for the test to read
         (loop.tools.SESSION / "format_sent.json").write_text(json.dumps(formats[0], indent=1) + "\n")
         (loop.tools.SESSION / "users_sent.json").write_text(json.dumps(users) + "\n")

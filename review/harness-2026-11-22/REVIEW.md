@@ -314,3 +314,25 @@ are off.
 - The repair and review prompts of one scripted test: `prompts_round2_example.txt`. Sizes: in that scripted session the repair prompt is 611
   tokens and the review 1,545; in s050 a review was about 16,500 tokens in and 4,700 out (about 55 s), so a refused test costs per extra round one
   repair call (about 1,000 to 3,000 in) and one review (about 16,500 in, 4,700 out), and a contradiction one more review-sized call.
+
+# Eighth part: the step a session is at, and a finding's name (2026-11-22, evening, during s052)
+
+The operator, looking at the running s052: "Shouldn't we reflect changes on this?" (the page's strip of a turn's steps showed one AI's turn: reply,
+simulations, checks), and "show concise name of each bar of a finding instead of putting content on the bar".
+
+1. **now.json** (`stage()` in loop.py, every arm): the harness writes the step it is at as the step begins: reply (again), judge, ground, restate
+   (by whom refused), design (round, rounds), repair (round), sims, checks, ruling, look; with the turn, what it is about and the time; written
+   whole (a temporary file, then a rename); never stops the session. The page reads it to say who works on what while no record is written yet (a
+   supervisor's reading is recorded only when its step is done: in s050 the page said "the harness prepares the next turn" for 3 to 4 minutes
+   of every turn while the supervisor read guesses and reviewed tests).
+2. **A finding's name** (every arm): `name`, at most 5 words, in the finding format of the researcher and of the supervisor; kept cut to 6 words
+   and 48 characters (`finding_name`); a finding without one is taken all the same (nothing about findings refuses a part). The instructions say
+   it in one clause each; the supervised arm's whole instructions are 9,521 characters (one limit of 10,000).
+
+Not changed: the reasoning budget of the short calls. s052's third repair of H1 ran away (`}}}}…` to the limit of 32,000 tokens, 6 minutes,
+not readable: H1 stayed open with a note, as designed). A lower limit for repairs would also lower their reasoning budget (half the limit), which
+would change the conditions of the comparison sessions: noted for the review of s052 instead.
+
+Checks: `test_now_steps.py` (new: the steps of the arm "supervised" in order with a restatement, a repair in round 2, a ruling and the look after
+an explore experiment; the steps of the arm "hypotheses" with the judge; the names); `test_findings.py` expects `name` in the finding format;
+`scripted.py` keeps every step written (stages_sent.json).

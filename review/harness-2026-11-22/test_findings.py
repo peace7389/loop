@@ -41,8 +41,8 @@ whole = lambda: loop.answer_format(json.loads((P / "harness/schema.json").read_t
 fmts = {"hypotheses": loop.with_findings(loop.short_format(whole())), "plain": loop.with_findings(loop.plain_format(whole())), "supervised": loop.with_findings(loop.supervised_format(whole()))}
 order = {a: list(f["properties"]) for a, f in fmts.items()}
 say(all(o[o.index("observations") + 1] == "findings" and o[o.index("report") - 1] == "decisions" and set(o) == set(fmts[a]["required"]) for a, o in order.items())
-    and set(fmts["plain"]["properties"]["decisions"]["items"]["properties"]) == {"id", "action", "refs", "reason"} and set(fmts["plain"]["properties"]["findings"]["items"]["properties"]) == {"about", "text"},
-    f"every arm's format: findings right after observations, decisions right before the report; a finding has about and text, a decision id, action, refs, reason ({order['plain']})")
+    and set(fmts["plain"]["properties"]["decisions"]["items"]["properties"]) == {"id", "action", "refs", "reason"} and set(fmts["plain"]["properties"]["findings"]["items"]["properties"]) == {"about", "text", "name"},
+    f"every arm's format: findings right after observations, decisions right before the report; a finding has about, text and name (its name since 2026-11-22: the page shows it on the finding's bar), a decision id, action, refs, reason ({order['plain']})")
 full = (P / "harness/prompt.txt").read_text(); FT = loop.FINDINGS_TEXT
 say("Name the most important unexplained thing" not in full and "is a finding" in full and "an unexplained result goes in findings" in loop.LEAN_PROMPT and len(loop.LEAN_PROMPT + FT["supervised"]) < 10_000
     and not any(w in FT["plain"] for w in ("hypothesis", "decision rule", "verdict", "check")) and not any(w in FT["supervised"] for w in ("rethink", "the judge", "rival", "prediction", "follows_from", "holds_when", "budget_request"))
