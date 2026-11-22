@@ -395,3 +395,31 @@ EV.netLight = k => { document.querySelectorAll('.ev .nk-lit').forEach(x => x.cla
 EV.netLightAt = el => { const t = el && el.closest && el.closest('#net-kinds .nk-i, #net-pic [data-nk]'), k = t ? t.dataset.kind || t.dataset.nk : null; if (k !== EV._nkLit) { EV._nkLit = k; EV.netLight(k); } };
 document.addEventListener('mouseover', ev => EV.netLightAt(ev.target));
 document.addEventListener('focusin', ev => EV.netLightAt(ev.target));
+
+// A setting and its part of the network light together (2026-11-22, the operator: "We should also highlight matching elements among those when users
+// hover over an object and detail is shown"): pointing at a part of the schema lights the rows of the settings that set it, wherever they stand on the
+// page ("Who decides what" of the setting, the brief's card in the detail); pointing at such a row lights its part. A row says its setting in data-k:
+// a flow's rate, packet size and times are its application's, its TCP type its socket's; a queue's length and parts its queue's; a link's delay its
+// channel's; a link's rate, transmit queue, largest packet and loss its devices' (one device's own value: that device's)
+EV.netPartsOf = key => {
+  const t = EV.M && EV.net(EV.M.brief); if (!t || !key) return []; const q = s => [...document.querySelectorAll(s)], c = CSS.escape;
+  const f = (t.flows || []).find(f => key.startsWith(f.id + '.')); if (f) return q(`#net-pic g.nc-flow[data-flow="${c(f.id)}"] [data-nk="${key === f.id + '.type' ? 'socket' : 'app'}"]`);
+  const x = EV.netQueues(t).find(x => key === x.a || key.startsWith(x.a + '.')); if (x) return q(`#net-pic [data-queue="${c(x.id)}"]`);
+  const l = (t.links || []).find(l => key.startsWith(l.id + '.')); if (!l) return [];
+  const rest = key.slice(l.id.length + 1); if (rest === 'delay') return q(`#net-pic g.nl[data-link="${c(l.id)}"] [data-nk="channel"]`);
+  const h = (l.between || []).find(h => rest.startsWith(h + '.'));
+  return q(h ? `#net-pic g.nd[data-id="${c('dev:' + h + '|' + l.id)}"]` : `#net-pic g.nd[data-id$="${c('|' + l.id)}"]`);
+};
+EV.netKeyLight = (keys, parts) => {
+  document.querySelectorAll('#ev .nk-row, #ev .nk-key').forEach(x => x.classList.remove('nk-row', 'nk-key'));
+  (keys || []).forEach(k => document.querySelectorAll(`#ev tr[data-k="${CSS.escape(k)}"]`).forEach(r => r.classList.add('nk-row'))); (parts || []).forEach(p => p.classList.add('nk-key'));
+};
+document.addEventListener('mouseover', ev => {
+  const t = ev.target; if (!t || !t.closest) return;
+  const row = t.closest('#ev tr[data-k]');
+  if (row) { const k = row.dataset.k; if (EV._nkRow !== 'r:' + k) { EV._nkRow = 'r:' + k; const parts = EV.netPartsOf(k); EV.netKeyLight(parts.length ? [k] : [], parts); } return; }
+  if (t.closest('#net-pic [data-nk], #net-pic [data-id]')) {
+    const keys = [...new Set([...document.querySelectorAll('#ev tr[data-k]')].map(r => r.dataset.k))].filter(k => EV.netPartsOf(k).some(p => p.contains(t)));
+    const sig = 'p:' + keys.join(','); if (EV._nkRow !== sig) { EV._nkRow = sig; EV.netKeyLight(keys, []); } return; }
+  if (EV._nkRow) { EV._nkRow = null; EV.netKeyLight([], []); }
+});
