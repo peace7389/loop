@@ -104,7 +104,7 @@
 .ev-scroll { overflow: auto; } .ev-lanes { max-height: 1100px; } .ev-map { max-height: 300px; }
 .ev-side { position: sticky; top: calc(var(--head-h, 44px) + 8px); max-height: calc(100vh - var(--head-h, 44px) - 16px); overflow: auto; } .ev-side .ev-card { margin-bottom: 8px; }
 .ev-head { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 6px 14px; margin-bottom: 10px; font-size: var(--f-text); box-shadow: 0 2px 8px rgb(0 0 0 / .07); display: flex; flex-wrap: wrap; gap: 4px 26px; align-items: flex-start; }
-.ev-head:has(.hf[data-f=policy]) { column-gap: 12px; }   /* with the operator's two fields the strip stays one row at 1440 px (2026-11-23: "Walk" wrapped to a second row) */
+.ev-head:has(.hf[data-f=policy]) { column-gap: 8px; } .ev-head:has(.hf[data-f=policy]) .hf[data-f=brief] > b { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }   /* with the operator's two fields the strip stays one row at 1440 px (2026-11-23: "Walk" wrapped to a second row); a long brief name is cut with "…" (its box on hover gives it whole) */
 /* a field of the header strip: a small label above its value */
 .ev .hf { display: grid; min-width: 0; } .ev .hf > span { font-size: var(--f-note); color: var(--text-muted); white-space: nowrap; } .ev .hf > b { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; } .ev .hf[data-f=rec] { flex: 0 1 auto; } .ev .hf[data-f=rec] > b { white-space: normal; }
 .ev .hf-op { display: flex; gap: 26px; } .ev .hf .pill { font-size: var(--f-sec); }

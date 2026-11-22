@@ -26,8 +26,8 @@ T1 = {"observations": "read", "findings": [], "requests": [], "drop": [], "objec
       "whys": [{"about": ["E0"], "result": "TCP gets 0 bps at the default", "guess": "the shared queue is always full of UDP packets", "revises": None}],
       "hypotheses": [{"from_why": "Y1", "text": "TCP gets more with a 1000-packet queue than with 50"}],
       "experiment": {"kind": "test", "tests": ["H1"], "question": "", "runs": [run("q50", 50), run("q1000", 1000)], "measurements": [], "decision_rules": [RULE]}}
-BAD = {"decision_rule": RULE["decision_rule"], "rival": RULE["rival"], "rival_predicts": "failed",   # s052's call 21: a garbled change in the run of a repair
-       "runs": [{**run("q4_cubic", 4), "structure": [{"do": "add_queue", "id": "q4_cubic", "kind": "queue", "from": "q4_cubic", "to": "q4_cubic", "on": "q4_cubic", "rate": "q4_cubic", "type": "q4_cubic", "app": "bulk"}]},
+BAD = {"decision_rule": "tcp_goodput_bps@q1000 > tcp_goodput_bps@q4_cubic", "rival": RULE["rival"], "rival_predicts": "failed",   # s052's call 21: a garbled change in the run of a repair; its rule names that run (a run no rule names is dropped before it is read, since 2026-11-23)
+       "runs": [{**run("q4_cubic", 1000), "structure": [{"do": "add_queue", "id": "q4_cubic", "kind": "queue", "from": "q4_cubic", "to": "q4_cubic", "on": "q4_cubic", "rate": "q4_cubic", "type": "q4_cubic", "app": "bulk"}]},
                 run("q1000", 1000)]}
 GOOD = {"decision_rule": RULE["decision_rule"], "rival": RULE["rival"], "rival_predicts": "failed", "runs": []}
 G = {"records_show": "what the cited records show", "nearest_earlier": "none", "defect": "none", "because": "the supervisor's reading"}
@@ -43,7 +43,7 @@ print("R  A REPAIR WHOSE NETWORK CHANGE CANNOT BE APPLIED")
 rounds = [(r["body"]["round"], r["body"]["decision"], r["by"]) for r in led if r["type"] == "review" and r["body"].get("gate") == "design" and r["body"].get("for") == "H1"]
 r2 = next((r["body"] for r in led if r["type"] == "review" and r["body"].get("gate") == "design" and r["body"].get("round") == 2), {})
 say("Traceback" not in r.stderr and meta.get("how") == "model server error", f"the session did not stop on the repair: it ended when the script had no more answers ({meta.get('how')}){' ' + r.stderr[-1500:] if 'Traceback' in r.stderr else ''}")
-say(rounds == [(1, "sent_back", "supervisor"), (2, "sent_back", "harness"), (3, "approved", "supervisor")] and "queue" in str(r2.get("feedback")),
+say(rounds == [(1, "sent_back", "supervisor"), (2, "sent_back", "harness"), (3, "approved", "supervisor")] and "structure cannot be used" in str(r2.get("feedback")),
     f"round 1 sent back by the supervisor, round 2 refused by the harness with the network's reason (“{str(r2.get('feedback'))[:120]}”), round 3 approved: {rounds}")
 x = [r for r in led if r["type"] == "experiment" and r["turn"] == 1]; v = [r for r in led if r["type"] == "verdict" and r["body"].get("for") == "H1"]
 say(x and x[-1]["body"]["tests"] == ["H1"] and not any((q.get("structure") or []) for q in x[-1]["body"]["runs"]) and v,

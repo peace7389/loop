@@ -1552,7 +1552,7 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
     runs, per = ex.get("runs") or [], brief["limits"]["simulations_per_experiment"]
     labels = [r.get("label") for r in runs]
     if not 1 <= len(runs) <= per:
-        return f"an experiment has 1 to {per} simulations"
+        return f"an experiment has 1 to {per} simulations; this one has {len(runs)}"
     if len(set(labels)) != len(labels) or not all(re.fullmatch(rf"[A-Za-z0-9_]{{1,{LABEL_MOST}}}", str(l)) for l in labels):
         return f"every simulation needs its own label: letters, digits and _ only, at most {LABEL_MOST} characters"
     if any(set(r.get("params") or {}) - set(brief["knobs"]) - set(brief["system"]) for r in runs):
@@ -3067,6 +3067,9 @@ def main():
         base = [r for r in test.get("runs") or [] if isinstance(r, dict)]
         base += [r for r in every if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]
         runs = [dict(given.pop(r.get("label"), r)) for r in base] + [dict(r) for r in given.values()]
+        named = set(re.findall(r"@([A-Za-z0-9_]+)", str(rule.get("decision_rule") or "")))
+        if named and any(r.get("label") in named for r in runs):   # the simulations the repaired rule no longer names leave before anything is counted (s055 H7)
+            runs = [r for r in runs if r.get("label") in named]
         t2 = {"kind": "test", "tests": [hid], "question": test.get("question") or "", "measurements": list(MEASURES.values()) or test.get("measurements") or [], "runs": runs, "decision_rules": [rule],   # every measurement of the answer: a repaired rule may name one a sibling test defined
               "varied": varied_of(runs, brief), "control": None}
         if not isinstance(rule["decision_rule"], str) or not rule["decision_rule"].strip():
@@ -3122,6 +3125,7 @@ def main():
                    "rival: the strongest competing explanation you can think of, one sentence. rival_predicts: held or failed, what the rule gives if the rival is true (held is refused: choose simulations where the two differ). ")
                 + "runs: only the simulations that are new "
                 "or change, each with a label and a value for every knob: one with the label of a simulation of the test replaces it, the others are kept; an empty list keeps them all. "
+                "A simulation your repaired rule does not name is not run. "
                 "A rule that names only simulations already run cannot fail and is refused, unless it compares a measurement your answer defines (listed above), which is computed now from "
                 "what those simulations recorded: " + (f"name at least one simulation that has not run yet ({left} can still run), or such a measurement." if left else "no new simulation can run now, so compare such a measurement.")
                 + (" A simulation may change the network (structure), as your instructions describe: a run keeps its change unless the feedback is about it, and a run you give states its "

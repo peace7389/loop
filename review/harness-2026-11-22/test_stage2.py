@@ -99,6 +99,19 @@ say("runs: only the simulations that are new or change" in rp and "THE RECORDS T
     "the repair prompt says how runs are read, and shows E0, which the feedback and the guess cite")
 say(sup and "THE RESEARCHER'S RIVAL for the rule udp_goodput_bps@c > 1.2 * udp_goodput_bps@a: UDP's own sending rate limits it" in sup[-1], "the ruling is shown the researcher's rival")
 
+print("R  A REPAIR THAT SWAPS SIMULATIONS: COUNTED AFTER THE UNNAMED ONES LEAVE (brief after_fix: at most 4 in one experiment)")
+qr = lambda label, q: {"label": label, "params": {"l1.queue.length": q, "tcp.type": "TcpCubic"}}
+QT = {"kind": "test", "tests": ["H1"], "question": "", "measurements": [], "runs": [qr("a", 100), qr("b", 200)],
+      "decision_rules": [{"for": "H1", "decision_rule": "tcp_goodput_bps@b >= tcp_goodput_bps@a", "rival": "UDP fills any queue", "rival_predicts": "failed"}]}
+QA = {**turn(ex=QT), "whys": [{"about": ["E0"], "result": "TCP gets 0 bps at the default", "guess": "the shared FIFO is always full of UDP", "revises": None}],
+      "hypotheses": [{"from_why": "Y1", "text": "a longer queue lets TCP through"}]}
+SWAP = {"decision_rule": "tcp_goodput_bps@c >= tcp_goodput_bps@a AND tcp_goodput_bps@e >= tcp_goodput_bps@c AND tcp_goodput_bps@f >= tcp_goodput_bps@e",
+        "rival": "UDP fills any queue", "rival_predicts": "failed", "runs": [qr("c", 400), qr("e", 600), qr("f", 800)]}
+led, sup, meta, err, users, calls = session("r1", [QA, SWAP], [G, BACK, REV, RUL], brief="after_fix")
+xs = [[q["label"] for q in r["body"]["runs"]] for r in of(led, "experiment", 1)]
+say(xs == [["a", "c", "e", "f"]] and rounds(led)[:2] == [(1, "sent_back", "supervisor"), (2, "approved", "supervisor")],
+    f"the repair names a, c, e, f: b, which no rule names, leaves first, and four simulations run (s055 H7 was refused as five): {xs}; {rounds(led)}; {[n for n in notes(led) if 'simulations' in n][:1]}")
+
 print("N  A REPAIR ON A NETWORK BRIEF")
 sched = [{"do": "remove", "id": "l1", "kind": "queue", "on": "sender"}, {"do": "add_queue", "id": "l1", "kind": "scheduler", "on": "sender"}]
 NET = {"kind": "test", "tests": ["H1"], "question": "", "measurements": [],

@@ -672,3 +672,11 @@ The page checks that failed on main's page as well (format, live, net, polish, r
 - checks with a race: the live view's replay read the page while the page's own refresh of the stage before was still loading (one record behind
   at a different stage each run); a hover on the first "TCP type" word, which stands in a section that is not shown.
 Copies of the six page checks changed: page_checks/.
+- **A repair that swaps simulations was counted with the ones it dropped** (s055 turn 5, H7: refused twice with "an experiment has 1 to 4
+  simulations", then not run): a repair's runs are merged with the test's (stage 2), and the simulations its rule no longer names were dropped only
+  after the count. They are dropped first (p3_count.py), the refusal says how many there are, and the repair prompt says that a simulation the
+  repaired rule does not name is not run. test_stage2.py R replays it on after_fix (4 in one experiment): it fails on the build deployed at 00:46
+  and passes here. test_repair_structure.py's bad repair now names its garbled run (else that run leaves before it is read) and differs from the
+  other only by the network change, so that the network's reason is still what refuses it.
+- **The strip with the operator's columns and real values** ("cap", "0.000 Mbps (0.00%)") still wrapped at 1440 px: gaps of 8 px there, and a long
+  brief name is cut with "…" (its hover box gives it whole). Live at 01:34.
