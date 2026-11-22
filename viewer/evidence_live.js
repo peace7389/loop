@@ -102,7 +102,9 @@ Object.assign(EV, {
     if (!now) return ''; const M = EV.M, e = EV.e, fl = (M.meta && M.meta.flags) || {}, sup = fl.arm === 'supervised', x = M.recs.filter(r => r.type === 'experiment' && r.turn === now.turn).pop(), hid = now.about && M.byId[now.about] ? now.about : null;
     const go = { reply: now.turn > 0 ? ['log', now.turn] : null, baseline: x && x.turn === 0 ? ['exp', x.id] : null, sims: x && x.turn > 0 ? ['exp', x.id] : null, checks: x && x.turn > 0 && ['between', 'ruling', 'look'].includes(now.phase) ? ['exp', x.id] : null,
       design: hid && ['design', 'repair'].includes(now.phase) ? ['hyp', hid] : null, ruling: hid && now.phase === 'ruling' ? ['hyp', hid] : null, look: x ? ['exp', x.id] : null };
-    const opens = { log: 'the work log of this turn', exp: 'this experiment', hyp: 'this hypothesis' }, R = now.round || 1, of = now.rounds || 3, ab = now.about || '';
+    // a step of an agent opens what the agent wrote in it, its tokens (2026-11-22, the operator: "When user clicks past or ongoing stage here they should be able to see tokens directly")
+    ['reply', 'ground', 'design', 'judge', 'ruling', 'look'].forEach(k => { go[k] = ['calls', `${now.turn}:${k}`]; });
+    const opens = { log: 'the work log of this turn', exp: 'this experiment', hyp: 'this hypothesis', calls: 'what the agent wrote in this step, its tokens' }, R = now.round || 1, of = now.rounds || 3, ab = now.about || '';
     // [key, who, its name, under it, its sentence, the phases it stands for]
     let head = `Turn ${now.turn}`, steps;
     if (now.phase === 'start' || now.phase === 'baseline' || (now.phase === 'look' && !now.turn)) {
@@ -125,7 +127,7 @@ Object.assign(EV, {
     }
     const on = steps.findIndex(q => q[5].includes(now.phase));
     const dots = ['design', 'repair'].includes(now.phase) ? `<span class="lv-rounds" title="Round ${R} of ${of}">${Array.from({ length: of }, (_, i) => `<i${i < R ? ' class="r-on"' : ''}></i>`).join('')}</span>` : '';
-    const li = ([key, by, name, under, say], i) => { const st = i < on ? 'done' : i === on ? 'on' : 'todo', g = go[key];
+    const li = ([key, by, name, under, say], i) => { const st = i < on ? 'done' : i === on ? 'on' : 'todo', g = st === 'todo' && go[key] && go[key][0] === 'calls' ? null : go[key];
       return `<li class="lv-st ${st}${g ? ' lv-go' : ''}" data-key="${key}" data-by="${by}" title="${e(say + (st === 'done' ? ' (done)' : st === 'on' ? ' (now)' : '') + (g ? `. Click to open ${opens[g[0]]}, beside the page` : ''))}"${g ? ` data-act="open" data-t="${g[0]}" data-id="${e(g[1])}" role="button" tabindex="0"` : ''}>`
         + `<span class="lv-node"><i class="sw"></i></span><b>${e(name)}</b><small>${e(under)}</small>${st === 'on' ? `${key === 'design' ? dots : ''}<small class="lv-tm">${EV.liveTimer()}</small>` : ''}</li>`; };
     return `<div class="lv-stage lv-track${big ? ' big' : ''}" data-phase="${now.phase}" data-arm="${sup ? 'supervised' : fl.arm || 'hypotheses'}"><span class="lv-turn">${head}</span><ol class="lv-steps" style="--n:${steps.length}">${steps.map(li).join('')}</ol></div>`;
@@ -215,6 +217,57 @@ Object.assign(EV, {
     const all = [...document.querySelectorAll('#ev .ev-card[id], #s-notebook .nb-group[data-group], #s-notebook .nb-card[data-id]')].filter(flows).map(el => [el, el.getBoundingClientRect().top]), over = all.filter(([, t]) => t <= 160), pick = over.length ? over[over.length - 1] : all.find(([, t]) => t > 160);
     return pick ? { sel: sel(pick[0]), top: pick[1] } : null;
   },
+  // ---- what an agent wrote in one step of a turn, its tokens (2026-11-22, the operator: "When user clicks past or ongoing stage here they should be
+  // able to see tokens directly"). The calls come from /api/agents (calls.jsonl: each call's step since 2026-11-22; an earlier call is placed by what it
+  // was given); the call being made from live_call.json, which the harness rewrites about once a second while the agent writes. id: "<turn>:<step key>"
+  CALL_STEPS: { reply: ['reply'], ground: ['ground', 'restate'], design: ['design', 'repair'], judge: ['judge'], ruling: ['ruling'], look: ['look'] },
+  CALL_SAYS: { reply: 'reply', restate: 'restatement of a guess', repair: 'repair of a test', ground: 'reading of a guess', design: 'review of a test', ruling: 'ruling', look: 'look for findings', judge: 'link check' },
+  callStep(c) {
+    if (c.step && c.step.step) return c.step.step;
+    const s = c.system || '', u = c.user || '';
+    if (c.agent === 'judge') return 'judge';
+    if (c.agent === 'researcher') return s.startsWith('You are the researcher. The supervisor, or the harness, sent back') ? 'repair' : s.startsWith('You are the researcher. One of your guesses') ? 'restate' : 'reply';
+    return u.includes("THE HARNESS'S CHECKS (facts)") ? 'ruling' : u.includes('THE RECORDS THE NEW GUESS CITES') ? 'ground' : u.includes('FINDINGS (findings, at most') ? 'look' : 'design';
+  },
+  async callsLoad(sid) {
+    const L = EV.live; if (L.callsBusy) return; L.callsBusy = true;
+    try { const r = await fetch(`../api/agents?session=${encodeURIComponent(sid)}`, { cache: 'no-store' }); const j = r.ok ? await r.json() : null; L.calls = { sid, list: (j && j.calls) || [], at: Date.now() }; }
+    catch (x) { L.calls = { sid, list: [], at: Date.now(), err: true }; }
+    L.callsBusy = false; const sel = EV.s.sel; if (sel && sel.t === 'calls' && EV.M && EV.M.id === sid) EV.draw();
+  },
+  callBox(c, live) {
+    const e = EV.e, u = c.usage || {}, rt = (u.completion_tokens_details || {}).reasoning_tokens, who = c.agent === 'researcher' ? 'model' : 'supervisor', step = EV.callStep(c);
+    const ans = (() => { try { return JSON.stringify(JSON.parse(c.answer), null, 1); } catch (x) { return c.answer || ''; } })(), num = v => Number(v || 0).toLocaleString('en-US');
+    const meta = live ? `writing now · ${EV.liveClock((c.seconds || 0) * 1000)} · ${num((c.reasoning || '').length)} characters of reasoning, ${num((c.answer || '').length)} of answer so far`
+      : `${e(c.at ? c.at.slice(11, 16) : '')} · ${EV.liveClock((c.seconds || 0) * 1000)} · ${u.completion_tokens ? `${num(u.completion_tokens)} tokens written${rt ? `, ${num(rt)} of them reasoning` : ''}` : 'tokens not counted'}${c.finish_reason && c.finish_reason !== 'stop' ? ` · <b class="warnc">stopped: ${e(c.finish_reason)}</b>` : ''}`;
+    return `<div class="cl-call${live ? ' cl-live' : ''}" data-n="${e(c.n)}"><p class="cl-h"><span class="st-by" data-by="${who}"><i class="sw"></i></span><b>${e(c.agent === 'researcher' ? 'the researcher' : 'the ' + c.agent)}</b> · ${e(EV.CALL_SAYS[step] || step)}${c.step && c.step.about ? ` of ${e(c.step.about)}` : ''}${c.step && c.step.round ? `, round ${e(c.step.round)}` : ''} <span class="sm">· call ${e(c.n)} · ${meta}</span></p>`
+      + `<p class="cl-k">Its reasoning</p><pre class="cl-pre cl-reason"${live ? ' id="cl-live-r"' : ''}>${e(c.reasoning || (live ? '…' : 'none kept'))}</pre>`
+      + `<p class="cl-k">Its answer</p><pre class="cl-pre cl-ans"${live ? ' id="cl-live-a"' : ''}>${e(live ? c.answer || '…' : ans || 'empty')}</pre>`
+      + (!live && (c.system || c.user) ? `<details class="cl-given"><summary>What it was given · ${num((c.system || '').length + (c.user || '').length)} characters</summary><pre class="cl-pre">${e(c.system || '')}</pre><pre class="cl-pre">${e(c.user || '')}</pre></details>` : '') + '</div>';
+  },
+  callsCard(id) {
+    const M = EV.M, e = EV.e, L = EV.live, [t, key] = String(id).split(':'), turn = Number(t), steps = EV.CALL_STEPS[key] || [key];
+    if (!L.calls || L.calls.sid !== M.id || L.callsStale) { L.callsStale = false; EV.callsLoad(M.id); }
+    const list = L.calls && L.calls.sid === M.id ? L.calls.list.filter(c => c.turn === turn && steps.includes(EV.callStep(c))) : null;
+    const lv = L.liveCall && L.liveCall.sid === M.id ? L.liveCall.c : null, here = lv && !lv.done && lv.turn === turn && steps.includes(lv.step) && !(list || []).some(c => c.n === lv.n);
+    const title = { reply: 'The researcher’s reply', ground: 'The supervisor reads the guesses', design: 'The supervisor reviews the tests', judge: 'The judge reads the hypotheses', ruling: 'The supervisor rules', look: 'The supervisor looks for findings' }[key] || key;
+    return `<h2>${e(title)} <small>turn ${e(turn)}</small></h2><p class="sm">What the agent wrote in this step, call by call: its reasoning before the answer, and the answer; what it was given is folded under each.${here ? ' The call being made grows as it is written.' : ''}</p>`
+      + (list == null ? '<p class="sm">Reading the calls…</p>' : '') + (list || []).map(c => EV.callBox(c, false)).join('') + (here ? `<div id="cl-live">${EV.callBox(lv, true)}</div>` : '')
+      + (list && !list.length && !here ? '<p class="sm">No call of this step in this turn yet.</p>' : '');
+  },
+  // the call being made: live_call.json read again every two seconds while a step's card is open; its text is put in place (the page does not move)
+  liveCallTick() {
+    const sel = EV.s.sel, M = EV.M, row = (EV.files && EV.files.row) || {}; if (!sel || sel.t !== 'calls' || !M || !row.running || EV.off) return;
+    fetch(`../sessions/${M.id}/live_call.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(c => {
+      if (!c || !EV.M || EV.M.id !== M.id) return; const was = EV.live.liveCall && EV.live.liveCall.c; EV.live.liveCall = { sid: M.id, c };
+      if (c.done) { if (!was || !was.done || was.n !== c.n) { EV.live.callsStale = true; EV.draw(); } return; }
+      const box = document.getElementById('cl-live'); if (!box) { if (!was || was.n !== c.n) EV.draw(); return; }
+      const keep = pre => pre && pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;   // a box read at its end follows the text; one scrolled back stays where it is
+      const r = document.getElementById('cl-live-r'), a = document.getElementById('cl-live-a'), fr = keep(r), fa = keep(a);
+      if (r) { r.textContent = c.reasoning || '…'; if (fr) r.scrollTop = r.scrollHeight; } if (a) { a.textContent = c.answer || '…'; if (fa) a.scrollTop = a.scrollHeight; }
+      const h = box.querySelector('.cl-h .sm'); if (h) h.textContent = ` · call ${c.n} · writing now · ${EV.liveClock((c.seconds || 0) * 1000)} · ${(c.reasoning || '').length.toLocaleString('en-US')} characters of reasoning, ${(c.answer || '').length.toLocaleString('en-US')} of answer so far`;
+    }).catch(() => {});
+  },
   // a new step named by the harness (now.json) while the records stay the same: the strip, the sentence of the banner and the "Now" card of the work log are
   // drawn again where they stand; nothing else changes and the page does not move
   liveRestage() {
@@ -228,6 +281,7 @@ Object.assign(EV, {
     const a = EV.liveAge(); if (a != null) document.querySelectorAll('#ev [data-live-t]').forEach(el => { el.textContent = EV.liveClock(a); });
     const L = EV.live, row = (EV.files && EV.files.row) || {}, h = L.head;
     if (EV.off || L.busy || document.hidden || EV.s.view !== 'session' || !row.running || !h || (L.n = (L.n || 0) + 1) % 2) return;
+    EV.liveCallTick();
     L.busy = true;
     const now = EV.liveNow(), sid = EV.M && EV.M.id;  // while simulations run the ledger does not grow: the index of the runs does
     if (now && (now.phase === 'sims' || now.phase === 'baseline')) EV.get(`../sessions/${sid}/runs/index.json`).then(t => { if (!EV.M || EV.M.id !== sid) return; if (t == null) { if (EV.tilesTick) EV.tilesTick(now, sid); return; }  // no index yet: the session's first simulations are still running

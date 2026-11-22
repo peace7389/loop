@@ -443,6 +443,11 @@
 .ev .f-about { margin-top: 12px; } .ev .f-about summary { cursor: pointer; font-size: var(--f-note); color: var(--text-secondary); } .ev .f-about p { margin: 4px 0 0; }
 /* a derived metric: a formula badge, ƒx, as a finding is a treasure chest (2026-11-22, the operator: its custom and on-demand nature) */
 .ev .ms-fx .fx-b { fill: #6a3fc8; stroke: #4a2a94; stroke-width: .8; } .ev .ms-fx .fx-t { fill: none; stroke: #ffffff; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* what an agent wrote in a step: its calls, each with its reasoning and its answer (2026-11-22, the operator) */
+.ev .cl-call { border: 1px solid var(--border); border-radius: 9px; padding: 8px 11px; margin: 10px 0; background: var(--surface-1); } .ev .cl-call.cl-live { border-color: var(--live); }
+.ev .cl-h { margin: 0 0 6px; font-size: var(--f-sec); } .ev .cl-k { margin: 6px 0 3px; font-size: var(--f-note); font-weight: 700; color: var(--text-secondary); }
+.ev .cl-pre { margin: 0; max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--f-note); line-height: 1.45; padding: 6px 8px; border-radius: 6px; background: var(--surface-0); border: 1px solid var(--border); }
+.ev .cl-ans { max-height: 200px; } .ev .cl-given { margin-top: 6px; } .ev .cl-given > summary { cursor: pointer; font-size: var(--f-note); color: var(--text-secondary); } .ev .cl-given .cl-pre + .cl-pre { margin-top: 4px; }
 /* the stage as a track (2026-11-22, the operator: "more quality in design and structure"): a node per step on one line, its name and who does it under it */
 .ev .lv-track { flex-wrap: nowrap; align-items: flex-start; gap: 12px; margin: 8px 0 12px; } .ev .lv-track .lv-turn { flex: none; padding-top: 4px; white-space: nowrap; }
 .ev .lv-steps { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); }
