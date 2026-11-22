@@ -21,6 +21,8 @@ for r in ("r001", "r008", "r010"): shutil.copytree(REAL / "sessions/s048/runs" /
 shutil.copy(REAL / "sessions/s048/session.json", P / "sessions/s048/session.json"); shutil.copy(REAL / "sessions/s048/runs/index.json", P / "sessions/s048/runs/index.json")
 os.environ["HOME"] = str(SCR / "home"); sys.path.insert(0, str(P / "harness"))
 import loop, tools
+if "corr" not in getattr(tools, "MEASURE_STATS", ()):   # part 2 (2026-11-22) is not in this harness (the deployed one leaves it out)
+    print("RESULT: SKIP the measurements of relations (part 2) are not in this harness"); sys.exit(0)
 tools.SESSION = P / "sessions/s048"; brief = json.loads((P / "sessions/s048/session.json").read_text())["given"]; tools.BRIEF = brief
 FAILED = []
 def say(ok, text):

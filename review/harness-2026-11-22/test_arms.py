@@ -52,13 +52,14 @@ led, meta, r = session("p1", "two-hosts-open", [plain(experiment={"kind": "explo
 kinds = sorted({q["type"] for q in led})
 say(r.returncode == 0 and len(of(led, "simulation")) == 3 and len(of(led, "evidence")) == 2 and not of(led, "hypothesis") and not of(led, "check") and not of(led, "verdict") and of(led, "experiment")[-1]["body"]["kind"] == "explore",
     f"a session in the arm: the baseline and an exploring experiment of two simulations ran, their evidence is recorded, and there is no hypothesis, check or verdict record (record types: {kinds})" + (f" {r.stderr[-600:]}" if r.returncode else ""))
-say(len(of(led, "report")) == 1 and meta.get("how") == "done by the model" and meta.get("flags", {}).get("arm") == "plain" and meta.get("prompt") == text and meta.get("report"),
+say(len(of(led, "report")) == 1 and meta.get("how") == "done by the model" and meta.get("flags", {}).get("arm") == "plain" and meta.get("prompt") == text + getattr(loop, "FINDINGS_TEXT", {}).get("plain", "") and meta.get("report"),
     f"its final report is accepted and ends the session (“{meta.get('how')}”); session.json says the arm ({meta.get('flags', {}).get('arm')}) and holds the instructions it was given")
 sent = json.loads((P / "sessions/p1/format_sent.json").read_text())
 say("hypotheses" not in sent["properties"] and "verdicts" not in sent["properties"], "the format sent to the model server with its requests is the arm's")
 led2, meta2, r2 = session("o1", "two-hosts-open", [plain(hypotheses=[], drop=[], verdicts=[])], )
-say("arm" not in meta2.get("flags", {}) and meta2["flags"].get("format") == "short" and meta2.get("prompt") == loop.short_prompt(full),
-    "a session in the ordinary arm records no arm; since 2026-11-22 it records the short format and is given prompt.txt in it (loop.short_prompt)")
+SHORT = getattr(loop, "SHORT_FORMAT", True)   # the deployed harness keeps the short format off (2026-11-22)
+say("arm" not in meta2.get("flags", {}) and (meta2["flags"].get("format") == "short") == SHORT and meta2.get("prompt") == (loop.short_prompt(full) if SHORT else full) + getattr(loop, "FINDINGS_TEXT", {}).get("hypotheses", ""),
+    "a session in the ordinary arm records no arm; it is given prompt.txt (in the short format and recording it where SHORT_FORMAT is on, 2026-11-22)")
 led3, meta3, r3 = session("p1x", "two-hosts-open", [plain()], "--arm", "plain", "--budget", "100")
 say(r3.returncode != 0 and not (P / "sessions/p1x").exists(), "a start that cannot be made (a budget over the brief's limit) leaves no folder, in this arm too")
 r4 = subprocess.run([sys.executable, "-I", str(HERE / "scripted.py"), str(SCR / "o1.answers.json"), "--session", "o1", "--arm", "plain"], env=ENV, capture_output=True, text=True, timeout=300)

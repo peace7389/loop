@@ -23,6 +23,8 @@ os.environ["HOME"] = str(SCR / "home"); sys.path.insert(0, str(P / "harness"))
 import tools
 tools.SESSION = P / "sessions/s048"; tools.BRIEF = json.loads((P / "sessions/s048/session.json").read_text())["given"]; tools.POLICY = "share"
 FAILED = []
+if not hasattr(tools, "trace_points"):   # part 2 (2026-11-22) is not in this harness (the deployed one leaves it out)
+    print("RESULT: SKIP taps (part 2) are not in this harness"); sys.exit(0)
 def say(ok, text):
     print(f"  {'ok  ' if ok else 'FAIL'} {text}", flush=True)
     if not ok: FAILED.append(text[:50])

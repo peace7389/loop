@@ -12,17 +12,25 @@ from pathlib import Path
 assert "scratch" in str(Path.home()), "scripted sessions run in a scratch copy only (HOME must be the scratch home)"
 sys.path.insert(0, str(Path.home() / "project/harness"))
 import loop  # noqa: E402
+import os  # noqa: E402
+for k, v in json.loads(os.environ.get("SCRIPTED_SET") or "{}").items():   # a check may set a constant of the loop for its session, e.g. {"AFTER_ROUNDS": "dropped"} (2026-11-22)
+    setattr(loop, k, v)
 answers = json.loads(Path(sys.argv[1]).read_text())
 sup_answers, sup_users = (answers.get("supervisor") or [], []) if isinstance(answers, dict) else ([], [])
 answers = answers["answers"] if isinstance(answers, dict) else answers
 import re
 def supervisor(user, schema):
     """The scripted supervisor's answer to one request: the next of its list, or, when that is used up, no defect and a ruling as the checks say."""
+    need = schema["required"]
+    if need == ["findings"]:   # its look at results no ruling covers (findings, 2026-11-22): the next answer of its list only if that is one of this kind
+        return sup_answers.pop(0) if sup_answers and set(sup_answers[0]) == {"findings"} else {"findings": []}
     if sup_answers:
         return sup_answers.pop(0)
-    need = schema["required"]
-    if "doubt_if" in need:
-        return {"rival": "the script's rival", "rival_outcome": "failed", "doubt_if": "nothing the script can name", "defect": "none", "because": "the script's supervisor finds no defect"}
+    if "doubt_if" in need:   # the review of a test before it runs (since 2026-11-22 it judges the researcher's rival, in rounds): approved
+        return {"reads": "what the script reads", "stronger_rival": "none stronger than the researcher's", "rival_is_weak": False, "under_rival": "the rule would fail under it",
+                "rival": "the script's rival", "rival_outcome": "failed", "doubt_if": "nothing the script can name", "defect": "none", "because": "the script's supervisor finds no defect", "feedback": ""}
+    if "rival_outcome" in need:   # the one question about boxes that contradicted each other (2026-11-22): answered without a contradiction
+        return {"because": "the script's second answer", "rival_outcome": "failed", "defect": "none"}
     if "records_show" in need:
         return {"records_show": "what the script reads in them", "nearest_earlier": "none", "defect": "none", "because": "the script's supervisor finds no defect"}
     if "stands" in need:

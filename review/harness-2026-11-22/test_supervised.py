@@ -23,9 +23,13 @@ FAILED = []
 def say(ok, text):
     print(f"  {'ok  ' if ok else 'FAIL'} {text}", flush=True)
     if not ok: FAILED.append(text[:50])
+# the sessions of this check were written before part D (2026-11-22: a guess not accepted is restated in the same turn, and "not from what was learned"
+# is a warning); they keep the refusals they test, and test_guess_restate.py checks part D. Unknown names are ignored by a loop before part D
+OLD_GUESSES = {"RESTATE_GUESSES": False, "GROUND_WARNINGS": []}
+PROMPT_LIMIT = 10_000   # the supervised arm's whole instructions, its findings text included (the operator, 2026-11-22: one limit on A+B+D)
 def session(sid, brief, answers, *flags):
     f = SCR / f"{sid}.answers.json"; f.write_text(json.dumps(answers))
-    r = subprocess.run([sys.executable, "-I", str(HERE / "scripted.py"), str(f), "--brief", brief, "--session", sid, *flags], env=ENV, capture_output=True, text=True, timeout=1200)
+    r = subprocess.run([sys.executable, "-I", str(HERE / "scripted.py"), str(f), "--brief", brief, "--session", sid, *flags], env={**ENV, "SCRIPTED_SET": json.dumps(OLD_GUESSES)}, capture_output=True, text=True, timeout=1200)
     if r.returncode: print(r.stdout[-800:], r.stderr[-2500:])
     led = [json.loads(l) for l in (P / "sessions" / sid / "ledger.jsonl").read_text().splitlines() if l.strip()]
     return led, json.loads((P / "sessions" / sid / "session.json").read_text())
@@ -38,17 +42,22 @@ SECRET = "RESEARCHERS-OWN-REASONING"   # stands in every text of the researcher 
 def turn(**k): return {"observations": SECRET + " read", "requests": [], "whys": [], "hypotheses": [], "drop": [], "experiment": None, "objections": [], "report": None, **k}
 def why(about, guess, **k): return {"about": about, "result": "TCP delivers about half of the link at the default part", "guess": guess, "revises": None, **k}
 def hyp(y, text): return {"from_why": y, "text": text}
-def test(h, rule, a, b, extra=()): return {"kind": "test", "tests": [h], "question": "", "runs": [d("a", a), d("b", b), *extra], "measurements": [], "decision_rules": [{"for": h, "decision_rule": rule}]}
+RIVAL = {"rival": "UDP's own sending rate limits it", "rival_predicts": "failed"}   # each rule's rival, the researcher's own since 2026-11-22 (the review rounds)
+def test(h, rule, a, b, extra=()): return {"kind": "test", "tests": [h], "question": "", "runs": [d("a", a), d("b", b), *extra], "measurements": [], "decision_rules": [{"for": h, "decision_rule": rule, **RIVAL}]}
+REPAIR = lambda rule: {"decision_rule": rule, "rival": "the queue limits UDP", "rival_predicts": "failed", "runs": []}   # the researcher's repair of a test sent back (same turn)
+AGAIN = lambda out, defect="none": {"because": "its second answer", "rival_outcome": out, "defect": defect}   # its answer to the one question about contradicting boxes
 REPORT = {"goal": "the largest UDP goodput", "recommendation": {"weightUdp": 0.7, "udpRate": "2Gbps", "queuePkts": 100, "tcpVariant": "TcpCubic", "duration": 2},
           "limit": "the part of the link: C2 shows it", "explanation": "a larger part gives UDP more", "claims": [{"text": "UDP gets more with a larger part", "evidence": ["C2", "V3"]}]}
 G = lambda defect, **k: {"records_show": "E0: TCP 482 Mbps at the default part", "nearest_earlier": "none", "defect": defect, "because": "the supervisor's ground", **k}
 R1 = lambda defect, out="failed": {"rival": "UDP offers more than the link in both simulations", "rival_outcome": out, "doubt_if": "UDP goodput equal in both", "defect": defect, "because": "the supervisor's reason"}
 R2 = lambda result, fair=True, defect="none": {"shows": "what the two simulations give", "fair": fair, "defect": defect, "result": result, "because": "the supervisor's ruling", "retest": "" if fair else "compare parts below UDP's demand"}
 SCRIPT = {"answers": [
-  # 1: a guess, a hypothesis from it, its test: gate 0 accepts, gate 1 sends the test back
+  # 1: a guess, a hypothesis from it, its test: gate 0 accepts; gate 1 sends the test back in round 1 and 2 (the researcher repairs it in the same turn), and in round 3
+  #    the supervisor still objects: it runs as contested; the rule fails (UDP gets more at 0.7); the supervisor says "supported", which does not fit
   turn(whys=[why(["E0"], "the scheduler gives each flow its part")], hypotheses=[hyp("Y1", "UDP goodput falls when its part falls")], experiment=test("H1", "udp_goodput_bps@a > udp_goodput_bps@b", 0.3, 0.7)),
-  # 2: the same test again: the supervisor still objects, it runs as contested; the rule fails (UDP gets more at 0.7); the supervisor says "supported", which does not fit
-  turn(experiment=test("H1", "udp_goodput_bps@a > udp_goodput_bps@b", 0.3, 0.7), requests=[{"tool": "measure", "args": {"run_id": "r001", "of": "cwnd", "stat": "max"}}]),
+  REPAIR("udp_goodput_bps@a > udp_goodput_bps@b"), REPAIR("udp_goodput_bps@a > udp_goodput_bps@b"),
+  # 2: a turn that only looks
+  turn(requests=[{"tool": "measure", "args": {"run_id": "r001", "of": "cwnd", "stat": "max"}}]),
   # 3: an objection to the ruling; a guess that is not in the records (refused), and a hypothesis from it (falls with it); a verdict of the researcher's own (refused)
   turn(objections=[{"to": "V1", "because": "C1 failed, so the hypothesis is refuted, not inconclusive"}], whys=[why(["E1"], "the link carries more than 1 Gbps")], hypotheses=[hyp("Y2", "UDP goodput exceeds 1 Gbps")],
        verdicts=[{"for": "H1", "result": "supported", "because": "I say so", "next": "go on"}]),   # not a part of the short reply: sent anyway, it is refused
@@ -58,32 +67,34 @@ SCRIPT = {"answers": [
   turn(requests=[{"tool": "measure", "args": {"run_id": "r001", "of": "udp_bps + tcp_bps", "stat": "mean"}}, {"tool": "measure", "args": {"run_id": "r001", "of": "q_band0", "stat": "time_above", "level": 50, "t_from": 2, "t_to": 4}},
                  {"tool": "measure", "args": {"run_id": "r001", "of": "open('/etc/passwd')", "stat": "mean"}}] + [{"tool": "metrics", "args": {"run_id": "r001"}}] * 4),
   # 6: a test whose two simulations differ in two settings: refused with the reason, before the supervisor is asked
-  turn(hypotheses=[hyp("Y2", "UDP goodput also rises with a longer queue")], experiment={"kind": "test", "tests": ["H3"], "question": "", "runs": [d("p", 0.45), d("q", 0.85, queuePkts=500)], "measurements": [], "decision_rules": [{"for": "H3", "decision_rule": "udp_goodput_bps@q > udp_goodput_bps@p"}]}),
+  turn(hypotheses=[hyp("Y2", "UDP goodput also rises with a longer queue")], experiment={"kind": "test", "tests": ["H3"], "question": "", "runs": [d("p", 0.45), d("q", 0.85, queuePkts=500)], "measurements": [], "decision_rules": [{"for": "H3", "decision_rule": "udp_goodput_bps@q > udp_goodput_bps@p", **RIVAL}]}),
   # 7: the report: nothing is owed for the hypotheses (H3 stays open and untested)
   turn(report=REPORT)],
- "supervisor": [G("none"), R1("rival_passes_too", "held"),          # turn 1: the guess is sound; the test is sent back
-                R1("none", "held"), R2("supported"),                # turn 2: no defect named, but its own rival would pass: contested; "supported" on a failed check
+ "supervisor": [G("none"), R1("rival_passes_too", "held"),          # turn 1: the guess is sound; round 1: the test is sent back
+                R1("none", "held"), AGAIN("held"),                  # round 2: no defect named but its rival would pass: asked once more, still contradictory: a refusal
+                R1("rival_passes_too", "held"), R2("supported"),    # round 3: still refused: contested, it runs; "supported" on a failed check
                 G("not_in_the_records"), {"answer": "the objection is right: C1 failed in a test that could have held", "stands": False, "result": "refuted", "because": "C1 failed"},  # turn 3 (the guess is read first, in sort_out)
-                G("repeats", nearest_earlier="Y1"), R1("rival_passes_too", "failed"), R2("supported")]}   # turn 4: it names "a rival passes too" although its own rival would fail the rule: no defect stands
+                G("repeats", nearest_earlier="Y1"), R1("rival_passes_too", "failed"), AGAIN("failed"), R2("supported")]}   # turn 4: "a rival passes too" although the rival would fail the rule: asked once more, it says no defect: approved
 print("THE ARM “SUPERVISED”")
 led, meta = session("v1", "two-hosts-open-2", SCRIPT, "--arm", "supervised")
 fmt = json.loads((P / "sessions/v1/format_sent.json").read_text()); sent = json.loads((P / "sessions/v1/supervisor_sent.json").read_text()); log = [json.loads(l) for l in (P / "sessions/v1/supervisor.jsonl").read_text().splitlines()]
 EX = fmt["properties"]["experiment"]["anyOf"][0]; RP = fmt["properties"]["report"]["anyOf"][0]
-say(list(fmt["properties"]) == ["observations", "requests", "whys", "hypotheses", "drop", "experiment", "objections", "report"] and list(fmt["properties"]["whys"]["items"]["properties"]) == ["about", "result", "guess", "revises"]
-    and list(fmt["properties"]["hypotheses"]["items"]["properties"]) == ["from_why", "text"] and list(EX["properties"]) == ["kind", "tests", "question", "runs", "measurements", "decision_rules"] and list(EX["properties"]["decision_rules"]["items"]["properties"]) == ["for", "decision_rule"]
+say(list(fmt["properties"]) == ["observations", "findings", "requests", "whys", "hypotheses", "drop", "experiment", "objections", "decisions", "report"] and list(fmt["properties"]["whys"]["items"]["properties"]) == ["about", "result", "guess", "revises"]
+    and list(fmt["properties"]["hypotheses"]["items"]["properties"]) == ["from_why", "text"] and list(EX["properties"]) == ["kind", "tests", "question", "runs", "measurements", "decision_rules"] and list(EX["properties"]["decision_rules"]["items"]["properties"]) == ["for", "decision_rule", "rival", "rival_predicts"]
     and list(RP["properties"]) == ["goal", "recommendation", "limit", "explanation", "claims"] and set(EX["properties"]["runs"]["items"]["properties"]["params"]["required"]) == {"weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration"}
-    and meta["flags"].get("arm") == "supervised" and meta["flags"].get("judge") == "off" and "supervisor" in meta["flags"] and "A supervisor works apart from you" in meta["prompt"] and len(meta["prompt"]) < 8000
-    and not any(w in meta["prompt"] for w in ("rethink", "the judge", "rival", "prediction", "follows_from", "holds_when", "budget_request")),
-    f"the researcher's reply is short: eight parts ({', '.join(fmt['properties'])}); a guess is about, result, guess; a hypothesis is from_why and text; an experiment is its simulations, its own measurements and one rule for each test; the report is goal, recommendation, limit, explanation, claims. "
-    f"Its instructions are {len(meta['prompt'])} characters and ask for nothing else; a design still states every knob")
+    and meta["flags"].get("arm") == "supervised" and meta["flags"].get("judge") == "off" and "supervisor" in meta["flags"] and "A supervisor works apart from you" in meta["prompt"] and len(meta["prompt"]) < PROMPT_LIMIT
+    and not any(w in meta["prompt"] for w in ("rethink", "the judge", "prediction", "follows_from", "holds_when", "budget_request")) and "rival_predicts" in meta["prompt"],
+    f"the researcher's reply is short: ten parts with findings and decisions ({', '.join(fmt['properties'])}); a guess is about, result, guess; a hypothesis is from_why and text; an experiment is its simulations, its own measurements and one rule for each test with its rival; the report is goal, recommendation, limit, explanation, claims. "
+    f"Its instructions are {len(meta['prompt'])} characters with the findings text (one limit, {PROMPT_LIMIT}, since 2026-11-22) and ask for nothing else; a design still states every knob")
 rv = of(led, "review"); g0 = [r for r in rv if r["body"].get("gate") == "ground"]; g1 = [r for r in rv if r["body"].get("gate") != "ground"]
-say([r["turn"] for r in g1] == [1, 2, 4] and [r["body"]["decision"] for r in g1] == ["sent_back", "contested", "approved"] and g1[0]["body"]["defect"] == "rival_passes_too" and g1[1]["body"]["defect"] == "rival_passes_too"
-    and "no defect stands" in g1[2]["body"]["because"] and g1[2]["body"]["defect"] == "none" and not of(led, "experiment", 1) and not [r for r in of(led, "simulation", 1) if r["id"] != "S0"] and any("sent back" in (q[1] or "") for q in notes(led, 1)) and len(of(led, "experiment", 2)) == 1 and all(r["by"] == "supervisor" for r in rv),
-    f"gate 1: the test of H1 is sent back before any simulation (turn 1: no experiment, no simulation, a note; defect {g1[0]['body']['defect']}); sent again it is run and its review says “contested” "
-    f"(the supervisor named no defect, but under its own rival the rule would hold); the test of H2 is approved, because the defect the supervisor named is one its own rival does not support: {[(r['turn'], r['body']['decision']) for r in g1]}")
-v = of(led, "verdict"); c1 = of(led, "check", 2)
+say([(r["turn"], r["body"].get("round")) for r in g1] == [(1, 1), (1, 2), (1, 3), (4, 1)] and [r["body"]["decision"] for r in g1] == ["sent_back", "sent_back", "contested", "approved"] and g1[0]["body"]["defect"] == "rival_passes_too"
+    and (g1[1]["body"].get("again") or {}).get("still") and (g1[3]["body"].get("again") or {}).get("rival_outcome") == "failed" and g1[3]["body"]["defect"] == "none" and [r["body"]["round"] for r in of(led, "repair", 1)] == [2, 3]
+    and len(of(led, "experiment", 1)) == 1 and not of(led, "experiment", 2) and all(r["by"] == "supervisor" for r in rv),
+    f"gate 1 in rounds: the test of H1 is sent back in round 1 (defect {g1[0]['body']['defect']}), repaired by the researcher in the same turn, refused again in round 2 (its boxes still contradicted each other after one question) "
+    f"and in round 3: it runs as “contested”; the test of H2: its boxes contradicted each other, asked once more it named no defect: approved: {[(r['turn'], r['body'].get('round'), r['body']['decision']) for r in g1]}")
+v = of(led, "verdict"); c1 = of(led, "check", 1)
 say(len(v) == 3 and all(r["by"] == "supervisor" for r in v) and c1[0]["body"]["result"] == "failed" and v[0]["body"]["result"] == "inconclusive" and "does not fit the checks" in v[0]["body"].get("changed_by_harness", "") and v[0]["body"]["checks"] == [c1[0]["id"]]
-    and v[0]["body"].get("doubt_if") == "UDP goodput equal in both",
+    and v[0]["body"].get("doubt_if") == "UDP goodput equal in both" and v[0]["body"].get("contested") is True,
     f"gate 2: the ruling is the hypothesis's verdict, by the supervisor; “supported” on a check that FAILED is recorded as inconclusive, and the record says the harness changed it; the ruling carries what the supervisor said beforehand would make it doubt the test")
 ob = of(led, "objection")
 say(len(ob) == 1 and ob[0]["by"] == "model" and v[1]["turn"] == 3 and v[1]["body"].get("after") == ob[0]["id"] and v[1]["body"]["stands"] is False and v[1]["body"]["result"] == "refuted"
@@ -111,16 +122,16 @@ say(len(rep) == 1 and meta.get("how") == "done by the model" and not [q for q in
 seen = "\n".join(sent)
 sys.path.insert(0, str(P / "harness")); os.environ["HOME"] = str(SCR / "home")
 import importlib; loop = importlib.import_module("loop"); loop_schemas = {"review": loop.REVIEW_SCHEMA["properties"], "ruling": loop.RULING_SCHEMA["properties"]}
-say(len(sent) == 9 == len(log) and SECRET not in seen.replace("C1 failed, so the hypothesis is refuted, not inconclusive", "") and "THE GUESS of why it came out so: the scheduler gives each flow its part" in seen and "udp_goodput_bps@a > udp_goodput_bps@b" in seen
-    and "reading measure(" in sent[7] and '"of": "cwnd"' in sent[7] and "EVERY READING OF THE SESSION" in sent[0] and list(loop_schemas["review"])[-2:] == ["because", "defect"] and list(loop_schemas["ruling"])[:2] == ["shows", "because"]
-    and [q["gate"] for q in log] == ["ground", "design", "design", "ruling", "ground", "objection", "ground", "design", "ruling"] and all(q["shown"] and q["answer"] for q in log) and {q["id"] for q in log} <= {r["id"] for r in led},
+say(len(sent) == 13 and len(log) == 11 and SECRET not in seen.replace("C1 failed, so the hypothesis is refuted, not inconclusive", "") and "THE GUESS of why it came out so: the scheduler gives each flow its part" in seen and "udp_goodput_bps@a > udp_goodput_bps@b" in seen
+    and "reading measure(" in sent[10] and '"of": "cwnd"' in sent[10] and "EVERY READING OF THE SESSION" in sent[0] and (lambda o: o.index("because") < o.index("defect") and o.index("stronger_rival") < o.index("rival_is_weak") and o.index("under_rival") < o.index("rival_outcome"))(list(loop_schemas["review"])) and list(loop_schemas["ruling"])[:2] == ["shows", "because"]
+    and [q["gate"] for q in log] == ["findings", "ground", "design", "design", "design", "ruling", "ground", "objection", "ground", "design", "ruling"] and all(q["shown"] and q["answer"] for q in log) and {q["id"] for q in log} <= {r["id"] for r in led},
     f"the supervisor was asked {len(sent)} times, each in a request of its own; it was shown the guess, the hypothesis, the rules and the numbers, and nowhere the researcher's observations, its reasons for a guess or its question "
     f"(a marker put into each of them is in none of the requests); it is shown what the tools returned when the researcher looked at a simulation (a measurement of its own stands in the review that came after it); in its answer the ground is written before the decision; supervisor.jsonl holds what it was shown and answered for each of its records: {[q['gate'] for q in log]}")
 sys.path.insert(0, str(P / "harness")); os.environ["HOME"] = str(SCR / "home")
 import importlib; loop = importlib.import_module("loop")
 text = loop.render(led) if not setattr(loop, "LEDGER", P / "sessions/v1/ledger.jsonl") else ""
-say("SENT BACK, the test was not run" in text and "by the supervisor on H1: inconclusive" in text and "by the supervisor of a guess it did not accept" in text and "after your objection" in text and "run, but the supervisor still objects" in text,
-    "the ledger text the researcher reads holds each review and ruling in words: sent back, contested, a guess that was not accepted, a ruling after its objection")
+say("SENT BACK, and repaired in the same turn" in text and "round 3 of 3" in text and "your repair of the test of H1 for round 2" in text and "by the supervisor on H1: inconclusive" in text and "by the supervisor of a guess it did not accept" in text and "after your objection" in text and "run, but the supervisor still objects after the last round" in text,
+    "the ledger text the researcher reads holds each round, each repair and each ruling in words: sent back, repaired, contested, a guess that was not accepted, a ruling after its objection")
 # the other arms are as before
 ANS2 = [{"observations": "read", "rethink": [], "whys": [{"about": ["E0"], "result": "TCP delivers about half of the link", "guess": "the scheduler gives each flow its part", "unseen": "how it divides the link", "matters": "it decides the answer", "worth": "verify", "reason": "it serves the goal", "revises": None}],
          "hypotheses": [{"from_why": "Y1", "text": "UDP goodput rises with its part", "question": "Does it?", "why": "It decides the answer.", "prediction": "yes", "follows_from": []}], "drop": [],
@@ -134,7 +145,7 @@ say(len(of(led2, "check")) == 1 and not of(led2, "review") and not of(led2, "ver
 # one test sent back does not stop the tests the supervisor let through (2026-11-18, after s047: an approved test waited two turns behind sent-back ones)
 ANS3 = {"answers": [turn(whys=[why(["E0"], "the scheduler gives each flow its part")], hypotheses=[hyp("Y1", "UDP goodput rises with its part"), hyp("Y1", "TCP goodput falls when the part of UDP rises")],
                          experiment={"kind": "test", "tests": ["H1", "H2"], "question": "", "runs": [d("a", 0.3), d("b", 0.6), d("c", 0.8)], "measurements": [],
-                                     "decision_rules": [{"for": "H1", "decision_rule": "udp_goodput_bps@c > udp_goodput_bps@a"}, {"for": "H2", "decision_rule": "tcp_goodput_bps@a > tcp_goodput_bps@b"}]})],
+                                     "decision_rules": [{"for": "H1", "decision_rule": "udp_goodput_bps@c > udp_goodput_bps@a", **RIVAL}, {"for": "H2", "decision_rule": "tcp_goodput_bps@a > tcp_goodput_bps@b", **RIVAL}]}), "not a repair"],
         "supervisor": [{"records_show": "E0: TCP 482 Mbps at the default part", "nearest_earlier": "none", "defect": "none", "because": "it starts from E0"},
                        {"rival": "UDP offers more than the link in both simulations", "rival_outcome": "held", "doubt_if": "UDP is below its part in both", "defect": "rival_passes_too", "because": "the rival gives the same outcome"},
                        {"rival": "TCP is limited by its window", "rival_outcome": "failed", "doubt_if": "TCP is window-limited in both", "defect": "none", "because": "the rival would fail the rule"}]}
@@ -142,12 +153,12 @@ led3, meta3 = session("v3", "two-hosts-open-2", ANS3, "--arm", "supervised")
 g3, x3, n3 = [r for r in of(led3, "review") if r["body"].get("gate") != "ground"], [r for r in of(led3, "experiment") if r["by"] == "model"], [r["body"] for r in of(led3, "note", 1) if "part" in r["body"]]
 say([(r["body"]["for"], r["body"]["decision"]) for r in g3] == [("H1", "sent_back"), ("H2", "approved")] and len(x3) == 1 and x3[0]["body"]["tests"] == ["H2"] and [r["label"] for r in x3[0]["body"]["runs"]] == ["a", "b"]
     and [d_["for"] for d_ in x3[0]["body"]["decision_rules"]] == ["H2"] and len(of(led3, "simulation", 1)) == 2 and [c["body"]["for"] for c in of(led3, "check")] == ["H2"]
-    and [(v_["body"]["for"], v_["by"]) for v_ in of(led3, "verdict")] == [("H2", "supervisor")] and len(n3) == 1 and n3[0]["part"] == "tests H1" and "a part of the experiment was not run" in n3[0]["text"] and "run now: H2" in n3[0]["text"],
+    and [(v_["body"]["for"], v_["by"]) for v_ in of(led3, "verdict")] == [("H2", "supervisor")] and len(n3) == 1 and n3[0]["part"] == "repair of H1" and "could not be read" in n3[0]["text"] and "H1 stays open" in n3[0]["text"],
     f"one of two tests sent back: the approved one is run now (2 of the 3 simulations, its check, its ruling), the other waits and the note says so: {[(r['body']['for'], r['body']['decision']) for r in g3]}, tests run {x3 and x3[0]['body']['tests']}, {len(of(led3, 'simulation', 1))} simulations, note part {n3 and n3[0]['part']!r}")
 sup_text = json.loads((P / "sessions/v3/session.json").read_text())
 import importlib.util
 spec = importlib.util.spec_from_file_location("loop_read", P / "harness/loop.py"); src = (P / "harness/loop.py").read_text()
-say("A test need not run a new simulation" in src and "the very value the rule compares already stands" in src and "A value you can simply read is an observation, not a hypothesis" in meta3["prompt"] and "the other tests of the same experiment are run" in meta3["prompt"],
+say("A test need not run a new simulation" in src and "the very value the rule compares already stands" in src and "A value you can simply read is an observation, not a hypothesis" in meta3["prompt"] and "the other tests run meanwhile" in meta3["prompt"],
     "the supervisor is told that a new measurement of a simulation that already ran is a proper test, and the researcher that a plain reading is not a hypothesis")
 # the chain (2026-11-18, after s047: eight hypotheses in four turns, none tested, each guess from the baseline again). Test first; a later guess names
 # what was learned since the earlier guesses; the supervisor reads whether it really comes from that
@@ -169,7 +180,7 @@ say(len(of(led4, "why", 2)) == 0 and len(of(led4, "hypothesis", 2)) == 0 and any
     f"turn 2: a second guess from the baseline alone is refused (nothing was learned since the first), and so is a second hypothesis while H1 is untested: {[q[0] for q in n2]}")
 u4 = json.loads((P / "sessions/v4/users_sent.json").read_text()); s4 = json.loads((P / "sessions/v4/supervisor_sent.json").read_text())
 say([r["turn"] for r in y4] == [1, 3] and y4[1]["body"]["about"] == ["T1"] and [r["turn"] for r in h4] == [1, 3] and len(of(led4, "simulation", 3)) == 2 and [(v_["body"]["for"], v_["body"]["result"]) for v_ in of(led4, "verdict")] == [("H2", "supported")]
-    and "[T1] turn 2 reading measure(" in u4[2] and "<- NEW since the researcher's earlier guesses" in s4[1] and "would the researcher have made this same guess without them" in s4[1] and "NEW since" not in s4[0],
+    and "[T1] turn 2 reading measure(" in u4[2] and "<- NEW since the researcher's earlier guesses" in s4[2] and "would the researcher have made this same guess without them" in s4[2] and "NEW since" not in s4[1] and "WHAT HAS JUST BEEN MEASURED (X0)" in s4[0],
     "turn 3: a guess that names the reading T1 (made since the first guess) is accepted, H1 is given up, the new hypothesis is tested at once; the researcher sees the reading with its id, and the supervisor is shown which record is new and asked whether the guess comes from it")
 n5 = notes(led4, 4)
 say(len(of(led4, "why", 4)) == 0 and any(q[0] == "new why" and "does not come from the newer records it cites" in q[1] for q in n5),

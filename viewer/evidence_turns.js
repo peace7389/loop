@@ -12,7 +12,7 @@ Object.assign(EV, {
     simulator: ['ns-3', 'runs the simulations', 'each simulation and what it measured: the only source of measured numbers'] },
   TN_TOGETHER: ['simulation', 'request', 'result', 'note'],   // kinds that come many at a time: those that follow each other share one box; every other object has a box of its own
   // the column of a record: who made it. A verdict is the supervisor's in a two-agent session and the researcher's otherwise
-  tnCol(r) { return r.type === 'judge' ? 'judge' : r.type === 'review' ? 'supervisor' : r.type === 'simulation' ? 'simulator' : r.type === 'verdict' ? (r.by === 'supervisor' ? 'supervisor' : 'model') : r.by === 'model' ? 'model' : EV_BY[r.type] === 'model' && r.by !== 'harness' ? 'model' : 'harness'; },
+  tnCol(r) { return r.type === 'judge' ? 'judge' : r.type === 'finding' && r.by === 'supervisor' ? 'supervisor' : r.type === 'review' ? 'supervisor' : r.type === 'simulation' ? 'simulator' : r.type === 'verdict' ? (r.by === 'supervisor' ? 'supervisor' : 'model') : r.by === 'model' ? 'model' : EV_BY[r.type] === 'model' && r.by !== 'harness' ? 'model' : 'harness'; },
   // a text of an agent or of the harness, with every record id in it that exists (and is on the page at this step of the replay) as a link
   tnText(t) { const M = EV.M; return EV.e(String(t == null ? '' : t).replace(/\s+/g, ' ').trim()).replace(/\b[A-Z]{1,2}\d+\b/g, id => (M.byId[id] && EV.seen(id) ? EV.link(id) : id)); },
   // one record: { what: its kind in words, says: what was said or done (in full), ground: [label, html] rows of what it rests on, more: [label, long text] kept folded, warn }
@@ -21,6 +21,9 @@ Object.assign(EV, {
     const cut = (t, k) => { t = String(t == null ? '' : t).replace(/\s+/g, ' ').trim(); return t.length > k ? t.slice(0, k - 1) + '…' : t; }, G = rows => rows.filter(q => q && q[1]);
     switch (r.type) {
       case 'why': return { what: 'guess of why', says: T(b.guess), ground: G([['the result it starts from', T(b.result)], ['read in', ids(b.about)], b.revises && ['replaces', ids([b.revises])]]) };
+      case 'finding': return { what: 'finding: not explained yet', says: T(b.text), ground: G([['rests on', ids(b.about)]]) };
+      case 'decision': return { what: 'decides on ' + (b.for || 'a finding'), says: e(EV.FND_ACT[b.action] || b.action || '') + ((b.refs || []).length ? (b.action === 'park' ? ' ' : ' by ') + ids(b.refs) : ''), ground: G([['because', T(b.reason)], ['written by the harness', T(b.auto)]]) };
+      case 'findings_end': { const rows = b.findings || []; return { what: 'tally of the findings', says: n(rows.length, 'finding') + ': ' + rows.map(x => `${e(x.id)} ${e(x.status)}${x.never_looked_at ? ' (never looked at)' : ''}`).join(', '), ground: [] }; }
       case 'rethink': return { what: 'looks again at ' + (b.for || 'a guess'), says: `now ${e(b.now || '')}`, ground: G([['because', T(b.because)], ['in the light of', ids(b.in_light_of)]]) };
       case 'hypothesis': { const y = b.from_why && M.byId[b.from_why]; return { what: 'hypothesis', says: T(b.text), ground: G([['follows from the guess', b.from_why ? `${ids([b.from_why])}${y ? ': ' + T(cut(y.body.guess, 160)) : ''}` : ''], b.prediction && ['predicts', T(b.prediction)]]) }; }
       case 'judge': return { what: 'reads a new hypothesis against its guess', says: b.follows ? 'the hypothesis follows from the guess' : 'the hypothesis does not follow from the guess', ground: G([['because', T(b.because)], ['the hypothesis', T(cut(b.hypothesis, 160))], ['the guess', T(cut(b.guess, 160))]]), warn: !b.follows };

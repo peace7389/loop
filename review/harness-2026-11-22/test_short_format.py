@@ -27,6 +27,8 @@ ENV = {**os.environ, "HOME": str(SCR / "home")}
 os.environ["HOME"] = str(SCR / "home"); sys.path.insert(0, str(P / "harness"))
 import loop
 FAILED = []
+if not getattr(loop, "SHORT_FORMAT", True):   # the deployed harness keeps the short format off (2026-11-22: deployed A, B and D only): nothing of it to check
+    print("RESULT: SKIP the short format is switched off in this harness (SHORT_FORMAT = False)"); sys.exit(0)
 def say(ok, text):
     print(f"  {'ok  ' if ok else 'FAIL'} {text}", flush=True)
     if not ok: FAILED.append(text[:50])
@@ -136,7 +138,7 @@ say(of(led1, "report") and meta.get("how") == "done by the model" and any(r["bod
     f"the report ends the session ({meta.get('how')}), with Y2 never taken up")
 fh = fmt["properties"]
 say(meta["flags"].get("format") == "short" and "arm" not in meta["flags"] and "budget_request" not in fh and "prediction" not in fh["hypotheses"]["items"]["properties"]
-    and "worth" not in fh["whys"]["items"]["properties"] and not any("budget_request" in u for u in users) and meta.get("prompt") == loop.short_prompt(full),
+    and "worth" not in fh["whys"]["items"]["properties"] and not any("budget_request" in u for u in users) and meta.get("prompt") == loop.short_prompt(full) + getattr(loop, "FINDINGS_TEXT", {}).get("hypotheses", ""),
     "the session records the format “short”; the format sent to the model and every turn's text name no dropped field; its instructions are the short ones")
 _, metaS, usersS, _ = session("s1", "two-hosts-open-2", {"answers": []}, "--arm", "supervised", "--budget", "6")
 _, metaP, usersP, _ = session("p1", "two-hosts-open-2", [], "--arm", "plain", "--budget", "6")

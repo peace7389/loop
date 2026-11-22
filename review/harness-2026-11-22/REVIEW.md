@@ -201,3 +201,116 @@ as for every defect. "a rival passes too" named with a rival that fails the rule
 now stands.
 
 Check: `test_rival_cannot_tell.py` (new, on a copy of s050's ledger, no simulation): passes on this loop.py, fails on the one before.
+
+
+---
+
+# Fifth commit (A): findings, unexplained results tracked until they are closed (2026-11-22, later)
+
+The operator, after a review of s047 to s049: the researcher noticed things the results did not explain and then left them ("parked and forgotten";
+in s048 and s049 six guesses were set aside and none was taken up again). Both agents are the local model Qwen/Qwen3.8-Flash-Next-FP8.
+
+- **A finding** F*n*: who raised it (researcher or supervisor), `about` (the records it rests on, readings included) and `text` (one sentence with its
+  numbers). Its status changes only by the researcher's decisions A*n*: work (refs: a guess, hypothesis, experiment or reading), park (a reason), close
+  (refs: evidence, checks, verdicts or readings), same_as (another finding). A "work" decision without refs counts as worked on, not as looked at
+  (the operator's change after the review of this design).
+- **The answer** (every arm): `findings: [{about, text}]` right after observations, `decisions: [{id, action, refs, reason}]` right before the report.
+  Observations no longer ask for "the most important unexplained thing": that is a finding. A guess whose `about` names F*n* is about the records F*n*
+  rests on, and works on it (the harness writes the decision).
+- **Each turn** starts with the FINDINGS list: who raised each, its status, which are due. Open ones are due every turn; a parked one, and a working one
+  with nothing new linked to it, after `PARK_TURNS = 2`.
+- **The report**: while the researcher can still work (simulations or free turns left) it is held back if a finding was never looked at (no reading,
+  check or evidence reaches it), at most `FINDING_HOLDS = 2` times; in the last turn a finding not closed is added to `open_questions` by the harness.
+- **The supervisor** (arm "supervised"): up to 2 findings when it rules on a test, and in one call after the baseline and after each explore experiment
+  (results with no ruling). What is unexplained, never why; kept only if its ids exist and its text holds a number. It is shown the findings list,
+  never the researcher's observations.
+- **No cascade**: findings and decisions are sorted out after every other part; one that cannot be used gives a note and nothing else is refused.
+- **End of session**: one record Z with, for each finding, its status, the turns it stayed open, what looked at it, and "never looked at".
+- **Readers**: `session_figures.findings_counts` (raised by each agent; closed, parked, working, unresolved; turns open; never looked at), in the
+  session row of control.py and in exports; None for every earlier session. `answers.jsonl` keeps each answer as it was received (before the findings
+  fill-in). audit.py and score.py read records by type and do not see the new ones.
+- **The page** (viewer, kept with this branch): each finding is a bar under the hypotheses, from the turn it was raised to the turn it was settled; the
+  board gets a column for every turn the findings span; outlined = open, filled = worked on, dashed = parked, end cap = closed, chevron = still open;
+  a magnifier (researcher) or an eye (supervisor); "!" = never looked at. Pointing at a bar outlines its hypotheses and the reverse; a click opens its
+  history. Turn by turn shows the new records.
+- **Instruction size** (measured): the findings text adds 1,480 characters (ordinary arm), 1,317 (plain) and 1,578 (supervised); the reworded
+  observations line keeps prompt.txt at its length. The supervised arm's own instructions (`LEAN_PROMPT`) are checked apart from it (< 8,000).
+- **Check**: `test_findings.py`.
+
+# Sixth commit (B): the review of a test before it runs, in rounds (the arm "supervised"; 2026-11-22, later)
+
+The operator, after the reviews of s047 and s050: the supervisor invented the rival itself; its two boxes (defect, rival_outcome) disagreed 12 times
+in s047 and the harness sided with rival_outcome each time; all 3 inconclusive verdicts of s047, and H1 and H4 of s050, came from those tests; a test
+sent back once ran anyway on the second try. This replaces the fourth commit's "cannot tell" rule (removed, with its check).
+
+1. The researcher states each rule's `rival` and `rival_predicts` (the fields and the check of the arm "hypotheses", shared as `rival_problem`).
+2. `rival_predicts` "held" (or no rival): that test alone is refused by the harness with no call to the supervisor; the other tests go on.
+3. The supervisor judges the researcher's rival; its form puts the reasoning before each box: reads; stronger_rival, rival_is_weak; under_rival,
+   rival_outcome; doubt_if; because, defect; feedback. Approved only with defect none, no clearly stronger rival and rival_outcome "failed".
+4. Boxes that contradict each other (defect none with held / cannot tell / a stronger rival; "a rival passes too" with failed): one direct question,
+   then the decision from its answer; still contradictory, a refusal.
+5. Feedback says what is wrong, never the repair; a sentence that holds a decision rule (measure@label) is cut, with a note.
+6. A refused test is repaired by the researcher in the same turn: a short call (shown the hypothesis, its guess, the test, the round, the feedback, what
+   was measured, the knobs) that asks only for decision_rule, rival, rival_predicts and the runs if they change. The repair is checked by the harness
+   as any test (a check that fails is a round of the harness's, its reason the feedback) and reviewed again. `REVIEW_ROUNDS = 3`, then `AFTER_ROUNDS`:
+   "contested" (it runs; the review and the ruling say the supervisor still objects; the verdict carries `contested`) or "dropped" (a drop record by
+   the harness with the supervisor's last reason). A repair that cannot be read: a note, the test does not run this turn, nothing else is refused.
+7. **Order (a change from the plan, found by the checks)**: every repair round ends before any simulation of the experiment runs; then the approved
+   tests run, and each repaired test as an experiment of its own, all in the same turn. Run first, the approved tests' results were shown to the
+   researcher before it fixed the repaired rule; on shared simulations the harness then refused that rule as one that "names only results already
+   in the ledger". An approved test is never held to a later turn by a refused one.
+8. Records: each round is a review record (round, the test as proposed, all boxes, feedback, cut, the question asked again and its answer, the
+   decision: approved, sent_back, contested, dropped; by the supervisor, or the harness); each repair is a record P*n* of the researcher's.
+9. Figures: `session_figures.design_rounds` (tests proposed, reviewed, rounds per test, approved in round 1, repaired then approved, contested,
+   dropped, unsettled, refused by the harness), None for earlier sessions.
+10. The page: a test's "Review" line lists the rounds (the test as proposed or repaired, who answered, the decision, the feedback, a cut, the question
+    asked again); earlier sessions are drawn as before.
+
+Unchanged: the ruling after the runs and the one objection; the arms "hypotheses" and "plain" (they share `rival_problem`, same messages). The
+supervisor never sees the researcher's observations. `LEAN_PROMPT`: 7,933 -> 7,977 characters with A and B (the observations line, the rival fields
+and the rounds, less the list of statistics the format already gives).
+
+Checks: `test_design_rounds.py` (new; scripted sessions with stand-in agents for every case), `test_supervised.py` (turns 1 and 2 now in rounds; the
+findings call after the baseline), `test_findings.py`, `test_arms.py`, `test_short_format.py` (the findings text in the instructions), `scripted.py`
+(the stand-in supervisor answers the new forms; `SCRIPTED_SET` sets a constant of the loop for one session). `test_rival_cannot_tell.py` is retired.
+
+# Seventh commit (D): a guess is never refused for good (the arm "supervised"; 2026-11-22, later)
+
+The operator, after s050 and s051: most guess refusals came from the supervisor's defect "not_from_what_was_learned" (the chain rule live since that
+morning): s047 1 refusal in 20 guesses, s050 3 of 14 and s051 4 of 9, and in s050 turn 6 a guess that quantified an earlier one with new readings was
+refused. A refused guess took its hypotheses and the experiment down with it (s051: 8 turns, no simulation; 6 hypotheses and 1 experiment fell).
+
+1. `GROUND_WARNINGS = ("not_from_what_was_learned",)`: that defect is recorded as a warning; the guess is accepted, its review says "accepted with
+   a warning". Under this rule s050 would have refused 0 guesses (3 before), s051 1 (4 before).
+2. `RESTATE_GUESSES = True`: any other refusal of a guess (the harness's own checks, the chain rule among them, or the supervisor's) brings one
+   restatement in the same turn: a short call to the researcher with the reason, the guess as stated, what was learned since its last guess and what
+   was measured, in the guess's own format. The restatement is checked again: by the harness alone when the harness refused it (no call to the
+   supervisor), by the supervisor too when the supervisor did. Then the guess is accepted: contested if it still fails (even if its about changed);
+   a restatement that cannot be read leaves the guess as first stated, contested. Its hypotheses and test go ahead in that turn; nothing cascades.
+   The why record keeps `restated` (by whom, the reason, the first statement) and `contested` (what still fails).
+3. Instructions (supervised arm): a guess not accepted "comes back to you once, in the same turn, to restate"; revises also names "an earlier guess
+   it states more exactly with new numbers or a narrower cause". One limit on the whole instructions with the findings text: 10,000 characters.
+4. `session_figures.guess_reviews`: guesses, warnings, restated, contested; None for earlier sessions.
+5. The page: a guess's review shows "a warning" (not "it still objects"); a restated guess shows its restatement and whether it was contested.
+
+Checks: `test_guess_restate.py` (new: a warning; a harness refusal restated and checked by the harness alone; a supervisor refusal restated and read
+again; an unreadable restatement; the figures; the instructions; s047 to s051 render as before). `test_supervised.py` keeps its sessions written
+before D with `RESTATE_GUESSES` off and no warnings (`SCRIPTED_SET`), and checks one limit of 10,000 on the whole instructions.
+
+# What was deployed (2026-11-22, the operator: "Deploy A, B and D together, nothing else")
+
+Live: part 1 (readings as evidence, free turns, everything recorded shown back), which A needs, and A, B, D. Left out, still under review on this
+branch: part 2 (crossings, corr, lag, `with`, taps, trace_points: the live tools.py, schema.json, manifest.json, network.py and its two sentences
+of the instructions are kept) and part 3 (the short format of the single-AI arm: `SHORT_FORMAT = False` in the deployed loop.py). Part C stays
+shelved. The deployed harness is made from this branch by `derive_dep.py` (in this folder). The checks report SKIP for parts 2 and 3 where they
+are off.
+
+**Results of the fifth to seventh commits** (2026-11-22, 16:10 to 17:00, real ns-3 runs of 2 s; stand-in agents for the model):
+- this branch (parts 1 to 3, A, B, D): all 23 harness checks pass (`test_findings` once more after the size check became the one limit of 10,000);
+- the deployed harness (`derive_dep.py`: parts 2 and 3 off): 20 pass, 3 report SKIP (test_short_format, test_measure_relations, test_taps);
+- page checks on the deployed page (ev_all.sh, a scratch copy): bar, home, lean, map, nr, page, random, replay_s006, replay_s011, replay_s014,
+  test_s006, test_s014: all ok. The findings bars and the rounds list were checked on scripted sessions (screenshots), and s047 to s051 open on the
+  live page without a script error after the deploy (17:05).
+- The repair and review prompts of one scripted test: `prompts_round2_example.txt`. Sizes: in that scripted session the repair prompt is 611
+  tokens and the review 1,545; in s050 a review was about 16,500 tokens in and 4,700 out (about 55 s), so a refused test costs per extra round one
+  repair call (about 1,000 to 3,000 in) and one review (about 16,500 in, 4,700 out), and a contradiction one more review-sized call.

@@ -5,7 +5,9 @@
 Object.assign(EV, {
   // A record's name is a letter and a number: the letter says what kind of record it is, the number is its order among its kind in this session.
   // [the kind in plain words, what such a record is, who writes it]
-  ID_SAYS: { Y: ['guess of why', 'the AI’s informed guess of why a result came out as it did; a hypothesis comes from one', 'model'], J: ['judge’s reading', 'a second model call read a guess and the hypothesis said to come from it, and said whether testing the one would tell if the other is true; it can be wrong', 'harness'], K: ['guess looked at again', 'the AI looked at an earlier guess again in the light of later results', 'model'],
+  ID_SAYS: { F: ['finding', 'one thing the results did not explain, raised by the researcher or the supervisor; it stays on the researcher’s list until it is closed', 'model'],
+             A: ['decision on a finding', 'the researcher’s decision on a finding: worked on, parked, closed or the same as another', 'model'],
+             Z: ['tally of the findings', 'at the end, for each finding: how it ended, how long it stayed open, and what looked at it', 'harness'], Y: ['guess of why', 'the AI’s informed guess of why a result came out as it did; a hypothesis comes from one', 'model'], J: ['judge’s reading', 'a second model call read a guess and the hypothesis said to come from it, and said whether testing the one would tell if the other is true; it can be wrong', 'harness'], K: ['guess looked at again', 'the AI looked at an earlier guess again in the light of later results', 'model'],
     H: ['hypothesis', 'a statement of the AI that a test can refute', 'model'], X: ['experiment', 'one batch of simulations', 'model'], S: ['simulation', 'one run of ns-3', 'simulator'],
     E: ['result table', 'the measures of one experiment’s simulations, as the harness showed them to the AI', 'harness'], C: ['check', 'the harness’s check of one decision rule against the measurements', 'harness'],
     V: ['verdict', 'the AI’s judgement of a hypothesis', 'model'], N: ['note', 'a note the harness wrote into the record: most often which part of an answer it refused, and why', 'harness'],
@@ -16,7 +18,7 @@ Object.assign(EV, {
     if (!r) return `<span class="mut">${e(id)}</span>`;
     const b = r.body || {}, ct = r.type === 'check' && M.tests.find(t => t.check && t.check.id === id);  // a check opens the test it belongs to
     const to = { why: ['why', id], rethink: ['why', b.for], hypothesis: ['hyp', id], verdict: ['hyp', b.for], drop: ['hyp', b.for], experiment: ['exp', id], check: ct ? ['test', ct.id] : ['exp', r.parent], simulation: ['sim', id], report: ['report', 'report'],
-      evidence: M.simById[id] ? ['sim', id] : ['exp', b.experiment || r.parent] }[r.type] || ['log', r.turn];
+      evidence: M.simById[id] ? ['sim', id] : ['exp', b.experiment || r.parent], finding: ['finding', id], decision: ['finding', b.for] }[r.type] || ['log', r.turn];
     // a note, a request, a tool's result, a turn's record, a result table: their names ("N3", "E2") say nothing by themselves, so a box says what the letter stands for and what the record holds
     const box = ['note', 'request', 'result', 'turn', 'evidence'].includes(r.type);
     return `<a data-act="open" data-t="${to[0]}" data-id="${e(to[1])}"${r.type === 'hypothesis' ? ` data-wd="h:${e(id)}"` : r.type === 'why' || r.type === 'rethink' ? ` data-wd="y:${e(to[1])}"` : box ? ` data-wd="r:${e(id)}"` : ` title="${e((EV.ID_SAYS[(/^[A-Z]+/.exec(id) || [''])[0]] || [r.type])[0])}"`}>${EV_ICON[r.type] || ''} ${e(id)}</a>`;
@@ -54,7 +56,7 @@ Object.assign(EV, {
     const k = EV.stepOf(sel);
     if (S.step != null && k != null && k > S.step) return `<p class="sm">The item opened here was recorded after step ${S.step + 1}; while the replay is at that step it is not shown.</p>`;
     const body = sel.t === 'log' ? EV.logCard(sel.id) : sel.t === 'hyp' ? EV.hypCard(sel.id) : sel.t === 'why' ? EV.whyCard(sel.id) : sel.t === 'test' ? EV.testPanel(sel.id) : sel.t === 'exp' ? EV.expPanel(sel.id) : sel.t === 'sim' ? EV.simPanel(sel.id)
-      : sel.t === 'brief' ? EV.briefCard() : sel.t === 'report' ? EV.reportBody() : sel.t === 'meas' && EV.measCard ? EV.measCard(sel.id) : '<p class="sm">Nothing to open.</p>';
+      : sel.t === 'brief' ? EV.briefCard() : sel.t === 'report' ? EV.reportBody() : sel.t === 'meas' && EV.measCard ? EV.measCard(sel.id) : sel.t === 'finding' && EV.fndCard ? EV.fndCard(sel.id) : '<p class="sm">Nothing to open.</p>';
     return EV.trail(sel) + body + EV.reviewBox(`${sel.t}:${sel.id}`);
   },
 

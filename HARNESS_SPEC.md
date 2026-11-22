@@ -1243,10 +1243,30 @@ from a review of s047 and s048.*
   hypothesis's question and why, why.unseen and matters, each rule's rival, rethinks, verdicts, the whole report. In both short
   formats designs are compared as trim compares them (`as_run`: 100 and 100.4 packets are one value), and the turn's text names
   budget_request only to the formats that have it (the arm "plain", sessions in the full format).
-- The supervisor's review before a test runs (gate 1, the arm "supervised"): a rival it says it "cannot tell" from the guess (what the rule would
-  do under it) sends the test back as "a rival passes too", like a rival under which the rule holds (s050: H1 and H4 approved so, then ruled
-  inconclusive; in s044 to s050, 4 of 9 such approved tests ended inconclusive). Sent back once; sent again it runs, as before.
-- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py, test_measure_relations.py, test_taps.py, test_short_format.py, test_rival_cannot_tell.py (new);
+- Findings (every arm): a finding F*n* is one thing the results do not explain (about: the records it rests on; text: one sentence with its
+  numbers), raised by the researcher (`findings` in its answer) or, in the arm "supervised", by the supervisor (in its ruling, and in one call after
+  the baseline and each explore experiment: what is unexplained, never why; kept only with ids that exist and a number). Its status changes only by
+  the researcher's decisions A*n* (`decisions`: work with refs, park with a reason, close with evidence, same_as); a work decision without refs counts
+  as worked on, not as looked at; a guess whose about names F*n* works on it. Every turn begins with the FINDINGS list; open findings are due each
+  turn, parked and idle working ones after PARK_TURNS = 2. A report offered while the researcher can still work is held while a finding was never
+  looked at (at most FINDING_HOLDS = 2 times); in the last turn the harness adds every finding not closed to open_questions. A record Z at the end
+  tallies each finding. Nothing about findings refuses another part. `session_figures.findings_counts`; the page draws a bar per finding under
+  the hypotheses.
+- The review of a test before it runs, in rounds (gate 1, the arm "supervised"; it replaces the "cannot tell" rule of the fourth commit): the
+  researcher states each rule's rival and rival_predicts (`rival_problem`, shared with the arm "hypotheses"; "held" is refused before any call);
+  the supervisor judges that rival (each box after its reasoning: stronger_rival, rival_is_weak; under_rival, rival_outcome; because, defect;
+  feedback), approved only with no defect, no stronger rival and rival_outcome "failed"; contradicting boxes get one direct question, a second
+  contradiction is a refusal; feedback never holds a decision rule (cut, with a note). A refused test is repaired by the researcher in the same
+  turn (a short call: the test only), re-checked by the harness and reviewed again, REVIEW_ROUNDS = 3, then AFTER_ROUNDS ("contested": it runs and
+  the ruling knows; "dropped"). Every round ends before any simulation of the experiment runs; then the approved tests run, each repaired one as an
+  experiment of its own, in the same turn. Each round is a review record, each repair a record P*n*. `session_figures.design_rounds`.
+- Guesses (the arm "supervised"; part D): the supervisor's "not_from_what_was_learned" is a recorded warning (the guess is accepted); any other
+  refusal of a guess (the harness's chain rule among them, or the supervisor's) brings one restatement in the same turn, checked again (by the
+  harness alone when the harness refused it), then the guess is accepted, contested if it still fails: its hypotheses and test go ahead.
+  `session_figures.guess_reviews`. One limit on the supervised arm's whole instructions (findings text included): 10,000 characters.
+- Deployed on 2026-11-22 (the operator: A, B and D, nothing else): part 1 (which A needs), A, B and D; parts 2 and 3 stay here
+  (`derive_dep.py` makes the deployed harness: the live tools.py, schema.json, manifest.json, network.py; `SHORT_FORMAT = False`).
+- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py, test_measure_relations.py, test_taps.py, test_short_format.py, test_findings.py, test_design_rounds.py, test_guess_restate.py (new);
   test_supervised.py (the readings' new form; readings and observations kept, the supervisor never sees an
   observation). In a last turn (8.8) requests are
 not taken.

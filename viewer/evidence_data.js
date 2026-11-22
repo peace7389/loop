@@ -23,7 +23,7 @@ const EV_DEF = {  // the definitions, word for word; shown on hover wherever the
 };
 const EV_ICON = { brief: '▤', why: '', rethink: '↺', judge: '⇝', hypothesis: '', drop: '✂', experiment: '▣', test: '⚗', simulation: '', evidence: '≡', check: '', verdict: '⚖', report: '',
                   note: '✎', malformed: '', request: '⇄', result: '↩', turn: '↻', review: '⚑', objection: '↯' };  // one fixed symbol per record type; those left empty here are drawn marks, set in evidence_marks.js
-const EV_BY = { why: 'model', rethink: 'model', judge: 'harness', hypothesis: 'model', drop: 'model', experiment: 'model', verdict: 'model', report: 'model', request: 'model', simulation: 'simulator',
+const EV_BY = { finding: 'model', decision: 'model', findings_end: 'harness', why: 'model', rethink: 'model', judge: 'harness', hypothesis: 'model', drop: 'model', experiment: 'model', verdict: 'model', report: 'model', request: 'model', simulation: 'simulator',
                 evidence: 'harness', check: 'harness', malformed: 'harness', note: 'harness', result: 'harness', turn: 'harness', review: 'supervisor', objection: 'model' };
 
 const EV_DATA = {
@@ -110,7 +110,7 @@ const EV_DATA = {
       t.verdict = v && (v.turn > t.turn || (v.by === 'supervisor' && v.turn === t.turn && pos[v.id] > pos[t.exp])) && !tests.some(q => q.hyp === t.hyp && q.turn > t.turn && q.turn < v.turn) ? v : null;
       // what the supervisor did with this test: its review of the design before the simulations (the last one before the experiment; an earlier one sent the test back), its first ruling, the objection to it
       const rv = recs.filter(r => r.type === 'review' && r.body.gate !== 'ground' && r.body.for === t.hyp && pos[r.id] < pos[t.exp] && !tests.some(q => q.hyp === t.hyp && pos[q.exp] < pos[t.exp] && pos[q.exp] > pos[r.id]));
-      t.reviews = rv.map(r => ({ id: r.id, turn: r.turn, ...r.body }));
+      t.reviews = rv.map(r => ({ id: r.id, turn: r.turn, by: r.by, ...r.body }));   // by: a round may be the harness's (2026-11-22)
       const rul = recs.filter(r => r.type === 'verdict' && r.body.for === t.hyp && D.by(r) === 'supervisor' && (r.body.experiment === t.exp || (r.body.after && recs.some(q => q.id === (byId[r.body.after] || {}).parent && q.body.experiment === t.exp))));
       t.rulings = rul.map(r => ({ id: r.id, turn: r.turn, ...r.body })); t.objections = recs.filter(r => r.type === 'objection' && rul.some(q => q.id === r.body.to)).map(r => ({ id: r.id, turn: r.turn, ...r.body })); });
     hyps.forEach(h => { h.tests = tests.filter(t => t.hyp === h.id).map(t => t.id); });
