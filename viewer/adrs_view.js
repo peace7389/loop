@@ -668,11 +668,12 @@ const TH_DATA = {
 
   // series.csv text -> columns; drops become per-sample counts
   csv(text) {
+    // the two-host program writes udp_bps, tcp_bps and cwnd; a network whose flows are named udp and tcp writes udp_bps and tcp_bps too, but its window is tcp_cwnd (s045, s047: taken for the two-host form, its window chart failed)
     const lines = String(text || '').trim().split('\n'); if (lines.length < 3) return null;
     const head = lines[0].split(','), col = n => head.indexOf(n), rows = lines.slice(1).map(l => l.split(',').map(Number));
     const get = n => (col(n) < 0 ? null : rows.map(r => r[col(n)]));
     const diff = a => a.map((v, i) => (i ? v - a[i - 1] : v));
-    const two = col('udp_bps') >= 0, d2 = a => (a ? diff(a) : null);  // two-hosts writes these columns; the program that builds a network names its columns by its flows and links
+    const two = col('udp_bps') >= 0 && col('cwnd') >= 0, d2 = a => (a ? diff(a) : null);  // two-hosts writes these columns; the program that builds a network names its columns by its flows and links
     return { cols: Object.fromEntries(head.filter(n => n !== 't').map(n => [n, get(n)])), t: get('t'), udp: two ? get('udp_bps') : null, tcp: two ? get('tcp_bps') : null, cwnd: get('cwnd'), d0: d2(get('drops_band0')), d1: d2(get('drops_band1')),
              q0: get('q_band0'), q1: get('q_band1') };  // packets waiting in each queue; null for runs made before they were recorded
   },

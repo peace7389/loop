@@ -444,17 +444,41 @@ def shown(r, st):
         return f"to {b['to']}: {flat(b['because'])}"
     if t == "malformed":
         return f"an answer the harness could not use, so nothing in it was recorded or run: {flat(b['error'])}"
+    if t == "note" and r.get("by") == "model" and b.get("requests"):
+        return "a turn of requests only: " + "; ".join(f"{q.get('tool')}({json.dumps(q.get('args') or {})})" for q in b["requests"] if isinstance(q, dict))
     return json.dumps(b)
 
-def render(ledger, readings=False):
-    """The ledger as text for the prompt: one line per record, and in an evidence record one line per simulation. readings (the arm "supervised"):
-    what each tool returned stays in it as one short line with its id, so that a later guess can name the reading it starts from."""
+def reading(r, by):
+    """One reading: what a tool returned when the researcher looked, with its id, its turn, the tool and its arguments, in full up to CAP characters
+    (its line breaks kept). The researcher's ledger text and the supervisor are given every reading of the session, the same way (2026-11-22, the
+    operator: "keep every lookup result in the notebook, so both agents see the same thing"). Until then a reading was shown once, in the turn after
+    its request (the arm "supervised": then one line of 260 characters), and the supervisor a selection of its own."""
+    out, args = str(r["body"].get("result")), json.dumps((by.get(r.get("parent")) or {}).get("body", {}).get("args") or {})
+    return f"[{r['id']}] turn {r['turn']} reading {r['body'].get('tool')}({args}) returned:\n    " + out[:CAP].replace("\n", "\n    ") + (f"\n    (cut here: {len(out)} characters in all)" if len(out) > CAP else "")
+
+def render(ledger, readings=True):
+    """The ledger as text for the prompt: one line per record, and in an evidence record one line per simulation. Every reading (what a tool returned)
+    stays in it in full, in its place, with its id, so that the researcher keeps all it found and a later guess can name the reading it starts from.
+    The researcher's own observations of each turn stand in it too, in their place, as "turn N your observations: ..." (2026-11-22, the operator:
+    "I want the researcher to see all lookup results and its own observations previously accumulated all the time"): until then a turn's
+    observations were kept in its first record but shown only for a turn of requests only. The supervisor is never given them.
+    readings: no longer used (every arm keeps the readings since 2026-11-22)."""
     st = dict(states(ledger)[0])
     for y, w in why_states(ledger).items():   # a why with its standing now, and whether results have come in since it was last settled
         st[y] = {**w, "stale": since(ledger, w["at"]) if w["worth"] == "verify" else [], "idle": w["worth"] == "verify" and not any(r["type"] == "hypothesis" and r["body"].get("from_why") == y for r in ledger)}
     by = {r["id"]: r for r in ledger}
-    read = lambda r: f"[{r['id']}] turn {r['turn']} reading {r['body'].get('tool')}({json.dumps((by.get(r.get('parent')) or {}).get('body', {}).get('args') or {})}) returned: " + " ".join(str(r["body"].get("result")).split())[:260]
-    return "\n".join(read(r) if r["type"] == "result" else f"[{r['id']}] turn {r['turn']} {r['type']} " + shown(r, st)[:CAP] for r in ledger if r["type"] not in HIDDEN or (readings and r["type"] == "result")) or "(empty)"
+    out = []
+    for r in ledger:
+        b = r.get("body") or {}
+        if r.get("by") == "model" and b.get("observations"):
+            out.append(f"turn {r['turn']} your observations: " + " ".join(str(b["observations"]).split())[:CAP])
+        if r["type"] == "note" and r.get("by") == "model" and not b.get("requests"):
+            continue   # a note that holds only the observations of an answer none of whose parts was recorded
+        if r["type"] == "result":
+            out.append(reading(r, by))
+        elif r["type"] not in HIDDEN:
+            out.append(f"[{r['id']}] turn {r['turn']} {r['type']} " + shown(r, st)[:CAP])
+    return "\n".join(out) or "(empty)"
 
 class ModelServerError(RuntimeError):
     pass
@@ -502,6 +526,24 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
     ch = r["choices"][0]
     return ch["message"].get("content") or "", ch["message"].get("reasoning") or "", ch.get("finish_reason"), r.get("usage", {})
 
+# ---- every call of the model, as it was made (2026-11-22, the operator: a page of their own to see what the agents are shown and what they write):
+# sessions/<id>/calls.jsonl, one line per call: which agent (researcher, judge, supervisor), the two messages it was given, what it wrote before its
+# answer, its answer, the counts of tokens, why it stopped and how long it took. No tool and no model reads it; the server gives it only to the
+# page of the account that runs it (control.py, /api/agents). The calls go through here, so a scripted session (harness_checks) writes it too.
+CALLS = {"n": 0, "turn": 0}
+def called(agent, model, system, user, schema, draft, temperature, max_tokens):
+    t0 = time.time()
+    content, reasoning, finish_reason, usage = ask(model, system, user, schema, draft, temperature, max_tokens)
+    CALLS["n"] += 1
+    try:
+        with (tools.SESSION / "calls.jsonl").open("a") as f:
+            f.write(json.dumps({"n": CALLS["n"], "turn": CALLS["turn"], "agent": agent, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "seconds": round(time.time() - t0, 1),
+                                "model": model, "draft": bool(draft), "temperature": temperature, "max_tokens": max_tokens, "system": system, "user": user,
+                                "reasoning": reasoning, "answer": content, "finish_reason": finish_reason, "usage": usage}) + "\n")
+    except (OSError, TypeError, ValueError):
+        pass   # the record of a call never stops the session
+    return content, reasoning, finish_reason, usage
+
 # ---- the judge (2026-11-17, the operator's decision): a second model call that reads one guess of why and one hypothesis said to come from it, and says whether
 # testing the hypothesis would tell if the guess is true. The harness could only check that the guess exists (s041: H2 named a guess about the 1 MB / 20 ms
 # cap and was about measuring for 30 s instead of 10 s). A hypothesis the judge finds unconnected is refused, with the judge's reason. The judge can be wrong:
@@ -525,7 +567,7 @@ def judge_link(model, brief, why, hyp):
             f"THE RESULT: {why['result']}\nTHE GUESS of why it came out so: {why['guess']}\nWhat would make it so, not directly visible: {why['unseen']}\n\n"
             f"THE HYPOTHESIS said to come from this guess: {hyp['text']}\nIts prediction: {hyp.get('prediction') or 'not stated'}\n\nWould testing this hypothesis tell whether the guess is true?")
     def read():
-        d = json.loads(ask(model, JUDGE, user, JUDGE_SCHEMA, False, 0, 400)[0])
+        d = json.loads(called("judge", model, JUDGE, user, JUDGE_SCHEMA, False, 0, 400)[0])
         return bool(d["follows"]), " ".join(str(d["because"]).split())
     follows, because = read()
     if not follows:   # a refusal costs the model a turn and the judge is not steady on a pair at the border (s041 H3: no, then yes): it refuses only when a second reading agrees
@@ -592,7 +634,7 @@ SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of t
 def supervise(model, user, schema):
     """One request to the supervisor: its own instructions, a request of its own (nothing of the researcher's conversation), temperature 0. The model
     reasons before it answers, as the researcher does; that reasoning is not kept (its answer says its ground)."""
-    return json.loads(ask(model, SUPERVISOR, user, schema, True, 0, 9000)[0])
+    return json.loads(called("supervisor", model, SUPERVISOR, user, schema, True, 0, 9000)[0])
 
 
 def _system_for_supervisor(brief):
@@ -607,25 +649,13 @@ def _measured(ledger, only=None):
     return "\n".join(lines[-60:]) or "  (nothing yet)"
 
 
-def _looked(ledger, runs=None, room=9000):
-    """What the tools returned in this session (series, measure, metrics, a trace search), newest first up to `room` characters, for the simulations
-    `runs` (run ids; None: all). They are the harness's readings of what a simulation recorded, so the supervisor is shown them as it is shown the
-    metrics (s044, 2026-11-18: the researcher's guesses rested on a series and on measurements of its own, the supervisor was shown only the
-    simulation's summary and refused nine guesses as "not in the records")."""
-    out, used = [], 0
-    for r in reversed(ledger):
-        if r["type"] != "result":
-            continue
-        q = next((x for x in ledger if x["id"] == r["parent"]), None)
-        args = (q or {}).get("body", {}).get("args") or {}
-        if r["body"].get("tool") in ("describe_system", "list_runs") or (runs is not None and args.get("run_id") not in runs):
-            continue
-        text = f"  {r['body'].get('tool')}({', '.join(f'{k}={v}' for k, v in args.items())}) ->\n    " + str(r["body"].get("result"))[:1800].replace("\n", "\n    ")
-        if used + len(text) > room:
-            break
-        out.append(text)
-        used += len(text)
-    return "\n".join(reversed(out)) or "  (the researcher has asked the tools for nothing about them)"
+def _looked(ledger, runs=None, room=None):
+    """Every reading of the session (what the tools returned when the researcher looked: series, measure, metrics, probe, a trace search, the
+    description of the system), in the same form as in the researcher's ledger text (reading): the supervisor is given what the researcher is given
+    (2026-11-22, the operator). From s044 (2026-11-18) to then it was shown the readings of the simulations at hand, newest first, each cut at
+    1,800 characters and 5,000 to 9,000 in all. runs and room are no longer used."""
+    by = {r["id"]: r for r in ledger}
+    return "\n".join(reading(r, by) for r in ledger if r["type"] == "result") or "  (the researcher has asked the tools for nothing yet)"
 
 
 def _case(ledger, hid, rules):
@@ -646,7 +676,7 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None):
     need = next((n for n in ex.get("needs") or [] if n.get("for") == hid), {})
     planned = plan(ledger, [r for r in ex["runs"] if r["label"] in (need.get("simulations") or [r["label"] for r in ex["runs"]])])
     sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
-    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nWHAT THE TOOLS RETURNED WHEN THE RESEARCHER LOOKED AT THOSE SIMULATIONS (measurements too):\n{_looked(ledger, room=6000)}\n\n" + _case(ledger, hid, rules)
+    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + _case(ledger, hid, rules)
             + "".join(f"A MEASUREMENT THE RESEARCHER DEFINES FOR THIS TEST: {m['name']} = {m['stat']} of {m['of']}" + (f" against the level {m['level']}" if m.get("level") is not None else "") + f", from {m.get('t_from') if m.get('t_from') is not None else 2} s to {m.get('t_to') if m.get('t_to') is not None else 'the end'} (computed by the harness from what each simulation records; the probe only listens)\n" for m in ex.get("measurements") or [])
             + (f"What the researcher says it must know to decide it: {flat(need['to_know'])}\n" if need.get("to_know") else "") + f"Between the simulations its rule compares, the one setting that differs: {need.get('varies') or 'not stated'}; the measure the rule is about: {need.get('measure') or 'not stated'}\n"
             + f"THE SIMULATIONS PLANNED FOR IT:\n{sims}\n\n"
@@ -678,9 +708,8 @@ def ground_of(model, brief, ledger, why, ask_fn=None):
             return f"[{r['id']}] simulation {b.get('label')} {{{', '.join(f'{k}={v}' for k, v in (b.get('params') or {}).items())}}} | " + " ".join(f"{k}={v}" for k, v in (b.get("metrics") or {}).items())
         if r["type"] == "check":
             return f"[{r['id']}] check for {b['for']}: {flat(b['decision_rule'])}  ->  {b['with_numbers']}  :  {b['result'].upper()}"
-        if r["type"] == "result":
-            q = next((x for x in ledger if x["id"] == r.get("parent")), None)
-            return f"[{r['id']}] reading: {b.get('tool')}({json.dumps(((q or {}).get('body') or {}).get('args') or {})}) returned: {flat(b.get('result'))[:1500]}"
+        if r["type"] == "result":   # in full, as the researcher's ledger holds it (until 2026-11-22: one line of 1,500 characters)
+            return reading(r, {x["id"]: x for x in ledger})
         if r["type"] == "review":
             return f"[{r['id']}] the supervisor's review of {b.get('for') or 'a guess'}: {b.get('decision')}. {flat(b.get('because'))}" + (f" The rival it named: {flat(b['rival'])}" if b.get("rival") else "")
         return f"[{r['id']}] ruling on {b['for']}: {b['result']}. {flat(b['because'])}"
@@ -691,7 +720,7 @@ def ground_of(model, brief, ledger, why, ask_fn=None):
     rulings = "\n".join(f"  [{r['id']}] on {r['body']['for']}: {r['body']['result']}. {flat(r['body']['because'])}" for r in ledger if r["type"] == "verdict") or "  (none yet)"
     runs = {r["body"].get("run_id") for r in cited if r["type"] == "simulation"} | {q["body"].get("run_id") for r in cited if r["type"] == "evidence" for q in ledger if q["type"] == "simulation" and q.get("parent") == r["body"]["experiment"]}
     user = (_system_for_supervisor(brief) + "\nTHE RECORDS THE NEW GUESS CITES:\n" + ("\n".join(mark(r) for r in cited) or "  (it cites the brief only: nothing has been measured for it)")
-            + "\n\nWHAT THE TOOLS RETURNED ABOUT THESE SIMULATIONS (the researcher asked; the harness read it from what the simulation recorded over time: these are measurements too, and a guess may start from them):\n" + _looked(ledger, runs - {None})
+            + "\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (the researcher asked; the harness read it from what the simulations recorded over time: these are measurements too, and a guess may start from them):\n" + _looked(ledger)
             + f"\n\nTHE NEW GUESS\nThe result it starts from, as the researcher states it: {flat(why['result'])}\nThe guess of why: {flat(why['guess'])}\n" + (f"What would make it so, not directly visible: {flat(why['unseen'])}\n" if why.get("unseen") else "") + "\n"
             f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{earlier}\n\nTHE RULINGS SO FAR:\n{rulings}\n\n"
             "Before anything is built on this guess: first say what the cited records show about the result it starts from. Then name the earlier guess or hypothesis nearest to it. Then name the defect, or none. "
@@ -714,7 +743,7 @@ def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None):
     lines = "\n".join(f"  [{c['id']}] {flat(c['body']['decision_rule'])}  ->  {c['body']['with_numbers']}  :  {c['body']['result'].upper()}"
                        + "".join(f"  (note: {q['left']} against {q['right']} differ by {q['percent']:.3g} %)" for q in c["body"].get("within_tolerance") or []) for c in checks)
     user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, rules) + f"\nTHE SIMULATIONS OF THIS TEST, as measured:\n{_measured(ledger, xid)}\n\nTHE BASELINE and what was measured before:\n{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] == xid)])}\n\n"
-            f"WHAT THE TOOLS RETURNED WHEN THE RESEARCHER LOOKED AT SIMULATIONS (measurements too):\n{_looked(ledger, room=5000)}\n\nTHE HARNESS'S CHECKS (facts):\n{lines}\n\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
+            f"EVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\nTHE HARNESS'S CHECKS (facts):\n{lines}\n\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
             + "What does this test show about the hypothesis? supported: every check HELD and the test was a fair one. refuted: a check FAILED and the test was a fair one. inconclusive: the test "
               "was not fair (name the defect and what a fair test would compare), or the checks disagree. A check that failed because another setting limited the result, or one that held "
               "although it would have held under a rival explanation too, is not a fair test. The defects: " + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ".")
@@ -1288,8 +1317,8 @@ You do not work alone. A supervisor works apart from you. It proposes nothing an
 
 The ledger is the complete record of the session. You have no other memory. Each turn you read it and answer with ONE JSON object. Keep every text short: one or two sentences. Its parts:
 
-1. observations: one or two sentences: the most important thing the results do not yet explain.
-2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded; probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a turn; the results come back in the next turn. A turn may consist of requests only.
+1. observations: one or two sentences: the most important thing the results do not yet explain. Your observations of every turn stay in the ledger, each in its place (turn N your observations: ...).
+2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded; probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a turn; the results come back in the next turn and stay in the ledger for the rest of the session, each with its id (T1, T2, ...). A turn may consist of requests only.
 3. whys: your guesses of why a result came out so. Each has about (the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet), result (that result in one sentence, with its numbers), guess (what in the system would make it so), and revises (the id of an earlier guess this one replaces, or null). The harness numbers them Y1, Y2, ... The work is a chain: your first guesses start from the baseline, and every later guess is the fruit of what you learned since: its about must name at least one record made since your last guesses (a ruling, a check, a new result table, a reading, an objection of the supervisor), and its result says what that record showed. A later guess that starts from the baseline alone is refused, and the supervisor reads whether the guess really comes from the newer record or only names it. Make your several first guesses in one answer.
 4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most three in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.
 5. drop: open hypotheses you give up before they were tested (id, and why in one sentence). Usually empty.
@@ -1606,12 +1635,15 @@ def main():
                       "A difference inside it is not a finding, and a setting is not better for it."
                     + f"\n\nLEDGER:\n{text}")
             if pending:
-                user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)
+                ids = [p for p in pending if p != "limit"]
+                user += ("\n\nTOOL RESULTS: your last requests were answered" + (f": {', '.join(ids)}, in the LEDGER above" if ids else "") + ". Every reading stays in the ledger for the rest of the session."
+                         + (" The limit of turns with requests only is reached: decide now." if "limit" in pending else ""))
                 pending = []
             last, parsed, err, content, refused = (ledger[-1]["id"] if ledger else None), None, None, "", []
             again = ""   # the second attempt of a turn is told why the first could not be used (it was asked the very same thing before: a refused answer cost a whole reply and taught nothing)
+            CALLS["turn"] = turn
             for _attempt in range(2):
-                content, draft, finish_reason, usage = ask(model, system, user + again, schema, a.draft == "on", a.temperature, a.max_tokens)
+                content, draft, finish_reason, usage = called("researcher", model, system, user + again, schema, a.draft == "on", a.temperature, a.max_tokens)
                 count["calls"] += 1
                 count["length"] += finish_reason == "length"
                 if a.draft == "on":
@@ -1670,15 +1702,15 @@ def main():
                 budget += granted
                 append(ledger, turn, "note", last, {"text": f"budget request: {br['simulations']} more simulations asked, {granted} granted; the budget is now {budget} (the brief's limit is {limit})", "why": br["why"]})
             for q in rq:  # each tool request and what came back are kept in the ledger (request: by the model; result: by the harness);
-                out = call(q)  # like the simulation records they are not part of the ledger text of later turns
+                out = call(q)  # the result (a reading) stays in the ledger text of every later turn, and the supervisor is given it too
                 qid = append(ledger, turn, "request", last, {"tool": q.get("tool"), "args": q.get("args") or {}})
                 tid = append(ledger, turn, "result", qid, {"tool": q.get("tool"), "result": out})
-                pending.append(f"[{tid}] {q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{out}")
+                pending.append(tid)
             ex, report = ok["experiment"], ok["report"]
             if not (ok["rethink"] or ok["whys"] or ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ok["objections"] or ex is not None or report is not None or br):  # only requests
                 tool_only += 1
                 if tool_only > (LOOKS if arm == "supervised" else 3):
-                    pending = [" (tool-only turn limit reached: results withheld, decide now)"]
+                    pending.append("limit")
                 append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq}, by="model")
                 continue
             tool_only = 0
@@ -1756,6 +1788,8 @@ def main():
                                                                    "shows": ruling["shows"], "checks": ruling["checks"], "experiment": xid, **({"doubt_if": doubt} if doubt else {}),
                                                                    **({"changed_by_harness": ruling["changed_by_harness"]} if ruling.get("changed_by_harness") else {})}, by="supervisor")
                         sup_log(vid, "ruling", saw, ruling)
+            if report is None and seen and seen[0]:   # an answer none of whose parts made a record (each was refused): its observations are kept all the same
+                append(ledger, turn, "note", last, {"observations": seen.pop()}, by="model")
             if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over
                 append(ledger, turn, "report", last, report | obs())
                 (tools.SESSION / "report.json").write_text(json.dumps(report, indent=1) + "\n")

@@ -35,7 +35,7 @@ Object.assign(EV, {
     if (EV.setupKind() === 'net') {
       if (typeof BRIEF_NET === 'undefined') { if (EV.bnBusy) return; EV.bnBusy = true;
         // the builder draws on JointJS (vendor/joint.min.js, open source): the library first, then the drawing surface, then the builder
-        for (const f of ['vendor/joint.min.js', 'brief_canvas.js', 'brief_net.js']) await new Promise(ok => { const s = document.createElement('script'); s.src = f + (f.startsWith('vendor/') ? '' : '?t=' + Date.now()); s.onload = s.onerror = ok; document.head.appendChild(s); }); }
+        for (const f of ['vendor/joint.min.js', 'brief_canvas.js', 'brief_net.js'].filter(f => f !== 'brief_canvas.js' || typeof NETC === 'undefined')) await new Promise(ok => { const s = document.createElement('script'); s.src = f + (f.startsWith('vendor/') ? '' : '?t=' + Date.now()); s.onload = s.onerror = ok; document.head.appendChild(s); }); }
       if (typeof BRIEF_EDITOR === 'undefined' && !EV.beCss) { EV.beCss = true; await new Promise(ok => { const s = document.createElement('script'); s.src = 'brief_editor.js?t=' + Date.now(); s.onload = s.onerror = ok; document.head.appendChild(s); }); }  // the builder uses the form styles of the two-host set-up page
       if (typeof BRIEF_EDITOR !== 'undefined' && !document.getElementById('be-css')) { const st = document.createElement('style'); st.id = 'be-css'; st.textContent = BRIEF_EDITOR.CSS; document.head.appendChild(st); }
       const h = document.getElementById('be-host'); if (!h || typeof BRIEF_NET === 'undefined') return;

@@ -1,6 +1,8 @@
 // Turn by turn: who did what (the operator's proposal of 2026-11-18). One column for each entity (the researcher, the supervisor or the judge,
 // the harness, ns-3), one band for each turn, time runs down, and every object of the ledger (a guess, a hypothesis, a review, an experiment,
 // its simulations, a check, a ruling ...) is a box of its own in the column of whoever made it. A box's id opens that record; a turn folds.
+// Since 2026-11-22 (the operator: the page showed too much) it is not a card of its own but the folded detail at the end of "What it needed to
+// find out": closed on a first visit, open in Full, and the browser remembers whether the reader opened it ("ev-turns").
 Object.assign(EV, {
   TN_COLS: {
     model: ['Researcher', 'the AI that proposes', 'guesses, hypotheses, tests and their rules, requests to look, objections, the report'],
@@ -51,7 +53,7 @@ Object.assign(EV, {
   tnShown(id) { const q = (EV.files.supervisor || {})[id]; return q && q.shown ? ['what the supervisor was shown for this', q.shown] : null; },
   tnmore(id) { const S = EV.s; S.tnOpen = S.tnOpen || {}; S.tnOpen[id] = !S.tnOpen[id]; EV.draw(); },
   tnfold(id) { const S = EV.s; S.tnShut = S.tnShut || {}; S.tnShut[id] = !S.tnShut[id]; EV.draw(); },
-  turnsCard() {
+  turnsFold() {
     const M = EV.M, e = EV.e, recs = (M.recs || []).filter(r => r.type !== 'draft' && r.type !== 'scratch'); if (!recs.length) return '';
     const cols = ['model', ...(M.supervised ? ['supervisor'] : recs.some(r => r.type === 'judge') ? ['judge'] : []), 'harness', 'simulator'], shut = EV.s.tnShut || {};
     const head = `<div class="tn-head tn-grid" style="--n:${cols.length}">${cols.map(c => { const [name, who, owns] = EV.TN_COLS[c];
@@ -72,8 +74,17 @@ Object.assign(EV, {
       return `<section class="tn-turn" data-turn="${t}" data-step="${k}"><button class="tn-band" data-act="tnfold" data-id="${t}" aria-expanded="${!shut[t]}" title="${shut[t] ? 'Show' : 'Fold'} this turn"><span class="lc-tw">${shut[t] ? '▸' : '▾'}</span> <b>${t === 0 ? 'Start' : 'Turn ' + t}</b> <span class="sm">${e(left)}</span>
           <span class="sm tn-count">${cols.map((c, i) => count[i] ? `${EV.TN_COLS[c][0]} ${count[i]}` : '').filter(Boolean).join(' · ')}</span></button>
         ${shut[t] ? '' : `<div class="tn-grid tn-rows" style="--n:${cols.length}">${boxes}</div>`}</section>`; }).join('');
-    return `<div class="ev-card" id="s-turns"><h2>Turn by turn: who did what <small>time runs down · each record is a box in the column of whoever made it: what it says, and on what ground · a box's id opens it</small></h2>
-      <p class="sm tn-op"><i class="sw" data-by="operator"></i><b>Operator</b> (you): the ${EV.link('brief')}, written before the first turn. Nothing below changes it.</p>
-      ${head}${bands}</div>`;
+    const S = EV.s, open = S.turnsOpen != null ? S.turnsOpen : S.full || EV.store('ev-turns') === '1', nt = turns.filter(t => t > 0).length, nr = recs.filter(r => r.type !== 'turn').length;
+    return `<details id="s-turns"${open ? ' open' : ''}><summary><b>Turn by turn: who did what</b> <span class="sm">${nt} ${nt === 1 ? 'turn' : 'turns'}, ${nr} records: each in the column of whoever made it, what it says and on what ground</span><span class="cl noprint fl-btn" aria-hidden="true"><span class="fl-o">open</span><span class="fl-f">fold</span></span></summary>
+      <p class="sm tn-op"><i class="sw" data-by="operator"></i><b>Operator</b> (you): the ${EV.link('brief')}, written before the first turn. Nothing below changes it. Time runs down; a box's id opens it; a turn's band folds the turn.</p>
+      <p class="sm tn-mode noprint${S.tnOn ? ' on' : ''}" id="tn-mode"><span class="tn-m-on"><b>Scrolling the turns</b>: the page stays where it is. Click anywhere outside the turns (or press Esc) to scroll the whole page.</span><span class="tn-m-off"><b>Scrolling the page.</b> Click inside the turns to scroll them alone, with the board kept in view.</span></p>
+      <div class="tn-scroll${S.tnOn ? ' tn-on' : ''}" id="tn-scroll">${head}${bands}</div></details>`;
   },
 });
+document.getElementById('ev').addEventListener('toggle', ev => { if (ev.target.id === 's-turns') { EV.s.turnsOpen = ev.target.open; if (!EV.s.full) EV.store('ev-turns', ev.target.open ? '1' : '0'); EV.tnMode(ev.target.open); } }, true);
+// the lean page (2026-11-22, the operator: "user should be able to switch to whole page scrolling when they click outside of the detail section"): with
+// the turns in a box of their own, the wheel scrolls them alone once the reader has clicked inside, and the whole page again after a click outside or Esc.
+// Decided before the page's own click handlers run (capture), so a click that redraws the page keeps the mode; nothing moves the page by itself.
+EV.tnMode = on => { EV.s.tnOn = !!on; const b = document.getElementById('tn-scroll'), m = document.getElementById('tn-mode'); if (b) b.classList.toggle('tn-on', EV.s.tnOn); if (m) m.classList.toggle('on', EV.s.tnOn); };
+document.addEventListener('click', ev => { if (!document.getElementById('tn-scroll')) return; const inside = !!(ev.target.closest && ev.target.closest('#tn-scroll')); if (inside !== !!EV.s.tnOn) EV.tnMode(inside); }, true);
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && EV.s.tnOn) EV.tnMode(false); });

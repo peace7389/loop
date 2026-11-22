@@ -9,8 +9,15 @@
 // "a click never moves the page"). At most nine rows are shown, then "n more". The replay greys the rows recorded after
 // its step; a check or a verdict recorded later is absent from its row. In a running session a row whose simulations are
 // running says so, and while a reply is written that may ask a new question the table ends with one empty row.
+// Last, folded too, "Turn by turn: who did what" (evidence_turns.js): the detail of the same work, every record of each turn in the
+// column of whoever made it (closed on a first visit; open in Full; the browser remembers it).
+// The lean page (EV.LEAN, since 2026-11-22) draws the board, the parts of a running session and turn by turn only: not "From one hypothesis to
+// the next", not the table "The same, test by test".
 // ======================================================================================================
 Object.assign(EV, {
+  // the lean page: while "Turn by turn" is open, the board stays in view under the header strip and only the turns move (2026-11-22, the operator: the big
+  // picture stays while the details are searched). A board taller than 45 % of the window is not held there: it would leave too little room for the turns.
+  pinFit() { const mp = document.querySelector('#s-map.map-pin'); if (!mp) return; const h = mp.offsetHeight; mp.classList.toggle('map-tall', h > 0.45 * innerHeight); document.getElementById('ev').style.setProperty('--map-h', h + 'px'); },
   // The card that opens when a hypothesis's box on the board is pointed at (through the box of evidence_words.js, key
   // "h:<id>"). Made for reading at a glance: the name and how it ended; the question, larger; then labelled lines, always
   // in this order, each a recorded text or a measured number: why it asked (the hypothesis's `why`; "not recorded" for a
@@ -154,14 +161,17 @@ Object.assign(EV, {
     // while the AI writes a reply that may ask a new question: one empty row, which says so
     const next = now && now.phase === 'reply' && !now.mode ? `<tr class="fr-slot" id="fr-next" data-slot="question"><td class="fq">${EV.nowDot()}<span class="mut">The next hypothesis, if this reply states one</span></td><td class="fo"><span class="mut">empty</span></td><td class="fm"><span class="mut">empty</span></td><td class="fl"></td></tr>` : '';
     // the board (evidence_views.js): the hypotheses by turn, and which result led to which; under it, folded, the same test by test
-    const listOpen = S.findOpen != null ? S.findOpen : S.full || EV.store('ev-find') === '1', stage = now ? EV.liveStage(now, !M.hyps.length) : '', board = M.hyps.length ? `<div id="s-map">${EV.viewMap()}${EV.repNow() && M.claims.some(c => c.hyps.length) ? `<p class="sm noprint map-path"><button data-act="path" class="${S.path ? 'on' : ''}">${S.path ? 'hide' : 'show'} the path to the answer</button> the hypotheses the final report's claims rest on, and what they follow from</p>` : ''}</div>` : '';
-    return `<div class="ev-card" id="s-find"><h2>What it needed to find out</h2><p class="sec-q">Which hypotheses did it set itself, and what did it learn?</p>${stage}${now && EV.tilesHtml ? EV.tilesHtml(now) : ''}${board}${EV.transView ? EV.transView() : ''}${now && !M.hyps.length ? '<p class="sm" id="find-none" style="text-align:center;max-width:none">No hypothesis yet. Its hypotheses will stand here, each in the column of its turn, with what each result led to.</p>' : ''}
-      ${now && !M.hyps.length ? '' : all.length || next ? `<details id="find-list"${listOpen ? ' open' : ''}><summary><b>The same, test by test</b> <span class="sm">${recorded.length} ${recorded.length === 1 ? 'test' : 'tests'}: the hypothesis, the outcome, what was measured, what it led to</span><span class="cl noprint fl-btn" aria-hidden="true"><span class="fl-o">open</span><span class="fl-f">fold</span></span></summary><table class="ft"><thead><tr><th>The hypothesis</th><th>Outcome</th><th>Measured</th><th>Led to</th></tr></thead><tbody>${shown.map(row).join('')}${next}</tbody></table>
+    const listOpen = S.findOpen != null ? S.findOpen : S.full || EV.store('ev-find') === '1', stage = now ? EV.liveStage(now, !M.hyps.length) : '', mapH = M.hyps.length ? EV.viewMap() : '', cut = EV.LEAN ? mapH.indexOf('<div class="sm map-key"') : -1, board = M.hyps.length ? `<div id="s-map"${cut > 0 ? ' class="map-pin"' : ''}>${cut > 0 ? mapH.slice(0, cut) + '</div><div id="s-map-under">' + mapH.slice(cut) : mapH}${EV.repNow() && M.claims.some(c => c.hyps.length) ? `<p class="sm noprint map-path"><button data-act="path" class="${S.path ? 'on' : ''}">${S.path ? 'hide' : 'show'} the path to the answer</button> the hypotheses the final report's claims rest on, and what they follow from</p>` : ''}</div>` : '';
+    return `<div class="ev-card" id="s-find"><h2>What it needed to find out</h2><p class="sec-q">Which hypotheses did it set itself, and what did it learn?</p>${stage}${now && EV.tilesHtml ? EV.tilesHtml(now) : ''}${board}${!EV.LEAN && EV.transView ? EV.transView() : ''}${now && !M.hyps.length ? '<p class="sm" id="find-none" style="text-align:center;max-width:none">No hypothesis yet. Its hypotheses will stand here, each in the column of its turn, with what each result led to.</p>' : ''}
+      ${EV.LEAN || (now && !M.hyps.length) ? '' : all.length || next ? `<details id="find-list"${listOpen ? ' open' : ''}><summary><b>The same, test by test</b> <span class="sm">${recorded.length} ${recorded.length === 1 ? 'test' : 'tests'}: the hypothesis, the outcome, what was measured, what it led to</span><span class="cl noprint fl-btn" aria-hidden="true"><span class="fl-o">open</span><span class="fl-f">fold</span></span></summary><table class="ft"><thead><tr><th>The hypothesis</th><th>Outcome</th><th>Measured</th><th>Led to</th></tr></thead><tbody>${shown.map(row).join('')}${next}</tbody></table>
         ${more > 0 ? `<p class="sm noprint" id="find-more"><button data-act="findall">${more} more</button> ${recorded.length} tests in all</p>` : S.findAll && !S.full && all.length > EV.FIND_ROWS ? `<p class="sm noprint"><button data-act="findall">show the first ${EV.FIND_ROWS}</button></p>` : ''}
         <p class="sm">One row per ${EV.term('Test', 'test')}: one hypothesis put to one decision rule. A row opens its card in the notebook below. “Measured” is the ${EV.term('Check', 'check')}'s numbers; a check that failed is a result, not a fault.</p></details>`
-        : `<p class="sm">${M.ended ? 'This session put no hypothesis to a test.' : 'No test yet.'}</p>`}</div>`;
+        : `<p class="sm">${M.ended ? 'This session put no hypothesis to a test.' : 'No test yet.'}</p>`}${EV.turnsFold ? EV.turnsFold() : ''}</div>`;
   },
 });
+addEventListener('resize', () => { if (EV.pinFit) EV.pinFit(); });
+// opening or folding turn by turn changes the held board's height (its padding and its rule): measured again once it is drawn
+document.addEventListener('toggle', ev => { if (ev.target.id === 's-turns' && EV.pinFit) requestAnimationFrame(() => EV.pinFit()); }, true);
 EV.act = Object.assign(EV.act || {}, {
   findall() { EV.s.findAll = !EV.s.findAll; EV.draw(); },
   // a row: its test opens in the detail pane, and its notebook card comes into view

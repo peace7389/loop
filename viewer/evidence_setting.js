@@ -86,6 +86,11 @@ Object.assign(EV, {
     if (!w) return `<p class="sm">the aim: ${EV.nr}</p>`;
     return `<p data-aim="given"><b>Find ${w}.</b> <span class="st-by" data-by="operator"><i class="sw"></i>set by the operator</span></p>${g.tolerance != null && g.tolerance !== '' ? `<p class="sm">Tolerance ${e(g.tolerance)} %: two results closer than this count as equal.</p>` : ''}`;
   },
+  // the lean page: the aim stands right under the heading of the setting, before the network, in the aim's own box (as in the brief's card), so that a
+  // reader sees first what the session is about (2026-11-22, the operator: "show the aim clearly on the setting section for users to see what this session
+  // is about"). The block "The aim" is then not among the rest: one place for it.
+  setAimBox(c) { const g = c.b.goal || {};
+    return `<div class="bc-aim set-aim" id="set-aim" data-aim="${EV.e(g.kind || '')}"><h3>${EV.flag()}The aim <span class="sm set-aim-q">what this session is about</span></h3>${EV.setAim(c)}</div>`; },
   // The cards of one row are equally tall (the row stretches them), so the aim's card has room below its two lines: the aim the AI
   // chose is shown in as many whole lines as that room holds (never fewer than four), and in full on hover when it is still cut.
   aimFit() { const p = document.getElementById('st-chosen'), card = p && p.closest('.st-b'); if (!p || !card) return;
@@ -163,22 +168,25 @@ Object.assign(EV, {
     // the scheduler's mark: the policy is not told to the AI; with the operator columns on the mark names it
     const pol = `<text x="432" y="162" text-anchor="middle" class="sv" id="sy-pol"${S.op ? ' data-by="operator"' : ''}>${S.op && row.policy && !row.policy_hidden ? `policy: ${e(row.policy)} · not told to the AI` : 'policy not told to the AI'}</text>`;
     // a brief with a network: the picture is drawn from the network itself (evidence_net.js), with the knobs at their defaults or, when a simulation is open, at its values
-    const NT = EV.net(M.brief), netPic = () => { const kn = M.brief.knobs || {}, vals = { ...Object.fromEntries(Object.entries(kn).map(([k, q]) => [k, q.default])), ...(V.sim ? V.sim.params : {}) }, net = V.sim && V.sim.topology ? V.sim.topology : NT, b2 = { ...M.brief, topology: EV.netWith(net, vals) };  // a simulation that changed the structure: its own network
+    const NT = EV.net(M.brief), netPic = () => {
+      const netOn = NT && EV.netParts(V.sim && V.sim.topology ? V.sim.topology : NT).includes(S.sysObj) ? S.sysObj : null;   // the part whose card stands beside the schema: none until a click
+      const kn = M.brief.knobs || {}, vals = { ...Object.fromEntries(Object.entries(kn).map(([k, q]) => [k, q.default])), ...(V.sim ? V.sim.params : {}) }, net = V.sim && V.sim.topology ? V.sim.topology : NT, b2 = { ...M.brief, topology: EV.netWith(net, vals) };  // a simulation that changed the structure: its own network
       const sched = EV.netQueues(NT).some(x => x.q.kind === 'scheduler'), says = !sched ? '' : S.op && row.policy && !row.policy_hidden ? `scheduling policy: ${row.policy} · not told to the AI` : 'how a scheduler divides its link is not told to the AI';
+      const netSvg = EV.netSvg(b2, { pol: says, op: S.op, on: netOn });   // its width sets the schema's column: the part's card beside it takes the rest of the row
       const edits = V.sim && V.sim.structure && V.sim.structure.length ? `<p class="sm" id="net-changed" data-own="model"><b>This simulation changed the structure:</b> ${EV.e(EV.editsSay(V.sim.structure))}</p>` : '';
-      return `<div class="sy-row"><div><div class="ev-scroll">${EV.netSvg(b2, { pol: says, op: S.op })}</div>${edits}<p class="sm gl-key">${EV.sysLegend()}</p></div><div class="sy-side">${EV.netSide(b2)}</div></div>`; };
+      return `<div class="sy-row sy-net" style="--net-w:${Math.ceil(+((/viewBox="0 0 ([\d.]+)/.exec(netSvg) || [])[1] || 1000))}px"><div><div class="ev-scroll">${netSvg}</div>${EV.netKinds(b2)}${edits}<p class="sm gl-key">${EV.sysLegend()}</p>${EV.netWords(b2)}</div><div class="sy-side"><div class="sy-det${netOn ? ' on' : ''}" id="net-det">${netOn ? `${EV.netCard(b2, netOn, V.sim)}<p class="sy-det-h sm noprint"><button class="cl" data-act="sysobj" data-id="">close</button></p>` : '<p class="sm mut" id="sy-hint">Click a part of the schema (a host, an application, a socket, a queue, a device, a link) to see what it is in ns-3, its settings, who decides each, and what is measured there.</p>'}</div></div></div>`; };
     const pic = NT ? netPic() : !O ? `<p class="sm">${O === false ? 'viewer/objects.json, the list of the ns-3 objects, could not be read.' : 'Loading the ns-3 objects…'}</p>`
       : `<div class="sy-row"><div><div class="ev-scroll">${EV.sysSvg({ v: V.v, knob: V.knob, fixed: V.fixed, on, act: 'sysobj', pol })}</div>
           <p class="sm gl-key">${M.brief ? EV.sysLegend() : ''}${(O.around || []).length ? `<span>outside a packet's path: ${(O.around || []).map((o, i) => `<a data-act="sysobj" data-id="around-${i}"${on === 'around-' + i ? ' style="font-weight:700"' : ''}>${e(o.name.toLowerCase())}</a>`).join(', ')}</span>` : ''}</p></div><div class="sy-side"><div class="sy-det${on ? ' on' : ''}">${on ? `${EV.objCard(on)}<p class="sy-det-h sm noprint"><button class="cl" data-act="sysobj" data-id="">close</button></p>` : '<p class="sm mut" id="sy-hint">Click a part of the picture to see its settings, what the AI may change there, and what is measured there.</p>'}</div></div></div>`;
     // Blocks 2 to 7 are not shown at all, or shown in full: one button under the picture (2026-11-17, the operator: "hidden altogether or shown in full").
     // The browser remembers which. The full view (for print and review) always has them.
     const all = S.full || EV.store('ev-setall') === '1', none = `<p class="sm">${EV.nr}: this session was made before briefs existed.</p>`, has = !!M.brief;
-    const rest = !all ? '' : `<div class="st-row">${EV.setBlock(1, has ? EV.setWho(c) : none)}${EV.setBlock(2, has ? EV.setAim(c) : none)}${EV.setBlock(3, has ? EV.setLists(c) : none, { cls: 'st-told' })}</div>
-        <div class="st-row st-low">${EV.setBlock(4, has ? EV.setLimits(c) : none)}${EV.setBlock(5, EV.setKept(c))}${EV.setBlock(6, EV.setRuns(c))}</div>`;
+    const L = EV.LEAN, rest = !all ? '' : `<div class="st-row${L ? ' st-two' : ''}">${EV.setBlock(1, has ? EV.setWho(c) : none, { nonum: L })}${L ? '' : EV.setBlock(2, has ? EV.setAim(c) : none)}${EV.setBlock(3, has ? EV.setLists(c) : none, { cls: 'st-told', nonum: L })}</div>
+        <div class="st-row st-low">${EV.setBlock(4, has ? EV.setLimits(c) : none, { nonum: L })}${EV.setBlock(5, EV.setKept(c), { nonum: L })}${EV.setBlock(6, EV.setRuns(c), { nonum: L })}</div>`;
     // the button stands right under the picture, before the blocks it shows: it stays where it is when they come and go, so that a reader can go back
     // and forth without moving the pointer. The picture's block carries its number 1 only while the others are there to count with it.
-    const more = S.full ? '' : `<p class="sm noprint" id="st-more"><button class="cl" data-act="setall" aria-expanded="${all ? 'true' : 'false'}">${all ? 'hide the rest' : 'show the rest'}</button>${all ? '' : ' <span>who decides what · the aim · what the AI is told and can do · the limits · what is kept from the AI · how the AI runs</span>'}</p>`;
-    return `<div class="ev-card noprint" id="s-system">${head}<div class="st" id="st-blocks">
+    const more = S.full ? '' : `<p class="sm noprint" id="st-more"><button class="cl" data-act="setall" aria-expanded="${all ? 'true' : 'false'}">${all ? 'hide the rest' : 'show the rest'}</button>${all ? '' : ` <span>who decides what · ${EV.LEAN ? '' : 'the aim · '}what the AI is told and can do · the limits · what is kept from the AI · how the AI runs</span>`}</p>`;
+    return `<div class="ev-card noprint" id="s-system">${head}${EV.LEAN && has ? EV.setAimBox(c) : ''}<div class="st" id="st-blocks">
         ${EV.setBlock(0, pic, { cls: 'st-wide', nonum: !all })}${more}${rest}</div>
       </div>`;
   },

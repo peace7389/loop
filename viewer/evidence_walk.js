@@ -1,6 +1,6 @@
 // "Walk me through this session": a guided walk for a first-time reader. One step per section 1 to 6 of the page
-// (the setting, the session at a glance, what it needed to find out, the work step by step, what it proposes, how it
-// worked as a researcher; a session without a final report has no step for "what it proposes": five steps). Each step
+// (the setting, what it needed to find out, the work step by step, what it proposes, how it worked as a researcher; a
+// session without a final report has no step for "what it proposes": four steps; "the session at a glance" is not drawn since 2026-11-22). Each step
 // goes to its section and shows, at the head of that section, one sentence built from the session's own records by a
 // fixed rule (no model writes it), with "back", "next" and "leave". The walk changes nothing: leaving it, at any
 // step, puts the page back where it was (the same place, the same open item, the same replay step).
@@ -15,8 +15,8 @@
 //   6 as a researcher   how many of the nine lines are present, partly, absent
 // ======================================================================================================
 Object.assign(EV, {
-  WALK: [['s-system', 'The setting'], ['s-made', 'The session at a glance'], ['s-find', 'What it needed to find out'], ['s-notebook', 'The work, step by step'], ['s-proposes', 'What it proposes'], ['s-research', 'How it worked as a researcher']],
-  walkSteps() { return EV.WALK.flatMap(q => (q[0] === 's-made' && EV.M.supervised ? [['s-agents', 'Two agents'], q] : [q])).filter(q => q[0] !== 's-proposes' || EV.M.report); },
+  WALK: [['s-system', 'The setting'], ['s-find', 'What it needed to find out'], ['s-notebook', 'The work, step by step'], ['s-proposes', 'What it proposes'], ['s-research', 'How it worked as a researcher']],
+  walkSteps() { return EV.WALK.filter(q => q[0] !== 's-proposes' || EV.M.report); },
   // the first comparison of a rule, in words: what was expected, and what was measured on its left side
   walkExpected(T) {
     const tree = EV.readTree(T.rule); let n = tree; while (n && (n[0] === 'and' || n[0] === 'or' || n[0] === 'all')) n = n[0] === 'all' ? n[1] : n[1][0];

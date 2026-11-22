@@ -95,7 +95,7 @@ const EV = {
     const bar = EV.off ? `<div class="ev-bar"><b>Two hosts, one link: session ${e(S.sid)}</b><span><button data-act="view" data-id="session" class="${on('session')}">Session</button>${EV_EXPORT.operator ? ` <button data-act="view" data-id="operator" class="${on('operator')}">Operator</button>` : ''}</span>${EV_EXPORT.operator ? `<label style="font-weight:400"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label>` : ''}<span class="end">an exported copy · it opens without a server</span></div>`
       : `<div class="ev-bar ev-nav"><span class="grp" title="Pages about all sessions"><button data-act="view" data-id="home" class="${on('home')}">Home</button><button data-act="view" data-id="compare" class="${on('compare')}">Compare sessions</button><button data-act="new" data-id="new" class="${on('new')}" title="Set up a session: the network, who decides what, the aim, what the AI is told, the limits, and start the AI on it">New session</button></span>
       <span class="grp"><select data-ch="session" title="Choose one session to open: ${e(EV_DEF.Session)}"><option value="">choose a session…</option>${st.sessions.slice().reverse().map(x => `<option value="${e(x.id)}"${x.id === S.sid ? ' selected' : ''}>${e(label(x))}</option>`).join('')}</select>
-      <button data-act="view" data-id="session" class="${on('session')}"${need}>Session</button><button data-act="view" data-id="operator" class="${on('operator')}"${need || ` title="${e(EV_DEF.Operator)}"`}>Operator</button></span>
+      <button data-act="view" data-id="session" class="${on('session')}"${need}>Session</button><button data-act="view" data-id="operator" class="${on('operator')}"${need || ` title="${e(EV_DEF.Operator)}"`}>Operator</button><a class="nav-a" id="nav-agents" href="agents.html${S.sid ? '?session=' + encodeURIComponent(S.sid) : ''}" target="_blank" rel="noopener" title="Every call of the local model in ${S.sid ? 'session ' + e(S.sid) : 'the newest session'}, in order: what each agent (the researcher, the judge, the supervisor) was given, what it wrote before its answer, its answer and its tokens. Opens in a new tab.">Agent transcripts</a></span>
       <span id="ev-running">${EV.runH = EV.runningPill(st)}</span>
       ${st && st.view_only ? '<span class="pill" id="ev-viewonly" title="You are looking at this page over the network: it can be read, and nothing can be started or changed. The foot of the page says how to use it fully.">view only</span>' : ''}<label class="end" style="font-weight:400" title="Operator-only items: the scheduling policy, the gap to the best row of the sweep"><input type="checkbox" data-ch="op"${S.op ? ' checked' : ''}> show operator columns</label></div>`;
     // the earlier pages are not part of this page's structure: one quiet line at the foot of every view
@@ -109,12 +109,13 @@ const EV = {
     if (S.view === 'compare' && S.brief == null) { const n = {}; st.sessions.forEach(x => { n[x.brief || ''] = (n[x.brief || ''] || 0) + 1; }); S.brief = ((st.sessions.find(x => x.id === S.sid) || {}).brief) || Object.keys(n).sort((p, q) => n[q] - n[p])[0] || ''; }
     const body = S.view === 'home' ? EV.homeView() : S.view === 'new' ? EV.newTab() : S.view === 'compare' ? EV.compareTab() : !EV.M ? '<div class="ev-card">No session yet.</div>' : S.view === 'operator' ? EV.operatorTab() : EV.sessionTab();
     const keep = EV.live && performance.now() < EV.live.keepUntil && S.view === 'session' && EV.liveAnchor ? EV.liveAnchor() : null;  // records of a running session arrived: the reader's place is kept
-    const root = document.getElementById('ev'), inner = ['.tree', '.ev-lanes', '.ev-map', '.ev-side', '.qlist', '.gl-scroll'].map(q => { const el = root.querySelector(q); return el && [q, el.scrollTop, el.scrollLeft]; }).filter(Boolean);
+    const root = document.getElementById('ev'), inner = ['.tree', '.ev-lanes', '.ev-map', '.ev-side', '.qlist', '.gl-scroll', '.tn-scroll'].map(q => { const el = root.querySelector(q); return el && [q, el.scrollTop, el.scrollLeft]; }).filter(Boolean);
     root.innerHTML = bar + body + foot + '<div id="ev-print"></div>';
     inner.forEach(([q, top, left]) => { const el = root.querySelector(q); if (el) { el.scrollTop = top; el.scrollLeft = left; } });  // the lists that scroll inside the page stay where the reader left them
     if (S.view === 'session' && EV.M && !EV.off) history.replaceState(null, '', EV.address());  // the address follows the selection: it is always the link to what is open
     // flowFit (below): a test's flow chart is drawn to the width it has, once the HTML is in place
     const hd = document.getElementById('ev-head'); if (hd) document.getElementById('ev').style.setProperty('--head-h', hd.offsetHeight + 'px');  // the detail pane stays below the header strip
+    if (EV.pinFit) EV.pinFit();
     if (S.view === 'session') { EV.flowFit(); EV.aimFit(); EV.applyReplay(); EV.afterDraw(); } else if (S.view === 'operator') EV.afterOperator(); else if (S.view === 'new') EV.afterNew();
     if (window.scrollY !== y) window.scrollTo(0, y);
     if (keep) { const el = document.querySelector(keep.sel), d = el ? el.getBoundingClientRect().top - keep.top : 0; if (Math.abs(d) >= 1) window.scrollBy(0, d); }  // what the reader was looking at stands where it stood, though the page grew above it
@@ -154,7 +155,7 @@ const EV = {
     if (a === 'fold') { S.collapsed[id] = !S.collapsed[id]; return EV.draw(); }
     if (a === 'intro') { S.intro = false; return EV.draw(); }
     if (a === 'print') return EV.printSheet(Number(id));
-    if (a === 'goto') { const [to, view, open] = id.split('|'); if (view) S.closer[view] = true; if (open) S.sel = { t: open, id: open }; if (view || open) EV.draw();  // a box of the structure map: to that part of the page (an analysis view is opened first)
+    if (a === 'goto') { const [to, view, open] = id.split('|'); if (view) S.closer[view] = true; if (open) S.sel = { t: open, id: open }; const fold = to === 's-turns' && !S.turnsOpen; if (fold) S.turnsOpen = true; if (view || open || fold) EV.draw();  // a box of the structure map: to that part of the page (an analysis view is opened first)
       const el = document.getElementById(to); if (el) el.scrollIntoView({ block: 'start' }); return; }
     if (a === 'export') return EV.exportChart(id, t.dataset.x);
     if (EV.act && EV.act[a]) return EV.act[a](id, t);  // the actions the other files add

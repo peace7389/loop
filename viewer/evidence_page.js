@@ -1,6 +1,6 @@
 // A session's page. Everything on it belongs to one of three levels of detail:
-//   1 · at a glance   the header strip; the setting (evidence_system.js); the session at a glance (evidence_glance.js);
-//                     what it needed to find out (evidence_find.js). Open, at the top, at full width.
+//   1 · at a glance   the header strip; the setting (evidence_system.js); what it needed to find out (evidence_find.js),
+//                     with its detail, turn by turn (evidence_turns.js), folded under it. Open, at the top, at full width.
 //   2 · read          the work, step by step: the notebook (evidence_notebook.js); what it proposes (the final report as one
 //                     argument); how it worked as a researcher (evidence_research.js); below level 1, in the left column,
 //                     beside the detail pane.
@@ -12,6 +12,9 @@
 // "Brief / Full" in the header strip opens every folded section at once; the browser remembers it.
 // ======================================================================================================
 Object.assign(EV, {
+  // the lean page (the operator, 2026-11-22: "only 3 parts"): the setting; what it needed to find out, with turn by turn folded at its end; the detail
+  // of what is clicked, beside it. Every other section is kept but not drawn; ?page=full in the address draws the page as it was before
+  LEAN: !/[?&]page=full(&|$)/.test(location.search),
   // the recommendation against the brief's defaults (the comparison is the page's; both sides are recorded): the knobs
   // that differ, those at the brief's default, and the brief's knobs the report does not name. null: no recommendation by this step
   recParts() {
@@ -25,7 +28,7 @@ Object.assign(EV, {
   strip: (fields, id) => `<div class="ev-head" id="${id}">${fields.map(q => EV.stripField(...q)).join('')}</div>`,  // the same strip, from a list of [field, label, value, hover]: the set-up page shows the one its session will have
   headStrip() {
     const M = EV.M, S = EV.s, row = EV.files.row || {}, m = M.meta || {}, e = EV.e, seen = EV.seen, live = S.step == null || S.step >= M.steps.length - 1, R = EV.recParts();
-    const used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;  // the checks' tally stands in "The session at a glance", the model in the session's summary
+    const used = M.sims.filter(q => !q.same_as && q.exp !== 'X0' && seen(q.id)).length;  // the model stands in the session's summary
     const kn = (M.brief && M.brief.knobs) || {}, kv = ([k, v]) => `${EV.label(k, (kn[k] || {}).meaning)} ${e(EV.adjVal(k, v))}`, rec = !R ? null : R.text ? e(R.text) : R.differ.length ? `<span data-exact="1">${R.differ.map(kv).join(', ')}</span>` : R.known ? "every knob at the brief's default" : EV.nr;
     const f = EV.stripField;
     const ended = row.running ? '<span class="pill live">running</span>' : !live ? `<span class="mut">at step ${S.step + 1} of ${M.steps.length}</span>` : m.how ? e(m.how) : `ending ${EV.nr}`;
@@ -34,7 +37,7 @@ Object.assign(EV, {
       ${f('rec', 'Recommends', rec == null ? `<span class="mut">no recommendation${M.ended && live ? '' : ' yet'}</span>` : rec, R && R.known && R.differ.length ? "The knobs of the recommendation that differ from the brief's defaults" : '')}
       ${S.op ? `<span data-by="operator" class="hf-op">${f('policy', '<i class="sw"></i>' + EV.term('Scheduling policy', 'Scheduling policy'), EV.policyText(row))}${f('gap', 'Gap to the best', EV.gapText(row) || '<span class="mut">not scored</span>')}</span>` : ''}
       <div class="hf hf-level noprint" data-f="level" title="Brief: the page as laid out for a first reading. Full: every folded section open."><span>Detail</span><b class="seg"><button data-act="level" data-id="brief" class="${S.full ? '' : 'on'}">Brief</button><button data-act="level" data-id="full" class="${S.full ? 'on' : ''}">Full</button></b></div>
-      <div class="hf hf-walk noprint" data-f="walk" title="A guided walk for a first reading: one sentence about each section, from this session's own records"><span>Walk</span><b><button data-act="walk" class="${S.walk ? 'on' : ''}">${S.walk ? 'Leave the walk' : 'Walk me through this session'}</button></b></div></div>`;
+      ${EV.LEAN ? '' : `<div class="hf hf-walk noprint" data-f="walk" title="A guided walk for a first reading: one sentence about each section, from this session's own records"><span>Walk</span><b><button data-act="walk" class="${S.walk ? 'on' : ''}">${S.walk ? 'Leave the walk' : 'Walk me through this session'}</button></b></div>`}</div>`;
   },
 
   // ---- the final report by the replay's step (absent before its step, not greyed), and its expected result as rows:
@@ -116,9 +119,9 @@ Object.assign(EV, {
       <h3>Using the page</h3><ul class="sm" id="how-use" style="margin:0;padding-left:18px">
         <li>A record's name is a letter and a number: <b>H</b> hypothesis, <b>X</b> experiment, <b>S</b> simulation, <b>E</b> result table, <b>C</b> check, <b>V</b> verdict, <b>N</b> note of the harness, <b>Q</b> request to a tool, <b>T</b> tool result, <b>R</b> final report. The number is its order in the session.</li>
         <li>Whatever can be clicked shows the pointer and a change of background under it. A click never moves the page: what is chosen opens in the pane on the right.</li>
-        <li>A few clicks do move the page. A turn's name in “The session at a glance” brings the notebook to that turn. A row of “What it needed to find out” brings its notebook card into view.</li>
+        <li>A few clicks do move the page. A row of “What it needed to find out” brings its notebook card into view.</li>
         <li>A box of “How a session is built” goes to its part of the page. So does a line of “How it worked as a researcher” that names a section. The guided walk goes from section to section.</li>
-        <li>“What it needed to find out”: the board shows each hypothesis in the column of its turn; an arrow leads to a hypothesis that follows from it, in the colour of the result that led onward. Point at a box to read why it matters, what it follows from and what was found; click it to open its test.</li>
+        <li>“What it needed to find out”: the board shows each hypothesis in the column of its turn; an arrow leads to a hypothesis that follows from it, in the colour of the result that led onward. Point at a box to read why it matters, what it follows from and what was found; click it to open its test. Under the board, folded: the same test by test, and turn by turn who did what (every record of a turn in the column of whoever made it, with what it says and on what ground).</li>
         <li>A test's detail: a box of its picture opens what it stands for directly under the picture (a simulation, the verdict, the hypothesis that followed); the test stays in view.</li>
         <li>“The same, test by test”, under the board: click a row to go to its card in the notebook. The notebook: click a card to open its test; a number in “Result” opens its simulation.</li>
         <li>“Looking closer”: click a line to open that view. Best so far, and the simulations of each turn: click a dot to open that simulation.</li>
@@ -134,8 +137,13 @@ Object.assign(EV, {
       <p class="sm">“Work log”: the sequence of the model's steps and its stated reasons. “Operator columns”: anything operator-only, shown when the switch at the top is on.</p></details>`;
   },
 
+  // "Two agents" (EV.agentsCard) and "The session at a glance" (EV.glance) are kept but not drawn (the operator, 2026-11-22: the page showed too much);
+  // "Turn by turn: who did what" is the folded detail of "What it needed to find out" (EV.turnsFold, drawn by EV.findCard)
   sessionTab() {
-    return `${EV.headStrip()}${EV.legendBar()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.M.supervised ? EV.agentsCard() : ''}${EV.glance()}${EV.turnsCard()}${EV.findCard()}
+    if (EV.LEAN) return `${EV.headStrip()}${EV.legendBar()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}
+      <div class="ev-main ev-lean"><div>${EV.findCard()}</div>
+        <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>`;
+    return `${EV.headStrip()}${EV.legendBar()}${EV.banner ? EV.banner() : ''}${EV.settingCard()}${EV.findCard()}
       <div class="ev-main"><div>${EV.notebookCard()}${EV.proposesCard()}${EV.researchCard()}${EV.closerCard()}</div>
         <div class="ev-side"><div class="ev-card" id="p-detail">${EV.paneTabs()}${EV.s.pane === 'queue' ? EV.queueView() : ''}${EV.detail()}</div></div></div>${EV.howTo()}`;
   },

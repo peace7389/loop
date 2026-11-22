@@ -7,6 +7,9 @@ It replaces the plain file server. Start it with:  python3 harness/control.py   
                        checks held and failed, the figures of session_figures.py, and from checks/: the score in short and the
                        reviewer's ticks and sign-off)
   GET  /api/sessions   that list alone
+  GET  /api/agents?session=<id>   what the local model was given and wrote in that session, call by call (calls.jsonl; for an older session its
+                       drafts, its accepted answers and the supervisor's records), for the page viewer/agents.html. Everyone who can read the
+                       page may read it (2026-11-22, the operator: "everyone who sees the page"), view-only visitors from the network included.
   POST /api/run        {params, policy, brief}: one operator simulation -> checks/op-<timestamp>/, returns its metrics.
                        The brief (default two-hosts-open) gives the fixed settings and the ranges.
   POST /api/session    {brief, budget, draft, max_tokens, temperature, policy, baseline, session}: starts loop.py with those flags,
@@ -77,7 +80,7 @@ as the network it crosses; a line taken out of checks/access.json ends its link 
 in an export, and is given to nobody over HTTP. Without a key a visitor from the network can only look, as before.
 Without --network on the server listens on 127.0.0.1 only, as it always did (the scratch copies of the checks do).
 
-drafts.jsonl is given to nobody over HTTP (no page reads it). Everything else under the project folder is readable by
+drafts.jsonl and calls.jsonl are given to nobody as files over HTTP; what they hold is read through /api/agents, by the page viewer/agents.html. Everything else under the project folder is readable by
 every account, as before. Parameters go through tools.clamp, like the model's.
 Briefs (briefs/<id>.json) are the operator's: written by hand or saved from the page's brief editor.
 Python standard library only."""
@@ -161,6 +164,34 @@ def starters():
                 out.setdefault(r["id"], r.get("account"))
     return out
 
+
+def agent_view(sid):
+    """What the local model was given and wrote in one session, for the owner's page viewer/agents.html (GET /api/agents?session=<id>): every call
+    of calls.jsonl (written since 2026-11-22: the agent, the messages it was given, what it wrote before its answer, its answer, its tokens); for an
+    older session what was kept of its calls: drafts.jsonl, the accepted answers (answers.jsonl), the supervisor's records (supervisor.jsonl: what it
+    was shown and what it answered), and each draft's counts in the ledger."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", sid or ""):
+        raise Refused(400, "no such session")
+    d = ROOT / "sessions" / sid
+    if not d.is_dir():
+        raise Refused(404, f"no session {sid}")
+    def lines(name):
+        f, out = d / name, []
+        for line in (f.read_text(errors="replace").splitlines() if f.is_file() else []):
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                pass
+        return out
+    try:
+        meta = json.loads((d / "session.json").read_text())
+    except (OSError, ValueError):
+        meta = {}
+    counts = [{"id": r.get("id"), "turn": r.get("turn"), **{k: (r.get("body") or {}).get(k) for k in ("chars", "tokens", "finish_reason", "model")}}
+              for r in lines("ledger.jsonl") if r.get("type") in ("draft", "scratch")]
+    return {"session": sid, "model": meta.get("model"), "flags": meta.get("flags"), "started": meta.get("started"), "brief": meta.get("brief"),
+            "running": any(i == sid for i, _ in running_now()), "calls": lines("calls.jsonl"), "drafts": lines("drafts.jsonl"),
+            "answers": lines("answers.jsonl"), "supervisor": lines("supervisor.jsonl"), "counts": counts}
 
 def running_now():
     """The sessions that are running, wherever they were started: [(id, the account that started it)]. A loop started from a terminal runs
@@ -671,7 +702,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         from the network gets the page's own material only (OPEN_TO_NETWORK), never the list of accounts or the exports."""
         path = urllib.parse.unquote(self.path.split("?")[0].split("#")[0])
         parts = [p for p in path.split("/") if p]
-        if parts and parts[-1].lower() in ("drafts.jsonl", "access.json"):
+        if parts and parts[-1].lower() in ("drafts.jsonl", "calls.jsonl", "access.json"):
             self.send_error(404, "not given out by this server")
             return None
         if "key=" in self.path and not self.local():  # a personal link, opened: the key goes into a cookie of this browser and out of the address
@@ -708,6 +739,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.answer(200, status(you, self.local(), trusted))
         if self.path.split("?")[0] == "/api/sessions":
             return self.answer(200, sessions(you, trusted))
+        if self.path.split("?")[0] == "/api/agents":   # what the local model was given and wrote: for everyone who can read the page (2026-11-22, the operator)
+            try:
+                return self.answer(200, agent_view((urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("session") or [""])[0]))
+            except Refused as e:
+                return self.answer(e.code, {"error": e.text})
         if self.path.split("?")[0].startswith("/api/sweep/"):
             try:
                 return self.answer(200, sweep_status(self.path.split("?")[0].split("/")[3]))

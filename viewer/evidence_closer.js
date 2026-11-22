@@ -32,5 +32,5 @@ Object.assign(EV, {
 });
 EV.act = Object.assign(EV.act || {}, {
   closer(id) { const S = EV.s; S.closer = S.closer || {}; S.closer[id] = !S.closer[id]; EV.store('ev-closer', Object.keys(S.closer).filter(k => S.closer[k]).join(',')); EV.draw(); },
-  level(id) { EV.s.full = id === 'full'; EV.s.findOpen = null; EV.store('ev-full', EV.s.full ? '1' : '0'); EV.draw(); },
+  level(id) { EV.s.full = id === 'full'; EV.s.findOpen = null; EV.s.turnsOpen = null; EV.store('ev-full', EV.s.full ? '1' : '0'); EV.draw(); },
 });

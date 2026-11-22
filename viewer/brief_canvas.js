@@ -37,11 +37,12 @@ const NETC = {
     // traffic control, as in the two-host picture: for each flow that passes, its queue (a box open on the side the packets come in, its name, its
     // length, three slots at the end they leave by); then the scheduler, a circle divided as its parts divide the link, "scheduler" above it and the
     // parts below; the flows run into it and leave it side by side. How it divides the link (the policy) is not told to the AI.
-    let y0 = top - 6;
+    let y0 = top - 6; const ex = [];   // ex: where the flows of each described queue leave the host's traffic control (the schema of a session's page joins its link there)
     qs.forEach(x => { const l = x.l, q = x.q, A = x.a, fl = passing[x.id] || [], ps = partsOf(x), other = l.between.find(y => y !== h.id), hq = qH(x), capH = qs.length > 1 ? 16 : 0, sched = q.kind === 'scheduler', r = 22;
       const rowOf = id => rows.findIndex(([f, role]) => f.id === id && role === 'source'), onRows = qs.length === 1 && fl.length > 0 && fl.every(id => rowOf(id) >= 0), wq = 112, mean = a => a.reduce((u, v) => u + v, 0) / a.length;
       // where the queue of part i stands: on the row of its flow (between the rows of its flows, where several share it), else under one another
       const yq = i => (onRows ? top + mean(ps[i].who.map(rowOf)) * RH - 3 : y0 + capH + 22 + i * 44 + 7), cy = ps.length ? (yq(0) + yq(ps.length - 1)) / 2 + 15 : y0 + capH + 22 + 7 + 15, cx = xt + wq + 36 + r, part = p => Number((q.parts || {})[p.name]) || 1, tot = ps.reduce((a, p) => a + part(p), 0) || 1;
+      ex.push({ l: l.id, x: xt + wt - 4, y: cy });
       const at = d => `${(cx + r * Math.cos(d * Math.PI / 180)).toFixed(1)},${(cy + r * Math.sin(d * Math.PI / 180)).toFixed(1)}`, w = ps.length === 2 ? Math.min(0.999, Math.max(0.001, part(ps[0]) / tot)) : 0, c0 = p => col(p.who[0]);
       let a0 = -90; const pie = ps.length === 2 ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${c0(ps[1])}"/><path d="M${cx},${cy} L${at(-90 - 180 * w)} A${r},${r} 0 ${w > 0.5 ? 1 : 0},1 ${at(-90 + 180 * w)} Z" fill="${c0(ps[0])}"/>`
         : ps.length < 2 ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${ps.length ? c0(ps[0]) : 'var(--surface-1)'}"/>` : ps.map(p => { const a1 = a0 + 360 * part(p) / tot, d = `M${cx},${cy} L${at(a0)} A${r},${r} 0 ${a1 - a0 > 180 ? 1 : 0},1 ${at(a1)} Z`; a0 = a1; return `<path d="${d}" fill="${c0(p)}"/>`; }).join('');
@@ -51,7 +52,7 @@ const NETC = {
           <text x="${xt + 5}" y="${y + 13}" font-size="12" font-weight="700" fill="var(--text-primary)">${e(short(name))}</text><text x="${xt + 5}" y="${y + 25}" font-size="12" fill="var(--text-secondary)">${k(A + '.length')}${e(q.length)} packets</text>`;
       const off = i => (i - (fl.length - 1) / 2);
       // a shared queue: one box that every flow enters and leaves, first in, first out (no part of the link for anyone, so no divided circle)
-      if (!sched) { const by = cy - 15, bx = xt + 30;
+      if (!sched) { const by = cy - 15, bx = xt + 30, wq = 128;
         s += `<g data-queue="${e(x.id)}" data-obj="queue:${e(x.id)}" class="nc-queue"><title>${e(`shared queue on ${h.id}'s side of link ${l.id} (to ${other}): click to set it`)}</title><rect x="${xt - 8}" y="${y0}" width="${wt + 6}" height="${hq - 6}" rx="8" fill="transparent" stroke="transparent" class="nc-qbox"/>
           ${fl.map((id, i) => `<path d="M${xi + wi},${yq(i) + 15} C${xt + 14},${yq(i) + 15} ${xt + 10},${(cy + off(i) * 5).toFixed(1)} ${bx},${(cy + off(i) * 5).toFixed(1)}" fill="none" stroke="${col(id)}" stroke-width="2.2"/><line x1="${bx + wq}" y1="${(cy + off(i) * 3.2).toFixed(1)}" x2="${xt + wt - 4}" y2="${(cy + off(i) * 3.2).toFixed(1)}" stroke="${col(id)}" stroke-width="2.2"/>`).join('')}
           <path d="M${bx},${by} H${bx + wq} V${by + 30} H${bx}" fill="var(--surface-1)" stroke="var(--text-secondary)" stroke-width="1.2"/>${[0, 1, 2].map(i => `<rect x="${bx + wq - 10 - i * 9}" y="${by + 4}" width="6" height="22" rx="1.5" fill="${fl.length ? col(fl[i % fl.length]) : 'var(--text-secondary)'}" opacity="${0.75 - i * 0.2}"/>`).join('')}
@@ -70,7 +71,7 @@ const NETC = {
         <text x="${xt + wt - 2}" y="${cy + r + 30}" font-size="12" text-anchor="end" fill="var(--text-muted)">policy not told to the AI</text></g>`; y0 += hq; });
     // the page's own rule for text in a picture is stronger than an attribute: each text carries its size, weight and colour as its style
     s = s.replace(/<text([^>]*)>/g, (m, a) => { const g = k => (new RegExp(` ${k}="([^"]*)"`).exec(a) || [])[1], st = [['font-size', g('font-size') ? g('font-size') + 'px' : ''], ['font-weight', g('font-weight')], ['fill', g('fill')]].filter(q => q[1]).map(q => q.join(':')).join(';'); return `<text${a} style="${st}">`; });
-    return { svg: s, w: W, h: H, mirror };
+    return { svg: s, w: W, h: H, mirror, geo: { ex, xi, wi, ip0: top - 6, ip1: top - 6 + bodyH, rows: rows.length, qs: qs.length } };
   },
   // a host's box at the width and the height it was given (kx, ky: times its picture's own); the picture inside keeps its proportions and fills what fits
   sized(q, kx, ky) { return { ...q, w0: q.w0 || q.w, h0: q.h0 || q.h, kx, ky, k: Math.min(kx, ky), w: (q.w0 || q.w) * kx, h: (q.h0 || q.h) * ky }; },

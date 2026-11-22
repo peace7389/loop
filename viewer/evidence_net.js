@@ -150,7 +150,145 @@ Object.assign(EV, {
       ends[l.id] = same ? { a, c, x1: A.x + A.w / 2, y1: A.y < C.y ? A.y + A.h : A.y, x2: C.x + C.w / 2, y2: A.y < C.y ? C.y : C.y + C.h } : { a, c, x1: leftFirst ? A.x + A.w : A.x, y1: cy(a), x2: leftFirst ? C.x : C.x + C.w, y2: cy(c) }; });
     return { W, H, pos, ends, rowsOf };
   },
+  // ---- the schema of the network (2026-11-22, the operator: "a schema of more quality, to see what object types are in the topology"): each host drawn
+  // as the builder draws it in full (NETC.hostSvg, brief_canvas.js): its ns-3 Node, its applications, its sockets, its IPv4, its traffic control; on
+  // each end of a link the device (ns-3 PointToPointNetDevice), between the two devices the channel (PointToPointChannel); each flow in its colour
+  // from its application to the other end. A network too wide to read that way draws each host as its sign and its marks (NETC.hostSimple).
+  // Under it, EV.netKinds names each kind of ns-3 object the network has, with how many.
+  NET_DW: 52, NET_DH: 24, NET_GAP: 184,
+  netPassing(t) { const qs = EV.netQueues(t), out = {}; qs.forEach(x => { out[x.id] = []; }); (t.flows || []).forEach(f => (EV.netPath(t, f) || []).forEach(([l, from]) => { const x = qs.find(y => y.l.id === l && y.h === from); if (x) out[x.id].push(f.id); })); return out; },
   netSvg(b, o) {
+    const t = EV.net(b); if (!t) return ''; if (typeof NETC === 'undefined' || !NETC.hostSvg) return EV.netSvgPlain(b, o);
+    const e = EV.e, kn = (b && b.knobs) || {}, R = v => TASK_VIEW._rate(String(v)), o2 = o || {}, star = k => (k in kn ? '✦ ' : ''), knobs = Object.fromEntries(Object.keys(kn).map(k => [k, 1]));
+    const flows = t.flows || [], links = t.links || [], passing = EV.netPassing(t), DW = EV.NET_DW, DH = EV.NET_DH, GAP = EV.NET_GAP, VG = 44;
+    const L = EV.netLayout(t), colOf = {}; L.cols.forEach((c, i) => c.forEach(h => { colOf[h] = i; }));
+    const draw = simple => Object.fromEntries((t.hosts || []).map(h => [h.id, (simple ? NETC.hostSimple : NETC.hostSvg)(t, h, knobs, passing)]));
+    const wide = P => L.cols.reduce((a, c) => a + Math.max(...c.map(h => P[h].w)), 0) + GAP * Math.max(0, L.cols.length - 1);
+    let P = draw(false), simple = false; if (wide(P) > 1700) { P = draw(true); simple = true; }
+    // the side of a host a link leaves by: the side of its traffic control where it has a queue there (on the right), else the side the other host stands on
+    const other = (l, h) => (l.between[0] === h ? l.between[1] : l.between[0]), exOf = (h, l) => !simple && ((P[h].geo || {}).ex || []).find(x => x.l === l.id);
+    const side = (h, l) => (exOf(h, l) ? 'right' : colOf[other(l, h)] > colOf[h] ? 'right' : colOf[other(l, h)] < colOf[h] ? 'left' : P[h].mirror ? 'left' : 'right');
+    const pos = {}, devY = {};   // devY[h + '|' + l]: the height of the device of host h on link l, in the host's own picture
+    const place = h => { const q = P[h], g = q.geo || {}, mine = links.filter(l => l.between.includes(h));
+      ['left', 'right'].forEach(sd => { const plain = mine.filter(l => side(h, l) === sd && !exOf(h, l)), y = l => (pos[other(l, h)] ? pos[other(l, h)].y + (devY[other(l, h) + '|' + l.id] || 0) : 1e9);
+        plain.sort((a, c) => y(a) - y(c)).forEach((l, k) => { const lo = simple ? 0 : g.ip0, hi = simple ? q.h : g.ip1, n = plain.length;
+          devY[h + '|' + l.id] = simple ? q.h * (k + 1) / (n + 1) : !g.rows && !g.qs && sd === 'right' ? hi - 12 - 26 * (n - 1 - k) : lo + (hi - lo) * (k + 1) / (n + 1); }); });
+      mine.forEach(l => { const x = exOf(h, l); if (x) devY[h + '|' + l.id] = x.y; }); };
+    // columns from left to right; a host is set at the height where its devices meet those of the hosts already placed it is linked to
+    let x = 12 + (L.cols[0] || []).some(h => links.some(l => l.between.includes(h) && side(h, l) === 'left')) * DW;
+    L.cols.forEach((c, i) => { const cw = Math.max(...c.map(h => P[h].w));
+      c.forEach(h => place(h));
+      const want = h => { const ls = links.filter(l => l.between.includes(h) && pos[other(l, h)]); return ls.length ? ls.reduce((a, l) => a + pos[other(l, h)].y + devY[other(l, h) + '|' + l.id] - devY[h + '|' + l.id], 0) / ls.length : null; };
+      let y = 0; c.forEach(h => { const w0 = want(h), at = c.length === 1 && w0 != null ? w0 : y; pos[h] = { x: i === 0 ? x + cw - P[h].w : x, y: at, w: P[h].w, h: P[h].h }; y = at + P[h].h + VG; });
+      if (c.length > 1) { const ws = c.map(want).filter(v => v != null); if (ws.length) { const top = pos[c[0]].y, bot = pos[c[c.length - 1]].y + P[c[c.length - 1]].h, mid = ws.reduce((a, v) => a + v, 0) / ws.length + P[c[0]].h / 2; c.forEach(h => { pos[h].y += mid - (top + bot) / 2; }); } }
+      x += cw + GAP; });
+    const y0 = Math.min(...Object.values(pos).map(p => p.y)) - 34; Object.values(pos).forEach(p => { p.y -= y0; });
+    const pol = o2.pol ? 1 : 0, W = Math.max(...Object.values(pos).map(p => p.x + p.w)) + 12 + links.some(l => l.between.some(h => side(h, l) === 'right' && colOf[other(l, h)] === colOf[h])) * DW, H = Math.max(...Object.values(pos).map(p => p.y + p.h)) + 22 + pol * 22;
+    // a device: a box on the outside of its host, at the height of its link; what it is and what it does in its hover box
+    const dev = (h, l) => { const p = pos[h], sd = side(h, l), y = p.y + devY[h + '|' + l.id], x0 = sd === 'right' ? p.x + p.w : p.x - DW, own = (l.ends || {})[h] || {};
+      const says = `device of ${h} on link ${l.id}: ns-3 PointToPointNetDevice, the network card at ${h}'s end of the link. It sends at ${R(own.rate || l.rate)}${own.device_queue ? `; its own transmit queue holds ${own.device_queue} packets` : ''}${own.loss ? `; it loses ${own.loss} of what it receives` : ''}.`;
+      return { x0, x1: x0 + DW, y, sd, svg: `<g class="nd" data-dev="${e(h)}" data-act="sysobj" data-id="dev:${e(h)}|${e(l.id)}"${o2.on === `dev:${h}|${l.id}` ? ' data-on="1"' : ''}><title>${e(says)}</title><rect x="${x0}" y="${y - DH / 2}" width="${DW}" height="${DH}" rx="5"/><text x="${x0 + DW / 2}" y="${y + 4}" text-anchor="middle" class="nd-t">device</text></g>` }; };
+    // the flows' lines: inside the host from where they leave (its traffic control or its IPv4) to its edge, then along the channel, side by side
+    const seg = (x1, y1, x2, y2, f) => `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${EV.netColor(t, f)}" stroke-width="2.2" data-flow="${e(f)}"/>`;
+    const inner = (h, l, d, through) => { if (simple) return ''; const p = pos[h], g = P[h].geo, xq = exOf(h, l), sd = d.sd;
+      const from = xq ? p.x + xq.x : sd === 'right' ? (!g.rows || !P[h].mirror ? p.x + g.xi + g.wi : null) : (P[h].mirror || !g.rows ? p.x + g.xi : null); if (from == null) return '';
+      return through.map((f, i) => { const dy = (i - (through.length - 1) / 2) * 3.2; return seg(from, d.y + dy, sd === 'right' ? p.x + p.w : p.x, d.y + dy, f); }).join(''); };
+    const linkSvg = l => { const [a, c] = l.between; if (!pos[a] || !pos[c]) return ''; const A = dev(a, l), C = dev(c, l), through = flows.filter(f => (EV.netPath(t, f) || []).some(([id]) => id === l.id)).map(f => f.id);
+      const flip = colOf[c] < colOf[a], F = flip ? C : A, T = flip ? A : C;   // F: the end in the earlier column, where the link runs straight; T: where it turns
+      const ax = F.sd === 'right' ? F.x1 : F.x0, cx = T.sd === 'right' ? T.x1 : T.x0, k = Math.sign(cx - ax) || 1, bend = Math.abs(F.y - T.y) > 1, turn = Math.min(44, Math.abs(cx - ax) / 2);
+      const path = dy => (bend ? [[ax, F.y + dy, cx - k * turn, F.y + dy], [cx - k * turn, F.y + dy, cx - k * 8, T.y + dy], [cx - k * 8, T.y + dy, cx, T.y + dy]] : [[ax, F.y + dy, cx, T.y + dy]]);
+      const lines = through.length ? through.map((f, i) => path((i - (through.length - 1) / 2) * 3.2).map(([x1, y1, x2, y2]) => seg(x1, y1, x2, y2, f)).join('')).join('') : path(0).map(([x1, y1, x2, y2]) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="nl-idle"/>`).join('');
+      const mx = bend ? (ax + cx - k * turn) / 2 : (ax + cx) / 2, my = F.y, ends = Object.entries(l.ends || {}).filter(([, q]) => q && 'rate' in q).map(([h, q]) => ` (${h}: ${star(`${l.id}.${h}.rate`)}${R(q.rate)})`).join('');
+      const says = `link ${l.id}: ns-3 PointToPointChannel, the wire between the devices of ${a} and ${c}: ${R(l.rate)}, a one-way delay of ${R(l.delay)}${through.length ? `; ${through.join(', ')} ${through.length === 1 ? 'passes' : 'pass'} it` : '; no flow passes it'}.`;
+      return `<g class="nl" data-link="${e(l.id)}" data-act="sysobj" data-id="link:${e(l.id)}"${o2.on === 'link:' + l.id ? ' data-on="1"' : ''}><title>${e(says)}</title>${inner(a, l, A, through)}${inner(c, l, C, through)}${lines}${A.svg}${C.svg}
+        <text x="${mx}" y="${my - 21}" text-anchor="middle" class="sv"><tspan class="sn2">${e(l.id)}</tspan> · ${star(`${l.id}.rate`)}${e(R(l.rate))}${e(ends)} · ${star(`${l.id}.delay`)}${e(R(l.delay))}</text><text x="${mx}" y="${my + 24}" text-anchor="middle" class="sv nl-k">channel</text></g>`; };
+    // a host: its frame and the builder's picture of it; on this page nothing in it is clicked, so the builder's words about clicking go, and each queue says what it is
+    const qSays = Object.fromEntries(EV.netQueues(t).map(({ h, q, l, id, a }) => { const name = f => { const who = EV.netMembers(q, f); return who.length === 1 && who[0] === f ? f : `${f} (${who.join(' + ')})`; };
+      return [id, `${EV.netDisc(q.kind)[0]} (ns-3 ${EV.netDisc(q.kind)[1]}) on ${h}'s side of link ${l.id}: ${star(`${a}.length`)}${q.length} packets${q.kind === 'scheduler' ? '; its parts ' + Object.entries(q.parts || {}).map(([f, v]) => `${name(f)} ${v}`).join(' : ') : ''}`]; }));
+    const hostSvg = h => { const p = pos[h], q = P[h], nth = (t.hosts || []).findIndex(x => x.id === h);
+      let s = q.svg.replace(/( · |: )click to set (it|its application)/g, '').replace(/<text[^>]*>policy not told to the AI<\/text>/g, '').replace(/class="nc-queue"/g, 'class="nc-queue nq"')
+        .replace(/(<g data-queue="([^"]+)"[^>]*>)<title>[^<]*<\/title>/g, (m, g0, id) => `${g0}<title>${e(qSays[id] || id)}</title>`)
+        .replace(/ data-obj="/g, ' data-act="sysobj" data-id="').replace(/data-sink="([^"]+)" class="nc-flow"/g, 'data-sink="$1" class="nc-flow" data-act="sysobj" data-id="sink:$1"').replace(new RegExp(`data-id="${(o2.on || '#').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g'), m => `${m} data-on="1"`);
+      if (!simple && !q.geo.rows && !q.geo.qs) s = s.replace(/(<text x="[\d.]+" y=")[\d.]+("[^>]*>(forwards only|no flow yet)<\/text>)/, '$152$2');   // a host that only forwards: its words above, clear of the lines through it
+      return `<g class="nh" data-host="${e(h)}" data-act="sysobj" data-id="host:${e(h)}"${o2.on === 'host:' + h ? ' data-on="1"' : ''} transform="translate(${p.x},${p.y})"><title>${e(`${h}: ns-3 Node ${nth}, a computer${q.geo && q.geo.rows ? ': its applications, its sockets, its internet stack (IPv4)' : ': its internet stack (IPv4)'}${q.geo && q.geo.qs ? ' and its traffic control' : ''}`)}</title><rect class="nh-f" x="0" y="0" width="${p.w}" height="${p.h}" rx="12"/>${s}</g>`; };
+    const polT = pol ? `<text x="${W / 2}" y="${H - 8}" text-anchor="middle" class="sv" id="sy-pol"${o2.op ? ' data-by="operator"' : ''}>${e(o2.pol)}</text>` : '';
+    return `<svg class="sy net net-schema${simple ? ' net-simple' : ''}" id="net-pic" viewBox="0 0 ${W} ${H}" width="${W}" style="max-width:100%;height:auto" role="img" aria-label="The network: ${e((t.hosts || []).length)} hosts, ${e(links.length)} links, ${e(flows.length)} flows">${Object.keys(pos).map(hostSvg).join('')}${links.map(linkSvg).join('')}${polT}</svg>`;
+  },
+  // the kinds of ns-3 object the network is made of, each with its sign (as drawn in the schema), how many there are, and its ns-3 class
+  netKinds(b) {
+    const t = EV.net(b), e = EV.e; if (!t) return ''; const flows = t.flows || [], hosts = t.hosts || [], links = t.links || [], qs = EV.netQueues(t), uniq = a => [...new Set(a)], n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+    const tcp = uniq(flows.filter(f => f.kind === 'tcp').map(f => String(f.type))), apps = uniq(flows.map(f => EV.NET_APP[EV.netApp(f)][1])), discs = uniq(qs.map(x => EV.netDisc(x.q.kind)[1]));
+    const sign = d => `<svg class="nk-s" viewBox="0 0 28 18" width="28" height="18" aria-hidden="true">${d}</svg>`;
+    const items = [
+      ['node', sign('<path d="M8 3h12v8H8zM11 15h6M14 11v4" class="nk-o"/>'), n(hosts.length, 'node', 'nodes'), 'Node', 'A computer. Each host of the network is one ns-3 Node: it holds the applications, the sockets, the internet stack and the devices.'],
+      ['app', sign('<rect x="2" y="4" width="24" height="10" rx="5" class="nk-f"/>'), n(2 * flows.length, 'application', 'applications'), `${apps.join(', ')}${flows.length ? ', PacketSink' : ''}`, 'What makes and takes the traffic: on the sender of each flow the application that sends (OnOffApplication at a set rate, BulkSendApplication as fast as TCP allows), on its receiver a PacketSink.'],
+      ['socket', sign('<rect x="3" y="4" width="22" height="10" rx="2.5" class="nk-o"/>'), n(2 * flows.length, 'socket', 'sockets'), uniq(flows.map(f => (f.kind === 'tcp' ? `TCP with ${tcp.map(x => x.replace(/^Tcp/, '')).join(', ')}` : 'UDP'))).join(', '), 'The end of a connection an application writes to or reads from: a UDP socket, or a TCP socket with its congestion control (ns-3 TcpSocketBase with a TcpCongestionOps such as TcpCubic).'],
+      ['ip', sign('<rect x="9" y="1" width="10" height="16" rx="2" class="nk-o"/>'), n(hosts.length, 'internet stack', 'internet stacks'), 'IPv4 with UDP and TCP', 'ns-3 InternetStackHelper on each Node: Ipv4L3Protocol, which routes a packet to the device of its link, and UdpL4Protocol, TcpL4Protocol.'],
+      ...(qs.length ? [['queue', sign('<path d="M4 4h20v10H4" class="nk-o"/><rect x="18" y="6" width="3" height="6" class="nk-f"/><rect x="13.5" y="6" width="3" height="6" class="nk-f"/>'), n(qs.length, 'queue disc', 'queue discs'), discs.join(', '), "Traffic control: where packets wait before the device sends them, and which waits first. A link's side without one has only the device's own queue."]] : []),
+      ['device', sign('<rect x="3" y="3" width="22" height="12" rx="3" class="nk-o"/>'), n(2 * links.length, 'device', 'devices'), 'PointToPointNetDevice', 'The network card at each end of a link: it sends at the link\'s rate, from a small transmit queue of its own.'],
+      ['channel', sign('<path d="M2 9h24" class="nk-l"/>'), n(links.length, 'channel', 'channels'), 'PointToPointChannel', 'The wire between two devices: its delay is the time a bit takes from one end to the other.']];
+    return `<p class="sm net-kinds" id="net-kinds"><span class="nk-h">Made of</span>${items.map(([k, s, count, cls, says]) => `<span class="nk-i" data-kind="${k}" tabindex="0" title="${e(says)}">${s}<b>${e(count)}</b> <span class="nk-c">${e(cls)}</span></span>`).join('')}</p>`;
+  },
+  // the ids of the parts a reader can click: host:<h>, flow:<f> (its application and socket on the sender), sink:<f> (its PacketSink), queue:<id>,
+  // dev:<h>|<link> (the device of a host on a link), link:<l> (the channel)
+  netParts(t) { const ids = []; (t.hosts || []).forEach(h => ids.push('host:' + h.id)); (t.flows || []).forEach(f => ids.push('flow:' + f.id, 'sink:' + f.id)); EV.netQueues(t).forEach(x => ids.push('queue:' + x.id));
+    (t.links || []).forEach(l => { ids.push('link:' + l.id); l.between.forEach(h => ids.push(`dev:${h}|${l.id}`)); }); return ids; },
+  netCard(b, id, sim) {
+    const t = EV.net(b), e = EV.e, M = EV.M, kn = (b && b.knobs) || {}, R = v => TASK_VIEW._rate(String(v)), outs = new Set(EV.outNames()); if (!t || !id) return '';
+    const [kind, rest] = [id.slice(0, id.indexOf(':')), id.slice(id.indexOf(':') + 1)], set = EV.netSettings(t), unit = a => (EV.SET_UNIT || {})[a] ? ' ' + EV.SET_UNIT[a] : '';
+    const tried = a => { const vs = [...new Set(M.sims.filter(q => EV.seen(q.id) && q.params && q.params[a] != null).map(q => q.params[a]))]; return vs.length ? ` · this session tried ${vs.map(v => R(String(v).replace(/^Tcp/, ''))).join(', ')}` : ''; };
+    const range = q => (q.choices ? q.choices.map(v => R(String(v).replace(/^Tcp/, ''))).join(', ') : `${R(q.min)} to ${R(q.max)}`);
+    // a setting: its plain name, its value, the ns-3 attribute it is, and who decides it (the AI within a range, or the operator)
+    const row = (name, a, v, attr) => { const k = kn[a]; return `<tr data-k="${e(a)}"><td class="oc-k">${e(name)}</td><td class="oc-v"><span class="oc-val"${k ? ' data-knob="1"' : ''}>${k ? '✦ ' : ''}${e(R(String(v).replace(/^Tcp/, '')) + unit(a))}</span>${attr ? ` <span class="sm oc-note">· ns-3 <code>${e(attr)}</code></span>` : ''}
+      <span class="sm oc-note">· ${k ? `<span data-by="model" data-set="knob"><i class="sw"></i>the AI may change it</span>: ${e(range(k) + tried(a))}` : '<span data-by="operator" data-set="fixed"><i class="sw"></i>fixed by the operator</span>'}</span></td></tr>`; };
+    const words = (name, text) => `<tr><td class="oc-k">${e(name)}</td><td class="oc-v"><span class="oc-val">${text}</span></td></tr>`;
+    const measured = names => { const ms = names.filter(k => outs.has(k)); if (!ms.length) return ''; const plain = k => TH_DATA.PLAIN[k] || k;
+      return `<tr class="oc-meas"><td class="oc-k">Measured here</td><td class="oc-v">${sim && sim.metrics ? ms.map(k => `<span class="oc-val">${e(plain(k))} ${e(EV.val(k, sim.metrics[k]))}</span>`).join(' · ') + ` <span class="sm oc-note">· in ${EV.link(sim.id)}</span>` : `<span class="oc-val">${e(ms.map(plain).join(', '))}</span> <span class="sm oc-note">· in every simulation: open one and its value stands here</span>`}</td></tr>`; };
+    const head = (name, cls, where) => `<p class="oc-h"><b>${e(name)}</b><span class="oc-cls">ns-3 <code>${e(cls)}</code></span></p><p class="sm oc-where">${where}</p>`;
+    const sw = f => `<i class="sw" style="background:${EV.netColor(t, f)}"></i>`, flowOf = f => (t.flows || []).find(x => x.id === f), linkOf = l => (t.links || []).find(x => x.id === l);
+    const via = f => (EV.netPath(t, f) || []).map(([l]) => l).join(', '), sides = l => { const E = EV.netEnds(l); return l.between.map((h, i) => ({ h, i, E: E[h] || {} })); };
+    let body = '';
+    if (kind === 'host') { const h = rest, n = (t.hosts || []).findIndex(x => x.id === h), out = t.flows.filter(f => f.from === h), inn = t.flows.filter(f => f.to === h), ls = t.links.filter(l => l.between.includes(h)), qs = EV.netQueues(t).filter(x => x.h === h);
+      body = head(h, `Node ${n}`, `a computer of the network · ${ls.length} ${ls.length === 1 ? 'link' : 'links'}${ls.length > 1 ? ' · it forwards what is not for it' : ''}`) + `<table class="oc-t" data-exact="1"><tbody>`
+        + words('Applications', [...out.map(f => `${sw(f.id)}${e(f.id)} source (${e(EV.NET_APP[EV.netApp(f)][1])})`), ...inn.map(f => `${sw(f.id)}${e(f.id)} sink (PacketSink)`)].join(', ') || 'none: it only forwards')
+        + words('Internet stack', 'IPv4 with UDP and TCP <span class="sm oc-note">· ns-3 <code>Ipv4L3Protocol</code>, <code>UdpL4Protocol</code>, <code>TcpL4Protocol</code></span>')
+        + words('Devices', ls.map(l => `on ${e(l.id)} to ${e(l.between.find(x => x !== h))}`).join(', ') + ' <span class="sm oc-note">· ns-3 <code>PointToPointNetDevice</code></span>')
+        + words('Traffic control', qs.length ? qs.map(x => `${e(EV.netDisc(x.q.kind)[0])} on ${e(x.l.id)} <span class="sm oc-note">· ns-3 <code>${e(EV.netDisc(x.q.kind)[1])}</code></span>`).join(', ') : 'none described: each device has its own queue') + '</tbody></table>'; }
+    else if (kind === 'flow' || kind === 'sink') { const f = flowOf(rest); if (!f) return ''; const app = EV.netApp(f), a = f.id;
+      body = (kind === 'flow' ? head(`${f.id} source`, EV.NET_APP[app][1], `${sw(f.id)}on ${e(f.from)} · sends to ${e(f.to)} through ${e(via(f))} · on a ${f.kind.toUpperCase()} socket`)
+        : head(`${f.id} sink`, 'PacketSink', `${sw(f.id)}on ${e(f.to)} · receives ${e(f.id)} from ${e(f.from)} · on a ${f.kind.toUpperCase()} socket`)) + `<table class="oc-t" data-exact="1"><tbody>`
+        + words('Socket', f.kind === 'udp' ? 'UDP <span class="sm oc-note">· ns-3 <code>UdpSocket</code></span>' : 'TCP <span class="sm oc-note">· ns-3 <code>TcpSocketBase</code></span>')
+        + (kind === 'flow' ? (f.kind === 'tcp' ? row('Congestion control', `${a}.type`, f.type, 'TcpL4Protocol · SocketType') : '') + (app === 'onoff' ? row('Rate', `${a}.rate`, f.rate, 'OnOffApplication · DataRate') + row('Packet size', `${a}.packet_bytes`, f.packet_bytes, 'PacketSize') : words('Rate', 'as fast as TCP allows: it always has data'))
+          + EV.NET_TIMES.filter(p => p in f).map(p => row(EV.NET_TIME_SAYS[p][0], `${a}.${p}`, f[p], EV.NET_ATTR[p])).join('') : '')
+        + measured([`${a}_goodput_bps`, f.kind === 'udp' ? `${a}_loss_frac` : `${a}_retrans`]) + '</tbody></table>'; }
+    else if (kind === 'queue') { const x = EV.netQueues(t).find(q => q.id === rest); if (!x) return ''; const { q, h, l, a } = x, [plain, cls, does] = EV.netDisc(q.kind), passing = EV.netPassing(t)[x.id] || [];
+      const name = p => { const who = EV.netMembers(q, p); return who.length === 1 && who[0] === p ? p : `${p} (${who.join(' + ')})`; };
+      body = head(plain, cls, `on ${e(h)}'s side of ${e(l.id)}, before its device · ${e(does)}`) + `<table class="oc-t" data-exact="1"><tbody>`
+        + row('Length', `${a}.length`, q.length, 'QueueDisc · MaxSize')
+        + Object.entries(q.parts || {}).map(([p, v]) => row(`Part of ${name(p)}`, `${a}.parts.${p}`, v, 'FlowQueueDisc · part')).join('')
+        + Object.entries(q.largest_rate || {}).map(([p, v]) => row(`Largest rate of ${p}`, `${a}.largest_rate.${p}`, v, 'FlowQueueDisc · largest rate')).join('')
+        + words('Flows that wait in it', passing.map(f => `${sw(f)}${e(f)}`).join(', ') || 'none')
+        + (q.kind === 'scheduler' ? words('How it divides the link', 'by the parts, divided by their sum; its policy is not told to the AI') : '')
+        + measured(sides(l).filter(s => s.h === h).flatMap(s => (q.kind === 'scheduler' ? Object.keys(q.parts || {}).map(p => `${l.id}_drops_${p}`) : [s.i === 1 ? `${l.id}_drops_back` : `${l.id}_drops`]))) + '</tbody></table>'; }
+    else if (kind === 'dev') { const [h, lid] = rest.split('|'), l = linkOf(lid); if (!l) return ''; const s = sides(l).find(x => x.h === h); if (!s) return ''; const own = (l.ends || {})[h] || {}, other = l.between.find(x => x !== h);
+      const at = p => (p in own ? `${l.id}.${h}.${p}` : `${l.id}.${p}`), val = p => (p in own ? own[p] : l[p]);
+      body = head(`device of ${h} on ${l.id}`, 'PointToPointNetDevice', `the network card at ${e(h)}'s end of ${e(l.id)}, to ${e(other)}`) + `<table class="oc-t" data-exact="1"><tbody>`
+        + row('Rate', at('rate'), val('rate'), 'PointToPointNetDevice · DataRate') + (val('mtu') != null ? row('Largest packet', at('mtu'), val('mtu'), 'NetDevice · Mtu') : '')
+        + (val('device_queue') != null ? row('Transmit queue', at('device_queue'), val('device_queue'), 'TxQueue · MaxSize') : words('Transmit queue', '100 packets, the ns-3 default <span class="sm oc-note">· ns-3 <code>DropTailQueue</code></span>'))
+        + (own.loss != null ? row('Loss', `${l.id}.${h}.loss`, own.loss, 'ReceiveErrorModel · ErrorRate') : '')
+        + measured([s.i === 0 ? `${l.id}_util` : `${l.id}_util_back`, `${l.id}_lost_${h}`, ...(s.E.queue ? [] : [s.i === 1 || sides(l).some(x => x.E.queue) ? `${l.id}_drops_back` : `${l.id}_drops`])]) + '</tbody></table>'; }
+    else if (kind === 'link') { const l = linkOf(rest); if (!l) return ''; const fl = (t.flows || []).filter(f => (EV.netPath(t, f) || []).some(([x]) => x === l.id));
+      body = head(l.id, 'PointToPointChannel', `the wire between the devices of ${e(l.between[0])} and ${e(l.between[1])}`) + `<table class="oc-t" data-exact="1"><tbody>`
+        + row('Rate', `${l.id}.rate`, l.rate, 'PointToPointNetDevice · DataRate (both ends)') + row('Delay', `${l.id}.delay`, l.delay, 'PointToPointChannel · Delay')
+        + words('Flows that pass it', fl.map(f => `${sw(f.id)}${e(f.id)}`).join(', ') || 'none')
+        + measured([`${l.id}_util`, `${l.id}_util_back`]) + '</tbody></table>'; }
+    return body;
+  },
+  // the flows and the links in words (EV.netSide), folded under the schema: closed on a first visit, open in Full, remembered ("ev-networds")
+  netWords(b) { const S = EV.s, t = EV.net(b), open = S.full || EV.store('ev-networds') === '1'; if (!t) return '';
+    return `<details class="net-words" id="net-words"${open ? ' open' : ''}><summary><b>The flows and the links in words</b> <span class="sm">${(t.flows || []).length} flows, ${(t.links || []).length} ${(t.links || []).length === 1 ? 'link' : 'links'}: each application with its rate, each link with its rate, its delay and its queues</span><span class="cl noprint fl-btn" aria-hidden="true"><span class="fl-o">open</span><span class="fl-f">fold</span></span></summary>${EV.netSide(b)}</details>`; },
+  // the earlier picture (boxes, lines and words), kept for a page where the builder's drawing could not be loaded
+  netSvgPlain(b, o) {
     const t = EV.net(b), e = EV.e, kn = (b && b.knobs) || {}, R = v => TASK_VIEW._rate(String(v)), o2 = o || {}; if (!t) return '';
     const G = EV.netGeom(t), flows = t.flows || [], rowsOf = G.rowsOf, pos = G.pos, W = G.W, H = G.H;
     const star = k => (k in kn ? '✦ ' : ''), cy = h => pos[h].y + pos[h].h / 2, deg = {}; (t.links || []).forEach(l => l.between.forEach(h => { deg[h] = (deg[h] || 0) + 1; }));
@@ -201,6 +339,7 @@ Object.assign(EV, {
   // the charts a simulation's series gives: the four of the two-host set-up, or those of its network
   timeDefs(series) { return series && series.cols && !series.udp ? EV.netTime(series) : EV.TIME.filter(q => !q.need || q.need(series)); },
 });
+document.getElementById('ev').addEventListener('toggle', ev => { if (ev.target.id === 'net-words' && !EV.s.full) EV.store('ev-networds', ev.target.open ? '1' : '0'); }, true);
 Object.assign(EV, {
   // the names of the measures of the open session (its brief's outputs; the seven of the two-host set-up where none is recorded)
   outNames() { const M = EV.M, g = M && M.meta && M.meta.given; return Object.keys((g && g.outputs) || (M && M.brief && M.brief.outputs) || TH_DATA.PLAIN); },
