@@ -25,7 +25,7 @@ def say(ok, text):
     if not ok: FAILED.append(text[:50])
 # the sessions of this check were written before part D (2026-11-22: a guess not accepted is restated in the same turn, and "not from what was learned"
 # is a warning); they keep the refusals they test, and test_guess_restate.py checks part D. Unknown names are ignored by a loop before part D
-OLD_GUESSES = {"RESTATE_GUESSES": False, "GROUND_WARNINGS": []}
+OLD_GUESSES = {"RESTATE_GUESSES": False, "GROUND_WARNINGS": [], "REFUSED_ONCE": "session"}   # REFUSED_ONCE: the second statement in a later turn is accepted, as before part D (stage 2 of the coherence audit made it once a turn)
 PROMPT_LIMIT = 10_000   # the supervised arm's whole instructions, its findings text included (the operator, 2026-11-22: one limit on A+B+D)
 def session(sid, brief, answers, *flags):
     f = SCR / f"{sid}.answers.json"; f.write_text(json.dumps(answers))
@@ -81,10 +81,10 @@ fmt = json.loads((P / "sessions/v1/format_sent.json").read_text()); sent = json.
 EX = fmt["properties"]["experiment"]["anyOf"][0]; RP = fmt["properties"]["report"]["anyOf"][0]
 say(list(fmt["properties"]) == ["observations", "findings", "requests", "whys", "hypotheses", "drop", "experiment", "objections", "decisions", "report"] and list(fmt["properties"]["whys"]["items"]["properties"]) == ["about", "result", "guess", "revises"]
     and list(fmt["properties"]["hypotheses"]["items"]["properties"]) == ["from_why", "text"] and list(EX["properties"]) == ["kind", "tests", "question", "runs", "measurements", "decision_rules"] and list(EX["properties"]["decision_rules"]["items"]["properties"]) == ["for", "decision_rule", "rival", "rival_predicts"]
-    and list(RP["properties"]) == ["goal", "recommendation", "limit", "explanation", "claims"] and set(EX["properties"]["runs"]["items"]["properties"]["params"]["required"]) == {"weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration"}
+    and list(RP["properties"]) == ["goal", "recommendation", "limit", "explanation", "claims", "open_questions"] and set(EX["properties"]["runs"]["items"]["properties"]["params"]["required"]) == {"weightUdp", "udpRate", "queuePkts", "tcpVariant", "duration"}
     and meta["flags"].get("arm") == "supervised" and meta["flags"].get("judge") == "off" and "supervisor" in meta["flags"] and "A supervisor works apart from you" in meta["prompt"] and len(meta["prompt"]) < PROMPT_LIMIT
     and not any(w in meta["prompt"] for w in ("rethink", "the judge", "prediction", "follows_from", "holds_when", "budget_request")) and "rival_predicts" in meta["prompt"],
-    f"the researcher's reply is short: ten parts with findings and decisions ({', '.join(fmt['properties'])}); a guess is about, result, guess; a hypothesis is from_why and text; an experiment is its simulations, its own measurements and one rule for each test with its rival; the report is goal, recommendation, limit, explanation, claims. "
+    f"the researcher's reply is short: ten parts with findings and decisions ({', '.join(fmt['properties'])}); a guess is about, result, guess; a hypothesis is from_why and text; an experiment is its simulations, its own measurements and one rule for each test with its rival; the report is goal, recommendation, limit, explanation, claims, open_questions (stage 2 of the coherence audit). "
     f"Its instructions are {len(meta['prompt'])} characters with the findings text (one limit, {PROMPT_LIMIT}, since 2026-11-22) and ask for nothing else; a design still states every knob")
 rv = of(led, "review"); g0 = [r for r in rv if r["body"].get("gate") == "ground"]; g1 = [r for r in rv if r["body"].get("gate") != "ground"]
 say([(r["turn"], r["body"].get("round")) for r in g1] == [(1, 1), (1, 2), (1, 3), (4, 1)] and [r["body"]["decision"] for r in g1] == ["sent_back", "sent_back", "contested", "approved"] and g1[0]["body"]["defect"] == "rival_passes_too"

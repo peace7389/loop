@@ -5,7 +5,9 @@ comparison; comparisons joined by AND and OR (AND first), with parentheses to gr
 import re
 
 TOKEN = re.compile(r"\s*(?:(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)(?:@([A-Za-z0-9_]+))?|(<=|>=|==|&&|\|\||<|>|[-+*/(),]))")
-COMPARE = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, ">=": lambda a, b: a >= b, "==": lambda a, b: a == b}
+EQUAL_WITHIN = 0.0   # per cent: == holds for two values that differ by less than this (the harness sets it to the session's tolerance; the coherence audit, 2026-11-22: == was exact)
+COMPARE = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, ">=": lambda a, b: a >= b,
+           "==": lambda a, b: a == b or abs(a - b) < EQUAL_WITHIN / 100 * max(abs(a), abs(b))}
 FUNCS = {"abs": abs, "min": min, "max": max}
 
 class DecisionRuleError(ValueError):

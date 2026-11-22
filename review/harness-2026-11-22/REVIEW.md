@@ -427,3 +427,56 @@ Checks:
 - New: test_ids_position.py, test_varied.py, test_stage1.py (A–G).
 - Each was shown to fail on the code before stage 1, where it replays a session's failure: test_ids_position, test_varied, test_stage1's D.
 - The full suite on both builds is running.
+
+# Stage 2 of the coherence audit: one source per rule, each arm told what it can do (2026-11-22, night)
+
+Built on this branch, not deployed. Each item names the audit's number. Patches: s2_texts.py (15, 16, 22–24), s2_more.py (17–22, 25); the start-up
+check of stated numbers, the figures and the page's words for "not_run" were edited directly.
+- 15. **The arm "plain"** gets its own wording of the network-change text (STRUCTURE), the last turn, the free turns, a continued reply and the
+  brief's how_to_run. Its whole system text is checked at the start for hypothesis, verdict, decision rule and rethink (the check ran before
+  STRUCTURE was added: its text named "hypothesis" and "decision rule").
+- 16. **The arm "supervised"**: no "rethink it" in its ledger text; its report has open_questions (it was told to fill them, then blamed);
+  a checked hypothesis without a ruling may be dropped (only the supervisor rules); a from_why refusal speaks of guesses, not of "worth".
+- 17. **The follow-up question** on a review whose boxes disagree shows the supervisor the rival its review named and its own feedback. Its box
+  rival_is_weak may change: s052 H2's feedback named a stronger rival, the question asked only about the researcher's, the test was approved, and it
+  was ruled inconclusive for that very rival. It is asked with 2,000 tokens, 1,000 of them reasoning (the operator's choice). A follow-up that
+  cannot be read is a refusal; it was a run unreviewed.
+- 18. **A harness refusal in the last round** is "not_run", by the harness, and the hypothesis stays open. It was "contested", the supervisor's word
+  for a test that runs. The figures count it (not_run, only where it occurs); the page names it.
+- 19. **The repair prompt**: runs given replace those of the same label and add new ones, and the others are kept (the prompt said "only if they must
+  change", while any list replaced all of them). It states the exemption for a measurement of the answer's own, and that no new simulation can run
+  when none is left. It shows the records the feedback and the guess cite, and the measurements the answer defined; a repaired rule may name one a
+  sibling test defined. On a network brief, it shows one change written correctly for that network, built and checked on the brief (for
+  again_again: remove the queue on l1, then add a scheduler on l1; note: on that brief this example is also the change that lets TCP through).
+  A run keeps its change unless the feedback is about it. A refused network change ends with the same example.
+- 20. **The ruling** is shown the researcher's rival and what it said the rule gives under it, a stronger rival the review named, and the
+  measurements the experiment defined. **The objection's second look** is shown the readings, the rivals and the measurements, and says whether the
+  test was fair: "supported" or "refuted" from an unfair test is inconclusive.
+- 21. **A ruling asked for again** at the start of a turn is in that turn's ledger text (it was rendered before).
+- 22. **Continued replies**: turns with requests only are counted by turn, not by reply (LOOK_TURNS = 3 names the old literal); a due finding's
+  note says it is asked for again in the next reply of the same turn when the turn goes on. (The pairing of the automatic "work" decision and the
+  note on requests cut in the last turns were stage 1.)
+- 23, 24. **A label's length** (LABEL_MOST = 20) is stated in the instructions, the answer format (maxLength) and the refusal. The free turns say
+  that a test on simulations already run needs a measurement of its own.
+- 25. **Smaller**: == holds within the session's tolerance, as the turn's text says two results are equal (decision_rules.EQUAL_WITHIN); an unread
+  guess review is shown as unread, not as sound; gate 0's "refused once, then accepted" is per turn (it was per session); learned_since counts
+  simulations and leaves out the harness's rounds; the restatement is shown the records learned since, not only their ids; session.json counts
+  calls by agent (calls_by_agent; "calls" stays the researcher's); a report given with an experiment waits for that experiment's results.
+  Examined, unchanged: "re-reviewed twice after a changed restatement" (the two reviews are of the first statement and of the restatement, as
+  designed; no third call was found); the report's expected values stay the brief's outputs (a design question); the two-hosts columns were
+  fixed earlier (TWO_HOSTS_COLUMNS); the deployed and branch texts are made one by derive_dep.py.
+- **One source per rule**: at the start the harness checks that the numbers its instructions state for a label's length and the requests of one
+  reply are the constants it enforces (stated_rules); a session whose texts disagree does not start.
+- **Corrected while checking** (found by the checks of this stage and the next):
+  - item 19: a repair's runs are read against the last test the harness ACCEPTED; a repair the harness refused is not the base (its garbled network
+    change was kept by an empty runs list: test_repair_structure). The repair prompt shows that refused repair beside the test (s2_fix_base.py);
+  - item 25: gate 0's reading is kept by the guess, its records AND its result: a restatement that corrects its result is read again (it was recorded
+    "contested" on the reading of its first statement: test_stage4 D) (s2_fix_gkey.py);
+  - item 25: "refused once" in a turn is the default; REFUSED_ONCE = "session" keeps the rule before part D for test_supervised.py, whose session
+    has no restatements (s2_fix_once.py). test_supervised.py also expects open_questions in the report (item 16).
+
+Checks:
+- New: test_stage2.py (P, B, C, D, N, F, G, H, J, K, U): passes on this build. On the stage-1 build it fails at each fault it replays (14 failures).
+- Every harness check on this build and on the build to deploy (derive_dep.py: parts 2 and 3 off): all pass (the deploy build skips the three checks
+  of parts 2 and 3). The checks the late corrections touch were run again on both builds after them: test_supervised, test_guess_restate,
+  test_design_rounds, test_now_steps, test_stage1, test_stage2, test_repair_structure.

@@ -159,7 +159,8 @@ def design_rounds(recs):
     {"tests": proposed (reviewed, or refused by the harness before any review), "reviewed": n, "rounds": {"mean": x, "max": n} per reviewed test,
      "approved_first": approved in round 1, "repaired_approved": approved after a repair, "contested": run although the supervisor still objected,
      "dropped": its hypothesis dropped after the last round, "unsettled": left sent back (its repair could not be read or used),
-     "refused_by_harness": refused before any review (no rival, or one under which the rule would hold too)}"""
+     "refused_by_harness": refused before any review (no rival, or one under which the rule would hold too), "not_run": the harness could not use
+     the repair of the last round, so the test did not run (present only where it occurs)}"""
     rv = [r for r in recs if r["type"] == "review" and (r.get("body") or {}).get("gate") == "design" and (r.get("body") or {}).get("round")]
     if not rv:
         return None
@@ -172,7 +173,8 @@ def design_rounds(recs):
     return {"tests": len(tests) + refused, "reviewed": len(tests), "rounds": {"mean": round(sum(rounds) / len(rounds), 2), "max": max(rounds)},
             "approved_first": sum(1 for v in tests.values() if (1, "approved") in v), "repaired_approved": sum(1 for v in tests.values() if any(d == "approved" and n > 1 for n, d in v)),
             "contested": sum(d == "contested" for d in last.values()), "dropped": sum(d == "dropped" for d in last.values()),
-            "unsettled": sum(d == "sent_back" for d in last.values()), "refused_by_harness": refused}
+            "unsettled": sum(d == "sent_back" for d in last.values()), "refused_by_harness": refused,
+            **({"not_run": n} if (n := sum(d == "not_run" for d in last.values())) else {})}   # not_run: the harness could not use the last repair (the coherence audit, 2026-11-22); only where it occurs
 
 
 def guess_reviews(recs):

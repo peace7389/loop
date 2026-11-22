@@ -17,6 +17,10 @@ for k, v in json.loads(os.environ.get("SCRIPTED_SET") or "{}").items():   # a ch
     setattr(loop, k, v)
 if hasattr(loop, "CONTINUES") and "CONTINUES" not in json.loads(os.environ.get("SCRIPTED_SET") or "{}"):
     loop.CONTINUES = 0   # a script written before CONTINUES (2026-11-22) has one reply per turn; test_continue.py sets it
+if hasattr(loop, "BATCH_FIRST") and "BATCH_FIRST" not in json.loads(os.environ.get("SCRIPTED_SET") or "{}"):
+    loop.BATCH_FIRST = False   # a script written before the batched first review (stage 4 of the coherence audit, 2026-11-22) answers one review at a time; test_stage4.py sets it
+if hasattr(loop, "COMPETITORS") and "COMPETITORS" not in json.loads(os.environ.get("SCRIPTED_SET") or "{}"):
+    loop.COMPETITORS = False   # a script written before competitors (stage 5 of the coherence audit, 2026-11-22) has rival sentences; test_stage5.py sets it
 answers = json.loads(Path(sys.argv[1]).read_text())
 sup_answers, sup_users = (answers.get("supervisor") or [], []) if isinstance(answers, dict) else ([], [])
 answers = answers["answers"] if isinstance(answers, dict) else answers
@@ -28,6 +32,27 @@ def supervisor(user, schema):
         return sup_answers.pop(0) if sup_answers and set(sup_answers[0]) in ({"findings"}, {"_error"}) else {"findings": []}
     if sup_answers:
         return sup_answers.pop(0)
+    THREE = {"reads": "what the script reads", "honest_why": "it can fail", "honest": "pass", "consistent_why": "it tests the claim", "consistent": "pass", "if_tested": "held", "if_competitor": "failed",
+             "correct_why": "the two guesses differ", "correct": "pass", "missing": "", "feedback": ""}   # the three questions (stage 5): all pass
+    if need == ["guesses", "tests"]:   # the batched first review (2026-11-22): every guess sound, every test approved, as the single answers below
+        three = "honest" in schema["properties"]["tests"]["items"]["properties"]
+        return {"guesses": [{"guess": g, "records_show": "what the script reads in them", "nearest_earlier": "none", "defect": "none", "because": "the script's supervisor finds no defect"}
+                            for g in re.findall(r"^== NEW GUESS (G\d+) ==$", user, flags=re.M)],
+                "tests": [{"for": h, **(THREE if three else {"reads": "what the script reads", "stronger_rival": "none stronger than the researcher's", "rival_is_weak": False, "under_rival": "the rule would fail under it",
+                           "rival_outcome": "failed", "doubt_if": "nothing the script can name", "defect": "none", "because": "the script's supervisor finds no defect", "feedback": ""})}
+                          for h in re.findall(r"^== TEST OF (\S+) ==$", user, flags=re.M)]}
+    if "honest" in need and "missing" in need:   # the review with three questions (stage 5): approved
+        return dict(THREE)
+    if need == ["because", "if_tested", "if_competitor", "correct"]:   # its follow-up question: without a contradiction
+        return {"because": "the script's second answer", "if_tested": "held", "if_competitor": "failed", "correct": "pass"}
+    if need == ["because", "fits_tested", "fits_competitor"]:   # the follow-up on fits: as the result of a fair test says
+        held = ":  FAILED" not in user.split("THE HARNESS'S CHECKS (facts):", 1)[-1].split("\n\n", 1)[0]
+        return {"because": "the script's second answer", "fits_tested": "fits" if held else "does not fit", "fits_competitor": "does not fit" if held else "fits"}
+    if "fits_tested" in need:   # the ruling with three questions (stage 5): as the checks say, every question passing
+        held = ":  FAILED" not in user.split("THE HARNESS'S CHECKS (facts):", 1)[1].split("\n\n", 1)[0]
+        return {"shows": "what the checks say", **{k: v for q in ("honest", "consistent", "correct") for k, v in ((f"{q}_why", "it holds"), (q, "pass"), (f"{q}_foreseeable", "n/a"))},
+                "because": "the script's supervisor rules as the checks say", "result": "supported" if held else "refuted", "fits_tested": "fits" if held else "does not fit",
+                "fits_competitor": "does not fit" if held else "fits", "retest": "", "findings": []}
     if "doubt_if" in need:   # the review of a test before it runs (since 2026-11-22 it judges the researcher's rival, in rounds): approved
         return {"reads": "what the script reads", "stronger_rival": "none stronger than the researcher's", "rival_is_weak": False, "under_rival": "the rule would fail under it",
                 "rival": "the script's rival", "rival_outcome": "failed", "doubt_if": "nothing the script can name", "defect": "none", "because": "the script's supervisor finds no defect", "feedback": ""}
