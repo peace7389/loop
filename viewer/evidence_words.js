@@ -130,7 +130,8 @@ Object.assign(EV, {
     if (kind === 'y') return EV.whyPop(name);    // a guess of why: what became of it, its hypotheses, the claims that rest on those
     if (kind === 'c') return EV.claimPop(name);  // a claim of the final report: the hypotheses it rests on and the guesses behind them
     if (kind === 'x') return EV.expPop(name);  // an experiment: what it was for, its simulations, what came of it
-    if (kind === 'h') return EV.hypPop(name);  // a hypothesis: its card (evidence_find.js)
+    if (kind === 'h') return EV.hypPop(name);
+    if (kind === 'f') return EV.fndPop ? EV.fndPop(name) : '';   // a finding's bar (evidence_findings.js)  // a hypothesis: its card (evidence_find.js)
     if (kind === 'n') return EV.namePop(name);  // a simulation's name: what its parts mean, read against the experiment's designs
     if (kind === 't') return EV.testPop(name);  // a test, on the glance's "H1 held": expected against found
     if (kind === 'j') return EV.verdictPop(name);  // a verdict, on the glance's "H1 supported": the AI's judgement and its reason
