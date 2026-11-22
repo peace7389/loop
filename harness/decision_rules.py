@@ -27,6 +27,13 @@ def _tokens(text):
         i = m.end()
     return out
 
+def comparisons_in(text):
+    """How many comparisons a decision rule makes (its < <= > >= ==), from its words alone; 0 when it cannot be read (the reading refuses it then)."""
+    try:
+        return sum(1 for t in _tokens(text) if t[0] == "op" and t[1] in COMPARE)
+    except DecisionRuleError:
+        return 0
+
 def parse(text, measures, labels):
     """The decision rule as a tree of comparisons joined by AND and OR, or DecisionRuleError saying what is wrong with it."""
     toks, pos = _tokens(text), 0

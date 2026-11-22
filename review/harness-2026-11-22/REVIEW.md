@@ -524,3 +524,39 @@ Checks:
   track; the replays had one step fewer). Fixed here and in the script; the page checks run again on the page of stage 5, which holds this one.
 - The harness checks of stage 3's harness changes (live_call.json's step, the objection's step, the export) ran in the suites of stage 4 (below):
   test_stream.py checks the step's one shape.
+
+# Stage 4 of the coherence audit: the rest of "Fixes from s052 and s053" (2026-11-22, night)
+
+Built on this branch, not deployed. Patches: s4_feedback.py (items 3), s4_batch.py (4a); the page's units (5) were edited directly. Items 1 (the repair
+prompt's network change, with an example from the brief), 2 (the follow-up and "not run") and 4c (the follow-up's thinking budget of 1,000) were built in
+stage 2.
+- 3. **Feedback names one problem.** The test review asks for the one problem that matters most (a clearly stronger rival is that problem), the record
+  ids and numbers it rests on, and what a repaired test must achieve; never a rule, a measure@label, simulations or a network change (the cut of
+  rules in feedback stays). **At most 3 comparisons** in a decision rule, the arm "supervised" only (the operator's choice): COMPARISONS_MOST,
+  stated in its instructions and in the repair prompt, refused per test with the reason before any review (rule_size_problem; s052 H4's repair P2
+  had 11), and checked against the constant at the start (stated_rules).
+- 4a. **One batched first review per turn.** Every new guess (gate 0) and every new test (round 1) of a reply goes to the supervisor in one request;
+  the system, the measured results, the readings and the earlier guesses are written once (s052/s053: 24 such reviews, one after another, took
+  20.3 of the 64 minutes of waiting). A dry run of sort_out (no call) finds what the harness accepts; only that is reviewed. Each answer is then
+  read as its single review would be (the same caches, refusals, follow-up question and records); each review record keeps the batched request as
+  what it was shown. Restatements, repairs, later rounds and follow-up questions stay one per item. A batch that cannot be read leaves a note and
+  each item is asked alone; one item alone is asked alone. Tokens: 9,000 for one item, 2,000 more for each further item (half of them reasoning).
+  BATCH_FIRST switches it; session.json says which. The page knows the step ("review": the guesses and the test review steps, and their calls).
+- 4b. **No supervisor call after a harness refusal**: checked place by place; each was already so, and stays so:
+  gate 0: the harness's checks of a guess (its fields, worth, the records it cites, the chain, revises) come before the reading; a guess restated
+  after a harness refusal is checked by the harness alone; the batch: a dry run of every harness check first, and a test refused by rival_problem
+  or rule_size_problem is not in it; gate 1, round 1: every check of the experiment (sort_out) and the rival and size of each rule come first;
+  later rounds: repaired() runs every check of the normal path before the review; rulings: only for a test with a check that held or failed;
+  objections: checked (a ruling, once, a reason) before the second look; the follow-up question: only on boxes that contradict each other.
+- 5. **Units on the page**: a number written right after a measure's own name ending in _bps is in bps, and a bare number takes the unit (bps, kbps,
+  Mbps, Gbps) nearest to the measurement (s053: "tcp_goodput_bps=5792" was read as 5,792 Mbps and flagged against 0.006 Mbps).
+
+Expected waiting (from step 0 of plans/2026-11-22-review-s050-s053.md): guess and test reviews, 20.3 minutes in 24 calls over s052 and s053,
+become about one batched call per turn with new work (about 6 calls of 60 to 90 s, 6 to 9 minutes); repairs at 6,000 reasoning tokens (stage of
+the tenth part) about 7 to 8 minutes instead of 20.3. About 64 to 40 minutes of waiting over the two sessions. Not measured: no session was run.
+
+Checks:
+- New: test_stage4.py (A batched, B a follow-up after the batch, C a batch that cannot be read, D a guess the batch refuses, E four comparisons, F one
+  problem): passes. With batching off, every single review's request is byte for byte the one before the refactor (same_prompts.py: 7 of 7).
+- Every harness check on this build (33 pass) and on the build to deploy (30 pass; the 3 checks of parts 2 and 3 skip there).
+- The page: s053's "tcp_goodput_bps=5792" now agrees (num_check.js, before and after).

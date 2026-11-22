@@ -69,9 +69,9 @@ Object.assign(EV, {
     return { phase: 'between', turn: last.turn };
   },
   // the steps of a turn done by an agent, that the records show only when they are done (the harness names them in now.json)
-  LIVE_AGENT_STEPS: ['judge', 'ground', 'restate', 'design', 'repair', 'ruling', 'objection', 'look'],
+  LIVE_AGENT_STEPS: ['judge', 'review', 'ground', 'restate', 'design', 'repair', 'ruling', 'objection', 'look'],
   // who works in a phase (its icon)
-  liveBy: p => (['reply', 'restate', 'repair'].includes(p) ? 'model' : ['sims', 'baseline'].includes(p) ? 'simulator' : ['judge', 'ground', 'design', 'ruling', 'objection', 'look'].includes(p) ? 'supervisor' : 'harness'),
+  liveBy: p => (['reply', 'restate', 'repair'].includes(p) ? 'model' : ['sims', 'baseline'].includes(p) ? 'simulator' : ['judge', 'review', 'ground', 'design', 'ruling', 'objection', 'look'].includes(p) ? 'supervisor' : 'harness'),
   // the simulations of the experiment that is being run which the harness has collected so far: the runs its index lists that no record holds yet
   // (the harness reads its simulations in the order it started them, so this is how many are in, not how many have ended)
   liveDone() { const M = EV.M, have = new Set(M.sims.map(s => s.run)); return (EV.files.index || []).filter(q => q && q.id && !have.has(q.id)).length; },
@@ -87,6 +87,7 @@ Object.assign(EV, {
       : now.phase === 'sims' ? `${t}the simulator is working on the ${now.n} simulation${now.n === 1 ? '' : 's'} of experiment ${e(now.exp)}.`
       : now.phase === 'reply' ? `${t}the researcher is writing its reply${now.cont ? ` (reply ${now.cont} of this turn: what it asked for is answered)` : ''}${now.again ? ' again (its first reply could not be used)' : ''}.`
       : now.phase === 'judge' ? `${t}the judge, a second AI, reads each new hypothesis against the guess it comes from.`
+      : now.phase === 'review' ? `${t}the supervisor reads the new guesses and reviews the new tests, in one request.`
       : now.phase === 'ground' ? `${t}the supervisor reads a new guess against the records it cites.`
       : now.phase === 'restate' ? `${t}the researcher restates a guess the ${now.by === 'harness' ? 'harness' : 'supervisor'} did not accept (once, in this turn).`
       : now.phase === 'design' ? `${t}the supervisor reviews the test of ${e(now.about || 'a hypothesis')}${(now.round || 1) > 1 ? ' again' : ''} before any of its simulations runs (round ${now.round || 1} of ${now.rounds || 3}).`
@@ -120,7 +121,7 @@ Object.assign(EV, {
     } else {
       steps = [['reply', 'model', 'Reply', now.again ? 'researcher, again' : 'researcher', 'The researcher writes its reply: what it read, its guesses, its hypotheses and its test', ['reply']]]
         .concat(sup ? [
-          ['ground', now.phase === 'restate' ? 'model' : 'supervisor', 'Guesses', now.phase === 'restate' ? 'researcher restates one' : 'supervisor reads', 'The supervisor reads each new guess against the records it cites; a guess it or the harness does not accept, the researcher restates once, in this turn', ['ground', 'restate']],
+          ['ground', now.phase === 'restate' ? 'model' : 'supervisor', 'Guesses', now.phase === 'restate' ? 'researcher restates one' : 'supervisor reads', 'The supervisor reads each new guess against the records it cites; a guess it or the harness does not accept, the researcher restates once, in this turn', ['review', 'ground', 'restate']],
           ['design', now.phase === 'repair' ? 'model' : 'supervisor', 'Test review', now.phase === 'repair' ? `researcher repairs ${ab}` : now.phase === 'design' ? `supervisor, ${ab}` : `supervisor, up to ${of} rounds`, `The supervisor reviews each test before any of its simulations runs, in up to ${of} rounds; a test it sends back, the researcher repairs in this turn`, ['design', 'repair']]]
           : fl.judge === 'on' ? [['judge', 'supervisor', 'Link check', 'judge', 'The judge, a second AI, reads each new hypothesis against the guess it comes from', ['judge']]] : [])
         .concat([['sims', 'simulator', 'Simulations', 'ns-3', 'ns-3 runs the simulations of the experiment', ['sims']], ['checks', 'harness', 'Checks', 'harness', 'The harness checks each decision rule against the measured numbers', []]])
@@ -228,8 +229,8 @@ Object.assign(EV, {
   // ---- what an agent wrote in one step of a turn, its tokens (2026-11-22, the operator: "When user clicks past or ongoing stage here they should be
   // able to see tokens directly"). The calls come from /api/agents (calls.jsonl: each call's step since 2026-11-22; an earlier call is placed by what it
   // was given); the call being made from live_call.json, which the harness rewrites about once a second while the agent writes. id: "<turn>:<step key>"
-  CALL_STEPS: { reply: ['reply'], ground: ['ground', 'restate'], design: ['design', 'repair'], judge: ['judge'], ruling: ['ruling', 'objection'], look: ['look'] },
-  CALL_SAYS: { reply: 'reply', restate: 'restatement of a guess', repair: 'repair of a test', ground: 'reading of a guess', design: 'review of a test', ruling: 'ruling', objection: 'second look after an objection', look: 'look for findings', judge: 'link check' },
+  CALL_STEPS: { reply: ['reply'], ground: ['review', 'ground', 'restate'], design: ['review', 'design', 'repair'], judge: ['judge'], ruling: ['ruling', 'objection'], look: ['look'] },
+  CALL_SAYS: { review: 'first review of the new guesses and tests, in one request', reply: 'reply', restate: 'restatement of a guess', repair: 'repair of a test', ground: 'reading of a guess', design: 'review of a test', ruling: 'ruling', objection: 'second look after an objection', look: 'look for findings', judge: 'link check' },
   callStep(c) {
     if (c.step) return typeof c.step === 'string' ? c.step : c.step.step;   // calls.jsonl, and live_call.json since stage 3 (2026-11-22), keep {step, about, round, by}; the held build of 2026-11-22 spread it into the call
     const s = c.system || '', u = c.user || '';

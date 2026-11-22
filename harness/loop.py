@@ -685,7 +685,7 @@ CALLS = {"n": 0, "turn": 0}
 def stage(step, about=None, round_no=None, by=None, again=False):
     """now.json beside the ledger (2026-11-22, the operator, on the page's strip of the steps of a turn): the step the session is at, written as it
     begins, so that the page can say who works on what while no record is written yet (a supervisor's reading is recorded only when its step is
-    done). step: reply (the researcher), judge, ground (the supervisor reads a guess), restate (the researcher restates a guess; by: who did not
+    done). step: reply (the researcher), judge, review (the supervisor's batched first review of a reply's new guesses and tests), ground (the supervisor reads a guess), restate (the researcher restates a guess; by: who did not
     accept it), design (the supervisor reviews a test; round_no of REVIEW_ROUNDS), repair (the researcher repairs a test for round_no), sims, checks,
     ruling (the supervisor rules on a test), objection (the supervisor looks again at a ruling the researcher objected to), look (the supervisor looks
     at results with no ruling for findings). Never stops the session."""
@@ -792,7 +792,7 @@ REVIEW_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["
     "doubt_if": {"type": "string", "description": "written before anything is measured: what in the results would make you doubt this test even if its rule comes out as the researcher predicts"},
     "because": {"type": "string", "description": "your reasoning to the decision, with the numbers or record ids it rests on"},
     "defect": {"type": "string", "enum": list(DEFECTS), "description": "the one defect your reasoning ends in, or none"},
-    "feedback": {"type": "string", "description": "for the researcher: what is wrong with the test (empty when there is nothing), and a stronger rival if there is one. Never a decision rule, a measure@label or simulations: the researcher finds the repair"}}}
+    "feedback": {"type": "string", "description": "for the researcher: the one problem that matters most (empty when there is none; a clearly stronger rival is that problem), the record ids and numbers it rests on, and what a repaired test must achieve. Never a decision rule, a measure@label, simulations or a network change: the researcher finds the repair"}}}
 AGAIN_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["because", "stronger_rival", "rival_is_weak", "rival_outcome", "defect"], "properties": {
     "because": {"type": "string", "description": "your answer to the question, with the numbers or record ids it rests on"},
     "stronger_rival": {"type": "string", "description": "the strongest competing explanation after your answer: a stronger one your review or feedback named, or say why the researcher's is the strongest"},
@@ -826,6 +826,7 @@ REFUSED_ONCE = "turn"   # the arm "supervised": a guess about the same records i
 RESTATE_GUESSES = True   # the arm "supervised": a guess that is not accepted (by the harness or the supervisor) comes back once in the same turn to be restated, and is then accepted, contested if it still fails: its hypotheses and test go ahead (2026-11-22, the operator: no cascade)
 RESTATE_SYSTEM = ("You are the researcher. One of your guesses of why a result came out so was not accepted as you stated it. Restate it once, from the reason you are given: "
                   "what records it starts from, the result, the guess, and the earlier guess it states more exactly, if any. Answer with one JSON object in the format you are given.")
+COMPARISONS_MOST = 3   # the arm "supervised": the most comparisons in one decision rule (the operator, 2026-11-22, after s052 H4's rule of twelve); stated in LEAN_PROMPT and the repair prompt
 REVIEW_ROUNDS = 3        # the arm "supervised": the most rounds of review for one test in one turn (the first proposal and its repairs; 2026-11-22, after the reviews of s047 and s050)
 AFTER_ROUNDS = "contested"   # what becomes of a test still refused after the last round: "contested" (it runs, and the review and the ruling say that the supervisor objects) or "dropped" (its hypothesis is dropped with the supervisor's last reason)
 RULE_IN_TEXT = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*@[A-Za-z0-9_]+")   # a decision rule's measure@label: the supervisor's feedback never holds one
@@ -844,6 +845,7 @@ STRUCTURE_PLAIN = (("a decision rule may only name a measure that exists in ever
 REQUESTS_MOST = 3   # the arms "hypotheses" and "plain": the most requests answered in one reply (stated in prompt.txt; the answer format's maxItems; a cut is noted)
 LOOK_TURNS = 3   # the arms "hypotheses" and "plain": the most turns in a row with requests only; then the turn's text asks for a decision
 LOOKS = 6   # the arm "supervised": the most requests in one turn, and the most turns in a row that only look (the operator, 2026-11-18: observe the system whenever it wants, rather than try many simulations)
+BATCH_FIRST = True   # the arm "supervised": the new guesses and tests of a reply are reviewed in one request (stage 4 of the coherence audit, 2026-11-22; the operator's sheet "Fixes from s052 and s053", 4a)
 AGAIN_TOKENS = 2000   # the supervisor's follow-up question: 1,000 of them reasoning (the operator, 2026-11-22: a thinking budget of 1,000)
 SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of the supervisor, what it was shown and what it answered
 
@@ -851,7 +853,8 @@ SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of t
 def stated_rules(text, arm):
     """The numbers the instructions state for rules the harness enforces, against the constants that enforce them (the coherence audit, 2026-11-22:
     one source per rule). ValueError at the start of the session when they differ; the texts stay plain text that the checks can read."""
-    want = [("a label's length", r"at most (\d+) characters", LABEL_MOST)] + ([("the requests of one reply", r"at most (\d+) in one reply", REQUESTS_MOST)] if arm != "supervised" else [])
+    want = [("a label's length", r"at most (\d+) characters", LABEL_MOST)] + ([("the requests of one reply", r"at most (\d+) in one reply", REQUESTS_MOST)] if arm != "supervised" else
+                                                                                [("a decision rule's comparisons", r"at most (\d+) comparisons", COMPARISONS_MOST)])
     for what, pat, n in want:
         found = [int(x) for x in re.findall(pat, text)]
         if not found or any(x != n for x in found):
@@ -921,16 +924,17 @@ def _looked(ledger, runs=None, room=None):
     return "\n".join(forms[r["id"]] for r in ledger if r["type"] == "result") or "  (the researcher has asked the tools for nothing yet)"
 
 
-def _case(ledger, hid, rules):
-    """One hypothesis as the supervisor is shown it: the result its guess is about, the guess, the hypothesis, its decision rules. Not the researcher's reasons."""
+def _case(ledger, hid, rules, h=None, w=None):
+    """One hypothesis as the supervisor is shown it: the result its guess is about, the guess, the hypothesis, its decision rules. Not the researcher's reasons.
+    h, w: the hypothesis and its guess when they are not in the ledger yet (the batched first review, 2026-11-22)."""
     flat = lambda v: " ".join(str(v).split())
-    h = next(r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid)
-    w = next((r["body"] for r in ledger if r["type"] == "why" and r["id"] == h.get("from_why")), None)
+    h = h if h is not None else next(r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid)
+    w = w if w is not None else next((r["body"] for r in ledger if r["type"] == "why" and r["id"] == h.get("from_why")), None)
     return ((f"THE RESULT the guess is about: {flat(w['result'])}\nTHE GUESS of why it came out so: {flat(w['guess'])}\n" + (f"What would make it so, not directly visible: {flat(w['unseen'])}\n" if w.get("unseen") else "") if w else "")
             + f"THE HYPOTHESIS {hid}: {flat(h['text'])}\n" + "".join(f"DECISION RULE: {flat(d['decision_rule'])}\n" for d in rules))
 
 
-def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlier=()):
+def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlier=(), case=None, parts=False, pre=None, pre_saw=None):
     """Gate 1. The supervisor's review of the test of one hypothesis, before any of its simulations is run: (review, what it was shown).
     Since 2026-11-22 (the operator, after the reviews of s047 and s050: the supervisor invented the rival itself, and its boxes defect and rival_outcome
     disagreed 12 times in s047, the harness siding with rival_outcome each time) it judges the researcher's own rival: is there a clearly stronger one,
@@ -946,17 +950,22 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlie
     sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"; network changed: {edits_say(r['structure'])}" if r.get("structure") else "") + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
     theirs = "".join(f"THE RESEARCHER'S RIVAL for this rule: {flat(d.get('rival'))}\nWHAT THE RESEARCHER SAYS THE RULE GIVES IF THAT RIVAL IS TRUE: {str(d.get('rival_predicts')).upper()}\n" for d in rules)
     before = "".join(f"ROUND {k} of this test: {who} sent it back: {flat(fb)}\n" for k, who, fb in earlier)
-    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + _case(ledger, hid, rules)
+    item = (case if case is not None else _case(ledger, hid, rules))
+    item = (item
             + "".join(f"A MEASUREMENT THE RESEARCHER DEFINES FOR THIS TEST: {m['name']} = {m['stat']} of {m['of']}" + (f" against the level {m['level']}" if m.get("level") is not None else "") + f", from {m.get('t_from') if m.get('t_from') is not None else 2} s to {m.get('t_to') if m.get('t_to') is not None else 'the end'} (computed by the harness from what each simulation records; the probe only listens)\n" for m in ex.get("measurements") or [])
             + (f"What the researcher says it must know to decide it: {flat(need['to_know'])}\n" if need.get("to_know") else "") + f"Between the simulations its rule compares, the one setting that differs: {need.get('varies') or 'not stated'}; the measure the rule is about: {need.get('measure') or 'not stated'}\n"
-            + theirs + f"THE SIMULATIONS PLANNED FOR IT:\n{sims}\n\n" + (f"THIS IS ROUND {round_no} of at most {REVIEW_ROUNDS} for this test. The researcher repaired it after:\n{before}\n" if round_no > 1 else "")
-            + "Before any of these simulations is run: can this test tell the guess from the researcher's rival? Judge the researcher's rival, do not replace it with your own. First say what "
+            + theirs + f"THE SIMULATIONS PLANNED FOR IT:\n{sims}\n\n")
+    ask = ("Before any of these simulations is run: can this test tell the guess from the researcher's rival? Judge the researcher's rival, do not replace it with your own. First say what "
             "the rule compares. Then say whether you see a clearly stronger rival (name it, or say why the researcher's is the strongest). Then reason what the decision rule would give if that "
             "rival (the researcher's, or the stronger one) were true and the guess false, and give that outcome. Then say what would make you doubt the test even if it comes out as predicted, "
-            "reason to the decision, and name the defect, or none. Last, feedback for the researcher: what is wrong with the test, and a stronger rival if there is one. The feedback never "
-            "contains a decision rule, a measure@label or simulations: the researcher must find the repair itself. The defects: "
+            "reason to the decision, and name the defect, or none. Last, feedback for the researcher: the one problem that matters most (a clearly stronger rival is that problem), "
+            "the record ids and numbers it rests on, and what a repaired test must achieve. The feedback never contains a decision rule, a measure@label, simulations or a network "
+            "change: the researcher must find the repair itself. The defects: "
             + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ". A test is not defective for being small or for testing only one consequence of the guess.")
-    d = (ask_fn or supervise)(model, user, REVIEW_SCHEMA)
+    if parts:   # the pieces of this review, for the batched first review
+        return {"item": item, "ask": ask}
+    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + item + (f"THIS IS ROUND {round_no} of at most {REVIEW_ROUNDS} for this test. The researcher repaired it after:\n{before}\n" if round_no > 1 else "") + ask)
+    d = pre if pre is not None else (ask_fn or supervise)(model, user, REVIEW_SCHEMA)   # pre: its answer in the batched first review
     predicts = next((str(x.get("rival_predicts")) for x in rules if x.get("rival_predicts") in ("held", "failed")), "failed")
     rev = {"reads": flat(d.get("reads")), "stronger_rival": flat(d.get("stronger_rival")), "rival_is_weak": bool(d.get("rival_is_weak")), "under_rival": flat(d.get("under_rival")),
            "rival_outcome": d.get("rival_outcome") if d.get("rival_outcome") in ("held", "failed", "cannot tell") else "cannot tell", "doubt_if": flat(d.get("doubt_if")),
@@ -1007,6 +1016,8 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlie
         rev["feedback"], rev["cut"] = " ".join(kept) or "(the harness cut the whole feedback: it wrote a decision rule)", len(parts) - len(kept)
     rev["approved"] = ok
     rev["rival"] = rev["stronger_rival"] if rev["rival_is_weak"] else ""   # the rival the supervisor names itself: only a clearly stronger one (the review's "rival" since 2026-11-18)
+    if pre is not None:   # what it was shown: the batched request (and a follow-up question, asked alone)
+        user = (pre_saw or "") + "\n\n[this test was answered in the batched first review of the turn]" + (f"\n\n[then asked alone]:\n{user}" if rev.get("again") else "")
     return rev, user
 
 
@@ -1036,7 +1047,7 @@ def gkey(w):
     return (" ".join(str(w.get("guess")).split()), tuple(w.get("about") or []), " ".join(str(w.get("result")).split()))
 
 
-def ground_of(model, brief, ledger, why, ask_fn=None):
+def ground_of(model, brief, ledger, why, ask_fn=None, parts=False, pre=None, pre_saw=None):
     """Gate 0. The supervisor's reading of one new guess before anything is built on it: is the result it starts from what the records it cites show,
     and is it more than an earlier guess or hypothesis said again? (ground, what it was shown). ground = {records_show, nearest_earlier, defect, because}.
     The supervisor is shown the cited records as the ledger holds them, the session's guesses and hypotheses with their rulings, and of the new guess
@@ -1051,17 +1062,23 @@ def ground_of(model, brief, ledger, why, ask_fn=None):
                         + [f"  [{r['id']}] hypothesis ({st.get(r['id'], 'open')}): {flat(r['body']['text'])}" for r in ledger if r["type"] == "hypothesis"]) or "  (none yet)"
     rulings = "\n".join(f"  [{r['id']}] on {r['body']['for']}: {r['body']['result']}. {flat(r['body']['because'])}" for r in ledger if r["type"] == "verdict") or "  (none yet)"
     runs = {r["body"].get("run_id") for r in cited if r["type"] == "simulation"} | {q["body"].get("run_id") for r in cited if r["type"] == "evidence" for q in ledger if q["type"] == "simulation" and q.get("parent") == r["body"]["experiment"]}
-    user = (_system_for_supervisor(brief) + "\nTHE RECORDS THE NEW GUESS CITES:\n" + ("\n".join(mark(r) for r in cited) or "  (it cites the brief only: nothing has been measured for it)")
-            + "\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (the researcher asked; the harness read it from what the simulations recorded over time: these are measurements too, and a guess may start from them):\n" + _looked(ledger)
-            + f"\n\nTHE NEW GUESS\nThe result it starts from, as the researcher states it: {flat(why['result'])}\nThe guess of why: {flat(why['guess'])}\n" + (f"What would make it so, not directly visible: {flat(why['unseen'])}\n" if why.get("unseen") else "") + "\n"
-            f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{earlier}\n\nTHE RULINGS SO FAR:\n{rulings}\n\n"
-            "Before anything is built on this guess: first say what the cited records show about the result it starts from. Then name the earlier guess or hypothesis nearest to it. Then name the defect, or none. "
+    cites = "\n".join(mark(r) for r in cited) or "  (it cites the brief only: nothing has been measured for it)"
+    the_guess = (f"The result it starts from, as the researcher states it: {flat(why['result'])}\nThe guess of why: {flat(why['guess'])}\n" + (f"What would make it so, not directly visible: {flat(why['unseen'])}\n" if why.get("unseen") else ""))
+    ask = ("Before anything is built on this guess: first say what the cited records show about the result it starts from. Then name the earlier guess or hypothesis nearest to it. Then name the defect, or none. "
             "The defects: " + "; ".join(f"{k}: {v}" for k, v in GROUNDS.items()) + ". A guess may be wrong and still be sound here: you judge whether it starts from what was measured and adds something, "
             "not whether it is true. A guess that takes up an earlier one with a stated difference (another cause, another range, a reason why the earlier test was not fair) is not a repetition."
             + ("" if new is None else " This is not the researcher's first guess, and a later guess has to be the fruit of what was learned since the earlier ones. The records marked NEW are what it says it "
                "learned from. Say in your reasoning what they show that the earlier guesses did not have, and ask: would the researcher have made this same guess without them? If yes, the citation is "
                "for form only and the defect is not_from_what_was_learned."))
-    d = (ask_fn or supervise)(model, user, GROUND_SCHEMA)
+    if parts:   # the pieces of this review, for the batched first review
+        return {"cites": cites, "guess": the_guess, "earlier": earlier, "rulings": rulings, "ask": ask}
+    user = (_system_for_supervisor(brief) + "\nTHE RECORDS THE NEW GUESS CITES:\n" + cites
+            + "\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (the researcher asked; the harness read it from what the simulations recorded over time: these are measurements too, and a guess may start from them):\n" + _looked(ledger)
+            + "\n\nTHE NEW GUESS\n" + the_guess + "\n"
+            + f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{earlier}\n\nTHE RULINGS SO FAR:\n{rulings}\n\n" + ask)
+    d = pre if pre is not None else (ask_fn or supervise)(model, user, GROUND_SCHEMA)   # pre: its answer in the batched first review
+    if pre is not None:
+        user = pre_saw or ""
     return {"records_show": flat(d["records_show"]), "nearest_earlier": flat(d["nearest_earlier"]), "defect": d["defect"] if d["defect"] in GROUNDS else "none", "because": flat(d["because"])}, user
 
 
@@ -1078,6 +1095,48 @@ def _test_terms(ledger, xid, hid):
         out += f"THE STRONGER RIVAL YOU NAMED IN YOUR REVIEW: {flat(rev['stronger_rival'])} (you said the rule gives {str(rev.get('rival_outcome')).upper()} under it)\n"
     out += "".join(f"A MEASUREMENT THE EXPERIMENT DEFINED: {m['name']} = {m['stat']} of {m['of']}" + (f" against the level {m['level']}" if m.get("level") is not None else "") + f", from {m.get('t_from') if m.get('t_from') is not None else 2} s to {m.get('t_to') if m.get('t_to') is not None else 'the end'}\n" for m in x.get("measurements") or [] if isinstance(m, dict))
     return out
+
+
+def batch_schema(ng, nt):
+    """The answer of the batched first review: one item for each new guess (gate 0's fields) and one for each test (round 1's fields)."""
+    g_item = {"type": "object", "additionalProperties": False, "required": ["guess"] + GROUND_SCHEMA["required"],
+              "properties": {"guess": {"type": "string", "description": "the guess's name in this request: G1, G2, ..."}, **GROUND_SCHEMA["properties"]}}
+    t_item = {"type": "object", "additionalProperties": False, "required": ["for"] + REVIEW_SCHEMA["required"],
+              "properties": {"for": {"type": "string", "description": "the hypothesis whose test this item reviews, as its heading names it"}, **REVIEW_SCHEMA["properties"]}}
+    return {"type": "object", "additionalProperties": False, "required": ["guesses", "tests"], "properties": {
+        "guesses": {"type": "array", "minItems": ng, "maxItems": ng, "items": g_item, "description": "one item for each new guess, in their order"},
+        "tests": {"type": "array", "minItems": nt, "maxItems": nt, "items": t_item, "description": "one item for each test, in their order"}}}
+
+
+def first_review(model, brief, ledger, guesses, tests, ask_fn=None):
+    """The batched first review of a reply (stage 4 of the coherence audit, 2026-11-22): every new guess (gate 0) and every test (round 1) in one
+    request; what all of them share is written once. guesses: the guesses as stated; tests: [(hypothesis, its test, its case text or None)].
+    Returns (an answer or None for each guess, an answer or None for each test, what was shown). The answers are the raw items: each is then read
+    as a review of its own would be (ground_of, review_design with pre)."""
+    gp = [ground_of(model, brief, ledger, w, parts=True) for w in guesses]
+    tp = [review_design(model, brief, ledger, ex, hid, case=case, parts=True) for hid, ex, case in tests]
+    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned "
+            f"when the researcher looked: these are measurements too, and a guess may start from them):\n{_looked(ledger)}\n\n"
+            + (f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{gp[0]['earlier']}\n\nTHE RULINGS SO FAR:\n{gp[0]['rulings']}\n\n" if gp else "")
+            + f"THIS REQUEST HOLDS EVERY NEW GUESS AND EVERY NEW TEST OF THE RESEARCHER'S REPLY IN THIS TURN ({len(guesses)} guess{'es' if len(guesses) != 1 else ''}, {len(tests)} test{'s' if len(tests) != 1 else ''}). "
+              "Judge each on its own, as if it were asked alone, and answer each in its own item.\n\n"
+            + "".join(f"== NEW GUESS G{i + 1} ==\nTHE RECORDS IT CITES:\n{q['cites']}\nTHE GUESS:\n{q['guess']}\n" for i, q in enumerate(gp))
+            + "".join(f"== TEST OF {hid} ==\n{q['item']}" for (hid, _, _), q in zip(tests, tp))
+            + (f"FOR EACH NEW GUESS (an item of guesses, named G1, G2, ... as above): {gp[0]['ask']}\n\n" if gp else "")
+            + (f"FOR EACH TEST (an item of tests, by its hypothesis): {tp[0]['ask']}" if tp else ""))
+    n = len(guesses) + len(tests)
+    d = (ask_fn or (lambda m, u, sc: supervise(m, u, sc, 9000 + 2000 * (n - 1))))(model, user, batch_schema(len(guesses), len(tests)))   # 4,500 reasoning tokens and 1,000 more for each further item
+    gs = {str(x.get("guess")): x for x in d.get("guesses") or [] if isinstance(x, dict)}
+    ts = {str(x.get("for")): x for x in d.get("tests") or [] if isinstance(x, dict)}
+    return [gs.get(f"G{i + 1}") for i in range(len(guesses))], [ts.get(hid) for hid, _, _ in tests], user
+
+
+def test_key(ex, hid, h_text):
+    """What makes a test the same in the batched first review and in round 1: its hypothesis, its rules and the simulations they name."""
+    rules = [{k: d.get(k) for k in ("decision_rule", "rival", "rival_predicts")} for d in ex.get("decision_rules") or [] if d.get("for") == hid]
+    need = next((n for n in ex.get("needs") or [] if n.get("for") == hid), {})
+    runs = [{k: r.get(k) for k in ("label", "params", "structure")} for r in ex.get("runs") or [] if r.get("label") in (need.get("simulations") or [q.get("label") for q in ex.get("runs") or []])]
+    return json.dumps([" ".join(str(h_text).split()), rules, runs], sort_keys=True)
 
 
 def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None, contested=None):
@@ -1248,6 +1307,13 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
     else:
         return "experiment.kind must be test or explore"
     return None
+
+def rule_size_problem(r):
+    """The arm "supervised": what is wrong with the size of one decision rule, or None (at most COMPARISONS_MOST comparisons)."""
+    k = decision_rules.comparisons_in(r.get("decision_rule"))
+    return (f"the decision rule for {r.get('for')} makes {k} comparisons, and a rule makes at most {COMPARISONS_MOST}: a rule that needs more asks more than one "
+            "question. Decide the hypothesis by the one comparison its guess predicts, and leave the rest to a later test") if k > COMPARISONS_MOST else None
+
 
 def rival_problem(r):
     """What is wrong with the rival of one decision rule, or None: a rival (a competing explanation, one sentence) and rival_predicts (held or failed),
@@ -1778,7 +1844,7 @@ The ledger is the complete record of the session. You have no other memory. Each
    - kind "test": tests lists the open hypotheses it tests; decision_rules has at least one rule for each. kind "explore": question says what you want to find out; tests and decision_rules stay empty.
    - runs: the simulations, each with a label of its own (letters, digits and _, at most 20 characters) and params: a value for EVERY knob of the brief (a knob left as it was is stated with the value it has). A simulation with the same settings as an earlier one is not run again: its result is returned and costs nothing. The simulations one rule compares must differ in one setting only, so that a difference has one possible cause.
    - measurements: measurements of your own that this experiment takes of each of its simulations, beside the outputs; an empty list when the outputs are enough. Each has name (lower-case, for example rwnd_max), of (a column a simulation records over time, or arithmetic over columns of one record: the columns the tools series and probe name in the brief), stat (one of the statistics the format lists), t_from and t_to (seconds; null: the measured seconds) and level (the number time_above and the like compare with; null otherwise). The harness computes them with taps that only listen: a measurement cannot change a result.
-   - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis), decision_rule, rival (the strongest competing explanation, one sentence) and rival_predicts (held or failed: what the rule gives if the rival is true; held is refused). Write it exactly in this form: numbers; measure@label (an output, or a measurement of your own, in the simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; comparisons joined by AND and OR. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.
+   - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis), decision_rule, rival (the strongest competing explanation, one sentence) and rival_predicts (held or failed: what the rule gives if the rival is true; held is refused). Write it exactly in this form: numbers; measure@label (an output, or a measurement of your own, in the simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; at most 3 comparisons, joined by AND and OR. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.
 7. objections: if the records show that a ruling of the supervisor is wrong, object once: to (the ruling's id, for example V2) and because (the numbers it overlooked). Usually empty.
 8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings, evidence tables and readings that support it, for example C2, V1, E3, T7).
 
@@ -2443,21 +2509,72 @@ def main():
     # turn gets the same reading). A guess with a defect is refused the first time; a guess about the same records stated after that is accepted whatever the
     # supervisor finds, and its review says so: the supervisor can be wrong, and it must not be able to stop the work
     grounded, refused_about, ground_written = {}, {}, set()
+    def ground_take(k, w, g, saw):
+        """A guess's reading, by itself or in the batched first review: whether it is refused (once in a turn for the same records), kept for the turn."""
+        about = tuple(sorted(w["about"]))
+        warning = g["defect"] in GROUND_WARNINGS   # recorded, and the guess is accepted (2026-11-22, after s050 and s051)
+        scope = (turn if REFUSED_ONCE == "turn" else None, about)   # once in a turn (the coherence audit, 2026-11-22: it was once in the session)
+        refuse = g["defect"] != "none" and not warning and not refused_about.get(scope)
+        if refuse:
+            refused_about[scope] = 1
+        grounded[k] = {**g, "saw": saw, "refuse": refuse, "warning": warning, "result": w["result"], "guess": w["guess"]}
     def ground_fn(w):
-        k, about = gkey(w), tuple(sorted(w["about"]))
+        k = gkey(w)
         if k not in grounded:
             try:
                 stage("ground")
                 g, saw = ground_of(model, brief, ledger, w)
             except (ValueError, KeyError, TypeError) as e:
                 g, saw = {"records_show": "", "nearest_earlier": "none", "defect": "none", "because": f"the supervisor's reading could not be read ({type(e).__name__}): the guess is accepted unread", "unread": True}, ""
-            warning = g["defect"] in GROUND_WARNINGS   # recorded, and the guess is accepted (2026-11-22, after s050 and s051)
-            scope = (turn if REFUSED_ONCE == "turn" else None, about)   # once in a turn (the coherence audit, 2026-11-22: it was once in the session)
-            refuse = g["defect"] != "none" and not warning and not refused_about.get(scope)
-            if refuse:
-                refused_about[scope] = 1
-            grounded[k] = {**g, "saw": saw, "refuse": refuse, "warning": warning, "result": w["result"], "guess": w["guess"]}
+            ground_take(k, w, g, saw)
         return grounded[k]
+    prereviewed = {}   # test_key -> (the batched first review's answer for that test, what was shown): taken by round 1 instead of a call of its own
+    def prefetch(parsed, mode_now):
+        """The batched first review of this reply (stage 4 of the coherence audit, 2026-11-22): a dry run of sort_out (no call to anyone) finds the new
+        guesses and tests the harness accepts; those not yet read are asked in one request; the answers fill the caches the single reviews use."""
+        found = []
+        def collect(w):
+            k = gkey(w)
+            if k not in grounded and k not in [x[0] for x in found]:
+                found.append((k, json.loads(json.dumps(w))))
+            return {"records_show": "", "nearest_earlier": "none", "defect": "none", "because": "", "refuse": False, "warning": False}
+        try:
+            ok0, _no0 = sort_out(json.loads(json.dumps(parsed)), brief, ledger, max(0, budget - sims), mode_now, insist=not asked, judge=None, supervised=True, ground=collect, short=short, restate=None)
+        except Exception:   # the real pass says what is wrong; the batch is only a way to ask sooner
+            return
+        tests = []
+        ex0 = ok0.get("experiment")
+        if ex0 is not None and ex0.get("kind") == "test":
+            n_h, n_y = sum(r["type"] == "hypothesis" for r in ledger), sum(r["type"] == "why" for r in ledger)
+            hyps, whys = {f"H{n_h + i + 1}": h for i, h in enumerate(ok0["hypotheses"])}, {f"Y{n_y + i + 1}": w for i, w in enumerate(ok0["whys"])}
+            for hid in ex0.get("tests") or []:
+                if any(rival_problem(d) or rule_size_problem(d) for d in ex0.get("decision_rules") or [] if d.get("for") == hid):
+                    continue   # refused by the harness before any review
+                h = hyps.get(hid) or next((r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid), None)
+                if h is None:
+                    continue
+                w = whys.get(h.get("from_why")) or next((r["body"] for r in ledger if r["type"] == "why" and r["id"] == h.get("from_why")), None)
+                key = test_key(ex0, hid, h.get("text"))
+                if key not in prereviewed:
+                    tests.append((hid, ex0, _case(ledger, hid, [d for d in ex0.get("decision_rules") or [] if d.get("for") == hid], h=h, w=w), key))
+        if len(found) + len(tests) < 2:   # one item is asked alone, as before: nothing to share
+            return
+        try:
+            stage("review")
+            g_ans, t_ans, saw = first_review(model, brief, ledger, [w for _, w in found], [(hid, ex, case) for hid, ex, case, _ in tests])
+        except (ValueError, KeyError, TypeError, IndexError, AttributeError) as e:   # a model server error ends the session, as at any other call
+            append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"the supervisor's batched first review could not be read ({type(e).__name__}): each new guess and test is asked alone"})
+            return
+        for (k, w), x in zip(found, g_ans):
+            if isinstance(x, dict):
+                try:
+                    g, _saw = ground_of(model, brief, ledger, w, pre=x, pre_saw=saw)
+                    ground_take(k, w, g, saw)
+                except (ValueError, KeyError, TypeError):
+                    pass   # an item that cannot be read: that guess is asked alone
+        for (hid, ex, case, key), x in zip(tests, t_ans):
+            if isinstance(x, dict):
+                prereviewed[key] = (x, saw)
     restated_cache = {}
     def restate_fn(w, why, by):
         """One restatement of a guess that was not accepted (the arm "supervised", 2026-11-22): a short call to the researcher with the reason, the guess as
@@ -2499,7 +2616,7 @@ def main():
     if not meta.exists():  # the session's own record of what it was given; the scheduling policy is not in it
         meta.write_text(json.dumps({"id": SID, "brief": brief["id"], "model": model, "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
                                     "flags": {"budget": a.budget, "draft": a.draft, "max_tokens": a.max_tokens, **({"draft_tokens": draft_tokens(a.max_tokens)} if a.draft == "on" else {}), "temperature": a.temperature, "baseline": a.baseline, "judge": a.judge if arm == "hypotheses" else "off", **({"arm": arm} if arm != "hypotheses" else {"format": "short"} if short else {}),
-                                              **({"supervisor": {"model": model, "temperature": 0, "max_tokens": 9000, "draft_tokens": draft_tokens(9000), "sees": "the brief's description, the guess, the hypothesis, the decision rules, the planned simulations, the measured numbers; not the researcher's observations or reasons"}} if arm == "supervised" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
+                                              **({"supervisor": {"model": model, "temperature": 0, "max_tokens": 9000, "draft_tokens": draft_tokens(9000), "follow_up_tokens": AGAIN_TOKENS, "first_review": "one request for the new guesses and tests of a reply" if BATCH_FIRST else "one request each", "sees": "the brief's description, the guess, the hypothesis, the decision rules, the planned simulations, the measured numbers; not the researcher's observations or reasons"}} if arm == "supervised" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
     print(f"session {SID} (brief {brief['id']}): {tools.SESSION}", flush=True)
     ledger = load_ledger()
     fresh = not ledger   # a new ledger: the baseline runs now (inside the guard below, after the stop handlers: the coherence audit, 2026-11-22)
@@ -2559,7 +2676,7 @@ def main():
         or None; the tests sent back for repair: (hypothesis, its test, the review, the review's id, the experiment's simulations))."""
         bad = {}
         for d in ex.get("decision_rules") or []:
-            why = rival_problem(d)
+            why = rival_problem(d) or rule_size_problem(d)
             if why and d.get("for") not in bad:
                 bad[d.get("for")] = why
         for h, why in bad.items():
@@ -2572,9 +2689,11 @@ def main():
         held, gone = [], []
         for hid in ex["tests"]:
             test = test_of(ex, hid)
+            pre = prereviewed.pop(test_key(ex, hid, next((r["body"].get("text") for r in ledger if r["type"] == "hypothesis" and r["id"] == hid), "")), None)   # its answer in the batched first review
             try:
-                stage("design", hid, 1)
-                rev, saw = review_design(model, brief, ledger, ex, hid)
+                if pre is None:
+                    stage("design", hid, 1)
+                rev, saw = review_design(model, brief, ledger, ex, hid, pre=pre[0] if pre else None, pre_saw=pre[1] if pre else None)
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", hid, {"text": f"the supervisor's review of the test of {hid} could not be read ({type(e).__name__}): the test is run unreviewed"})
                 continue
@@ -2602,7 +2721,7 @@ def main():
               "varied": varied_of(runs, brief), "control": None}
         if not isinstance(rule["decision_rule"], str) or not rule["decision_rule"].strip():
             return t2, "the repaired test needs a decision rule"
-        why = rival_problem(rule)
+        why = rival_problem(rule) or rule_size_problem(rule)
         if why:
             return t2, why
         try:   # in the order of the normal path (s052, 2026-11-22: a repair's network change that could not be applied stopped the session)
@@ -2647,7 +2766,7 @@ def main():
                 + (f"THE RECORDS THE FEEDBACK AND YOUR GUESS CITE:\n" + "\n".join(record_line(ids[i], ledger) for i in cited) + "\n\n" if cited else "")
                 + f"WHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\n" + (f"THE MEASUREMENTS YOUR ANSWER DEFINES (a rule may name them as name@label):\n{mine}\n" if mine else "") + f"THE KNOBS: {knobs}\n\n"
                 "Repair this test only. decision_rule: the comparison that decides the hypothesis, in the form of your instructions (numbers; measure@label; + - * / and parentheses; abs(), "
-                "min(), max(); one of < <= > >= == in each comparison; comparisons joined by AND and OR). rival: the strongest competing explanation you can think of, one sentence. "
+                f"min(), max(); one of < <= > >= == in each comparison; at most {COMPARISONS_MOST} comparisons, joined by AND and OR). rival: the strongest competing explanation you can think of, one sentence. "
                 "rival_predicts: held or failed, what the rule gives if the rival is true (held is refused: choose simulations where the two differ). runs: only the simulations that are new "
                 "or change, each with a label and a value for every knob: one with the label of a simulation of the test replaces it, the others are kept; an empty list keeps them all. "
                 "A rule that names only simulations already run cannot fail and is refused, unless it compares a measurement your answer defines (listed above), which is computed now from "
@@ -2859,6 +2978,8 @@ def main():
                 received = json.loads(json.dumps(parsed))   # answers.jsonl keeps the answer as before findings (what findings_fill and findings_in_whys add is the harness's)
                 if isinstance(parsed, dict):   # findings (2026-11-22): none given is none; a why about a finding is about the records it rests on
                     parsed = findings_in_whys(findings_fill(parsed), ledger)
+                if arm == "supervised" and BATCH_FIRST and isinstance(parsed, dict) and mode in (None, "free"):
+                    prefetch(parsed, mode)   # one request for the reply's new guesses and tests (stage 4 of the coherence audit, 2026-11-22)
                 ok, no = sort_out(parsed, brief, ledger, max(0, budget - sims), mode, insist=not asked, judge=judge, supervised=arm == "supervised", ground=ground_fn if arm == "supervised" else None, short=short, restate=restate_fn if arm == "supervised" and RESTATE_GUESSES else None)
                 rq = [] if mode not in (None, "free") else (parsed.get("requests") or [])[:LOOKS if arm == "supervised" else REQUESTS_MOST]   # a free turn may look too (s048, 2026-11-22)   # looking is cheap in the supervised arm: more requests in one turn
                 if any(r.startswith(WAIT) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
