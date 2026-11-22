@@ -1206,7 +1206,34 @@ them a second time. Until then the results were given once, in the next turn
 selection of its own (the simulations at hand, newest first, 5,000 to 9,000
 characters). A turn with requests only is a "tool-only" turn (a `note` by the
 model); after more than 3 of them in a row the model is told to decide (its
-readings are no longer withheld). In a last turn (8.8) requests are
+readings are no longer withheld).
+
+*Under review (branch review/harness-2026-11-22, not deployed): what the researcher can reach across turns,
+from a review of s047 and s048.*
+- Within LEDGER_TOKENS (READINGS_ROOM = 40,000 characters): while the readings together are under it, each stands
+  in full; past it, a long reading (over 1,500 characters) older than the newest four is shortened to its first 600
+  characters and says how much was left out ("ask again with the same request for the whole of it"); the
+  supervisor is given the same forms (`loop.reading_forms`). s047: 35,714 tokens, s048: 19,532 (of 100,000).
+- Readings count as evidence: a why's `about`, a rethink's `in_light_of` and a report claim's `evidence` may name
+  a reading by its T id, or a run by its id (r010: that run's simulation and what the tools returned about it; in
+  a claim, the simulation). For a rethink, a reading counts as new to a why when its request was made in the turn
+  the why was last settled or later (`since(..., readings=True)`): what a turn's requests return is seen only in
+  the next turn, though it stands before that turn's whys in the ledger (s048: T10 to T12, asked for with Y11 in
+  turn 5, seen in turn 6). A reading alone does not make a why due for a rethink. The turn-6 rethink of Y11 in s048
+  ("in the light of r010", refused, note N2) is accepted.
+- Free turns: once the budget is used up, FREE_TURNS = 2 more turns (`last_turn: "free"` in the turn record) in
+  which requests, whys, rethinks, hypotheses and tests are accepted if no new simulation is needed (every
+  simulation of the experiment already ran: its result is returned, a measurement of its own is computed from what
+  it recorded); an experiment that needs one, and a budget_request, are refused with the reason. A report in a
+  free turn ends the session ("done by the model"); after the free turns, the report-only last turn as before.
+- Everything recorded comes back to the researcher: a hypothesis's question and why, a test's question, and what
+  the supervisor's reviews and rulings found (what the records show, the defect, what would make it doubt the test,
+  the nearest earlier guess). The judge's readings stay kept for a person (2026-11-17).
+- All three arms; the arm "plain" has no whys, rethinks or tests (for it: readings in claims, and requests and
+  explore experiments on simulations already run in the free turns); the supervised arm has no rethinks.
+- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py (new);
+  test_supervised.py (the readings' new form; readings and observations kept, the supervisor never sees an
+  observation). In a last turn (8.8) requests are
 not taken.
 
 ### 8.4 Decision rules: `decision_rules.py`

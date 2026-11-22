@@ -30,6 +30,7 @@ DEFAULT_TOLERANCE = 1.0  # what a brief that states none gets
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
 WAIT = "the report cannot be accepted yet: "   # said once per session; the answer after it is taken as it comes
 NEED = WAIT + "a hypothesis that has a checked decision rule needs a verdict. Still without one: "
+FREE_TURNS = 2  # once the budget is used up, this many more turns to look and to test on simulations already run, before the report-only turn (s048, 2026-11-22: the receiver-window guess needed only measurements of runs it had, and the last turn took only the report)
 UNUSABLE = 3  # the loop stops after this many turns in a row without a usable answer (each turn is already two attempts)
 PREFIX = {"why": "Y", "rethink": "K", "judge": "J", "hypothesis": "H", "drop": "W", "experiment": "X", "simulation": "S", "evidence": "E", "check": "C", "verdict": "V", "report": "R",
           "malformed": "M", "note": "N", "draft": "D", "request": "Q", "result": "T", "turn": "U", "review": "G", "objection": "O"}
@@ -276,9 +277,14 @@ def look_again(due):
     return ", ".join(f"{y} ({'; '.join(v)})" for y, v in sorted(due.items(), key=lambda q: int(q[0][1:])))
 
 
-def since(ledger, at):
-    """The results recorded after place `at` of the ledger: ids of evidence tables, checks and verdicts."""
-    return [r["id"] for r in ledger[at + 1:] if r["type"] in ("evidence", "check", "verdict")]
+def since(ledger, at, readings=False):
+    """The results recorded after place `at` of the ledger: ids of evidence tables, checks and verdicts; with readings, also what the tools
+    returned (T). A rethink may rest on a reading (s048, 2026-11-22: the rethink of Y11 in the light of r010's measurements T10 to T12 was refused,
+    note N2, because readings did not count). A reading is new to a why when its request was made in the turn the why was settled or later: what a
+    turn's requests return is seen only in the next turn, though it stands before that turn's whys in the ledger (s048: T10 to T12 were asked for in
+    turn 5 with Y11 and seen in turn 6). A reading alone does not make a why due for a rethink: that stays with results (readings=False)."""
+    t0 = ledger[at]["turn"] if 0 <= at < len(ledger) else -1
+    return [r["id"] for i, r in enumerate(ledger) if (i > at and r["type"] in ("evidence", "check", "verdict")) or (readings and r["type"] == "result" and (i > at or r["turn"] >= t0))]
 
 
 STANDING = {"verify": "worth verifying", "set_aside": "set aside", "refuted": "refuted", "supported": "supported", "revised": "revised"}
@@ -405,13 +411,14 @@ def shown(r, st):
     if t == "rethink":
         return f"of {b['for']} in the light of {', '.join(b['in_light_of'])}: now {STANDING[b['now']]}. {flat(b['because'])}"
     if t == "hypothesis":
-        return f"({st.get(r['id'], 'open')}) " + (f"from {b['from_why']}: " if b.get("from_why") else "") + f"{flat(b['text'])}" + (f" | prediction: {flat(b['prediction'])}" if b.get("prediction") else "")
+        return (f"({st.get(r['id'], 'open')}) " + (f"from {b['from_why']}: " if b.get("from_why") else "") + f"{flat(b['text'])}" + (f" | prediction: {flat(b['prediction'])}" if b.get("prediction") else "")
+                + (f" | its question: {flat(b['question'])}" if b.get("question") else "") + (f" | why it matters: {flat(b['why'])}" if b.get("why") else ""))   # all it stated (2026-11-22)
     if t == "drop":
         return f"{b['for']}: {flat(b['why'])}"
     if t == "experiment":
         sims = "; ".join(f"{x['label']} {{{', '.join(f'{k}={v}' for k, v in x['params'].items()) or 'defaults'}}}"
                          + ("".join(f" [{k}: asked {a}, used {u}]" for k, (a, u) in x["clamped"].items())) for x in b["runs"])
-        return ((f"test of {', '.join(b['tests'])}" if b["kind"] == "test" else f"explore: {flat(b['question'])}") + (f" | varied: {', '.join(b['varied'])}" if b["varied"] else "")
+        return ((f"test of {', '.join(b['tests'])}" + (f" | its question: {flat(b['question'])}" if b.get("question") else "") if b["kind"] == "test" else f"explore: {flat(b['question'])}") + (f" | varied: {', '.join(b['varied'])}" if b["varied"] else "")
                 + (f" | control: {b['control']}" if b["control"] else "") + f" | simulations: {sims}"
                 + "".join(f" | decision rule for {x['for']}: {flat(x.get('decision_rule', x.get('rule')))}" + (f" (rival: {flat(x['rival'])})" if x.get("rival") else "")
                           for x in b.get("decision_rules", b.get("rules", []))))
@@ -428,18 +435,22 @@ def shown(r, st):
         return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}{rival}{close}"
     if t == "verdict" and r.get("by") == "supervisor":
         return (f"by the supervisor on {b['for']}: {b['result']}. {flat(b['because'])}" + ("" if b.get("fair", True) else f" The test was not a fair test ({DEFECTS.get(b.get('defect'), b.get('defect'))}).")
-                + (f" A fair test: {flat(b['next'])}" if b.get("next") else "") + (f" [after your objection {b['after']}: {'the ruling stands' if b.get('stands') else 'the ruling is changed'}]" if b.get("after") else ""))
+                + (f" A fair test: {flat(b['next'])}" if b.get("next") else "") + (f" [after your objection {b['after']}: {'the ruling stands' if b.get('stands') else 'the ruling is changed'}]" if b.get("after") else "")
+                + (f" What the records show: {flat(b['shows'])}" if b.get("shows") else "") + (f" Defect named: {DEFECTS.get(b['defect'], b['defect'])}." if b.get("fair", True) and b.get("defect") not in (None, "", "none") else "")
+                + (f" It said beforehand it would doubt the test if: {flat(b['doubt_if'])}" if b.get("doubt_if") else ""))
     if t == "verdict":
         return f"on {b['for']}: {b['result']}. {flat(b['because'])} Next: {flat(b['next'])}"
     if t == "review" and b.get("gate") == "ground" and b["decision"] == "sent_back":
-        return (f"by the supervisor of a guess it did not accept (“{flat(b.get('guess'))[:200]}”): {GROUNDS.get(b['defect'], b['defect'])}. The records show: {flat(b['records_show'])} {flat(b['because'])}")
+        return (f"by the supervisor of a guess it did not accept (“{flat(b.get('guess'))[:200]}”" + (f", about the result “{flat(b['result'])[:200]}”" if b.get("result") else "") + f"): {GROUNDS.get(b['defect'], b['defect'])}. The records show: {flat(b['records_show'])} {flat(b['because'])}"
+                + (f" The nearest earlier guess: {flat(b['nearest_earlier'])}" if b.get("nearest_earlier") else ""))
     if t == "review" and b.get("gate") == "ground":
         return (f"by the supervisor of the guess {b['for']}, before anything is built on it: " + ("sound: it starts from what the records show" if b["defect"] == "none" else f"accepted on its second statement, but the supervisor still objects ({GROUNDS.get(b['defect'], b['defect'])})")
-                + f". The records show: {flat(b['records_show'])} {flat(b['because'])}")
+                + f". The records show: {flat(b['records_show'])} {flat(b['because'])}" + (f" The nearest earlier guess: {flat(b['nearest_earlier'])}" if b.get("nearest_earlier") else ""))
     if t == "review":
         return (f"by the supervisor of the test of {b['for']}, before any simulation: " + {"approved": "approved", "sent_back": "SENT BACK, the test was not run", "contested": "run, but the supervisor still objects"}[b["decision"]]
                 + (f". Defect: {DEFECTS.get(b['defect'], b['defect'])}" if b["defect"] != "none" else "") + f". {flat(b['because'])}"
-                + (f" A rival explanation: {flat(b['rival'])} (under it the rule would have {b['rival_outcome'].upper() if b['rival_outcome'] in ('held', 'failed') else 'an outcome that cannot be told'})" if b.get("rival") else ""))
+                + (f" A rival explanation: {flat(b['rival'])} (under it the rule would have {b['rival_outcome'].upper() if b['rival_outcome'] in ('held', 'failed') else 'an outcome that cannot be told'})" if b.get("rival") else "")
+                + (f" It would doubt the test if: {flat(b['doubt_if'])}" if b.get("doubt_if") else ""))
     if t == "objection":
         return f"to {b['to']}: {flat(b['because'])}"
     if t == "malformed":
@@ -448,13 +459,26 @@ def shown(r, st):
         return "a turn of requests only: " + "; ".join(f"{q.get('tool')}({json.dumps(q.get('args') or {})})" for q in b["requests"] if isinstance(q, dict))
     return json.dumps(b)
 
-def reading(r, by):
+READINGS_ROOM = 40_000   # characters of readings given in full; past it, the older long ones are shortened (reading_forms)
+def reading(r, by, short=False):
     """One reading: what a tool returned when the researcher looked, with its id, its turn, the tool and its arguments, in full up to CAP characters
     (its line breaks kept). The researcher's ledger text and the supervisor are given every reading of the session, the same way (2026-11-22, the
     operator: "keep every lookup result in the notebook, so both agents see the same thing"). Until then a reading was shown once, in the turn after
     its request (the arm "supervised": then one line of 260 characters), and the supervisor a selection of its own."""
     out, args = str(r["body"].get("result")), json.dumps((by.get(r.get("parent")) or {}).get("body", {}).get("args") or {})
-    return f"[{r['id']}] turn {r['turn']} reading {r['body'].get('tool')}({args}) returned:\n    " + out[:CAP].replace("\n", "\n    ") + (f"\n    (cut here: {len(out)} characters in all)" if len(out) > CAP else "")
+    head = f"[{r['id']}] turn {r['turn']} reading {r['body'].get('tool')}({args}) returned:\n    "
+    if short and len(out) > 1500:
+        return head + out[:600].replace("\n", "\n    ") + f"\n    (... {len(out) - 600} more characters of this reading are left out here, to keep the ledger within its size: ask again with the same request for the whole of it)"
+    return head + out[:CAP].replace("\n", "\n    ") + (f"\n    (cut here: {len(out)} characters in all)" if len(out) > CAP else "")
+
+def reading_forms(ledger):
+    """Each reading's text as the researcher and the supervisor are given it, by its id. While the readings together hold at most READINGS_ROOM
+    characters, each stands in full (up to CAP); past that, a long reading (a series, a probe: over 1,500 characters) older than the newest four
+    is shortened to its first 600 characters and says how much was left out (2026-11-22, after s047/s048: every reading is kept for both agents,
+    and the ledger must stay within LEDGER_TOKENS; measure and metrics readings are short and stay whole)."""
+    by, res = {r["id"]: r for r in ledger}, [r for r in ledger if r["type"] == "result"]
+    full, newest = sum(min(len(str(r["body"].get("result"))), CAP) for r in res) <= READINGS_ROOM, {r["id"] for r in res[-4:]}
+    return {r["id"]: reading(r, by, short=not full and r["id"] not in newest) for r in res}
 
 def render(ledger, readings=True):
     """The ledger as text for the prompt: one line per record, and in an evidence record one line per simulation. Every reading (what a tool returned)
@@ -467,7 +491,7 @@ def render(ledger, readings=True):
     for y, w in why_states(ledger).items():   # a why with its standing now, and whether results have come in since it was last settled
         st[y] = {**w, "stale": since(ledger, w["at"]) if w["worth"] == "verify" else [], "idle": w["worth"] == "verify" and not any(r["type"] == "hypothesis" and r["body"].get("from_why") == y for r in ledger)}
     by = {r["id"]: r for r in ledger}
-    out = []
+    out, forms = [], reading_forms(ledger)
     for r in ledger:
         b = r.get("body") or {}
         if r.get("by") == "model" and b.get("observations"):
@@ -475,7 +499,7 @@ def render(ledger, readings=True):
         if r["type"] == "note" and r.get("by") == "model" and not b.get("requests"):
             continue   # a note that holds only the observations of an answer none of whose parts was recorded
         if r["type"] == "result":
-            out.append(reading(r, by))
+            out.append(forms[r["id"]])
         elif r["type"] not in HIDDEN:
             out.append(f"[{r['id']}] turn {r['turn']} {r['type']} " + shown(r, st)[:CAP])
     return "\n".join(out) or "(empty)"
@@ -654,8 +678,8 @@ def _looked(ledger, runs=None, room=None):
     description of the system), in the same form as in the researcher's ledger text (reading): the supervisor is given what the researcher is given
     (2026-11-22, the operator). From s044 (2026-11-18) to then it was shown the readings of the simulations at hand, newest first, each cut at
     1,800 characters and 5,000 to 9,000 in all. runs and room are no longer used."""
-    by = {r["id"]: r for r in ledger}
-    return "\n".join(reading(r, by) for r in ledger if r["type"] == "result") or "  (the researcher has asked the tools for nothing yet)"
+    forms = reading_forms(ledger)
+    return "\n".join(forms[r["id"]] for r in ledger if r["type"] == "result") or "  (the researcher has asked the tools for nothing yet)"
 
 
 def _case(ledger, hid, rules):
@@ -976,7 +1000,9 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
     """The parts of an answer that can be used, and the parts that cannot, each with the reason: (ok, refused).
     ok = {verdicts, drop, hypotheses, experiment, report, budget_request}; refused = [(part, reason), ...].
     A refused part is left out and the rest is accepted. mode: None for an ordinary turn; "budget" for the last turn
-    after the budget is used up (no experiment); "report" for a last turn that accepts only the final report."""
+    after the budget is used up (no experiment); "report" for a last turn that accepts only the final report; "free" for one of the FREE_TURNS
+    after the budget is used up: an ordinary turn whose experiment may use only simulations already run, and no budget_request."""
+    free, mode = mode == "free", (None if mode == "free" else mode)
     text = lambda v: isinstance(v, str) and bool(v.strip())
     st, checked = states(ledger)
     ok, no = {"verdicts": [], "drop": [], "rethink": [], "whys": [], "hypotheses": [], "experiment": None, "report": None, "budget_request": None, "objections": []}, []
@@ -1035,6 +1061,14 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
     def of_run(a):
         m = re.fullmatch(r"(?:[A-Za-z_ ]+[ :])?\s*(r\d+)", a.strip()) if isinstance(a, str) else None
         return run_sim.get(m.group(1), a) if m else a
+    # what the tools returned about each run (its T records): a rethink that names a run id rests on that run's simulation and on its readings (s048, 2026-11-22)
+    by_id, readings_of = {r["id"]: r for r in ledger}, {}
+    for r in ledger:
+        if r["type"] == "result":
+            args = ((by_id.get(r.get("parent")) or {}).get("body") or {}).get("args") or {}
+            if args.get("run_id") or args.get("run"):
+                readings_of.setdefault(args.get("run_id") or args.get("run"), []).append(r["id"])
+    run_of = lambda a: (m.group(1) if isinstance(a, str) and (m := re.fullmatch(r"(?:[A-Za-z_ ]+[ :])?\s*(r\d+)", a.strip())) else None)
     # A why is not fixed by how it was first stated. Its standing now (stand) is what a rethink or a revising why last made it; it is fresh when no
     # result has come in since it was last settled, when this answer rethinks it, or when it is one of this answer's own. A hypothesis comes only from
     # a why that is worth verifying AND fresh: the early guesses are looked at again in the light of each new result before anything is built on them.
@@ -1048,10 +1082,13 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
         stand.update({y: "refuted" for y, v in of.items() if stand.get(y) == "verify" and v and all(x == "refuted" for x in v)})
     revised_as = {y: w["as"] for y, w in ws.items() if w.get("as")}
     later = {y: since(ledger, w["at"]) + [f"V{sum(r['type'] == 'verdict' for r in ledger) + i + 1}" for i in range(len(ok["verdicts"]))] for y, w in ws.items()}
+    later_r = {y: since(ledger, w["at"], readings=True) + [f"V{sum(r['type'] == 'verdict' for r in ledger) + i + 1}" for i in range(len(ok["verdicts"]))] for y, w in ws.items()}   # and the readings since (s048)
     fresh = set(ws) if supervised else {y for y in ws if not later[y]}
     for k in (t.get("rethink") or []) if not supervised else []:
         y = k.get("id") if isinstance(k, dict) else None
         light = [of_run(a) for a in k["in_light_of"]] if isinstance(k, dict) and isinstance(k.get("in_light_of"), list) else None
+        if light:   # a run id stands for its simulation and for what the tools returned about that run (s048: Y11 "in the light of r010")
+            light = list(dict.fromkeys(light + [x for a in k["in_light_of"] if run_of(a) for x in readings_of.get(run_of(a), [])]))
         if mode == "report":
             no.append(("rethink", only))
         elif y not in ws:
@@ -1062,10 +1099,10 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             no.append((f"rethink of {y}", f"{y} is looked at once in an answer"))
         elif k.get("now") not in ("verify", "set_aside", "refuted", "supported") or not text(k.get("because")):
             no.append((f"rethink of {y}", "a rethink says what the why is now (now: verify, set_aside, refuted or supported) and because of what in the results"))
-        elif not light or any(kinds.get(a) not in ("evidence", "simulation", "check", "verdict") for a in light):
-            no.append((f"rethink of {y}", "in_light_of must list the results you looked at it again with: ids of evidence tables, simulations, checks or verdicts in the ledger (for example E2, C3)"))
-        elif later[y] and not set(light) & set(later[y]):
-            no.append((f"rethink of {y}", f"in_light_of must name at least one result that came in after {y} was last settled ({', '.join(later[y][:4])}): a rethink looks at a why again in the light of what was measured since"))
+        elif not light or any(kinds.get(a) not in ("evidence", "simulation", "check", "verdict", "result") for a in light):
+            no.append((f"rethink of {y}", "in_light_of must list the results you looked at it again with: ids of evidence tables, simulations, checks, verdicts or readings in the ledger (for example E2, C3, T7), or a run id for that run's simulation and what the tools returned about it (for example r010)"))
+        elif later[y] and not set(light) & set(later_r[y]):   # a reading since counts as new (s048, 2026-11-22: the rethink of Y11 resting on T10 to T12)
+            no.append((f"rethink of {y}", f"in_light_of must name at least one result that came in after {y} was last settled, or a reading seen since ({', '.join(later_r[y][-6:])}): a rethink looks at a why again in the light of what was measured since"))
         else:
             ok["rethink"].append({"id": y, "in_light_of": light, "now": k["now"], "because": k["because"]})
             stand[y] = k["now"]
@@ -1088,10 +1125,10 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
                                   "matters (how it could matter for the goal) and reason (why it is or is not worth verifying now)"))
         elif w.get("worth") not in ("verify", "set_aside"):
             no.append(("new why", "a why says whether it is worth verifying now: worth is verify or set_aside"))
-        elif not isinstance(about, list) or not about or any(a != "brief" and kinds.get(a) not in ("evidence", "simulation", "check", "verdict") + (("result", "review") if supervised else ()) for a in about):
+        elif not isinstance(about, list) or not about or any(a != "brief" and kinds.get(a) not in ("evidence", "simulation", "check", "verdict", "result") + (("review",) if supervised else ()) for a in about):
             bad = [a for a in about or [] if a != "brief" and a not in kinds] if isinstance(about, list) else []
             no.append(("new why", (f"about names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
-                                   "about must list the records whose result the why explains: ids of evidence tables, simulations, checks or verdicts in the ledger (for example E2, C3), "
+                                   "about must list the records whose result the why explains: ids of evidence tables, simulations, checks, verdicts or readings in the ledger (for example E2, C3, T7), "
                                    "a run id for what you read in that run's series or trace (for example r001), or the word brief")))
         elif supervised and (new_since := learned_since(ledger)) is not None and not any(a in new_since for a in about):
             # the chain: a later guess is the fruit of what was learned since the earlier ones (s047: five guesses in four turns, each from the baseline again)
@@ -1200,6 +1237,9 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             ex, cuts = trim(ex, brief, ledger)
             no.extend(cuts)
             why = experiment_problem(ex, brief, ledger, left, st, lean=supervised) if ex is not None else None
+            if free and why and why.startswith("the experiment needs"):   # a free turn (s048, 2026-11-22): only simulations already run
+                why = ("the simulation budget is used up: in the turns before the report an experiment may use only simulations already run (their results are returned, "
+                       "not run again; measurements you define are computed from what they recorded), and " + why)
         if ex is None:
             pass
         elif why:
@@ -1208,13 +1248,15 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             ok["experiment"] = ex
     br = t.get("budget_request")
     if br is not None:
-        if mode:
-            no.append(("budget_request", "no more simulations can be asked for in a last turn"))
+        if mode or free:
+            no.append(("budget_request", "no more simulations can be asked for once the budget is used up" if free else "no more simulations can be asked for in a last turn"))
         elif not (isinstance(br, dict) and type(br.get("simulations")) is int and br["simulations"] >= 1 and text(br.get("why"))):
             no.append(("budget_request", "it needs simulations (a whole number of at least 1) and a one-sentence why"))
         else:
             ok["budget_request"] = br
     report = t.get("report")
+    if isinstance(report, dict) and isinstance(report.get("claims"), list):   # a claim may cite a run by its id: it stands for that run's simulation (2026-11-22; readings by their T ids are ledger ids already)
+        report = {**report, "claims": [{**c, "evidence": list(dict.fromkeys(of_run(a) for a in c["evidence"]))} if isinstance(c, dict) and isinstance(c.get("evidence"), list) else c for c in report["claims"]]}
     if report is None:
         if t.get("done") and not mode:
             no.append(("done", "done needs the final report: fill report, or set done to false"))
@@ -1328,9 +1370,9 @@ The ledger is the complete record of the session. You have no other memory. Each
    - measurements: measurements of your own that this experiment takes of each of its simulations, beside the outputs; an empty list when the outputs are enough. Each has name (lower-case letters, digits and _, for example rwnd_max), of (a column a simulation records over time, or arithmetic over columns of one record: the columns the tools series and probe name in the brief), stat (mean, min, max, std, first, last, p05, p50, p95, slope, rate, time_above, time_below, first_time_above, first_time_below), t_from and t_to (seconds; null: the measured seconds) and level (the number time_above and the like compare with; null otherwise). The harness computes them with taps that only listen: a measurement cannot change a result.
    - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis) and decision_rule. Write it exactly in this form: numbers; measure@label (an output, or a measurement of your own, in the simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; comparisons joined by AND and OR. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.
 7. objections: if the records show that a ruling of the supervisor is wrong, object once: to (the ruling's id, for example V2) and because (the numbers it overlooked). Usually empty.
-8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings and evidence tables that support it).
+8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings, evidence tables and readings that support it, for example C2, V1, E3, T7).
 
-The budget counts simulations. Every turn says how many are left; one experiment may run at most half of them. When they run out you get one last turn for the report.
+The budget counts simulations. Every turn says how many are left; one experiment may run at most half of them. When they run out you get two more turns to look further and to test on the simulations already run (no new simulation), then one last turn for the report.
 
 If a part of your answer cannot be used, the harness leaves that part out, accepts the rest, and says in a note which part and why: read the note and repair that part. Two results closer than the tolerance count as equal: a difference inside it is not a finding."""
 
@@ -1455,8 +1497,9 @@ PLAIN = (  # prompt.txt -> the instructions of the arm "plain": (text as it stan
     ("\n6. After an experiment the harness appends the evidence (one line per simulation) and, for every decision rule, a check: the decision rule with the measured numbers written into it, and HELD or FAILED. You never write evidence or checks yourself.",
      "\n3. After an experiment the harness appends the evidence (one line per simulation). You never write evidence yourself."),
     ("\n8. requests:", "\n4. requests:"), ("\n9. budget_request:", "\n5. budget_request:"), ("\n10. done and report:", "\n6. done and report:"),
-    ("do not leave the decisive test for later than you can afford", "do not leave the decisive experiment for later than you can afford"),
-    ("(for example E3, C5)", "(for example E3)"),
+    ("look further and test on the simulations already run (no new simulation), then one last turn for the report, so do not leave a decisive test that needs new simulations for later than you can afford",
+     "look further and explore the simulations already run (no new simulation), then one last turn for the report, so do not leave a decisive experiment that needs new simulations for later than you can afford"),   # the free turns (2026-11-22)
+    ("(for example E3, C5; a reading a tool returned", "(for example E3; a reading a tool returned"),   # the claims may cite readings (2026-11-22)
     ("(for example a verdict on a hypothesis that has not been tested, or a decision rule the harness cannot read)", "(for example an experiment that repeats a design you already ran)"),
     ("A hypothesis about a cause (what makes a result what it is, what limits it) is worth more than one about which of two values is larger.", "A question about a cause (what makes a result what it is, what limits it) is worth more than one about which of two values is larger."),
     ("State that as a hypothesis and test it, with the settings you may change and with the tools:", "Explore that, with the settings you may change and with the tools:"),
@@ -1579,6 +1622,7 @@ def main():
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
     asked = False  # whether the model was already asked for the verdicts that were missing when it sent its report
     giving_up = False  # set after UNUSABLE turns in a row without a usable answer: the next turn is the last and takes only the report
+    free_left = FREE_TURNS  # the turns after the budget is used up in which the researcher may still look and test on simulations already run (s048)
     how, unusable = None, 0  # how the session ended (None while it runs); turns in a row without a usable answer
     count = {"calls": 0, "length": 0}  # requests answered by the model server, and how many of them ended with finish_reason "length"
 
@@ -1605,7 +1649,8 @@ def main():
         while how is None:
             # a last turn: "report" after too many unusable answers (only the final report is accepted), "budget" when the
             # budget is used up (no experiment is accepted and the report is required); otherwise an ordinary turn
-            mode, need_now = "report" if giving_up else "budget" if sims >= budget else None, False
+            mode, need_now = "report" if giving_up else ("free" if free_left > 0 else "budget") if sims >= budget else None, False
+            free_left -= mode == "free"
             text = render(ledger, readings=arm == "supervised")
             size = count_tokens(model, text)
             if size > LEDGER_TOKENS:
@@ -1627,6 +1672,10 @@ def main():
                     + last_ask if mode == "budget" else
                     f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
                     "write it from what the ledger holds." if mode == "report" else
+                    f"used up: all {budget} simulations have run. Before the last turn, which takes only the final report, you have this turn{f' and {free_left} more' if free_left else ''} "
+                    "to look further and to test on the simulations already run: requests, guesses and their rethinks, hypotheses, and tests whose simulations have all run "
+                    "already (their results are returned, not run again; measurements you define are computed from what they recorded). An experiment that needs a new "
+                    "simulation is not accepted, and budget_request is no longer possible. You may also give the final report now." if mode == "free" else
                     f"{budget - sims} simulations left ({budget} granted so far; budget_request can raise that to at most {limit}, the brief's limit). This turn's experiment may run at most {spend_cap(budget - sims, per)} new simulations: never more than half of what is left, so that something remains for what its results raise.")
                     + (f"\n\nLOOK AGAIN FIRST: results have come in for hypotheses of these guesses since you last settled them: {look_again(tested_whys(ledger))}. Before anything new, give a rethink "
                        "for each in this answer (id: the why's own id; now: supported, refuted, verify or set_aside; because of what in those results). No new hypothesis and no experiment "
@@ -1661,7 +1710,7 @@ def main():
                 if arm == "supervised" and isinstance(parsed, dict):
                     parsed = lean_fill(parsed, brief)
                 ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked, judge=judge, supervised=arm == "supervised", ground=ground_fn if arm == "supervised" else None)
-                rq = [] if mode else (parsed.get("requests") or [])[:LOOKS if arm == "supervised" else 3]   # looking is cheap in the supervised arm: more requests in one turn
+                rq = [] if mode not in (None, "free") else (parsed.get("requests") or [])[:LOOKS if arm == "supervised" else 3]   # a free turn may look too (s048, 2026-11-22)   # looking is cheap in the supervised arm: more requests in one turn
                 if any(r.startswith(WAIT) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
                     asked = need_now = True
                 if any(ok.values()) or rq:  # something in the answer can be used: it is accepted, without the refused parts
@@ -1793,7 +1842,7 @@ def main():
             if report is not None:  # accepted (sort_out): the ledger, report.json, and the session is over
                 append(ledger, turn, "report", last, report | obs())
                 (tools.SESSION / "report.json").write_text(json.dumps(report, indent=1) + "\n")
-                how = "done by the model" if mode is None else "all simulations used, report given in the last turn" if mode == "budget" else f"{UNUSABLE} turns in a row without a usable answer, report given in the last turn"
+                how = "done by the model" if mode in (None, "free") else "all simulations used, report given in the last turn" if mode == "budget" else f"{UNUSABLE} turns in a row without a usable answer, report given in the last turn"
             elif mode == "report":
                 how = f"{UNUSABLE} turns in a row without a usable answer"
             elif mode == "budget" and not need_now:  # a last turn without a usable report (after the one request for verdicts there is one more)
