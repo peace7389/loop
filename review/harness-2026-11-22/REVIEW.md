@@ -182,3 +182,20 @@ is given the decision rule of the hypothesis's test where its prediction stood (
   derivation is what runs.
 
 RESULTS: see below (filled in when the run of every check ends).
+
+
+---
+
+# Fourth commit: the supervisor sends back a test it cannot tell from its own rival (2026-11-22, later)
+
+The operator, after s050 (live, the arm "supervised"): 3 of its first 4 rulings were inconclusive. For H1 and H4 the supervisor's review before the
+runs had named a rival explanation and said it "cannot tell" what the decision rule would do under it, and approved the test all the same; after
+the runs it ruled both inconclusive because "a rival passes too". In s044 to s050, of 9 tests approved with "cannot tell", 4 were ruled
+inconclusive, 2 refuted, 3 never ruled.
+
+`review_design` (gate 1): defect none with rival_outcome "cannot tell" is now "rival_passes_too", as "held" already was, and the review's because
+says the harness made it so. Sent back once: sent again unchanged, the test is run and the review says the supervisor still objects ("contested"),
+as for every defect. "a rival passes too" named with a rival that fails the rule still does not stand (s044: G14, G15); named with "cannot tell" it
+now stands.
+
+Check: `test_rival_cannot_tell.py` (new, on a copy of s050's ledger, no simulation): passes on this loop.py, fails on the one before.

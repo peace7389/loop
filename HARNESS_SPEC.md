@@ -1243,7 +1243,10 @@ from a review of s047 and s048.*
   hypothesis's question and why, why.unseen and matters, each rule's rival, rethinks, verdicts, the whole report. In both short
   formats designs are compared as trim compares them (`as_run`: 100 and 100.4 packets are one value), and the turn's text names
   budget_request only to the formats that have it (the arm "plain", sessions in the full format).
-- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py, test_measure_relations.py, test_taps.py, test_short_format.py (new);
+- The supervisor's review before a test runs (gate 1, the arm "supervised"): a rival it says it "cannot tell" from the guess (what the rule would
+  do under it) sends the test back as "a rival passes too", like a rival under which the rule holds (s050: H1 and H4 approved so, then ruled
+  inconclusive; in s044 to s050, 4 of 9 such approved tests ended inconclusive). Sent back once; sent again it runs, as before.
+- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py, test_measure_relations.py, test_taps.py, test_short_format.py, test_rival_cannot_tell.py (new);
   test_supervised.py (the readings' new form; readings and observations kept, the supervisor never sees an
   observation). In a last turn (8.8) requests are
 not taken.

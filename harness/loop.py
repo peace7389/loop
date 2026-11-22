@@ -711,10 +711,15 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None):
             + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ". A test is not defective for being small or for testing only one consequence of the guess.")
     d = (ask_fn or supervise)(model, user, REVIEW_SCHEMA)
     rev = {"rival": flat(d["rival"]), "rival_outcome": d["rival_outcome"], "doubt_if": flat(d["doubt_if"]), "defect": d["defect"] if d["defect"] in DEFECTS else "none", "because": flat(d["because"])}
-    if rev["defect"] == "none" and rev["rival_outcome"] == "held":   # its own rival would pass the rule: by its own words the test cannot tell the two apart
+    if rev["defect"] == "none" and rev["rival_outcome"] in ("held", "cannot tell"):   # its own rival would pass the rule: by its own words the test cannot tell the two apart
+        # "cannot tell" too since 2026-11-22 (the operator, after s050: H1 and H4 approved with "cannot tell", then ruled inconclusive because a rival
+        # passes too; in s044 to s050, of 9 tests approved with "cannot tell" 4 were ruled inconclusive, 2 refuted, 3 never ruled). Sent back once, as
+        # every defect is: sent again, the test is run and the review says that the supervisor still objects
         rev["defect"] = "rival_passes_too"
-    elif rev["defect"] == "rival_passes_too" and rev["rival_outcome"] != "held":   # it names that defect, but says its own rival would not pass the rule (s044: G14, G15): the defect does not stand
-        rev["defect"], rev["because"] = "none", rev["because"] + f" [the harness: it named “a rival passes too”, but under its own rival the rule would {'fail' if rev['rival_outcome'] == 'failed' else 'come out in a way it could not tell'}; no defect stands]"
+        if rev["rival_outcome"] == "cannot tell":
+            rev["because"] += " [the harness: under its own rival it cannot tell what the rule would do, so the test may not tell the guess from the rival: sent back as “a rival passes too”]"
+    elif rev["defect"] == "rival_passes_too" and rev["rival_outcome"] == "failed":   # it names that defect, but says its own rival would not pass the rule (s044: G14, G15): the defect does not stand
+        rev["defect"], rev["because"] = "none", rev["because"] + f" [the harness: it named “a rival passes too”, but under its own rival the rule would fail; no defect stands]"
     return rev, user
 
 
