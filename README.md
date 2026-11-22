@@ -9,7 +9,7 @@ from a description of hosts, links, queues, schedulers and flows (`scratch/net`,
 builder). The researcher works only through a ledger, along a fixed chain: a result -> its informed guesses of why it
 came out so (whys) -> a hypothesis -> a test whose decision rule is stated before the simulations, with a rival
 explanation under which it would fail -> evidence from ns-3 -> a verdict. It can also look before it simulates: read
-what a simulation recorded, compute measurements of its own, or record a run again with taps on ns-3's trace sources.
+what a simulation recorded, compute measurements of its own, or have a run recorded again more finely (a probe).
 
 Sessions run in one of three arms: one AI ("hypotheses", the default), the same loop without the hypothesis format
 ("plain", for comparison), or two AIs ("supervised"): a second model call, the supervisor, asked apart from the
