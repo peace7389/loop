@@ -1,0 +1,153 @@
+{
+ "id": "s051",
+ "brief": "fixed",
+ "model": "Qwen/Qwen3.8-Flash-Next-FP8",
+ "started": "2026-11-22T15:20:39",
+ "flags": {
+  "budget": 12,
+  "draft": "on",
+  "max_tokens": 32000,
+  "draft_tokens": 16000,
+  "temperature": 0.3,
+  "baseline": "on",
+  "judge": "off",
+  "arm": "supervised",
+  "supervisor": {
+   "model": "Qwen/Qwen3.8-Flash-Next-FP8",
+   "temperature": 0,
+   "max_tokens": 9000,
+   "draft_tokens": 4500,
+   "sees": "the brief's description, the guess, the hypothesis, the decision rules, the planned simulations, the measured numbers; not the researcher's observations or reasons"
+  }
+ },
+ "given": {
+  "id": "fixed",
+  "description": "A network of 2 hosts: sender, receiver. Link l1 joins sender and receiver: it carries 1Gbps with a one-way delay of 50us. On sender's side packets wait in one queue of the knob l1.queue.length packets; a packet that arrives when it is full is dropped. Flow udp is UDP from sender to receiver: packets of 1400 bytes at a constant rate (2 Gbps). Flow tcp is TCP from sender to receiver: it always has data to send; its congestion control is the knob tcp.type. A host with more than one link forwards packets. In each simulation the flows start within the first 10 ms, traffic runs for one second that is not measured, and then for duration seconds, over which the outputs are measured.",
+  "topology": {
+   "hosts": [
+    {
+     "id": "sender"
+    },
+    {
+     "id": "receiver"
+    }
+   ],
+   "links": [
+    {
+     "id": "l1",
+     "between": [
+      "sender",
+      "receiver"
+     ],
+     "rate": "1Gbps",
+     "delay": "50us",
+     "mtu": 1500,
+     "device_queue": 10,
+     "queue": {
+      "on": "sender",
+      "kind": "fifo",
+      "length": 100
+     }
+    }
+   ],
+   "flows": [
+    {
+     "id": "udp",
+     "kind": "udp",
+     "from": "sender",
+     "to": "receiver",
+     "rate": "2 Gbps",
+     "packet_bytes": 1400
+    },
+    {
+     "id": "tcp",
+     "kind": "tcp",
+     "from": "sender",
+     "to": "receiver",
+     "type": "TcpCubic"
+    }
+   ]
+  },
+  "system": {
+   "seed": 1,
+   "duration": 10
+  },
+  "knobs": {
+   "l1.queue.length": {
+    "min": 4,
+    "max": 1000,
+    "default": 100,
+    "meaning": "queue length at l1"
+   },
+   "tcp.type": {
+    "choices": [
+     "TcpCubic",
+     "TcpNewReno",
+     "TcpLinuxReno",
+     "TcpBbr",
+     "TcpVegas",
+     "TcpBic"
+    ],
+    "default": "TcpCubic",
+    "meaning": "TCP type of tcp (TCP congestion control)"
+   }
+  },
+  "goal": {
+   "kind": "given",
+   "target": {
+    "measure": "tcp_goodput_bps",
+    "direction": "max"
+   },
+   "conditions": []
+  },
+  "limits": {
+   "simulations": 12,
+   "simulations_per_experiment": 4
+  },
+  "structure": {
+   "may_change": true,
+   "most": {
+    "hosts": 2,
+    "links": 1,
+    "flows": 2
+   },
+   "locked": [
+    "host:sender",
+    "flow:udp",
+    "link:l1",
+    "host:receiver"
+   ]
+  },
+  "task": "Find the settings that give the largest tcp_goodput_bps. You may change 2 settings (l1.queue.length, tcp.type); every other setting is fixed. Explain why they are best.",
+  "outputs": {
+   "udp_goodput_bps": "payload bits per second delivered to the receiver of flow udp (receiver)",
+   "udp_loss_frac": "fraction of the packets flow udp sent that never arrived",
+   "tcp_goodput_bps": "payload bits per second delivered to the receiver of flow tcp (receiver)",
+   "tcp_retrans": "TCP segments the sender of flow tcp sent again",
+   "l1_util": "bits sent on link l1 from sender to receiver, divided by the link's rate",
+   "l1_util_back": "the same from receiver to sender",
+   "l1_drops": "packets dropped from the queue in front of link l1 on the side of sender",
+   "l1_drops_back": "packets dropped from the plain queue in front of link l1 on the side of receiver"
+  },
+  "tools": {
+   "describe_system": "this brief, with the descriptions of the outputs and the tools",
+   "metrics": "metrics(run_id): the output values of a simulation (run ids are in the evidence lines, e.g. r003)",
+   "series": "series(run_id, every_n): per-100ms samples of a run: t, then for each flow <flow>_bps (and <flow>_cwnd for a TCP flow), then for each described queue the packets waiting at the sample time (<link>_q_<flow> for a scheduler's queue, named after its flow or its class; <link>_q for a plain queue) and the packets dropped since traffic began (<link>_drops_<flow>, <link>_drops) (at most 100 rows; the measured seconds begin at t = 2)",
+   "measure": "measure(run_id, of, stat, t_from, t_to, level): a measurement you define, computed from what a simulation recorded over time (nothing is simulated again, and it costs no simulation). of: a column or arithmetic over columns of one record, by the names of this network (the bits per second of two flows added, or, once the simulation has its probe, a flow's bytes in flight divided by its receiver's window: <flow>_inflight / <flow>_rwnd); stat: mean, min, max, std, first, last, p05, p50, p95, slope (change per second), rate ((last - first) / seconds, for a column that counts up), time_above, time_below (seconds spent above or below level), first_time_above, first_time_below; t_from, t_to: the window in seconds (left out: the measured seconds, from 2 s to the end)",
+   "probe": "probe(run_id, every): a finer look at a simulation you already ran. The harness runs the same simulation again (same settings, same seed) with trace sinks that only listen, and keeps their record only if the result is byte for byte the same: no result can change by it, and it costs no simulation. Sampled every `every` seconds (left out: 0.01), it records, for each flow, <flow>_bps, and for a TCP flow <flow>_cwnd, <flow>_ssthresh, <flow>_inflight (bytes sent and not yet acknowledged), <flow>_rwnd (the receiver's window as the sender knows it), <flow>_rtt_ms and <flow>_rto_ms; for each described queue the longest time a packet waited in it since the last sample (<link>_wait_<flow or class>_ms for a scheduler's queue, <link>_wait_ms for a plain one) and the packets waiting; for each link the packets in its devices' transmit queues (<link>_devq, <link>_devq_back). It answers with the columns it recorded; read them with measure, or with series(run_id, every_n, probe=true)",
+   "list_runs": "list_runs(): id, params and metrics of every simulation of this session so far"
+  },
+  "how_to_run": "An experiment is a set of simulations with one purpose, run at once. Fill the 'experiment' field of your answer: its kind (test or explore), the simulations (runs: a label and the params that differ from the defaults), and for a test the decision rules, comparisons stated before the simulations run. The harness runs the simulations, appends the evidence (one line per simulation) and checks every decision rule itself.",
+  "budget": "the budget counts simulations; the number left is stated in each turn"
+ },
+ "prompt": "You are a researcher working on a system you cannot see inside. You reach it only through the tools listed in the brief and through experiments the harness runs for you.\n\nThe purpose of the work is to understand why the system behaves as it does. You are not an optimiser: do not try many settings and keep whichever comes out slightly ahead. Look at the system, ask why each result came out so, guess what in the system (not directly visible in the outputs) makes it so, and test that guess. An explanation of what limits the result is worth more than one more setting. Stop when you can say what makes the system behave as it does and what that means for the goal.\n\nYou do not work alone. A supervisor works apart from you. It proposes nothing and never sees your notes or your reasons; it is shown your guess, your hypothesis, your decision rule, the planned simulations, the measured numbers and what the tools returned. It checks each step:\n- a new guess: does it start from what the records show, and is it more than an earlier guess said again? A guess it does not accept is refused once, with its reason;\n- a test, before any simulation is run: can it tell whether the guess is true? A test with a defect is sent back once, and it is not run or counted; the other tests of the same experiment are run. Sent again, it is run;\n- after the harness has checked your rule: what the check means. Its ruling (supported, refuted, or inconclusive because the test was not a fair one) closes the hypothesis. You do not give verdicts.\n\nThe ledger is the complete record of the session. You have no other memory. Each turn you read it and answer with ONE JSON object. Keep every text short: one or two sentences. Its parts:\n\n1. observations: one or two sentences: the most important thing the results do not yet explain. Your observations of every turn stay in the ledger, each in its place (turn N your observations: ...).\n2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded; probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a turn; the results come back in the next turn and stay in the ledger for the rest of the session, each with its id (T1, T2, ...). A turn may consist of requests only.\n3. whys: your guesses of why a result came out so. Each has about (the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet), result (that result in one sentence, with its numbers), guess (what in the system would make it so), and revises (the id of an earlier guess this one replaces, or null). The harness numbers them Y1, Y2, ... The work is a chain: your first guesses start from the baseline, and every later guess is the fruit of what you learned since: its about must name at least one record made since your last guesses (a ruling, a check, a new result table, a reading, an objection of the supervisor), and its result says what that record showed. A later guess that starts from the baseline alone is refused, and the supervisor reads whether the guess really comes from the newer record or only names it. Make your several first guesses in one answer.\n4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most three in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.\n5. drop: open hypotheses you give up before they were tested (id, and why in one sentence). Usually empty.\n6. experiment: at most one per turn, or null.\n   - kind \"test\": tests lists the open hypotheses it tests; decision_rules has at least one rule for each. kind \"explore\": question says what you want to find out; tests and decision_rules stay empty.\n   - runs: the simulations, each with a label of its own (letters, digits and _) and params: a value for EVERY knob of the brief (a knob left as it was is stated with the value it has). A simulation with the same settings as an earlier one is not run again: its result is returned and costs nothing. The simulations one rule compares must differ in one setting only, so that a difference has one possible cause.\n   - measurements: measurements of your own that this experiment takes of each of its simulations, beside the outputs; an empty list when the outputs are enough. Each has name (lower-case letters, digits and _, for example rwnd_max), of (a column a simulation records over time, or arithmetic over columns of one record: the columns the tools series and probe name in the brief), stat (mean, min, max, std, first, last, p05, p50, p95, slope, rate, time_above, time_below, first_time_above, first_time_below), t_from and t_to (seconds; null: the measured seconds) and level (the number time_above and the like compare with; null otherwise). The harness computes them with taps that only listen: a measurement cannot change a result.\n   - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis) and decision_rule. Write it exactly in this form: numbers; measure@label (an output, or a measurement of your own, in the simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; comparisons joined by AND and OR. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.\n7. objections: if the records show that a ruling of the supervisor is wrong, object once: to (the ruling's id, for example V2) and because (the numbers it overlooked). Usually empty.\n8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings and evidence tables that support it).\n\nThe budget counts simulations. Every turn says how many are left; one experiment may run at most half of them. When they run out you get one last turn for the report.\n\nIf a part of your answer cannot be used, the harness leaves that part out, accepts the rest, and says in a note which part and why: read the note and repair that part. Two results closer than the tolerance count as equal: a difference inside it is not a finding.\n\nIn this session you may also change the structure of the network. A simulation of an experiment carries structure: a list of changes made, in order, to the network of the brief (always to the brief's network, never to that of an earlier simulation); an empty list runs the network as it is. A change states every field (do, id, kind, from, to, on, rate, type, app), with \"\" where one does not apply:\n   - do add_host: id, a new name (at most 12 lower-case letters and digits, beginning with a letter).\n   - do add_link: id, from and to (the two hosts it joins), rate (for example 1Gbps). One link for each two hosts.\n   - do add_flow: id, kind (udp or tcp: the socket), from, to, and rate for udp (for example 100Mbps) or type for tcp (for example TcpCubic). app is the application that sends: \"\" for the usual one (udp: packets at a constant rate; tcp: always has data, as fast as TCP accepts), or onoff with kind tcp for a TCP flow that sends at the constant rate you state in rate. A flow needs one shortest way from its sender to its receiver.\n   - do add_queue: id (the link), on (the host whose sending side of the link it is), kind (scheduler, fifo, or another of ns-3's queue discs: pfifofast, codel, fqcodel, red, pie). A scheduler gives each flow that passes it a part of the link; fifo is one queue for all, first in, first out. A link may have a queue on each of its two sides.\n   - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's; where the link has a queue on each side, on says which). A host goes with its links and with the flows that start or end at it.\nThe brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network.",
+ "ended": "2026-11-22T15:50:56",
+ "how": "stopped from outside",
+ "report": null,
+ "left_open": [],
+ "without_verdict": [],
+ "turns": 9,
+ "simulations": 2,
+ "calls": 8,
+ "cut_off": 0
+}
