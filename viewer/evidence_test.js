@@ -95,13 +95,43 @@ Object.assign(EV, {
       ${loose.length ? `<p class="sm" id="hs-loose">${xs.length > 1 ? 'Those experiments' : 'Experiment ' + e(xs[0].id)} also ran ${loose.length === 1 ? 'one simulation' : loose.length + ' simulations'} that no decision rule names, so ${loose.length === 1 ? 'it' : 'they'} decided no hypothesis: ${loose.slice(0, 12).map(q => `<a data-act="open" data-t="sim" data-id="${e(q.s.id)}" data-loose="1">${e(q.s.id)}</a> ${e(q.s.label)}`).join(', ')}${loose.length > 12 ? `, and ${loose.length - 12} more` : ''}.</p>` : ''}</div></div>`;
   },
 
-  // a hypothesis (opened from the map or a card): its statement, then View 3 of each of its tests
+  // a hypothesis (opened from the map or a card), at a glance (2026-11-22, the operator: "We really need to make it more readable and concise to help
+  // users to really use it"): its id and how it stands on a chip; one line of when it was stated, from which guess and what it follows from; the
+  // hypothesis itself as the quote it is; its course turn by turn from the records about it, each step with the icon of who took it (the test it was
+  // given, each round of the review with the reason in one sentence, a repair, a refusal of the harness, the run, the check, the ruling or the drop);
+  // the findings linked to it; and, folded, each of its tests in full (View 3)
   hypCard(id) {
     const M = EV.M, e = EV.e, h = M.hypById[id]; if (!h) return `<p class="sm">${e(id)}: ${EV.nr}</p>`;
-    const ts = h.tests.map(q => M.testById[q]).filter(T => EV.seen(T.exp));  // during the replay: only the tests planned by then
-    return `<h2>${EV_ICON.hypothesis} ${EV.term('Hypothesis', 'Hypothesis')} ${e(h.id)} <small>stated in turn ${h.turn} · ${e(EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open')}</small></h2>${h.question ? `<p class="hq-line">${EV.question(h)}</p>` : ''}${h.why ? `<p id="h-why"><span class="sm">why it asks:</span> <span data-own="model">${e(h.why)}</span></p>` : ''}<p>${e(h.text)}</p>
-      <p class="sm">prediction: ${e(h.prediction || 'not recorded')} · follows from: ${h.follows ? h.follows.map(EV.link).join(', ') : EV.nr}${h.drop && EV.seen(h.drop.id) ? ` · dropped in turn ${h.drop.turn}: ${e(h.drop.why || '')}` : ''}</p>
-      ${ts.length ? ts.map(T => `<h3>${EV_ICON.test} Its ${EV.term('Test', 'test')} in experiment ${e(T.exp)}, turn ${T.turn}</h3>${EV.testBody(T)}`).join('') : '<p class="sm">This hypothesis was not put to a test.</p>'}`;
+    const ts = h.tests.map(q => M.testById[q]).filter(T => EV.seen(T.exp)), st = EV.s.step == null ? h.state : EV_DATA.stateAt(M, EV.s.step)[h.id] || 'open';
+    const one = t => { const x = String(t || '').trim(), m = x.match(/^.*?[.!?](?=\s|$)/), y = (m ? m[0] : x); return y.length > 170 ? y.slice(0, 168).replace(/\s+\S*$/, '') + ' …' : y; };
+    const by = w => `<span class="st-by" data-by="${w}" title="${e({ model: 'the researcher', supervisor: 'the supervisor', harness: 'the harness', simulator: 'ns-3', judge: 'the judge' }[w] || w)}"><i class="sw"></i></span>`;
+    const step = (turn, who, html) => `<li><span class="f-t">turn ${e(turn)}</span>${by(who)}<span class="f-what">${html}</span></li>`;
+    const steps = [], recs = M.recs.filter(r => EV.seen(r.id));
+    const hr = recs.find(r => r.id === h.id);
+    steps.push(step(h.turn, 'model', `<b>stated</b>${h.from_why ? ` from the guess ${EV.link(h.from_why)}` : ''}`));
+    if (h.judge) steps.push(step(h.turn, 'supervisor', `<b>the judge</b>: ${h.judge.follows ? 'it follows from its guess' : '<span class="warnc">it does not follow from its guess</span>'}${h.judge.because ? ` <span class="sm">· ${e(one(h.judge.because))}</span>` : ''}`));
+    const DEC = { approved: 'approved', sent_back: 'sent back', contested: 'contested: run all the same', dropped: 'not approved after the last round' };
+    recs.forEach(r => { const b = r.body || {}; if (r.id === h.id) return;
+      if (r.type === 'review' && b.gate === 'design' && b.for === h.id) steps.push(step(r.turn, r.by === 'harness' ? 'harness' : 'supervisor', `<b>test review, round ${e(b.round || 1)}</b>: ${e(DEC[b.decision] || b.decision)}${r.by === 'harness' ? ' by the harness' : ''}`
+        + (b.decision !== 'approved' && (b.feedback || b.because) ? ` <span class="sm">· ${b.defect && b.defect !== 'none' ? e(String(b.defect).replace(/_/g, ' ')) + ': ' : ''}${e(one(b.feedback || b.because))}</span>` : '')));
+      else if (r.type === 'repair' && b.for === h.id) steps.push(step(r.turn, 'model', `<b>repaired</b> for round ${e(b.round)}${b.decision_rule ? `: <code>${e(String(b.decision_rule).slice(0, 120))}</code>` : ''}`));
+      else if (r.type === 'note' && b.part && new RegExp(`(test|repair) of ${h.id}\\b`).test(b.part)) steps.push(step(r.turn, 'harness', b.reason === 'could not be read'
+        ? `<b>repair not readable</b> <span class="sm">· the researcher's repair${(m => (m ? ' for round ' + e(m[1]) : ''))(/round (\d+)/.exec(b.text || ''))} could not be read, so the test did not run in this turn</span>`
+        : `<b>${e(b.reason || 'refused')}</b> <span class="sm">· ${e(one(b.text))}</span>`));
+      else if (r.type === 'experiment' && (b.tests || []).includes(h.id)) steps.push(step(r.turn, 'model', `<b>tested</b> in ${EV.link(r.id)} · ${(b.runs || []).length} simulation${(b.runs || []).length === 1 ? '' : 's'}`));
+      else if (r.type === 'check' && b.for === h.id) steps.push(step(r.turn, 'harness', `<b>check</b> ${EV.link(r.id)}: ${M.voidIds && M.voidIds.has(r.id) ? 'void' : e(b.result)} <span class="sm">· <code>${e(String(b.decision_rule || '').slice(0, 110))}</code></span>`));
+      else if (r.type === 'verdict' && b.for === h.id) steps.push(step(r.turn, r.by === 'supervisor' ? 'supervisor' : 'model', `<b>${r.by === 'supervisor' ? 'ruled' : 'judged'} ${e(b.result)}</b>${b.because ? ` <span class="sm">· ${e(one(b.because))}</span>` : ''}`));
+      else if (r.type === 'drop' && b.for === h.id) steps.push(step(r.turn, 'model', `<b>dropped</b>${b.why ? ` <span class="sm">· ${e(one(b.why))}</span>` : ''}`)); });
+    const fs = EV.fndAll ? EV.fndAll().filter(f => EV.seen(f.id) && f.hyps.includes(h.id)) : [];
+    const word = { supported: 'supported', refuted: 'refuted', inconclusive: 'inconclusive', dropped: 'dropped', open: M.ended ? 'not judged' : 'open', 'ended without a verdict': 'no verdict' }[st] || st;
+    const follows = (h.follows || []).filter(Boolean);
+    return `<div class="f-card h-card"><div class="f-head"><span class="h-ic">${EV_ICON.hypothesis || ''}</span><h2>${e(h.id)}</h2><span class="f-pill h-pill" data-s="${e(st)}">${['supported', 'refuted', 'inconclusive', 'dropped'].includes(st) ? EV.gkey(st) : ''}${e(word)}</span></div>
+      <p class="f-meta">Stated in turn ${e(h.turn)}${h.from_why ? ` · from the guess ${EV.link(h.from_why)}` : ''}${follows.length ? ` · follows from ${follows.map(EV.link).join(', ')}` : ''}</p>
+      ${h.question ? `<p class="h-ask"><span class="sm">asks</span> ${EV.question(h)}</p>` : ''}<p class="hq-line f-quote" data-own="model">${e(h.text)}</p>
+      ${h.prediction ? `<p class="h-ask"><span class="sm">predicts</span> <span data-own="model">${e(h.prediction)}</span></p>` : ''}${h.why ? `<p class="h-ask" id="h-why"><span class="sm">why it asks</span> <span data-own="model">${e(h.why)}</span></p>` : ''}
+      <h3 class="f-h3">Its course</h3><ol class="f-course h-course">${steps.join('')}</ol>
+      ${fs.length ? `<h3 class="f-h3">Findings linked to it</h3><ul class="f-hyps">${fs.map(f => `<li><span class="f-hl">${EV.fndChestIcon(15, 13)} <a data-act="open" data-t="finding" data-id="${e(f.id)}">${e(f.id)}</a></span><span class="f-ht">${e(f.name || f.text)}</span></li>`).join('')}</ul>` : ''}
+      ${ts.length ? ts.map(T => `<details class="h-full"><summary>${EV_ICON.test} Its ${EV.term('Test', 'test')} in full · experiment ${e(T.exp)}, turn ${T.turn}</summary>${EV.testBody(T)}</details>`).join('') : ''}</div>`;
   },
 });
 EV.act = Object.assign(EV.act || {}, { insetoff() { EV.s.inset = null; EV.draw(); } });

@@ -1209,6 +1209,21 @@ model); after more than 3 of them in a row the model is told to decide (its
 readings are no longer withheld). In a last turn (8.8) requests are
 not taken.
 
+*Deployed on 2026-11-22 at 19:46 (during and after s052; built on branch review/harness-2026-11-22, eighth and ninth parts of its REVIEW.md):*
+- **A repair never stops the session** (a fix of B; s052 stopped on one at 19:20): a repaired test is checked in the order of the normal path
+  (its needs from the rules, the experiment as sent with its network changes, trim, the budget); whatever the harness cannot check in a repair
+  refuses that round with its reason (a round by the harness).
+- **A fault of the harness is recorded as one**: a note "harness error: ..." in the ledger and `how` "harness error: <kind>" in session.json;
+  the error is raised again (its traceback in the session's log). A stop from outside stays "stopped from outside".
+- **now.json** beside the ledger (`stage()`, every arm): the step the session is at, written as it begins (reply, judge, ground, restate,
+  design with its round, repair, sims, checks, ruling, look), with the turn, what it is about and the time; the page's track of a turn's steps
+  reads it, since a supervisor's reading is recorded only when its step is done.
+- **A finding's name** (every arm): `name`, at most 5 words, given by the researcher or the supervisor with the finding, kept cut to 6 words
+  and 48 characters; a finding without one is taken. The page shows the name on the finding's bar. The supervised arm's whole instructions:
+  9,521 characters (one limit of 10,000).
+- **An exported session opens** (export_session.py): it copies every script of the page's own list, brief_canvas.js (the network's schema)
+  among them; since the schema came, an export opened blank.
+
 *Deployed on 2026-11-22 at 17:05 (the operator: "Deploy A, B and D together, nothing else"; built on branch review/harness-2026-11-22,
 whose REVIEW.md has the reasons, the checks and the results):*
 - **Readings as evidence** (part 1, which A needs): a why's `about`, a rethink's `in_light_of` and a report claim's `evidence` may name a reading
@@ -3615,6 +3630,7 @@ untracked until they say otherwise.
 | 2026-11-22, later | At the operator's word: the board stays in view while turn by turn is read; the network drawn as a schema of its ns-3 objects with a "Made of" line; every call of the local model kept (`calls.jsonl`) and shown on the owner's page `agents.html` (`/api/agents`, the owner only); every reading of the tools stays in the researcher's ledger text and the supervisor is given the same readings. Also: the 11-18 harness fix of the supervised arm deployed. |
 | 2026-11-22 | The lean page, three parts (the operator): the setting; what it needed to find out (the board, turn by turn folded); the detail of what is clicked, beside it and always in the window. Every other section is kept but not drawn (`EV.LEAN`; `?page=full` draws the page as it was). A long board stays readable (85 % at least, then it scrolls sideways in its card and says so); turn by turn in the narrower column puts a label above its value. Found and repaired while building it: a shorter detail made the page jump (95 px on s046) when the pane was taller than the board's column |
 | 2026-11-22, evening | Deployed at 17:05 (the operator: "A, B and D, nothing else"): readings as evidence and two free turns (part 1); findings (A); the review of a test in rounds with the researcher's own rival (B); a guess restated once and then accepted, "not from what was learned" a warning (D). Not deployed: part 2 (measurement statistics, taps), part 3 (the short answer format), part C (shelved). See 8.3, and the branch review/harness-2026-11-22. |
+| 2026-11-22, 19:46 | Deployed after s052 stopped on a fault of B: a repair is checked as the normal path checks an experiment and never stops the session; a harness fault is recorded as one; now.json, the step a session is at, for the page's track of a turn; a finding's name; an exported session opens again (brief_canvas.js copied). Checks: 22 pass, 3 skip (parts 2 and 3 off); page checks run on the page as it is. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
