@@ -1,0 +1,23 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s052 --brief again_again --draft on --policy share --baseline on --arm supervised
+session s052 (brief again_again): /home/chunguck.kim/project/sessions/s052
+Traceback (most recent call last):
+  File "/home/chunguck.kim/project/harness/loop.py", line 2602, in <module>
+    main()
+    ~~~~^^
+  File "/home/chunguck.kim/project/harness/loop.py", line 2547, in main
+    ex2 = repair_rounds(hid, test, rev, gid, every, reserved)
+  File "/home/chunguck.kim/project/harness/loop.py", line 2317, in repair_rounds
+    t2, problem = repaired(test, hid, rp, every, reserved)
+                  ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chunguck.kim/project/harness/loop.py", line 2272, in repaired
+    t3, cuts = trim(t2, brief, ledger)
+               ~~~~^^^^^^^^^^^^^^^^^^^
+  File "/home/chunguck.kim/project/harness/loop.py", line 1039, in trim
+    every = {k: v for r in ex["runs"] for k, v in outputs_of(edits_of(r)).items()}
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/chunguck.kim/project/harness/loop.py", line 89, in outputs_of
+    return {**(network.outputs(network.apply(b["topology"], edits)) if edits else tools.outputs(b)), **own}
+                               ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chunguck.kim/project/harness/network.py", line 494, in apply
+    raise ValueError(f"{n}: a queue is put on a side of a link that has none there (id: the link; on: one of its two hosts)")
+ValueError: change 1: a queue is put on a side of a link that has none there (id: the link; on: one of its two hosts)
