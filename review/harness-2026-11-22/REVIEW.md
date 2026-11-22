@@ -129,5 +129,7 @@ quantity; arithmetic once, windows and levels twice; and nothing outside the pro
    - Built on its own, from cmake's own compile and link lines (`build_net_taps.sh`), into `build/scratch/net-taps/`: the live `net` is untouched.
      Two-host briefs (the program `two-hosts`) have no taps yet.
 
-Checks: `test_measure_relations.py` and `test_taps.py` (new) pass. All 19 harness checks on this `loop.py` and `tools.py`: a run was in
-progress when this was uploaded (the first 9 had passed); its result follows in a later commit.
+Checks: all 19 harness checks pass on this `loop.py` and `tools.py` (one run, 13:56 to 14:13; `test_measure_relations.py` and `test_taps.py`
+are new): test_arms, test_chain, test_cite_readings, test_format_fix, test_free_turns, test_keep_readings, test_measure,
+test_measure_relations, test_network, test_notebook_p3, test_roles, test_shared_page, test_step_c, test_structure, test_supervised, test_taps,
+test_task_text, test_tolerance, test_why.
