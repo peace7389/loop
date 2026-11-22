@@ -412,8 +412,8 @@ const BRIEF_NET = {
     const pol = (v, says) => `<label style="font-weight:400;margin:3px 0;display:block"><input type="radio" name="nw-policy" data-ch="nw" data-k="policy" value="${v}"${nw.policy === v ? ' checked' : ''}> <b>${v}</b> <span class="sm" style="display:inline">${says}</span></label>`;
     const b6 = sched ? `<div id="bn-policy" data-by="operator">${pol('share', 'what one flow leaves unused goes to the others · the default')}${pol('cap', 'each flow is held to its part, whatever the others send')}${pol('prio', 'the first flow of a scheduler\'s list goes first; the parts are not used')}${pol('random', 'the harness chooses share or cap')}<p class="sm">How a scheduler divides its link is never told to the AI.</p></div>` : '<p class="sm" id="bn-policy">This network has no scheduler: there is no scheduling policy to choose.</p>';
     const fl = (label, html, note) => `<div><span>${label}</span>${html}<span>${note}</span></div>`;
-    const b7 = `<div class="kv" id="bn-flags">${fl('simulations allowed at the start', `<input type="number" min="1" data-ch="nw" data-k="budget" value="${e(nw.budget)}" placeholder="${e(s.sims)}">`, "default: the brief's limit")}
-        ${fl('draft before the answer', `<select data-ch="nw" data-k="draft"><option${nw.draft === 'on' ? ' selected' : ''}>on</option><option${nw.draft === 'off' ? ' selected' : ''}>off</option></select>`, 'default: on')}
+    // no "simulations allowed at the start" here any more (2026-11-22, the operator: it repeated block 5's "Simulations in all"): a session starts with the brief's limit
+    const b7 = `<div class="kv" id="bn-flags">${fl('draft before the answer', `<select data-ch="nw" data-k="draft"><option${nw.draft === 'on' ? ' selected' : ''}>on</option><option${nw.draft === 'off' ? ' selected' : ''}>off</option></select>`, 'default: on')}
         ${fl('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on')}
         ${fl('who rules on the tests', EV.armField(), 'default: one AI')}</div>`;
     const nets = (N.ctx.st || {}).network_briefs || [];

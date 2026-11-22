@@ -173,7 +173,7 @@ const BRIEF_EDITOR = {
     const g = m.given, briefs = (B.ctx.st || {}).briefs || []; let id = `${g.id}-again`.slice(0, 56), n = 1; while (briefs.includes(id)) id = `${g.id}-again`.slice(0, 54) + '-' + (++n);
     B.s = { ...B.fromBrief(g), id, baseId: '', from: sid, fromBrief: g.id, msg: null, busy: '', list: false, obj: null };
     B.s.base = ''; B.s.orig = B.fields();
-    const f = m.flags || {}, nw = EV.nw; nw.policy = row.policy_hidden ? 'random' : row.policy || nw.policy; nw.budget = f.budget == null ? '' : String(f.budget); nw.draft = f.draft || 'on'; nw.tokens = f.max_tokens == null ? '' : String(f.max_tokens); nw.temp = f.temperature == null ? '' : String(f.temperature); nw.baseline = f.baseline !== false && f.baseline !== 'off';
+    const f = m.flags || {}, nw = EV.nw; nw.policy = row.policy_hidden ? 'random' : row.policy || nw.policy; nw.budget = ''; nw.draft = f.draft || 'on'; nw.tokens = f.max_tokens == null ? '' : String(f.max_tokens); nw.temp = f.temperature == null ? '' : String(f.temperature); nw.baseline = f.baseline !== false && f.baseline !== 'off';
     B.s.origRun = { policy: nw.policy, budget: nw.budget, draft: nw.draft, tokens: nw.tokens, temp: nw.temp, baseline: nw.baseline };
     B.draw();
   },
@@ -454,9 +454,9 @@ const BRIEF_EDITOR = {
     const pol = v => `<label style="font-weight:400;margin:3px 0"><input type="radio" name="nw-policy" data-ch="nw" data-k="policy" value="${v}"${nw.policy === v ? ' checked' : ''}> <b>${v}</b> <span class="sm" style="display:inline">${e(EV.POLICY_SAYS[v])}${v === 'share' ? ' · the default' : v === 'random' ? '; the page shows it only once the session is scored' : ''}</span></label>`;
     const b6 = `<div id="be-policy" data-by="operator">${pol('share')}${pol('cap')}${pol('random')}<p class="sm">Never told to the AI.</p></div>`;
     // 7 · how the AI runs: every flag beside its default
+    // (no "simulations allowed at the start" since 2026-11-22, the operator: it repeated block 5's "Simulations in all"; a session, a copied one too, starts with the brief's limit)
     const field = (label, html, note, k) => `<div><span>${label}</span>${html}<span>${note}</span>${k ? B.why('nw.' + k) : ''}</div>`;
     const b7 = `<div class="kv" id="be-flags">
-        ${field('simulations allowed at the start', `<input type="number" min="1" data-ch="nw" data-k="budget" value="${e(nw.budget)}" placeholder="${e(s.sims)}">`, "default: the brief's limit", 'budget')}
         ${field('draft before the answer', `<select data-ch="nw" data-k="draft"><option${nw.draft === 'on' ? ' selected' : ''}>on</option><option${nw.draft === 'off' ? ' selected' : ''}>off</option></select>`, 'default: on')}
         ${field('most tokens of one answer', `<input type="number" min="256" data-ch="nw" data-k="tokens" value="${e(nw.tokens)}" placeholder="${nw.draft === 'on' ? 32000 : 3000}">`, 'default: 32000 with a draft, 3000 without', 'tokens')}
         ${field('temperature', `<input type="number" min="0" max="2" step="0.1" data-ch="nw" data-k="temp" value="${e(nw.temp)}" placeholder="0.3">`, 'default: 0.3', 'temp')}
