@@ -359,3 +359,44 @@ list; brief_canvas.js, the network's schema, was missing, so an exported session
 22 harness checks pass, 3 report SKIP (parts 2 and 3 off). Page checks on the live page: bar, home, lean, map, nr, page, random, replay_s006,
 replay_s011, test_s006 ok; views ok with the exporter fixed; polish: 4 failures that the 17:05 page has too (the operator columns on the strip,
 the folded line during the replay), not from these parts.
+
+# Tenth part: a turn ends with a step; the tokens of a step, as they are written (2026-11-22, during s053)
+
+The operator, on s053 (turns 1 and 2: guesses and readings only, no hypothesis): "Turn 1 and 2 passed without any hypothesis are not what I
+intended. Fix it", and on the page's track of a turn: "When user clicks past or ongoing stage here they should be able to see tokens directly".
+
+1. **CONTINUES = 2** (every arm): a reply that states no hypothesis, test, drop, verdict, objection or report is followed by another call of the
+   researcher in the same turn, at most twice; what it asked for is answered at once and stands in the ledger it is shown ("THIS TURN GOES ON
+   (your reply 2 in this turn, at most 3) ..."; the third is told it is the last of its turn). Readings still cost no simulation; a free turn may
+   continue too. No new turn record for a continued reply; now.json's reply step carries its round. The instructions say it in one sentence:
+   prompt.txt's requests ("the results come back at once, in the same turn ... a turn ends with a step"; the arm "plain" has its own words: no
+   experiment or report), the supervised arm's ("Up to six requests in a reply; the results come back at once ..."): 9,645 characters, one limit
+   of 10,000. Scripts written before keep one reply per turn (scripted.py sets CONTINUES = 0 unless a check sets it).
+2. **Streamed calls and live_call.json** (every arm): `post_stream()` asks the model server for a stream (the same answer, reasoning and token
+   counts as before); while a call comes in, live_call.json beside the ledger holds its number, turn, agent, step, what was written so far and
+   whether it is done, about once a second. The page reads it for the step being worked on (the tokens grow in place).
+3. **Every call names its step** in calls.jsonl (now.json's step, about and round), so that a step of the page's track opens its calls.
+
+Checks: `test_continue.py` (new: three replies in turn 1, then the step; three without a step end the turn; the arm "hypotheses"; the
+instructions), `test_stream.py` (new: one real streamed call to the local model server; SKIP when it does not answer), `test_now_steps.py`
+(every call's step). The suite caught one fault before the deploy: the new sentence named "hypothesis" and "verdict" in the arm "plain"'s
+instructions, which refuse those words (a plain session would not have started); fixed by a PLAIN replacement of its own.
+4. **A ruling cut off in its findings is kept** (s053, turn 3: the supervisor's ruling on H2 was sound, then its findings ran on, "It is not a
+   finding." to the limit of 9,000 tokens; the answer could not be read and H2 stayed open; at temperature 0 asking again would give the same):
+   an answer of the supervisor cut off in its findings, which stand last in its format, is kept without them (`findings_cut`), and the ruling's
+   record gets a note. On s053's own answer: inconclusive, not_about_the_guess. Check: `test_ruling_cut.py` (new); scripted.py sends a supervisor
+   answer {"_raw": text} as that text.
+
+# Eleventh part: after the review of s050 to s053 (2026-11-22, night; see plans/2026-11-22-review-s050-s053.md on main)
+
+- `SHORT_CALL_TOKENS = 12,000` for a repair and a restatement (the operator's choice: 6,000 of them reasoning; they took 2 to 6 minutes at a whole
+  reply's 32,000).
+- A hypothesis whose test was checked and that waits for its ruling does not keep a new hypothesis out (s053: "H2 is still open and untested").
+- `rule_missing()`: a checked hypothesis without a ruling gets the supervisor's ruling asked for again at the start of the next turn, once.
+- The repair prompt says that a rule naming only simulations already run is refused, and that a simulation may change the network when the brief
+  allows it (an interim sentence: the plan's item 1 replaces it with the change shown and a correct example).
+- Check: `test_ruling_cut.py` gains R (a missing ruling asked for again at the next turn) and W (a checked hypothesis waiting for its ruling keeps
+  nothing out).
+
+**Held, not deployed** (the operator, 2026-11-22: "Build on the review branch; don't deploy"): the tenth and eleventh parts. The deploy build
+(`derive_dep.py` of this branch) passed every harness check that has finished: 22 pass, 3 report SKIP (parts 2 and 3 off), none failed.

@@ -15,6 +15,8 @@ import loop  # noqa: E402
 import os  # noqa: E402
 for k, v in json.loads(os.environ.get("SCRIPTED_SET") or "{}").items():   # a check may set a constant of the loop for its session, e.g. {"AFTER_ROUNDS": "dropped"} (2026-11-22)
     setattr(loop, k, v)
+if hasattr(loop, "CONTINUES") and "CONTINUES" not in json.loads(os.environ.get("SCRIPTED_SET") or "{}"):
+    loop.CONTINUES = 0   # a script written before CONTINUES (2026-11-22) has one reply per turn; test_continue.py sets it
 answers = json.loads(Path(sys.argv[1]).read_text())
 sup_answers, sup_users = (answers.get("supervisor") or [], []) if isinstance(answers, dict) else ([], [])
 answers = answers["answers"] if isinstance(answers, dict) else answers
@@ -64,7 +66,8 @@ formats, users = [], []
 def ask(model, system, user, schema, draft, temperature, max_tokens):
     if system == getattr(loop, "SUPERVISOR", None):   # a request to the supervisor of the arm "supervised": its own script, its own record of what it was shown
         sup_users.append(user)
-        return json.dumps(supervisor(user, schema)), "", "stop", {"completion_tokens": 0}
+        x = supervisor(user, schema)   # {"_raw": text}: an answer of the supervisor as text that may not be JSON (test_ruling_cut.py, 2026-11-22)
+        return (x["_raw"] if isinstance(x, dict) and "_raw" in x else json.dumps(x)), "", "length" if isinstance(x, dict) and "_raw" in x else "stop", {"completion_tokens": 0}
     formats.append(schema); users.append(user)
     if not answers:
         raise loop.ModelServerError("the script has no more answers")

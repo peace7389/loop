@@ -62,6 +62,11 @@ say(key(st) == want, f"every step in its order, with the turn, what it is about 
 say(st and all(x and x.get("at") and (x["rounds"] == 3) == (x["step"] in ("design", "repair")) for x in st) and not any(x.get("again") for x in st),
     "each write reads back whole, with its time; a review or a repair says the number of rounds (3); no reply was asked again")
 
+calls = [(c["agent"], (c.get("step") or {}).get("step")) for c in map(json.loads, (P / "sessions/s1/calls.jsonl").read_text().splitlines())]
+say(calls == [("supervisor", "look"), ("researcher", "reply"), ("supervisor", "ground"), ("researcher", "restate"), ("supervisor", "ground"), ("supervisor", "design"), ("researcher", "repair"),
+              ("supervisor", "design"), ("supervisor", "ruling"), ("researcher", "reply"), ("supervisor", "look")],   # turn 3's reply fails (the script has no more answers): not a call
+    f"every call in calls.jsonl names the step it was made in (the page shows a step's calls when it is clicked): {calls}")
+
 print("N  A FINDING'S NAME")
 fs = [(r["id"], r["by"], r["turn"], r["body"].get("name")) for r in led if r["type"] == "finding"]
 say(fs == [("F1", "supervisor", 0, "UDP loses half of its packets"), ("F2", "model", 1, "TCP gets nothing"), ("F3", "model", 2, None)],

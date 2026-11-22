@@ -533,6 +533,65 @@ def post(url, body, timeout):
         raise ModelServerError(json.dumps(r)[:600])
     return r
 
+LIVE = {"call": None, "last": 0.0}   # the call being made: what live_call.json says of it
+
+
+def live_write(done=False, **kw):
+    """live_call.json beside the ledger (2026-11-22, the operator: "they should be able to see tokens directly"): the call of the model being made, as
+    it comes in: its number, turn, agent and step, when it began, how long it has run, what the agent has written so far (reasoning, answer) and
+    whether it is done. Written whole (a temporary file, then a rename); never stops the session."""
+    c = LIVE.get("call")
+    if not c:
+        return
+    try:
+        c.update(kw)
+        c["done"], c["seconds"] = done, round(time.time() - c["t0"], 1)
+        p = tools.SESSION / "live_call.json"
+        tmp = p.with_name("live_call.json.tmp")
+        tmp.write_text(json.dumps({k: v for k, v in c.items() if k != "t0"}) + "\n")
+        os.replace(tmp, p)
+    except (OSError, TypeError, ValueError, NameError):
+        pass
+
+
+def post_stream(url, body, timeout):
+    """One request to the model server, streamed: the same answer as post() gives ({"choices": [{"message": {content, reasoning}, "finish_reason"}],
+    "usage"}), and while it comes in, live_call.json says what has been written so far, about once a second. ModelServerError when it fails."""
+    reasoning, content, finish, usage = [], [], None, {}
+    try:
+        with requests.post(url, json={**body, "stream": True, "stream_options": {"include_usage": True}}, timeout=timeout, stream=True) as r:
+            if r.status_code != 200:
+                try:
+                    err = r.json()
+                except ValueError:
+                    err = r.text
+                raise ModelServerError(json.dumps(err)[:600])
+            for line in r.iter_lines(decode_unicode=True):
+                if not line or not line.startswith("data: "):
+                    continue
+                if line[6:].strip() == "[DONE]":
+                    break
+                ch = json.loads(line[6:])
+                if not isinstance(ch, dict) or "error" in ch:
+                    raise ModelServerError(json.dumps(ch)[:600])
+                usage = ch.get("usage") or usage
+                for c in ch.get("choices") or []:
+                    d = c.get("delta") or {}
+                    if d.get("reasoning") or d.get("reasoning_content"):
+                        reasoning.append(d.get("reasoning") or d.get("reasoning_content"))
+                    if d.get("content"):
+                        content.append(d["content"])
+                    finish = c.get("finish_reason") or finish
+                if time.time() - LIVE["last"] >= 1.0:
+                    LIVE["last"] = time.time()
+                    live_write(reasoning="".join(reasoning), answer="".join(content))
+    except ModelServerError:
+        raise
+    except Exception as e:
+        raise ModelServerError(f"{type(e).__name__}: {e}")
+    return {"choices": [{"message": {"content": "".join(content), "reasoning": "".join(reasoning)}, "finish_reason": finish}], "usage": usage}
+
+
 def count_tokens(model, text):
     """Tokens of a text, counted by the model server's own tokenizer."""
     return post(API.removesuffix("/v1") + "/tokenize", {"model": model, "prompt": text}, 300)["count"]
@@ -556,13 +615,13 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
     elif THINK["limit"]:
         body["thinking_token_budget"] = draft_tokens(max_tokens)
     try:
-        r = post(API + "/chat/completions", body, 1800)
+        r = post_stream(API + "/chat/completions", body, 1800)
     except ModelServerError as e:  # a model server that cannot limit the draft says so: asked once more without the limit, and not asked for it again
         if "thinking_token_budget" not in body or "thinking_token_budget" not in str(e):
             raise
         THINK["limit"] = False
         del body["thinking_token_budget"]
-        r = post(API + "/chat/completions", body, 1800)
+        r = post_stream(API + "/chat/completions", body, 1800)
     ch = r["choices"][0]
     return ch["message"].get("content") or "", ch["message"].get("reasoning") or "", ch.get("finish_reason"), r.get("usage", {})
 
@@ -577,6 +636,7 @@ def stage(step, about=None, round_no=None, by=None, again=False):
     done). step: reply (the researcher), judge, ground (the supervisor reads a guess), restate (the researcher restates a guess; by: who did not
     accept it), design (the supervisor reviews a test; round_no of REVIEW_ROUNDS), repair (the researcher repairs a test for round_no), sims, checks,
     ruling (the supervisor rules on a test), look (the supervisor looks at results with no ruling for findings). Never stops the session."""
+    CALLS["step"] = {"step": step, "about": about, "round": round_no, "by": by}   # the step of the calls that follow (calls.jsonl, live_call.json)
     try:
         p = tools.SESSION / "now.json"
         tmp = p.with_name("now.json.tmp")
@@ -589,11 +649,19 @@ def stage(step, about=None, round_no=None, by=None, again=False):
 
 def called(agent, model, system, user, schema, draft, temperature, max_tokens):
     t0 = time.time()
-    content, reasoning, finish_reason, usage = ask(model, system, user, schema, draft, temperature, max_tokens)
+    LIVE["call"] = {"n": CALLS["n"] + 1, "turn": CALLS["turn"], "agent": agent, **(CALLS.get("step") or {}), "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "t0": t0, "reasoning": "", "answer": ""}
+    LIVE["last"] = 0.0
+    live_write()
+    try:
+        content, reasoning, finish_reason, usage = ask(model, system, user, schema, draft, temperature, max_tokens)
+    except Exception as e:
+        live_write(done=True, error=f"{type(e).__name__}: {' '.join(str(e).split())[:300]}")
+        raise
+    live_write(done=True, reasoning=reasoning, answer=content, finish_reason=finish_reason, usage=usage)
     CALLS["n"] += 1
     try:
         with (tools.SESSION / "calls.jsonl").open("a") as f:
-            f.write(json.dumps({"n": CALLS["n"], "turn": CALLS["turn"], "agent": agent, "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "seconds": round(time.time() - t0, 1),
+            f.write(json.dumps({"n": CALLS["n"], "turn": CALLS["turn"], "agent": agent, "step": CALLS.get("step"), "at": time.strftime("%Y-%m-%dT%H:%M:%S"), "seconds": round(time.time() - t0, 1),
                                 "model": model, "draft": bool(draft), "temperature": temperature, "max_tokens": max_tokens, "system": system, "user": user,
                                 "reasoning": reasoning, "answer": content, "finish_reason": finish_reason, "usage": usage}) + "\n")
     except (OSError, TypeError, ValueError):
@@ -704,6 +772,8 @@ RULE_IN_TEXT = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*@[A-Za-z0-9_]+")   # a decisi
 REPAIR_SYSTEM = ("You are the researcher. The supervisor, or the harness, sent back one of your tests before any of its simulations was run. Repair that test only, from the "
                  "feedback: a decision rule that can tell your guess from a competing explanation, the strongest rival you can think of, what the rule would give if that rival were "
                  "true, and the simulations only if they must change. Answer with one JSON object in the format you are given.")
+SHORT_CALL_TOKENS = 12000   # a repair and a restatement (2026-11-22, the operator chose it after the review of s050 to s053): 6,000 of them reasoning; a whole reply keeps its own
+CONTINUES = 2   # (2026-11-22, the operator: "Turn 1 and 2 passed without any hypothesis are not what I intended. Fix it") a reply that states no hypothesis, test, drop, verdict, objection or report is followed by another call in the same turn, at most this many times: what it asked for is answered at once
 LOOKS = 6   # the arm "supervised": the most requests in one turn, and the most turns in a row that only look (the operator, 2026-11-18: observe the system whenever it wants, rather than try many simulations)
 SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of the supervisor, what it was shown and what it answered
 
@@ -711,7 +781,27 @@ SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of t
 def supervise(model, user, schema):
     """One request to the supervisor: its own instructions, a request of its own (nothing of the researcher's conversation), temperature 0. The model
     reasons before it answers, as the researcher does; that reasoning is not kept (its answer says its ground)."""
-    return json.loads(called("supervisor", model, SUPERVISOR, user, schema, True, 0, 9000)[0])
+    content = called("supervisor", model, SUPERVISOR, user, schema, True, 0, 9000)[0]
+    try:
+        return json.loads(content)
+    except ValueError:
+        d = findings_cut(content) if "findings" in (schema.get("properties") or {}) else None
+        if d is None:
+            raise
+        return d
+
+
+def findings_cut(content):
+    """An answer of the supervisor cut off in its findings, which stand last in its format (s053, 2026-11-22: a sound ruling, then "It is not a
+    finding." to the limit): what stands before them, with no findings and marked findings_cut; None when that is not a whole object."""
+    m = re.search(r',\s*"findings"\s*:', content)
+    if not m:
+        return None
+    try:
+        d = json.loads(content[:m.start()] + "}")
+    except ValueError:
+        return None
+    return {**d, "findings": [], "findings_cut": True} if isinstance(d, dict) else None
 
 
 def _system_for_supervisor(brief):
@@ -872,7 +962,7 @@ def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None, contested=Non
     res = [c["body"]["result"] for c in checks]
     fits = {"supported": all(x == "held" for x in res) and d["fair"], "refuted": any(x == "failed" for x in res) and d["fair"], "inconclusive": True}.get(d["result"], False)
     ruling = {"shows": flat(d["shows"]), "fair": bool(d["fair"]), "defect": d["defect"] if d["defect"] in DEFECTS else "none", "result": d["result"] if fits else "inconclusive", "because": flat(d["because"]),
-              "retest": flat(d.get("retest") or ""), "checks": [c["id"] for c in checks], "findings": list(d.get("findings") or []) if isinstance(d.get("findings"), list) else [], **({} if fits else {"changed_by_harness": f"the supervisor said {d['result']}, which does not fit the checks ({', '.join(res)}) or its own finding that the test was {'fair' if d['fair'] else 'not fair'}"})}
+              "retest": flat(d.get("retest") or ""), "checks": [c["id"] for c in checks], "findings": list(d.get("findings") or []) if isinstance(d.get("findings"), list) else [], **({"findings_cut": True} if d.get("findings_cut") else {}), **({} if fits else {"changed_by_harness": f"the supervisor said {d['result']}, which does not fit the checks ({', '.join(res)}) or its own finding that the test was {'fair' if d['fair'] else 'not fair'}"})}
     return ruling, user
 
 
@@ -1308,7 +1398,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             h["follows_from"] = list(whys[h["from_why"]]["about"])   # what the hypothesis follows from: what its why is about
         if mode == "report":
             no.append(("new hypothesis", only))
-        elif supervised and (waiting := [i for i, v in states(ledger)[0].items() if v == "open" and i not in {d["id"] for d in ok["drop"]}]):
+        elif supervised and (waiting := (lambda st_c: [i for i, v in st_c[0].items() if v == "open" and i not in st_c[1] and i not in {d["id"] for d in ok["drop"]}])(states(ledger))):   # one checked and waiting for its ruling keeps nothing out (s053)
             # the chain is result, guess, hypothesis, test: a hypothesis is stated to be tested, and the next one comes from what its test showed (s047: eight stated, none tested)
             no.append(("new hypothesis", f"{', '.join(waiting)} {'is' if len(waiting) == 1 else 'are'} still open and untested: test {'it' if len(waiting) == 1 else 'them'} (send the experiment), or give "
                                          f"{'it' if len(waiting) == 1 else 'them'} up in drop with what you learned, before you state another hypothesis. The next hypothesis comes from what a test showed"))
@@ -1513,7 +1603,7 @@ You do not work alone. A supervisor works apart from you. It proposes nothing an
 The ledger is the complete record of the session. You have no other memory. Each turn you read it and answer with ONE JSON object. Keep every text short: one or two sentences. Its parts:
 
 1. observations: one or two sentences: what you read this turn; an unexplained result goes in findings (below), once. They stay in the ledger (turn N your observations).
-2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded (measure: a statistic of a quantity you combine from them, e.g. tcp_inflight / min(tcp_cwnd, tcp_rwnd); corr and lag: do two move together, which leads); probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a turn; the results come back in the next turn and stay in the ledger with their ids (T1, T2, ...). A turn may consist of requests only.
+2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded (measure: a statistic of a quantity you combine from them, e.g. tcp_inflight / min(tcp_cwnd, tcp_rwnd); corr and lag: do two move together, which leads); probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a reply; the results come back at once, in the same turn, and stay in the ledger with their ids (T1, T2, ...): a reply that states no hypothesis, test, drop or report is answered and you are asked again in the same turn, at most twice. A turn ends with a step.
 3. whys: your guesses of why a result came out so. Each has about (the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet), result (that result in one sentence, with its numbers), guess (what in the system would make it so), and revises (the id of an earlier guess this one replaces, or states more exactly with new numbers or a narrower cause; or null). The harness numbers them Y1, Y2, ... The work is a chain: your first guesses start from the baseline, and every later guess is the fruit of what you learned since: its about must name at least one record made since your last guesses (a ruling, a check, a new result table, a reading, an objection of the supervisor), and its result says what that record showed. A later guess that starts from the baseline alone is refused, and the supervisor reads whether the guess really comes from the newer record or only names it. Make your several first guesses in one answer.
 4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most three in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.
 5. drop: open hypotheses you give up before they were tested (id, and why in one sentence). Usually empty.
@@ -2044,6 +2134,8 @@ def supervised_prompt(text):
 
 PLAIN = (  # prompt.txt -> the instructions of the arm "plain": (text as it stands in prompt.txt, what replaces it). Each must be found exactly once.
     ("everything you have hypothesised, run, observed and concluded", "everything you have run, observed and concluded"),
+    ("(a reply that states no hypothesis, test, verdict, drop or report is answered and you are asked again in the same turn, at most twice: a turn ends with a step)",
+     "(a reply that states no experiment or report is answered and you are asked again in the same turn, at most twice: a turn ends with a step)"),   # CONTINUES (2026-11-22)
     ("\n5. experiment: at most one per turn.", "\n2. experiment: at most one per turn."),
     ('   - kind "explore": question says what you want to find out; tests, needs and decision_rules stay empty. Use it when you do not yet have a claim to test.', '   - kind is always "explore": question says what you want to find out.'),
     ("\n6. After an experiment the harness appends the evidence (one line per simulation) and, for every decision rule, a check: the decision rule with the measured numbers written into it, and HELD or FAILED. You never write evidence or checks yourself.",
@@ -2180,7 +2272,7 @@ def main():
                 "the rule above, it is recorded as contested. Answer with one JSON object.")
         try:
             stage("restate", by=by)
-            content, _d, _f, _u = called("researcher", model, RESTATE_SYSTEM, user, why_schema, a.draft == "on", a.temperature, a.max_tokens)
+            content, _d, _f, _u = called("researcher", model, RESTATE_SYSTEM, user, why_schema, a.draft == "on", a.temperature, min(a.max_tokens, SHORT_CALL_TOKENS))
             count["calls"] += 1
             out = json.loads(content)
             out = findings_in_whys({"whys": [out]}, ledger)["whys"][0] if isinstance(out, dict) else None
@@ -2210,6 +2302,7 @@ def main():
     if a.baseline == "on":
         baseline(ledger)
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
+    stay, stay_next = 0, False   # the calls of the researcher after the first in this turn; whether the next call stays in this turn (CONTINUES)
     asked = False  # whether the model was already asked for the verdicts that were missing when it sent its report
     held_turns = set()  # the turns in which a report was held back for findings never looked at (at most FINDING_HOLDS)
     giving_up = False  # set after UNUSABLE turns in a row without a usable answer: the next turn is the last and takes only the report
@@ -2332,7 +2425,9 @@ def main():
                 "Repair this test only. decision_rule: the comparison that decides the hypothesis, in the form of your instructions (numbers; measure@label; + - * / and parentheses; abs(), "
                 "min(), max(); one of < <= > >= == in each comparison; comparisons joined by AND and OR). rival: the strongest competing explanation you can think of, one sentence. "
                 "rival_predicts: held or failed, what the rule gives if the rival is true (held is refused: choose simulations where the two differ). runs: the simulations, each with a "
-                "label and a value for every knob, only if they must change; an empty list keeps them.")
+                "label and a value for every knob, only if they must change; an empty list keeps them. The harness refuses a rule that names only simulations already run (what they "
+                "measured is known, so the rule cannot fail): name at least one simulation that has not run yet."
+                + (" A simulation may change the network (structure), as your instructions describe." if may_change(brief) else ""))
 
     def repair_rounds(hid, test, rev, gid, every, reserved=0):
         """The rounds after the first for one test sent back: the researcher repairs it from the feedback (a short call that asks for the test only),
@@ -2344,7 +2439,7 @@ def main():
             user = repair_user(hid, test, n + 1, who, feedback)
             try:
                 stage("repair", hid, n + 1)
-                content, _d, _f, _u = called("researcher", model, REPAIR_SYSTEM, user, repair_schema, a.draft == "on", a.temperature, a.max_tokens)
+                content, _d, _f, _u = called("researcher", model, REPAIR_SYSTEM + (STRUCTURE if may_change(brief) else ""), user, repair_schema, a.draft == "on", a.temperature, min(a.max_tokens, SHORT_CALL_TOKENS))
                 count["calls"] += 1
                 rp = json.loads(content)
                 if not isinstance(rp, dict):
@@ -2388,19 +2483,39 @@ def main():
         """Gate 2: the harness has checked the rules; the supervisor says what each check means. Its ruling is the hypothesis's verdict."""
         xid = next(r["id"] for r in reversed(ledger) if r["type"] == "experiment")
         for hid in ex["tests"]:
+            rule_one(xid, hid)
+
+    ruled_again = set()   # the checked hypotheses whose missing ruling was asked for again (once each)
+    def rule_missing():
+        """A checked hypothesis without a ruling (its ruling could not be read) gets it asked for again at the start of the next turn, once (s053, 2026-11-22:
+        H2's ruling was lost, H2 could be neither dropped nor followed, and the session was stuck)."""
+        ruled = {r["body"]["for"] for r in ledger if r["type"] == "verdict"}
+        for r in [r for r in ledger if r["type"] == "check" and r["body"]["result"] in ("held", "failed")]:
+            hid, xid = r["body"]["for"], r["body"]["experiment"]
+            if hid not in ruled and (xid, hid) not in ruled_again and states(ledger)[0].get(hid) == "open":
+                ruled_again.add((xid, hid))
+                append(ledger, turn, "note", hid, {"text": f"{hid}'s test was checked ({r['id']}) but has no ruling: the supervisor is asked for it again"})
+                rule_one(xid, hid)
+                ruled.add(hid)
+
+    def rule_one(xid, hid):
+        """The supervisor's ruling on one checked test: the hypothesis's verdict."""
+        if True:
             if not any(r["type"] == "check" and r["body"]["experiment"] == xid and r["body"]["for"] == hid and r["body"]["result"] in ("held", "failed") for r in ledger):
-                continue   # nothing was checked for it (a simulation its rule names failed): it stays open
+                return   # nothing was checked for it (a simulation its rule names failed): it stays open
             doubt = next((r["body"]["doubt_if"] for r in reversed(ledger) if r["type"] == "review" and r["body"]["for"] == hid), "")
             try:
                 stage("ruling", hid)
                 ruling, saw = rule_on(model, brief, ledger, xid, hid, doubt, contested=objected.get(hid))
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", hid, {"text": f"the supervisor's ruling on {hid} could not be read ({type(e).__name__}): {hid} stays open"})
-                continue
+                return
             vid = append(ledger, turn, "verdict", hid, {"for": hid, "result": ruling["result"], "because": ruling["because"], "next": ruling["retest"], "fair": ruling["fair"], "defect": ruling["defect"],
                                                        "shows": ruling["shows"], "checks": ruling["checks"], "experiment": xid, **({"doubt_if": doubt} if doubt else {}),
                                                        **({"changed_by_harness": ruling["changed_by_harness"]} if ruling.get("changed_by_harness") else {}), **({"contested": True} if objected.get(hid) else {})}, by="supervisor")
             sup_log(vid, "ruling", saw, ruling)
+            if ruling.get("findings_cut"):
+                append(ledger, turn, "note", vid, {"text": f"the supervisor's ruling on {hid} ran on in its findings and was cut off at its limit: the ruling stands, its findings are left out"})
             take_sup_findings(ledger, turn, ruling.get("findings"), vid)   # what it found unexplained in these results (2026-11-22)
 
     def finish():
@@ -2429,18 +2544,27 @@ def main():
         while how is None:
             # a last turn: "report" after too many unusable answers (only the final report is accepted), "budget" when the
             # budget is used up (no experiment is accepted and the report is required); otherwise an ordinary turn
-            mode, need_now = "report" if giving_up else ("free" if free_left > 0 else "budget") if sims >= budget else None, False
-            free_left -= mode == "free"
+            staying, stay_next = stay_next, False   # the same turn goes on (CONTINUES): its mode as it was, no new turn record
+            if staying:
+                need_now = False
+            else:
+                mode, need_now = "report" if giving_up else ("free" if free_left > 0 else "budget") if sims >= budget else None, False
+                free_left -= mode == "free"
             text = render(ledger, readings=arm == "supervised")
             size = count_tokens(model, text)
             if size > LEDGER_TOKENS:
                 append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"loop stopped by the harness: the rendered ledger is {size} tokens, over the limit of {LEDGER_TOKENS}"})
                 how = "ledger too large"
                 break
-            turn += 1
-            since = max((i for i, r in enumerate(ledger) if r["type"] == "turn"), default=-1)  # what was added after the previous turn's record
-            append(ledger, turn, "turn", ledger[-1]["id"] if ledger else None, {"simulations_left": max(0, budget - sims), "open_hypotheses": sum(v == "open" for v in states(ledger)[0].values()),
+            stay = stay + 1 if staying else 0
+            if not staying:
+              turn += 1
+              since = max((i for i, r in enumerate(ledger) if r["type"] == "turn"), default=-1)  # what was added after the previous turn's record
+              append(ledger, turn, "turn", ledger[-1]["id"] if ledger else None, {"simulations_left": max(0, budget - sims), "open_hypotheses": sum(v == "open" for v in states(ledger)[0].values()),
                                                                                     "added": [r["id"] for r in ledger[since + 1:]], "last_turn": mode})
+            if arm == "supervised" and not staying:
+                CALLS["turn"] = turn
+                rule_missing()   # a checked hypothesis whose ruling could not be read: asked for once more, before the researcher's reply (s053, 2026-11-22)
             # the last turn names the hypotheses that still need a verdict: "give your verdicts on the checked hypotheses" was read as "judge every one again"
             # (s030: seventeen second verdicts, each refused)
             st_now, checked_now = states(ledger)
@@ -2469,11 +2593,16 @@ def main():
                 user += ("\n\nTOOL RESULTS: your last requests were answered" + (f": {', '.join(ids)}, in the LEDGER above" if ids else "") + ". Every reading stays in the ledger for the rest of the session."
                          + (" The limit of turns with requests only is reached: decide now." if "limit" in pending else ""))
                 pending = []
+            if staying:   # the same turn goes on (CONTINUES): why, and what ends it
+                user += (f"\n\nTHIS TURN GOES ON (your reply {stay + 1} in this turn, at most {CONTINUES + 1}): your last reply stated no hypothesis, test, drop, verdict or report, "
+                         "and what it asked for is answered in the LEDGER above. A turn ends with a step: " + ("state your hypotheses and their test now. Requests in this reply are answered "
+                         "too, and you are asked once more in this turn." if stay < CONTINUES else "this is the last reply of this turn, so state your hypotheses and their test now "
+                         "(what this reply asks for is answered, and shown to you in the next turn)."))
             last, parsed, err, content, refused = (ledger[-1]["id"] if ledger else None), None, None, "", []
             again = ""   # the second attempt of a turn is told why the first could not be used (it was asked the very same thing before: a refused answer cost a whole reply and taught nothing)
             CALLS["turn"] = turn
             for _attempt in range(2):
-                stage("reply", again=_attempt > 0)
+                stage("reply", round_no=stay + 1 if staying else None, again=_attempt > 0)
                 content, draft, finish_reason, usage = called("researcher", model, system, user + again, schema, a.draft == "on", a.temperature, a.max_tokens)
                 count["calls"] += 1
                 count["length"] += finish_reason == "length"
@@ -2549,8 +2678,10 @@ def main():
                     pending.append("limit")
                 append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq}, by="model")
                 settle_findings(parsed, ledger, turn, due_before, [r["id"] for r in ledger if r["turn"] == turn and r["type"] == "result"], [])
+                stay_next = mode in (None, "free") and stay < CONTINUES   # no step yet: the researcher is asked again in this turn, with what it asked for answered
                 continue
             tool_only = 0
+            stay_next = mode in (None, "free") and stay < CONTINUES and not (ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ok["objections"] or ex is not None or report is not None)
             seen = [parsed.get("observations")]  # what the model said it read, kept once: in the first record this turn adds
             obs = lambda: {"observations": seen.pop()} if seen else {}
             for v in ok["verdicts"]:
