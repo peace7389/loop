@@ -1,0 +1,100 @@
+{
+ "goal": "max tcp_goodput_bps",
+ "recommendation": {
+  "l1.queue.length": 100,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [
+  {
+   "do": "remove",
+   "id": "l1",
+   "kind": "queue",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  },
+  {
+   "do": "add_queue",
+   "id": "l1",
+   "kind": "scheduler",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "limit": "At the recommendation the limit is the scheduler's per-flow share plus TCP overhead/losses, not the receiver window: r009 has tcp_inflight_max=159280 bytes versus tcp_rwnd_max=1048576 bytes and tcp_rtt_mean=2.093 ms, while q1000 reaches the 1 MiB window at 17.218 ms RTT and q4 caps inflight at 20272 bytes with 3417 retransmissions (E5,E6,C4,C5,V4,V5,V6).",
+ "explanation": "With the given FIFO queue, the 2 Gbps UDP flow fills the sender queue and tail-drops TCP, so default Cubic delivers 0 bps and even FIFO queue 1000 gives at most 5792 bps (E0,E1). Replacing the FIFO queue by a sender-side scheduler gives TCP a service share; Cubic reaches 476482765 bps at queue 1000 and 482007923 bps at queue 100, while BBR underfills the share and LinuxReno matches Cubic (E2,E3,E4,E6,C1,C2,C3,C6,V1,V2,V3,V6). Queue 100 is best among tested queue lengths because it keeps the scheduler queue nonempty with lower RTT than queue 1000 and far fewer drops than queue 4.",
+ "claims": [
+  {
+   "text": "Under the given FIFO queue, UDP saturation starves TCP: default Cubic queue 100 has tcp_goodput_bps=0 and l1_drops=911591, and FIFO queue 1000 gives at most 5792 bps for the tested TCP types.",
+   "evidence": [
+    "E0",
+    "E1"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "A sender-side scheduler changes service allocation and raises TCP by hundreds of Mbps: scheduler Cubic queue 1000 has 476482765 bps versus FIFO Cubic queue 1000 5792 bps, with UDP below 900 Mbps.",
+   "evidence": [
+    "E2",
+    "C1",
+    "V1"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Under scheduler with Cubic, queue 100 gives the highest measured TCP goodput: 482007923 bps, 1.16% above queue 1000 and 3.76% above queue 4.",
+   "evidence": [
+    "E5",
+    "E6",
+    "C4",
+    "C5",
+    "V4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "LinuxReno is measured equivalent to Cubic under the scheduler: queue 1000 gives 476481946 versus 476482765 bps, and queue 100 gives 482007923 versus 482007923 bps.",
+   "evidence": [
+    "E4",
+    "C3",
+    "V3",
+    "E6",
+    "C6",
+    "V6"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "BBR does not fill the scheduler share: scheduler BBR queue 1000 gives 190096915 bps, far below Cubic's 476482765 bps.",
+   "evidence": [
+    "E3",
+    "C2",
+    "V2"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "At queue 100 the TCP limit is not the receiver window: tcp_inflight_max=159280 bytes is far below tcp_rwnd_max=1048576 bytes, while queue 1000 reaches the 1 MiB inflight/window and queue 4 has inflight 20272 bytes with 3417 retransmissions.",
+   "evidence": [
+    "E5",
+    "E6",
+    "V4",
+    "V5",
+    "V6"
+   ],
+   "role": "supports"
+  }
+ ],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": "",
+ "open_questions": []
+}

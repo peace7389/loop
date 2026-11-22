@@ -1,0 +1,5 @@
+{"run": "r001", "every": 0.1, "same_result": true, "ts": "2026-11-22T10:59:30"}
+{"run": "r003", "every": 0.1, "same_result": true, "ts": "2026-11-22T11:03:32"}
+{"run": "r006", "every": 0.1, "same_result": true, "ts": "2026-11-22T11:08:20"}
+{"run": "r007", "every": 0.1, "same_result": true, "ts": "2026-11-22T11:08:40"}
+{"run": "r010", "every": 0.1, "same_result": true, "ts": "2026-11-22T11:13:15"}

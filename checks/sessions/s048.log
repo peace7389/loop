@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s048 --brief again --draft on --policy share --baseline on
+session s048 (brief again): /home/chunguck.kim/project/sessions/s048
+stopped: session s048, all simulations used, report given in the last turn, 12 simulations, 7 turns, ledger /home/chunguck.kim/project/sessions/s048/ledger.jsonl

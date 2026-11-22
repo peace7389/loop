@@ -1,0 +1,110 @@
+{
+ "goal": "Maximize tcp_goodput_bps, the goal given in the brief.",
+ "recommendation": {
+  "l1.queue.length": 100,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [
+  {
+   "do": "remove",
+   "id": "l1",
+   "kind": "queue",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  },
+  {
+   "do": "add_queue",
+   "id": "l1",
+   "kind": "scheduler",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "expected": {
+  "udp_goodput_bps": 489526240,
+  "udp_loss_frac": 0.755237,
+  "tcp_goodput_bps": 482007923,
+  "tcp_retrans": 71,
+  "l1_util": 1.000001,
+  "l1_util_back": 0.009208,
+  "l1_drops_back": 0
+ },
+ "no_difference": [],
+ "limit": "At the recommendation TCP is limited by the scheduler's service share on a saturated link, not by TCP congestion control and not by TCP drops. The scheduler gives TCP roughly half of the 1 Gbps link while the locked UDP flow consumes the rest: TCP payload is 482007923 bps, UDP payload is 489526240 bps, and l1_util is 1.000001. Queue length only moves TCP between a drop-limited regime (q=4, 3416 TCP drops, 463881280 bps) and a delay-limited regime (q=1000, 0 TCP drops but 476482765 bps); q=50, q=100, and q=200 all reach the same scheduler-limited value 482007923 bps. Ledger ids: E2, E3, E4, C3, C4, C6, C7.",
+ "explanation": "With the brief's FIFO queue, UDP offered load (2 Gbps) exceeds the link (1 Gbps), the queue is always full, and TCP is starved: default TCP goodput is 0, and even q=1000 with TcpCubic gives only 5792 bps (E0, E1). The decisive change is replacing the sender-side FIFO queue with a scheduler, which isolates TCP from UDP tail-drop and gives TCP a usable service share: 476482765 bps at q=1000 (E2, C3). Once the scheduler is present, the queue-length knob has an intermediate optimum. q=4 is too small and causes TCP-class drops; q=1000 is too large and lowers throughput despite zero TCP drops, consistent with added queueing delay. q=50, q=100, and q=200 are equal to the last digit at 482007923 bps, so the default q=100 is on the plateau (E3, E4, C7). Tcp.type matters mainly by avoiding BBR: BBR underfills the scheduler share (190096915 bps at q=1000), while Cubic and NewReno fill it. At q=100, NewReno equals Cubic exactly (E5, C8), so the default TcpCubic is sufficient and simplest.",
+ "holds_when": "UDP remains a locked 2 Gbps constant-rate flow, the link remains 1 Gbps with 50 us one-way delay, the scheduler gives flows a fair service share, the receiver window and TCP socket settings remain unchanged, TCP is always backlogged, and outputs are measured after the initial 2 s.",
+ "breaks_when": "The recommendation would change if UDP could be removed or paced, if scheduler weights or queue-discipline choices could bias service toward TCP, if the link rate/delay changed, if the receiver window changed, or if TCP were not always backlogged.",
+ "claims": [
+  {
+   "text": "With the default FIFO queue, UDP overload starves TCP: default TCP goodput is 0, and q=1000 with TcpCubic reaches only 5792 bps.",
+   "role": "background",
+   "evidence": [
+    "E0",
+    "E1",
+    "C1",
+    "V1"
+   ]
+  },
+  {
+   "text": "Replacing the sender-side FIFO queue with a scheduler gives TCP a usable service share: at q=1000 TcpCubic reaches 476482765 bps.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "C3",
+    "V3"
+   ]
+  },
+  {
+   "text": "Under the scheduler, TCP goodput is maximized on an intermediate queue-length plateau: q=50, q=100, and q=200 all give 482007923 bps, while q=4 and q=1000 are more than 1% lower.",
+   "role": "supports",
+   "evidence": [
+    "E2",
+    "E3",
+    "E4",
+    "C4",
+    "C6",
+    "C7",
+    "V4",
+    "V6",
+    "V7"
+   ]
+  },
+  {
+   "text": "At the recommended q=100 under the scheduler, TcpNewReno equals TcpCubic at 482007923 bps, and TcpBbr is far lower at q=1000, so default TcpCubic is sufficient among tested TCP types.",
+   "role": "supports",
+   "evidence": [
+    "E3",
+    "C5",
+    "E5",
+    "C8",
+    "V5"
+   ]
+  },
+  {
+   "text": "The result is limited by the scheduler's fair service share and link saturation, not by TCP congestion control: TCP 482007923 bps plus UDP 489526240 bps saturates l1_util=1.000001, and no tested TCP type or queue length exceeds the plateau.",
+   "role": "limits",
+   "evidence": [
+    "E2",
+    "E3",
+    "E4",
+    "C3",
+    "C5",
+    "C7",
+    "C8"
+   ]
+  }
+ ],
+ "open_questions": [
+  "Whether other queue disciplines (for example codel, red, pie, or pfifofast) or scheduler internals could give TCP more than the observed fair share without removing or pacing UDP.",
+  "Whether the queue-length plateau extends outside the tested range q=50 to q=200, for example to q=25 or q=300.",
+  "Whether the q=1000 deficit is exactly explained by receiver-window divided by inflated RTT; the probe for r006 showed inflight equal to a 1 MiB receiver window, but no further simulation budget was available to test this mechanism directly."
+ ]
+}

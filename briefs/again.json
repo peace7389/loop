@@ -1,0 +1,83 @@
+{
+  "id": "again",
+  "description": "A network of 2 hosts: sender, receiver. Link l1 joins sender and receiver: it carries {l1.rate} with a one-way delay of {l1.delay}. On sender's side packets wait in one queue of {l1.queue.length} packets; a packet that arrives when it is full is dropped. Flow udp is UDP from sender to receiver: packets of {udp.packet_bytes} bytes at a constant rate ({udp.rate}). Flow tcp is TCP from sender to receiver: it always has data to send; its congestion control is {tcp.type}. A host with more than one link forwards packets. In each simulation the flows start within the first 10 ms, traffic runs for one second that is not measured, and then for duration seconds, over which the outputs are measured.",
+  "topology": {
+    "hosts": [
+      {
+        "id": "sender"
+      },
+      {
+        "id": "receiver"
+      }
+    ],
+    "links": [
+      {
+        "id": "l1",
+        "between": [
+          "sender",
+          "receiver"
+        ],
+        "rate": "1Gbps",
+        "delay": "50us",
+        "mtu": 1500,
+        "device_queue": 10,
+        "queue": {
+          "on": "sender",
+          "kind": "fifo",
+          "length": 100
+        }
+      }
+    ],
+    "flows": [
+      {
+        "id": "udp",
+        "kind": "udp",
+        "from": "sender",
+        "to": "receiver",
+        "rate": "2 Gbps",
+        "packet_bytes": 1400
+      },
+      {
+        "id": "tcp",
+        "kind": "tcp",
+        "from": "sender",
+        "to": "receiver",
+        "type": "TcpCubic"
+      }
+    ]
+  },
+  "system": {
+    "seed": 1,
+    "duration": 10
+  },
+  "knobs": {
+    "l1.queue.length": {"min": 4, "max": 1000, "default": 100, "meaning": "queue length at l1"},
+    "tcp.type": {"choices": ["TcpCubic", "TcpNewReno", "TcpLinuxReno", "TcpBbr", "TcpVegas", "TcpBic"], "default": "TcpCubic", "meaning": "TCP type of tcp (TCP congestion control)"}
+  },
+  "goal": {
+    "kind": "given",
+    "target": {
+      "measure": "tcp_goodput_bps",
+      "direction": "max"
+    },
+    "conditions": []
+  },
+  "limits": {
+    "simulations": 12,
+    "simulations_per_experiment": 4
+  },
+  "structure": {
+    "may_change": true,
+    "most": {
+      "hosts": 2,
+      "links": 1,
+      "flows": 2
+    },
+    "locked": [
+      "host:sender",
+      "flow:udp",
+      "link:l1",
+      "host:receiver"
+    ]
+  }
+}

@@ -446,12 +446,15 @@ def shown(r, st):
         return f"an answer the harness could not use, so nothing in it was recorded or run: {flat(b['error'])}"
     return json.dumps(b)
 
-def render(ledger):
-    """The ledger as text for the prompt: one line per record, and in an evidence record one line per simulation."""
+def render(ledger, readings=False):
+    """The ledger as text for the prompt: one line per record, and in an evidence record one line per simulation. readings (the arm "supervised"):
+    what each tool returned stays in it as one short line with its id, so that a later guess can name the reading it starts from."""
     st = dict(states(ledger)[0])
     for y, w in why_states(ledger).items():   # a why with its standing now, and whether results have come in since it was last settled
         st[y] = {**w, "stale": since(ledger, w["at"]) if w["worth"] == "verify" else [], "idle": w["worth"] == "verify" and not any(r["type"] == "hypothesis" and r["body"].get("from_why") == y for r in ledger)}
-    return "\n".join(f"[{r['id']}] turn {r['turn']} {r['type']} " + shown(r, st)[:CAP] for r in ledger if r["type"] not in HIDDEN) or "(empty)"
+    by = {r["id"]: r for r in ledger}
+    read = lambda r: f"[{r['id']}] turn {r['turn']} reading {r['body'].get('tool')}({json.dumps((by.get(r.get('parent')) or {}).get('body', {}).get('args') or {})}) returned: " + " ".join(str(r["body"].get("result")).split())[:260]
+    return "\n".join(read(r) if r["type"] == "result" else f"[{r['id']}] turn {r['turn']} {r['type']} " + shown(r, st)[:CAP] for r in ledger if r["type"] not in HIDDEN or (readings and r["type"] == "result")) or "(empty)"
 
 class ModelServerError(RuntimeError):
     pass
@@ -547,12 +550,14 @@ SUPERVISOR = ("You are the supervisor of a researcher who studies a simulated ne
               "the researcher's guess of a cause, the hypothesis it wants to test, its decision rules, the simulations and the measured numbers. You are not shown the researcher's "
               "reasoning and you owe it no agreement: a test that cannot tell whether the guess is true wastes simulations and puts a false certainty on record. Words: a guess is the "
               "researcher's idea of a cause; a hypothesis is a measurable consequence of it; a decision rule is the comparison, fixed before the simulations, that the harness checks "
-              "from the measured values; HELD or FAILED is the harness's finding and is a fact. Judge by the description of the system and by the numbers, name the numbers and record "
+              "from the measured values; HELD or FAILED is the harness's finding and is a fact. A test need not run a new simulation: its rule may be about a measurement of the researcher's own, taken now "
+              "from the record of a simulation that already ran. That costs nothing and is a proper test, never by itself a reason to send it back: the defect already_answered means only "
+              "that the very value the rule compares already stands in the ledger or in the tool results you are shown. Judge by the description of the system and by the numbers, name the numbers and record "
               "ids you rest on, and say plainly when something cannot be told. Answer in the JSON format you are given, each text in one or two plain sentences.")
 DEFECTS = {"none": "no defect",
            "not_about_the_guess": "the hypothesis would come out the same whether the guess is true or not, or is about another cause than the guess",
            "rival_passes_too": "a rival explanation predicts the same outcome of the decision rule, so the test cannot tell the two apart",
-           "already_answered": "records already in the ledger give the result this test asks for: read it from them instead of simulating again",
+           "already_answered": "the very value this test asks for already stands in the ledger or in a tool's result: read it there instead of testing for it",
            "confounded": "another setting, at the values chosen, limits or hides the effect, so the result would not show what the hypothesis says",
            "threshold": "the rule's threshold or margin makes it hold or fail whatever happens, or lies inside the tolerance"}
 REVIEW_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["rival", "rival_outcome", "doubt_if", "because", "defect"], "properties": {
@@ -571,7 +576,8 @@ RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["
 GROUNDS = {"none": "no defect",
            "not_in_the_records": "the result the guess starts from is not what the cited records show",
            "repeats": "the guess says again, in other words, what an earlier guess or hypothesis already said, and that one has its ruling",
-           "ignores_a_ruling": "the guess goes on as if a ruling against it had not been given: it does not say what is different now"}
+           "ignores_a_ruling": "the guess goes on as if a ruling against it had not been given: it does not say what is different now",
+           "not_from_what_was_learned": "the guess does not come from the newer records it cites: it would be the same guess without them"}
 GROUND_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["records_show", "nearest_earlier", "because", "defect"], "properties": {
     "records_show": {"type": "string", "description": "what the cited records show about the result the guess starts from, with the numbers"},
     "nearest_earlier": {"type": "string", "description": "the id of the earlier guess or hypothesis that is nearest to this one in what it claims (for example Y2 or H3), or none"},
@@ -672,18 +678,28 @@ def ground_of(model, brief, ledger, why, ask_fn=None):
             return f"[{r['id']}] simulation {b.get('label')} {{{', '.join(f'{k}={v}' for k, v in (b.get('params') or {}).items())}}} | " + " ".join(f"{k}={v}" for k, v in (b.get("metrics") or {}).items())
         if r["type"] == "check":
             return f"[{r['id']}] check for {b['for']}: {flat(b['decision_rule'])}  ->  {b['with_numbers']}  :  {b['result'].upper()}"
+        if r["type"] == "result":
+            q = next((x for x in ledger if x["id"] == r.get("parent")), None)
+            return f"[{r['id']}] reading: {b.get('tool')}({json.dumps(((q or {}).get('body') or {}).get('args') or {})}) returned: {flat(b.get('result'))[:1500]}"
+        if r["type"] == "review":
+            return f"[{r['id']}] the supervisor's review of {b.get('for') or 'a guess'}: {b.get('decision')}. {flat(b.get('because'))}" + (f" The rival it named: {flat(b['rival'])}" if b.get("rival") else "")
         return f"[{r['id']}] ruling on {b['for']}: {b['result']}. {flat(b['because'])}"
+    new = learned_since(ledger)
+    mark = lambda r: record(r) + ("   <- NEW since the researcher's earlier guesses" if new is not None and r["id"] in new else "")
     earlier = "\n".join([f"  [{r['id']}] guess: {flat(r['body']['guess'])}" for r in ledger if r["type"] == "why"]
                         + [f"  [{r['id']}] hypothesis ({st.get(r['id'], 'open')}): {flat(r['body']['text'])}" for r in ledger if r["type"] == "hypothesis"]) or "  (none yet)"
     rulings = "\n".join(f"  [{r['id']}] on {r['body']['for']}: {r['body']['result']}. {flat(r['body']['because'])}" for r in ledger if r["type"] == "verdict") or "  (none yet)"
     runs = {r["body"].get("run_id") for r in cited if r["type"] == "simulation"} | {q["body"].get("run_id") for r in cited if r["type"] == "evidence" for q in ledger if q["type"] == "simulation" and q.get("parent") == r["body"]["experiment"]}
-    user = (_system_for_supervisor(brief) + "\nTHE RECORDS THE NEW GUESS CITES:\n" + ("\n".join(record(r) for r in cited) or "  (it cites the brief only: nothing has been measured for it)")
+    user = (_system_for_supervisor(brief) + "\nTHE RECORDS THE NEW GUESS CITES:\n" + ("\n".join(mark(r) for r in cited) or "  (it cites the brief only: nothing has been measured for it)")
             + "\n\nWHAT THE TOOLS RETURNED ABOUT THESE SIMULATIONS (the researcher asked; the harness read it from what the simulation recorded over time: these are measurements too, and a guess may start from them):\n" + _looked(ledger, runs - {None})
             + f"\n\nTHE NEW GUESS\nThe result it starts from, as the researcher states it: {flat(why['result'])}\nThe guess of why: {flat(why['guess'])}\n" + (f"What would make it so, not directly visible: {flat(why['unseen'])}\n" if why.get("unseen") else "") + "\n"
             f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{earlier}\n\nTHE RULINGS SO FAR:\n{rulings}\n\n"
             "Before anything is built on this guess: first say what the cited records show about the result it starts from. Then name the earlier guess or hypothesis nearest to it. Then name the defect, or none. "
             "The defects: " + "; ".join(f"{k}: {v}" for k, v in GROUNDS.items()) + ". A guess may be wrong and still be sound here: you judge whether it starts from what was measured and adds something, "
-            "not whether it is true. A guess that takes up an earlier one with a stated difference (another cause, another range, a reason why the earlier test was not fair) is not a repetition.")
+            "not whether it is true. A guess that takes up an earlier one with a stated difference (another cause, another range, a reason why the earlier test was not fair) is not a repetition."
+            + ("" if new is None else " This is not the researcher's first guess, and a later guess has to be the fruit of what was learned since the earlier ones. The records marked NEW are what it says it "
+               "learned from. Say in your reasoning what they show that the earlier guesses did not have, and ask: would the researcher have made this same guess without them? If yes, the citation is "
+               "for form only and the defect is not_from_what_was_learned."))
     d = (ask_fn or supervise)(model, user, GROUND_SCHEMA)
     return {"records_show": flat(d["records_show"]), "nearest_earlier": flat(d["nearest_earlier"]), "defect": d["defect"] if d["defect"] in GROUNDS else "none", "because": flat(d["because"])}, user
 
@@ -1043,11 +1059,17 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
                                   "matters (how it could matter for the goal) and reason (why it is or is not worth verifying now)"))
         elif w.get("worth") not in ("verify", "set_aside"):
             no.append(("new why", "a why says whether it is worth verifying now: worth is verify or set_aside"))
-        elif not isinstance(about, list) or not about or any(a != "brief" and kinds.get(a) not in ("evidence", "simulation", "check", "verdict") for a in about):
+        elif not isinstance(about, list) or not about or any(a != "brief" and kinds.get(a) not in ("evidence", "simulation", "check", "verdict") + (("result", "review") if supervised else ()) for a in about):
             bad = [a for a in about or [] if a != "brief" and a not in kinds] if isinstance(about, list) else []
             no.append(("new why", (f"about names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
                                    "about must list the records whose result the why explains: ids of evidence tables, simulations, checks or verdicts in the ledger (for example E2, C3), "
                                    "a run id for what you read in that run's series or trace (for example r001), or the word brief")))
+        elif supervised and (new_since := learned_since(ledger)) is not None and not any(a in new_since for a in about):
+            # the chain: a later guess is the fruit of what was learned since the earlier ones (s047: five guesses in four turns, each from the baseline again)
+            no.append(("new why", "this guess starts only from records your earlier guesses already had (" + ", ".join(map(str, about)) + "). A later guess must come from something learned since: "
+                                  "a ruling, a check, a new result table, a reading a tool returned, or a review in which the supervisor objected. Name its id in about (for example V2, C3, E2, T7, G4) and say in "
+                                  "result what it showed" + (f"; made since your last guess: {', '.join(sorted(new_since, key=lambda i: (i[0], int(i[1:]))))}" if new_since else
+                                  "; nothing has been learned since your last guess: test what is open, or look with a request, before you guess again")))
         elif w.get("revises") is not None and (w["revises"] not in ws or stand[w["revises"]] == "revised"):
             no.append(("new why", "revises is null, or the id of an earlier why in the ledger that this one replaces with a better guess (one that has not been revised already)"))
         elif ground is not None and (g := ground(w)) and g["refuse"]:
@@ -1071,6 +1093,12 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             h["follows_from"] = list(whys[h["from_why"]]["about"])   # what the hypothesis follows from: what its why is about
         if mode == "report":
             no.append(("new hypothesis", only))
+        elif supervised and (waiting := [i for i, v in states(ledger)[0].items() if v == "open" and i not in {d["id"] for d in ok["drop"]}]):
+            # the chain is result, guess, hypothesis, test: a hypothesis is stated to be tested, and the next one comes from what its test showed (s047: eight stated, none tested)
+            no.append(("new hypothesis", f"{', '.join(waiting)} {'is' if len(waiting) == 1 else 'are'} still open and untested: test {'it' if len(waiting) == 1 else 'them'} (send the experiment), or give "
+                                         f"{'it' if len(waiting) == 1 else 'them'} up in drop with what you learned, before you state another hypothesis. The next hypothesis comes from what a test showed"))
+        elif supervised and len(ok["hypotheses"]) >= OPEN_MOST:
+            no.append(("new hypothesis", f"at most {OPEN_MOST} new hypotheses in one answer: state the ones you will test now"))
         elif stand.get(h.get("from_why")) != "verify":
             y = h.get("from_why")
             no.append(("new hypothesis", "a hypothesis comes from a why you chose to verify: from_why must be the id of a why whose worth is verify, one in the ledger or one of this answer "
@@ -1088,7 +1116,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             no.append(("new hypothesis", "a hypothesis needs a question: the hypothesis put as one plain question"))
         elif not supervised and not text(h.get("why")):
             no.append(("new hypothesis", "a hypothesis needs a why: one plain sentence saying how answering it helps reach the goal"))
-        elif not isinstance(h.get("follows_from"), list) or not h["follows_from"] or any(f != "brief" and kinds.get(f) not in ("verdict", "check", "evidence", "simulation") for f in h["follows_from"]):
+        elif not isinstance(h.get("follows_from"), list) or not h["follows_from"] or any(f != "brief" and kinds.get(f) not in ("verdict", "check", "evidence", "simulation") + (("result", "review") if supervised else ()) for f in h["follows_from"]):
             bad = [f for f in h.get("follows_from") or [] if f != "brief" and f not in kinds] if isinstance(h.get("follows_from"), list) else []
             no.append(("new hypothesis", (f"follows_from names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
                                           "follows_from must list what the hypothesis follows from: ids of verdicts, checks, evidence tables or simulations in the ledger (for example V2, C3, E1), or the word brief")))
@@ -1119,6 +1147,14 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             ex = None
         else:
             MEASURES = {m["name"]: m for m in ex.get("measurements") or []}
+    if supervised and isinstance(ex, dict) and ex.get("kind") == "test" and mode is None and isinstance(ex.get("tests"), list) and ex["tests"]:
+        # a test of something that is not an open hypothesis (one this answer stated and the harness did not accept, one already ruled on or given up) is left
+        # out, and the tests of the open ones are run: one refused part must not stop the rest (the replay of s047's replies, 2026-11-18)
+        shut = [h for h in ex["tests"] if st.get(h) != "open"]
+        if shut and len(shut) < len(ex["tests"]):
+            no.append(("tests " + ", ".join(map(str, shut)), f"{', '.join(map(str, shut))}: not an open hypothesis (not accepted in this answer, or already ruled on or given up), so its test is left out. "
+                                                                  "The other tests of this experiment are taken as they are"))
+            ex = without_tests(ex, shut)
     if supervised and isinstance(ex, dict) and ex.get("kind") == "test" and "needs" not in ex and mode is None:
         needs, bad, idle = lean_needs(ex, brief)
         if bad:
@@ -1247,15 +1283,15 @@ The purpose of the work is to understand why the system behaves as it does. You 
 
 You do not work alone. A supervisor works apart from you. It proposes nothing and never sees your notes or your reasons; it is shown your guess, your hypothesis, your decision rule, the planned simulations, the measured numbers and what the tools returned. It checks each step:
 - a new guess: does it start from what the records show, and is it more than an earlier guess said again? A guess it does not accept is refused once, with its reason;
-- a test, before any simulation is run: can it tell whether the guess is true? A test with a defect is sent back once, and none of its simulations is run or counted. Sent again, it is run;
+- a test, before any simulation is run: can it tell whether the guess is true? A test with a defect is sent back once, and it is not run or counted; the other tests of the same experiment are run. Sent again, it is run;
 - after the harness has checked your rule: what the check means. Its ruling (supported, refuted, or inconclusive because the test was not a fair one) closes the hypothesis. You do not give verdicts.
 
 The ledger is the complete record of the session. You have no other memory. Each turn you read it and answer with ONE JSON object. Keep every text short: one or two sentences. Its parts:
 
 1. observations: one or two sentences: the most important thing the results do not yet explain.
 2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded; probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a turn; the results come back in the next turn. A turn may consist of requests only.
-3. whys: your guesses of why a result came out so. Each has about (the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a run id such as r001 for what a tool returned about that run; the word brief only when nothing is measured yet), result (that result in one sentence, with its numbers), guess (what in the system would make it so), and revises (the id of an earlier guess this one replaces, or null). The harness numbers them Y1, Y2, ...
-4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... Several may be open.
+3. whys: your guesses of why a result came out so. Each has about (the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet), result (that result in one sentence, with its numbers), guess (what in the system would make it so), and revises (the id of an earlier guess this one replaces, or null). The harness numbers them Y1, Y2, ... The work is a chain: your first guesses start from the baseline, and every later guess is the fruit of what you learned since: its about must name at least one record made since your last guesses (a ruling, a check, a new result table, a reading, an objection of the supervisor), and its result says what that record showed. A later guess that starts from the baseline alone is refused, and the supervisor reads whether the guess really comes from the newer record or only names it. Make your several first guesses in one answer.
+4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most three in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.
 5. drop: open hypotheses you give up before they were tested (id, and why in one sentence). Usually empty.
 6. experiment: at most one per turn, or null.
    - kind "test": tests lists the open hypotheses it tests; decision_rules has at least one rule for each. kind "explore": question says what you want to find out; tests and decision_rules stay empty.
@@ -1291,6 +1327,42 @@ def supervised_format(schema):
     props["report"] = P["report"]
     schema["properties"], schema["required"] = props, list(props)
     return schema
+
+
+OPEN_MOST = 3   # the arm "supervised": the most new hypotheses in one answer
+LEARNED = ("evidence", "check", "verdict", "result", "review")   # the kinds of record a later guess can have learned from
+
+
+def learned_since(ledger, turn=None):
+    """The chain (the arm "supervised"): the ids of the records a new guess of this turn can have learned from since the researcher's earlier guesses:
+    a result table, a check, a ruling, what a tool returned, a review in which the supervisor objected, made in or after the turn of the newest
+    earlier guess (what a turn's requests returned and what its experiment gave is seen only in the next turn). None when there is no earlier guess:
+    the first guesses start from the baseline."""
+    turn = max((r["turn"] for r in ledger), default=0) if turn is None else turn
+    earlier = [r["turn"] for r in ledger if r["type"] == "why" and r["turn"] < turn]
+    if not earlier:
+        return None
+    k = max(earlier)
+    return {r["id"] for r in ledger if r["type"] in LEARNED and r["turn"] >= k and not (r["type"] == "review" and r["body"].get("decision") == "approved")}
+
+
+def without_tests(ex, gone):
+    """A test experiment without the tests of the hypotheses in gone (sent back by the supervisor): their rules and needs leave, and so does a simulation
+    that only they named. None when no test is left."""
+    tests = [h for h in ex.get("tests") or [] if h not in gone]
+    if not tests:
+        return None
+    rules = [d for d in ex.get("decision_rules") or [] if d.get("for") in tests]
+    needs = [n for n in ex.get("needs") or [] if n.get("for") in tests]
+    named = {l for n in needs for l in n.get("simulations") or []} | {l for d in rules for l in re.findall(r"@([A-Za-z0-9_]+)", d.get("decision_rule") or "")}
+    runs = [r for r in ex.get("runs") or [] if r.get("label") in named] or list(ex.get("runs") or [])
+    used = " ".join(d.get("decision_rule") or "" for d in rules)
+    out = {**ex, "tests": tests, "decision_rules": rules, "runs": runs, "measurements": [m for m in ex.get("measurements") or [] if re.search(rf"\b{re.escape(str(m.get('name')))}@", used)]}
+    if "needs" in ex:
+        out["needs"] = needs
+    if ex.get("control") and ex["control"] not in {r.get("label") for r in runs}:
+        out["control"] = None
+    return out
 
 
 def lean_fill(t, brief):
@@ -1505,7 +1577,7 @@ def main():
             # a last turn: "report" after too many unusable answers (only the final report is accepted), "budget" when the
             # budget is used up (no experiment is accepted and the report is required); otherwise an ordinary turn
             mode, need_now = "report" if giving_up else "budget" if sims >= budget else None, False
-            text = render(ledger)
+            text = render(ledger, readings=arm == "supervised")
             size = count_tokens(model, text)
             if size > LEDGER_TOKENS:
                 append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"loop stopped by the harness: the rendered ledger is {size} tokens, over the limit of {LEDGER_TOKENS}"})
@@ -1537,8 +1609,9 @@ def main():
                 user += "\n\nTOOL RESULTS (for your last requests):\n" + "\n\n".join(pending)
                 pending = []
             last, parsed, err, content, refused = (ledger[-1]["id"] if ledger else None), None, None, "", []
+            again = ""   # the second attempt of a turn is told why the first could not be used (it was asked the very same thing before: a refused answer cost a whole reply and taught nothing)
             for _attempt in range(2):
-                content, draft, finish_reason, usage = ask(model, system, user, schema, a.draft == "on", a.temperature, a.max_tokens)
+                content, draft, finish_reason, usage = ask(model, system, user + again, schema, a.draft == "on", a.temperature, a.max_tokens)
                 count["calls"] += 1
                 count["length"] += finish_reason == "length"
                 if a.draft == "on":
@@ -1562,6 +1635,7 @@ def main():
                 if any(ok.values()) or rq:  # something in the answer can be used: it is accepted, without the refused parts
                     err = None
                     break
+                again = ("\n\nYOUR ANSWER TO THIS TURN COULD NOT BE USED, AND YOU ARE ASKED ONCE MORE. What the harness refused, and why: " + " | ".join(f"{part}: {why}" for part, why in no)) if no else ""
                 err = ("nothing in the answer could be used. " + " | ".join(f"{part}: {why}" for part, why in no)) if no else \
                     "the answer does nothing: no hypothesis, drop, verdict, experiment, report or request"
                 refused = [{"part": part, "reason": why} for part, why in no]
@@ -1598,8 +1672,8 @@ def main():
             for q in rq:  # each tool request and what came back are kept in the ledger (request: by the model; result: by the harness);
                 out = call(q)  # like the simulation records they are not part of the ledger text of later turns
                 qid = append(ledger, turn, "request", last, {"tool": q.get("tool"), "args": q.get("args") or {}})
-                append(ledger, turn, "result", qid, {"tool": q.get("tool"), "result": out})
-                pending.append(f"{q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{out}")
+                tid = append(ledger, turn, "result", qid, {"tool": q.get("tool"), "result": out})
+                pending.append(f"[{tid}] {q.get('tool')}({json.dumps(q.get('args') or {})}) ->\n{out}")
             ex, report = ok["experiment"], ok["report"]
             if not (ok["rethink"] or ok["whys"] or ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ok["objections"] or ex is not None or report is not None or br):  # only requests
                 tool_only += 1
@@ -1657,10 +1731,13 @@ def main():
                     sup_log(gid, "design", saw, rev)
                     if decision == "sent_back":
                         back.append(f"{hid} ({gid}: {DEFECTS[rev['defect']]})")
-                if back:   # nothing of this experiment is run or counted
-                    append(ledger, turn, "note", last, {"text": "the experiment was not run: the supervisor sent back the test of " + "; ".join(back) + ". Its reasons stand in those review records. Repair the design and send the "
-                                                                "experiment again, or read the answer from the records you have. A test is sent back once: sent again, it is run.", "part": "experiment", "reason": "sent back by the supervisor"})
-                    ex = None
+                if back:   # a test that was sent back is not run or counted; the tests the supervisor let through are (2026-11-18: in s047 one sent-back test kept an approved one from being checked for two turns)
+                    gone = [x.split(" ", 1)[0] for x in back]
+                    kept = without_tests(ex, gone)
+                    append(ledger, turn, "note", last, {"text": ("the experiment was not run" if kept is None else "a part of the experiment was not run") + ": the supervisor sent back the test of " + "; ".join(back) + ". Its reasons stand in those review records. Repair the design and send "
+                                                                + ("the experiment" if kept is None else "that test") + " again, or read the answer from the records you have. A test is sent back once: sent again, it is run."
+                                                                + ("" if kept is None else f" The other tests of this experiment are run now: {', '.join(kept['tests'])}."), "part": "experiment" if kept is None else "tests " + ", ".join(gone), "reason": "sent back by the supervisor"})
+                    ex = kept
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
                 if arm == "supervised" and ex.get("kind") == "test":
