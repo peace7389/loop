@@ -12,7 +12,7 @@
 Object.assign(EV, {
   knNum(v) { if (typeof v === 'number') return v; const m = String(v).match(/^\s*([0-9.]+)\s*([kMG]?)bps\s*$/); return m ? m[1] * { '': 1, k: 1e3, M: 1e6, G: 1e9 }[m[2]] : Number(v); },
   // the turns whose simulations are recorded by the replay's step
-  knTurns(M) { return M.turns.filter(t => t.exp && EV.seen(t.exp.id)).map(t => ({ t, sims: t.exp.sims.filter(q => EV.seen(q.id)) })).filter(c => c.sims.length); },
+  knTurns(M) { return M.turns.filter(t => t.exp && EV.seen(t.exp.id)).map(t => ({ t, sims: (t.xs || [t.exp]).filter(x => EV.seen(x.id)).flatMap(x => x.sims).filter(q => EV.seen(q.id)) })).filter(c => c.sims.length); },   // every experiment of the turn
   // the knobs there are (the brief's; before briefs: the settings the simulations state), and the one most experiments vary
   knKnobs(M, rows) {
     const names = M.brief && M.brief.knobs ? Object.keys(M.brief.knobs) : [...new Set(rows.flatMap(c => c.sims.flatMap(q => Object.keys(q.params || {}))))];

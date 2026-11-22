@@ -514,10 +514,13 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
         return f"error: no sample between {lo:g} s and {hi:g} s (the series runs from {data[0]['t']:g} s to {data[-1]['t']:g} s)"
     try:
         ts, xs = [r["t"] for r in win], [val(tree, r) for r in win]
-    except ValueError as e:
+    except (ValueError, TypeError) as e:   # TypeError: a function given the wrong number of values (the coherence audit, 2026-11-22)
         return f"error: cannot read {e} in of: use the columns of the series ({', '.join(cols[1:])}), numbers, + - * /, parentheses, abs, min, max"
-    xs = [x for x in xs if not math.isnan(x)]
-    step = (ts[-1] - ts[0]) / (len(ts) - 1) if len(ts) > 1 else 0.1
+    step = (ts[-1] - ts[0]) / (len(ts) - 1) if len(ts) > 1 else 0.1   # the record's own step, before undefined samples leave
+    keep = [i for i in range(len(xs)) if not math.isnan(xs[i])]   # each value with its own time (the coherence audit, 2026-11-22: values were paired with the wrong times)
+    ts, xs = [ts[i] for i in keep], [xs[i] for i in keep]
+    if not xs:
+        return f"error: {of} is not defined at any sample between {lo:g} s and {hi:g} s (it divides by zero there, or reads a quantity with no value)"
     if stat in ("time_above", "time_below", "first_time_above", "first_time_below"):
         if type(level) not in (int, float):
             return f"error: {stat} needs level, the number to compare with"

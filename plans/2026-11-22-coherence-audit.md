@@ -226,3 +226,7 @@ Branch `review/harness-2026-11-22`; what each stage did, its checks and what was
   the observations the page used to drop. The page checks on the final page are running against main's page as the baseline.
 - Decisions for the operator: whether to deploy, and which stages. The arm "supervised" sessions started after a deploy of stage 5 would work with
   competitors (COMPETITORS); a session keeps what it started with.
+
+**Deployed 2026-11-23 at 00:31** at the operator's word ("Finish every thing"): all five stages, competitors on for new supervised sessions. At
+00:46 a fix found by a real call of the model (the batched review's ids constrained to their exact values). Session s055 (arm "supervised", brief
+after_fix) started on the deployed build at 00:46. See HARNESS_SPEC.md 8.3 and HISTORY.md.

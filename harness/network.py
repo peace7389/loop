@@ -583,7 +583,8 @@ def text(t, run):
     """The description as the program `net` reads it (network.txt). run: duration, seed and, if set, tcpInitCwnd and tcpBufBytes."""
     lines = [f"host {h['id']}" for h in t["hosts"]]
     for l in t["links"]:
-        lines.append(f"link {l['id']} {l['between'][0]} {l['between'][1]} rate={l['rate']} delay={l['delay']} mtu={l['mtu']} devq={l['device_queue']}".replace(" Mbps", "Mbps"))
+        nos = lambda v: str(v).replace(" ", "")   # no space inside a value: the program reads "1Gbps", not "1 Gbps" (the coherence audit, 2026-11-22)
+        lines.append(f"link {l['id']} {l['between'][0]} {l['between'][1]} rate={nos(l['rate'])} delay={nos(l['delay'])} mtu={nos(l['mtu'])} devq={nos(l['device_queue'])}")
         for h, x in (l.get("ends") or {}).items():   # a device that differs from its link's line
             own = [f"{k}={str(x[p]).replace(' ', '')}" for k, p in (("rate", "rate"), ("devq", "device_queue"), ("mtu", "mtu")) if p in x and x[p] != l[p]] + ([f"loss={x['loss']}"] if "loss" in x else [])
             if own:

@@ -159,7 +159,8 @@ def design_rounds(recs):
     {"tests": proposed (reviewed, or refused by the harness before any review), "reviewed": n, "rounds": {"mean": x, "max": n} per reviewed test,
      "approved_first": approved in round 1, "repaired_approved": approved after a repair, "contested": run although the supervisor still objected,
      "dropped": its hypothesis dropped after the last round, "unsettled": left sent back (its repair could not be read or used),
-     "refused_by_harness": refused before any review (no rival, or one under which the rule would hold too)}"""
+     "refused_by_harness": refused before any review (no rival, or one under which the rule would hold too), "not_run": the harness could not use
+     the repair of the last round, so the test did not run (present only where it occurs)}"""
     rv = [r for r in recs if r["type"] == "review" and (r.get("body") or {}).get("gate") == "design" and (r.get("body") or {}).get("round")]
     if not rv:
         return None
@@ -172,7 +173,8 @@ def design_rounds(recs):
     return {"tests": len(tests) + refused, "reviewed": len(tests), "rounds": {"mean": round(sum(rounds) / len(rounds), 2), "max": max(rounds)},
             "approved_first": sum(1 for v in tests.values() if (1, "approved") in v), "repaired_approved": sum(1 for v in tests.values() if any(d == "approved" and n > 1 for n, d in v)),
             "contested": sum(d == "contested" for d in last.values()), "dropped": sum(d == "dropped" for d in last.values()),
-            "unsettled": sum(d == "sent_back" for d in last.values()), "refused_by_harness": refused}
+            "unsettled": sum(d == "sent_back" for d in last.values()), "refused_by_harness": refused,
+            **({"not_run": n} if (n := sum(d == "not_run" for d in last.values())) else {})}   # not_run: the harness could not use the last repair (the coherence audit, 2026-11-22); only where it occurs
 
 
 def guess_reviews(recs):
@@ -186,3 +188,30 @@ def guess_reviews(recs):
     contested = {r["id"] for r in ws if (r.get("body") or {}).get("contested")} | {(r.get("body") or {}).get("for") for r in ground if (r.get("body") or {}).get("decision") == "contested"}
     return {"guesses": len(ws), "warnings": sum(1 for r in ground if (r.get("body") or {}).get("warning")), "restated": sum(1 for r in ws if (r.get("body") or {}).get("restated")),
             "contested": len({c for c in contested if c})}
+
+
+def competitor_figures(recs):
+    """A session with competitors (stage 5 of the coherence audit, 2026-11-22), or None for one without (its row is as before): {"questions": for each
+    of honest, consistent, correct, how many tests passed and failed it at their last review round; "approved_then_unfair": tests approved at review and
+    ruled not fair; "misses": by question, the ruling's failures of a question the review passed that could have been seen before the run, and
+    "found_by_result" those that could not; "from_feedback": competing guesses written after the supervisor named a missing competitor;
+    "refuted_by_competition": guesses refuted because they did not fit the result of a fair test; "held": tests held for a missing competitor or a
+    failed Consistent}."""
+    rv = [r for r in recs if r["type"] == "review" and r.get("by") == "supervisor" and (r.get("body") or {}).get("gate") == "design" and "honest" in (r.get("body") or {})]
+    if not rv:
+        return None
+    last = {}
+    for r in rv:
+        k = (r["body"].get("for"), r.get("turn"))
+        if k not in last or r["body"].get("round", 0) >= last[k]["body"].get("round", 0):
+            last[k] = r
+    qs = ("honest", "consistent", "correct")
+    rulings = [r for r in recs if r["type"] == "verdict" and r.get("by") == "supervisor" and (r.get("body") or {}).get("questions")]
+    approved = {(r["body"].get("for"), r.get("turn")) for r in last.values() if r["body"].get("decision") == "approved"}
+    misses = {q: sum(1 for v in rulings for m in v["body"].get("misses") or [] if m.get("question") == q and m.get("foreseeable") == "yes") for q in qs}
+    found = {q: sum(1 for v in rulings for m in v["body"].get("misses") or [] if m.get("question") == q and m.get("foreseeable") != "yes") for q in qs}
+    refuted = {y for v in rulings if v["body"].get("fair") and not v["body"].get("fits_contradicted") for y, f in (v["body"].get("fits") or {}).items() if f == "does not fit"}
+    return {"questions": {q: {"pass": sum(1 for r in last.values() if r["body"].get(q) == "pass"), "fail": sum(1 for r in last.values() if r["body"].get(q) == "fail")} for q in qs},
+            "approved_then_unfair": sum(1 for v in rulings if (v["body"].get("for"), v.get("turn")) in approved and not v["body"].get("fair")),
+            "misses": misses, "found_by_result": found, "from_feedback": sum(1 for r in recs if r["type"] == "why" and (r.get("body") or {}).get("from_feedback")),
+            "refuted_by_competition": len(refuted), "held": sum(1 for r in last.values() if r["body"].get("decision") == "held")}

@@ -5,7 +5,9 @@ comparison; comparisons joined by AND and OR (AND first), with parentheses to gr
 import re
 
 TOKEN = re.compile(r"\s*(?:(\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+)|([A-Za-z_][A-Za-z0-9_]*)(?:@([A-Za-z0-9_]+))?|(<=|>=|==|&&|\|\||<|>|[-+*/(),]))")
-COMPARE = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, ">=": lambda a, b: a >= b, "==": lambda a, b: a == b}
+EQUAL_WITHIN = 0.0   # per cent: == holds for two values that differ by less than this (the harness sets it to the session's tolerance; the coherence audit, 2026-11-22: == was exact)
+COMPARE = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b, ">=": lambda a, b: a >= b,
+           "==": lambda a, b: a == b or abs(a - b) < EQUAL_WITHIN / 100 * max(abs(a), abs(b))}
 FUNCS = {"abs": abs, "min": min, "max": max}
 
 class DecisionRuleError(ValueError):
@@ -24,6 +26,13 @@ def _tokens(text):
         out.append(("num", float(num)) if num else ("and",) if word in ("AND", "&&") else ("or",) if word in ("OR", "||") else ("name", name, label) if name else ("op", op))
         i = m.end()
     return out
+
+def comparisons_in(text):
+    """How many comparisons a decision rule makes (its < <= > >= ==), from its words alone; 0 when it cannot be read (the reading refuses it then)."""
+    try:
+        return sum(1 for t in _tokens(text) if t[0] == "op" and t[1] in COMPARE)
+    except DecisionRuleError:
+        return 0
 
 def parse(text, measures, labels):
     """The decision rule as a tree of comparisons joined by AND and OR, or DecisionRuleError saying what is wrong with it."""
@@ -67,6 +76,8 @@ def parse(text, measures, labels):
                     args.append(expr())
                 if take() != ("op", ")"):
                     raise DecisionRuleError("a bracket is not closed")
+                if (name == "abs" and len(args) != 1) or (name in ("min", "max") and len(args) < 2):   # refused when the rule is read, not when it is checked (the coherence audit, 2026-11-22)
+                    raise DecisionRuleError(f"{name}() takes {'one value' if name == 'abs' else 'two values or more, separated by commas'}")
                 return ("call", name, args)
             if name not in measures:
                 raise DecisionRuleError(f"{name} is not one of the outputs")

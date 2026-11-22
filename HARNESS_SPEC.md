@@ -1209,6 +1209,31 @@ model); after more than 3 of them in a row the model is told to decide (its
 readings are no longer withheld). In a last turn (8.8) requests are
 not taken.
 
+*Deployed on 2026-11-23 at 00:31, and a fix at 00:46 (the operator: "Finish every thing"; the coherence audit's five stages, built on branch
+review/harness-2026-11-22, whose REVIEW.md has a section for each with its checks; the plan is plans/2026-11-22-coherence-audit.md):*
+- **Records and crashes** (stage 1): new guesses and hypotheses keep the id of their position in an answer, and a reference to a refused part is
+  refused with that reason; every supervisor request lists its answer's fields with what each holds; every planned network change is shown where a
+  simulation is described; a measurement, a probe or a check that cannot be made is recorded as such and never stops the session; measure() keeps
+  each value with its own time; repairs are charged against the budget; a continued session rebuilds what it used; the last turn ends.
+- **One source per rule** (stage 2): each arm is told only what it can do (the arm "plain" names no hypothesis, verdict or decision rule, and is
+  checked for it); the numbers the instructions state (a label's 20 characters, 3 requests a reply, 3 comparisons a rule) are checked against the
+  constants at the start. The supervisor's follow-up question shows the rival its own review named and may change its box; one that cannot be read
+  is a refusal (2,000 tokens, 1,000 of reasoning). A harness refusal in the last round is "not_run". A repair reads its runs as stated (one of a
+  test's labels replaces it, the others are kept) and is shown the records its feedback cites, the answer's measurements, and a network change
+  written correctly for the brief. The ruling and the second look see the rivals and the measurement definitions; the second look says whether the
+  test was fair. == holds within the tolerance.
+- **The page** (stage 3): every experiment of a turn; the harness's rounds as its own; notes on accepted parts are no refusals; links to findings;
+  the banner and the Now card in the session's arm; live_call.json keeps the step as calls.jsonl does; an export holds supervisor.jsonl.
+- **The rest of "Fixes from s052 and s053"** (stage 4): the supervisor's feedback names one problem; a rule of the arm "supervised" makes at most 3
+  comparisons; one batched first review of a reply's new guesses and tests (BATCH_FIRST; 9,000 tokens, 2,000 more for each further item); the page
+  compares numbers in the same unit.
+- **Competitors are guesses** (stage 5; COMPETITORS, the arm "supervised", kept by each session as flags.competitors): a decision rule names
+  competes_with, another live guess, checked before any review; the supervisor reviews and rules with three questions, Honest, Consistent and
+  Correct; a missing competitor holds the test; a guess that does not fit the result of a fair test is refuted by that ruling. Sessions before keep
+  their rival sentences, and draw and read as before.
+- **00:46**: the ids the model gives back in the batched review are constrained to the exact values (a real call wrote "H1 UDP goodput rises with
+  its part" for "H1"), and a rule's competes_with to a guess id.
+
 *Deployed on 2026-11-22 at 19:46 (during and after s052; built on branch review/harness-2026-11-22, eighth and ninth parts of its REVIEW.md):*
 - **A repair never stops the session** (a fix of B; s052 stopped on one at 19:20): a repaired test is checked in the order of the normal path
   (its needs from the rules, the experiment as sent with its network changes, trim, the budget); whatever the harness cannot check in a repair
@@ -3631,6 +3656,7 @@ untracked until they say otherwise.
 | 2026-11-22 | The lean page, three parts (the operator): the setting; what it needed to find out (the board, turn by turn folded); the detail of what is clicked, beside it and always in the window. Every other section is kept but not drawn (`EV.LEAN`; `?page=full` draws the page as it was). A long board stays readable (85 % at least, then it scrolls sideways in its card and says so); turn by turn in the narrower column puts a label above its value. Found and repaired while building it: a shorter detail made the page jump (95 px on s046) when the pane was taller than the board's column |
 | 2026-11-22, evening | Deployed at 17:05 (the operator: "A, B and D, nothing else"): readings as evidence and two free turns (part 1); findings (A); the review of a test in rounds with the researcher's own rival (B); a guess restated once and then accepted, "not from what was learned" a warning (D). Not deployed: part 2 (measurement statistics, taps), part 3 (the short answer format), part C (shelved). See 8.3, and the branch review/harness-2026-11-22. |
 | 2026-11-22, 19:46 | Deployed after s052 stopped on a fault of B: a repair is checked as the normal path checks an experiment and never stops the session; a harness fault is recorded as one; now.json, the step a session is at, for the page's track of a turn; a finding's name; an exported session opens again (brief_canvas.js copied). Checks: 22 pass, 3 skip (parts 2 and 3 off); page checks run on the page as it is. |
+| 2026-11-23, 00:31 | Deployed: the coherence audit of the harness and the page, its five stages (records and crashes; one source per rule; the page; the rest of the fixes from s052 and s053, with one batched first review; competitors are guesses, reviewed and ruled by three questions). At 00:46 the ids the model gives back in the batched review constrained to their exact values, after a real call. Checks: every harness check on the deployed build (31 pass, the 3 of parts 2 and 3 skip); every new answer format sent to the real model server; s047 to s053 read and draw as before. See 8.3. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

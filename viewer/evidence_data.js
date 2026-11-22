@@ -31,6 +31,8 @@ const EV_DATA = {
     return String(text || '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (e) { return null; } })
       .filter(r => r && r.type !== 'draft' && r.type !== 'scratch');
   },
+  // a note on a refused part of an answer; a note on a part that was accepted (refused: false, or the older "<part>: <reason>" text) is not one (the coherence audit, 2026-11-22)
+  refusal(r) { const b = (r && r.body) || {}; return r.type === 'note' && !!b.part && b.refused !== false && !(b.reason != null && b.text === `${b.part}: ${b.reason}`); },
   by(r) { const b = r.body || {}; return r.by || (r.type === 'note' ? (b.requests || b.text === 'model declared done' ? 'model' : 'harness') : EV_BY[r.type] || 'model'); },
   num(o) { return Object.fromEntries(Object.entries(o || {}).filter(([, v]) => typeof v === 'number')); },
   labels(rule) { return [...new Set([...String(rule || '').matchAll(/[A-Za-z_][A-Za-z0-9_]*@([A-Za-z0-9_]+)/g)].map(m => m[1]))]; },  // the labels a decision rule names, each once
@@ -51,7 +53,7 @@ const EV_DATA = {
                                           same_as: r.body.same_as || null, exp: r.parent, ts: r.ts, turn: r.turn, structure: r.body.structure || null, topology: r.body.topology || null }));
       exps = of('experiment').map(r => { const b = r.body, own = sims.filter(s => s.exp === r.id);
         return { id: r.id, turn: r.turn, ts: r.ts, by: D.by(r), kind: b.kind, measurements: Array.isArray(b.measurements) ? b.measurements : [], tests: b.tests || [], question: b.question || '', varied: b.varied || [], control: b.control || null,
-                 runs: b.runs || [], rules: (b.decision_rules || b.rules || []).map(q => ({ for: q.for, rule: q.decision_rule || q.rule, rival: q.rival || null, rival_predicts: q.rival_predicts || null })),
+                 runs: b.runs || [], rules: (b.decision_rules || b.rules || []).map(q => ({ for: q.for, rule: q.decision_rule || q.rule, rival: q.rival || null, rival_predicts: q.rival_predicts || null, competes: q.competes_with || null })),   // competes: the guess a rule competes with (stage 5)
                  sims: own, evidence: recs.find(e => e.type === 'evidence' && e.parent === r.id) || null,
                  // a void check: its decision rule names two or more labels of which at least two are the same simulation (the same run), so
                  // it compared a simulation with itself. Its result here is "void" (what the harness recorded stays in "recorded"): it
@@ -89,7 +91,7 @@ const EV_DATA = {
     // the chain recorded since 2026-11-17: a why (an informed guess of why a result came out so, and whether it is worth verifying), and the why a hypothesis comes from
     const whys = of('why').map(r => ({ id: r.id, turn: r.turn, ...r.body })), whyById = Object.fromEntries(whys.map(w => [w.id, w]));
     // a supervised session (the arm "supervised", 2026-11-18): the reviews of the supervisor (of a guess against its records: gate "ground"; of a test before its simulations), and the researcher's objections
-    const reviews = of('review').map(r => ({ id: r.id, turn: r.turn, ...r.body })), objections = of('objection').map(r => ({ id: r.id, turn: r.turn, ...r.body }));
+    const reviews = of('review').map(r => ({ id: r.id, turn: r.turn, by: r.by, ...r.body })), objections = of('objection').map(r => ({ id: r.id, turn: r.turn, ...r.body }));
     const supervised = !!(meta && meta.flags && meta.flags.arm === 'supervised') || recs.some(r => D.by(r) === 'supervisor');
     of('hypothesis').forEach(r => { if (hypById[r.id]) { hypById[r.id].from_why = r.body.from_why || null; hypById[r.id].judge = r.body.judge || null; } });  // judge: what a second model call read of the link between the guess and the hypothesis
     // ---- the tests: one hypothesis put to one decision rule. Nothing records a test as such: its simulations are the
@@ -98,7 +100,7 @@ const EV_DATA = {
     const tests = exps.flatMap(x => { const nth = {};
       const made = x.rules.map(r => { const labels = D.labels(r.rule);
         const n = nth[r.for] = (nth[r.for] || 0) + 1, same = x.checks.filter(c => c.for === r.for);
-        return { id: `${x.id}.${r.for}${n > 1 ? '.' + n : ''}`, exp: x.id, turn: x.turn, ts: x.ts, hyp: r.for, rule: r.rule, rival: r.rival, rival_predicts: r.rival_predicts, labels,
+        return { id: `${x.id}.${r.for}${n > 1 ? '.' + n : ''}`, exp: x.id, turn: x.turn, ts: x.ts, hyp: r.for, rule: r.rule, rival: r.rival, rival_predicts: r.rival_predicts, competes: r.competes || null, labels,
                  sims: labels.length ? labels.map(l => x.sims.find(s => s.label === l)).filter(Boolean) : x.sims.length === 1 ? x.sims.slice() : [],
                  missing: labels.filter(l => !x.sims.some(s => s.label === l)), control: x.control && labels.includes(x.control) ? x.control : null,
                  check: same.find(c => c.rule === r.rule) || same[n - 1] || null }; });
@@ -145,11 +147,12 @@ const EV_DATA = {
       const t = { n, rec: T, left: T ? T.body.simulations_left : null, open: T ? T.body.open_hypotheses : null, added: T ? T.body.added : null, last: T ? T.body.last_turn : null,
                   verdicts: rs.filter(r => r.type === 'verdict' && D.by(r) !== 'supervisor'), rulings: rs.filter(r => r.type === 'verdict' && D.by(r) === 'supervisor'), drops:   // verdicts: the researcher's own, part of its answer; rulings: the supervisor's, given after the checks
                    rs.filter(r => r.type === 'drop'), hyps: rs.filter(r => r.type === 'hypothesis').map(r => hypById[r.id]),
-                  exp: exps.find(x => x.turn === n && (multi ? byId[x.id] && byId[x.id].turn === n : true)) || null, report: rs.find(r => r.type === 'report') || null,
+                  xs: exps.filter(x => x.turn === n && (multi ? byId[x.id] && byId[x.id].turn === n : true)), exp: exps.find(x => x.turn === n && (multi ? byId[x.id] && byId[x.id].turn === n : true)) || null, report: rs.find(r => r.type === 'report') || null,   // xs: every experiment of the turn (a repaired test runs as one of its own); exp: the first
                   requests: rs.filter(r => r.type === 'request'), malformed: rs.filter(r => r.type === 'malformed'),
-                  refusals: rs.filter(r => r.type === 'note' && r.body.part), notes: rs.filter(r => r.type === 'note' && !r.body.part), observations: null, steps: [] };
-      const withObs = rs.find(r => r.body && r.body.observations && ['verdict', 'drop', 'hypothesis', 'experiment', 'report', 'note'].includes(r.type));
-      t.observations = withObs ? withObs.body.observations : null;
+                  refusals: rs.filter(r => D.refusal(r)), notes: rs.filter(r => r.type === 'note' && !D.refusal(r)), observations: null, steps: [] };
+      // what the researcher said it read: one text for each of its replies in the turn (the coherence audit, 2026-11-22: a continued reply's were dropped)
+      t.obsList = [...new Set(rs.filter(r => r.body && r.body.observations && ['verdict', 'drop', 'hypothesis', 'experiment', 'report', 'note', 'why', 'objection', 'rethink'].includes(r.type)).map(r => String(r.body.observations)))];
+      t.observations = t.obsList.length ? t.obsList.join(' ') : null;
       const first = steps.length;
       if (n === 0) {
         push({ turn: 0, lane: 'harness', kind: 'start', label: 'brief and baseline shown', open: { t: 'brief' } }, rs.filter(r => r.type === 'experiment').map(r => r.id));
@@ -159,8 +162,7 @@ const EV_DATA = {
         if (t.verdicts.length) parts.push('verdicts ' + t.verdicts.map(v => `${v.id} (${v.body.for} ${v.body.result})`).join(', '));
         if (t.drops.length) parts.push('dropped ' + t.drops.map(d => d.body.for).join(', '));
         if (t.hyps.length) parts.push('new hypotheses ' + t.hyps.map(h => h.id).join(', '));
-        const nt = t.exp ? tests.filter(q => q.exp === t.exp.id).length : 0;
-        if (t.exp) parts.push(`experiment ${t.exp.id} (${t.exp.sims.length} simulation${t.exp.sims.length === 1 ? '' : 's'}, ${nt ? nt + (nt === 1 ? ' test' : ' tests') : 'no tests: it explores'})`);
+        t.xs.forEach(x => { const nt = tests.filter(q => q.exp === x.id).length; parts.push(`experiment ${x.id} (${x.sims.length} simulation${x.sims.length === 1 ? '' : 's'}, ${nt ? nt + (nt === 1 ? ' test' : ' tests') : 'no tests: it explores'})`); });
         const asked = [...new Set(t.requests.map(q => q.body.tool).concat(t.notes.flatMap(q => (q.body.requests || []).map(x => x.tool))))];
         if (asked.length) parts.push('asked for information (' + asked.join(', ') + ')');
         if (t.report) parts.push('final report');
@@ -168,17 +170,18 @@ const EV_DATA = {
         push({ turn: n, lane: 'model', kind: 'answer', warn: useless, label: `turn ${n}: ` + (waiting ? 'waiting for the answer' : useless ? 'an answer the harness could not use' : parts.join('; ')), open: { t: 'log', turn: n } },
              rs.filter(r => (['turn', 'verdict', 'drop', 'rethink', 'why', 'hypothesis', 'request', 'result'].includes(r.type) && !(r.type === 'verdict' && D.by(r) === 'supervisor')) || (r.type === 'experiment')).map(r => r.id).concat(t.report && !t.exp ? [] : []));
         // the supervisor's reading of the turn's new guesses (and of a guess it did not accept), and its review of the test before any simulation
-        const g0 = rs.filter(r => r.type === 'review' && r.body.gate === 'ground'), g1 = rs.filter(r => r.type === 'review' && r.body.gate !== 'ground');
+        const g0 = rs.filter(r => r.type === 'review' && r.body.gate === 'ground'), g1 = rs.filter(r => r.type === 'review' && r.body.gate !== 'ground' && r.by !== 'harness'), gh = rs.filter(r => r.type === 'review' && r.body.gate !== 'ground' && r.by === 'harness');   // gh: rounds the harness refused with its own checks (the coherence audit, 2026-11-22: drawn as the supervisor's)
         if (g0.length) push({ turn: n, lane: 'supervisor', kind: 'review', warn: g0.some(r => r.body.decision !== 'approved'), label: 'the supervisor reads the new guesses against their records: ' + g0.map(r => `${r.body.for || 'a guess'} ${r.body.decision === 'approved' ? 'sound' : r.body.decision === 'sent_back' ? 'not accepted' : 'accepted, it still objects'}`).join(', '), open: { t: 'log', turn: n } }, g0.map(r => r.id));
-        if (g1.length) push({ turn: n, lane: 'supervisor', kind: 'review', warn: g1.some(r => r.body.decision !== 'approved'), label: 'the supervisor reviews the test before any simulation: ' + g1.map(r => `${r.body.for} ${r.body.decision === 'approved' ? 'approved' : r.body.decision === 'sent_back' ? 'sent back' : 'run, it still objects'}`).join(', '), open: { t: 'log', turn: n } }, g1.map(r => r.id));
+        if (g1.length) push({ turn: n, lane: 'supervisor', kind: 'review', warn: g1.some(r => r.body.decision !== 'approved'), label: 'the supervisor reviews the test before any simulation: ' + g1.map(r => `${r.body.for} ${r.body.decision === 'approved' ? 'approved' : r.body.decision === 'sent_back' ? 'sent back' : r.body.decision === 'dropped' ? 'refused in the last round' : 'run, it still objects'}`).join(', '), open: { t: 'log', turn: n } }, g1.map(r => r.id));
+        if (gh.length) push({ turn: n, lane: 'harness', kind: 'refused', warn: true, label: 'the harness refuses a repaired test with its own checks: ' + gh.map(r => `${r.body.for} round ${r.body.round || '?'} ${r.body.decision === 'not_run' ? '(not run)' : '(sent back)'}`).join(', '), open: { t: 'log', turn: n } }, gh.map(r => r.id));
         t.malformed.forEach(m => push({ turn: n, lane: 'harness', kind: 'refused', warn: true, label: 'refused: ' + ((m.body.refused || []).map(q => `${q.part}: ${q.reason}`).join(' | ') || m.body.error), open: { t: 'log', turn: n } }, [m.id]));
         t.refusals.forEach(m => push({ turn: n, lane: 'harness', kind: 'refused', warn: true, label: `${m.body.part === 'report' ? 'report refused' : 'refused part (' + m.body.part + ')'}: ${m.body.reason || m.body.text}`, open: { t: 'log', turn: n } }, [m.id]));
-        if (t.exp) {
-          push({ turn: n, lane: 'harness', kind: 'accepted', label: 'plan accepted', open: { t: 'exp', id: t.exp.id } }, t.notes.map(r => r.id));
-          push({ turn: n, lane: 'simulator', kind: 'sims', exp: t.exp.id, label: `${t.exp.sims.length} simulation${t.exp.sims.length === 1 ? '' : 's'}`, sims: t.exp.sims, open: { t: 'exp', id: t.exp.id } }, t.exp.sims.map(q => q.id).concat(t.exp.evidence ? [t.exp.evidence.id] : []));
-          if (t.exp.checks.length) push({ turn: n, lane: 'harness', kind: 'checks', exp: t.exp.id, label: `${t.exp.checks.length} check${t.exp.checks.length === 1 ? '' : 's'}: ${t.exp.checks.filter(c => c.result === 'held').length} held, ${t.exp.checks.filter(c => c.result === 'failed').length} failed${t.exp.checks.some(c => c.void) ? `, ${t.exp.checks.filter(c => c.void).length} void` : ''}`,
-                                         open: { t: 'exp', id: t.exp.id } }, t.exp.checks.map(c => c.id));
-        }
+        t.xs.forEach((x, i) => {   // every experiment of the turn (the coherence audit, 2026-11-22: a repaired test's experiment was not drawn)
+          if (!i) push({ turn: n, lane: 'harness', kind: 'accepted', label: 'plan accepted', open: { t: 'exp', id: x.id } }, t.notes.map(r => r.id));
+          push({ turn: n, lane: 'simulator', kind: 'sims', exp: x.id, label: `${x.sims.length} simulation${x.sims.length === 1 ? '' : 's'}${t.xs.length > 1 ? ' of ' + x.id : ''}`, sims: x.sims, open: { t: 'exp', id: x.id } }, x.sims.map(q => q.id).concat(x.evidence ? [x.evidence.id] : []));
+          if (x.checks.length) push({ turn: n, lane: 'harness', kind: 'checks', exp: x.id, label: `${x.checks.length} check${x.checks.length === 1 ? '' : 's'}: ${x.checks.filter(c => c.result === 'held').length} held, ${x.checks.filter(c => c.result === 'failed').length} failed${x.checks.some(c => c.void) ? `, ${x.checks.filter(c => c.void).length} void` : ''}`,
+                                         open: { t: 'exp', id: x.id } }, x.checks.map(c => c.id));
+        });
         const sv = rs.filter(r => r.type === 'verdict' && D.by(r) === 'supervisor'), ob = rs.filter(r => r.type === 'objection');
         if (sv.length) push({ turn: n, lane: 'supervisor', kind: 'ruling', label: 'the supervisor rules: ' + sv.map(v => `${v.body.for} ${v.body.result}${v.body.after ? ' (after an objection)' : ''}`).join(', '), open: { t: 'log', turn: n } }, sv.map(v => v.id).concat(ob.map(o => o.id)));
         if (t.report) push({ turn: n, lane: 'harness', kind: 'report', label: 'report accepted', open: { t: 'report' } }, [t.report.id]);
@@ -190,7 +193,7 @@ const EV_DATA = {
     return { id: f.id, meta, brief, old: !multi, ended, recs, byId, pos, recStep, voidIds: new Set(checks.filter(c => c.void).map(c => c.id)), sims, simById, exps, expById, tests, testById, checks, hyps, hypById, whys, whyById, reviews, objections, supervised, rethinks: of('rethink').map(r => ({ id: r.id, turn: r.turn, ...r.body })), source, report, repRec, claims, turns, steps,
              counts: { hypothesis: count('hypothesis'), experiment: multi ? count('experiment') : exps.length, simulation: multi ? count('simulation') : sims.length,
                        rule: exps.reduce((a, x) => a + x.rules.length, 0), test: tests.length, check: count('check'), verdict: count('verdict'), report: count('report'), turn: turns.filter(t => t.n > 0).length,
-                       drop: count('drop'), refused: count('malformed') + recs.filter(r => r.type === 'note' && r.body.part).length },
+                       drop: count('drop'), refused: count('malformed') + recs.filter(r => D.refusal(r)).length },
              bySource: Object.fromEntries(['model', 'supervisor', 'harness', 'simulator', 'operator'].map(b => [b, recs.filter(r => D.by(r) === b).length])) };
   },
 

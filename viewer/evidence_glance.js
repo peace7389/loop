@@ -40,7 +40,7 @@ Object.assign(EV, {
     if (x) return `<b>Experiment ${e(x.id)}</b>${x.turn ? ', turn ' + x.turn : ', before the first turn'}: ${pl(x.sims.length, 'simulation')} · ${xSay(x)}`;
     if (t) { const n = k => k.filter(r => seen(r.id)).length, bits = [[n(t.verdicts), 'verdict'], [n(t.rulings || []), 'ruling' + (n(t.rulings || []) === 1 ? '' : 's') + ' by the supervisor', '', ''], [n(t.hyps), 'new hypothes', 'is', 'es'], [n(t.drops), 'dropped hypothes', 'is', 'es'], [n(t.malformed) + n(t.refusals), 'refusal']]
         .filter(q => q[0]).map(([k, w, one, many]) => `${k} ${w}${one === undefined ? (k === 1 ? '' : 's') : k === 1 ? one : many}`);
-      if (t.exp && seen(t.exp.id)) bits.push(`experiment ${e(t.exp.id)} with ${pl(t.exp.sims.length, 'simulation')}`); if (t.report && seen(t.report.id)) bits.push('the final report');
+      (t.xs || (t.exp ? [t.exp] : [])).filter(x => seen(x.id)).forEach(x => bits.push(`experiment ${e(x.id)} with ${pl(x.sims.length, 'simulation')}`)); if (t.report && seen(t.report.id)) bits.push('the final report');
       return t.n ? `<b>Turn ${t.n}</b>: ${bits.join(' · ') || ((w => w && w.phase === 'reply' && w.turn === t.n)(EV.liveNow && EV.liveNow()) ? '<span data-writing="1">the researcher is writing its reply</span>' : 'nothing the harness could use')}${t.left == null ? '' : ` · ${pl(t.left, 'simulation')} left at its start`}` : `<b>Start</b>: the brief, and the baseline the harness ran before the model's first turn`; }
     if (sel && sel.t === 'report' && M.report && M.repRec && seen(M.repRec.id)) { const r = M.report.recommendation;
       return `<b>${K('report')}Final report</b>: ${pl(M.claims.length, 'claim')}${r && typeof r === 'object' ? ' · recommends ' + e(Object.entries(r).map(([k, v]) => `${k} ${v}`).join(', ')) : ''}`; }
@@ -70,7 +70,7 @@ Object.assign(EV, {
     // ---- the columns: every turn recorded by the replay's step. A cell holds names and words, not shapes: a hypothesis is its name (a chip tinted by
     // how it ended, as its box on the board), a test is "H1 held" or "H1 failed", the simulations of a turn are a number, a verdict is "H1 supported"
     // in the turn it was GIVEN (the table reads left to right in time), the final report is the word "written".
-    const cols = M.turns.filter(t => live || (t.steps[0] ? t.steps[0].k : 0) <= S.step).map(t => { const x = t.exp && seen(t.exp.id) ? t.exp : null; return { t, x, ts: x ? M.tests.filter(T => T.exp === x.id) : [] }; });
+    const cols = M.turns.filter(t => live || (t.steps[0] ? t.steps[0].k : 0) <= S.step).map(t => { const xs = (t.xs || (t.exp ? [t.exp] : [])).filter(q => seen(q.id)), x = xs[0] || null; return { t, x, ts: M.tests.filter(T => xs.some(q => q.id === T.exp)) }; });   // the tests of every experiment of the turn
     const anyLeft = cols.some(c => c.t.n && c.t.left != null), room = document.getElementById('ev').clientWidth - 76, CW = Math.max(138, Math.min(300, Math.floor((room - 360) / Math.max(1, cols.length)) - 30)), per = Math.max(1, Math.floor((room - 360) / (CW + 30))), bands = []; cols.forEach((c, i) => { if (i % per === 0) bands.push([]); bands[bands.length - 1].push(c); });
     const stOf = h => (st ? st[h.id] || 'open' : h.state), tint = s => (['supported', 'refuted', 'inconclusive', 'dropped'].includes(s) ? ' st-' + s : ''), last = cols[cols.length - 1];
     const chip = (m, t, id, rec, text, title, cls, wd) => { if (!seen(rec)) return '';  // nothing recorded after the replay's step is drawn; wd: the card that opens when the chip is pointed at

@@ -63,13 +63,15 @@ Object.assign(EV, {
     // the step the harness wrote as it began it (now.json, since 2026-11-22), for the newest turn only: a step no record shows yet
     const nw = EV.files.now, mine = nw && typeof nw === 'object' && nw.turn === last.turn, tr = recs.filter(r => r.type === 'turn').pop(), mode = tr && tr.turn === last.turn ? tr.body.last_turn || null : null;
     if (mine && EV.LIVE_AGENT_STEPS.includes(nw.step)) return { phase: nw.step, turn: last.turn, about: nw.about || null, round: nw.round || null, rounds: nw.rounds || null, by: nw.by || null };
-    if (last.type === 'turn' || (mine && nw.step === 'reply' && nw.again && EV.live.tries < 2)) return { phase: 'reply', turn: last.turn, mode, again: EV.live.tries > 0 || !!(mine && nw.again) };
+    // a reply begun after the newest record (a continued reply of the turn, or the first after a ruling asked for again) is being written (the coherence audit, 2026-11-22: it read "preparing the next turn")
+    const begun = mine && nw.step === 'reply' && last.ts && nw.at && last.ts <= nw.at;
+    if (last.type === 'turn' || begun || (mine && nw.step === 'reply' && nw.again && EV.live.tries < 2)) return { phase: 'reply', turn: last.turn, mode, again: EV.live.tries > 0 || !!(mine && nw.again), cont: mine && nw.step === 'reply' && (nw.round || 1) > 1 ? nw.round : null };
     return { phase: 'between', turn: last.turn };
   },
   // the steps of a turn done by an agent, that the records show only when they are done (the harness names them in now.json)
-  LIVE_AGENT_STEPS: ['judge', 'ground', 'restate', 'design', 'repair', 'ruling', 'look'],
+  LIVE_AGENT_STEPS: ['judge', 'review', 'ground', 'restate', 'design', 'repair', 'ruling', 'objection', 'look'],
   // who works in a phase (its icon)
-  liveBy: p => (['reply', 'restate', 'repair'].includes(p) ? 'model' : ['sims', 'baseline'].includes(p) ? 'simulator' : ['judge', 'ground', 'design', 'ruling', 'look'].includes(p) ? 'supervisor' : 'harness'),
+  liveBy: p => (['reply', 'restate', 'repair'].includes(p) ? 'model' : ['sims', 'baseline'].includes(p) ? 'simulator' : ['judge', 'review', 'ground', 'design', 'ruling', 'objection', 'look'].includes(p) ? 'supervisor' : 'harness'),
   // the simulations of the experiment that is being run which the harness has collected so far: the runs its index lists that no record holds yet
   // (the harness reads its simulations in the order it started them, so this is how many are in, not how many have ended)
   liveDone() { const M = EV.M, have = new Set(M.sims.map(s => s.run)); return (EV.files.index || []).filter(q => q && q.id && !have.has(q.id)).length; },
@@ -83,13 +85,15 @@ Object.assign(EV, {
     return now.phase === 'start' ? 'The harness is preparing the session.'
       : now.phase === 'baseline' ? 'The harness is running the baseline simulation, before the researcher’s first turn.'
       : now.phase === 'sims' ? `${t}the simulator is working on the ${now.n} simulation${now.n === 1 ? '' : 's'} of experiment ${e(now.exp)}.`
-      : now.phase === 'reply' ? `${t}the researcher is writing its reply${now.again ? ' again (its first reply could not be used)' : ''}.`
+      : now.phase === 'reply' ? `${t}the researcher is writing its reply${now.cont ? ` (reply ${now.cont} of this turn: what it asked for is answered)` : ''}${now.again ? ' again (its first reply could not be used)' : ''}.`
       : now.phase === 'judge' ? `${t}the judge, a second AI, reads each new hypothesis against the guess it comes from.`
+      : now.phase === 'review' ? `${t}the supervisor reads the new guesses and reviews the new tests, in one request.`
       : now.phase === 'ground' ? `${t}the supervisor reads a new guess against the records it cites.`
       : now.phase === 'restate' ? `${t}the researcher restates a guess the ${now.by === 'harness' ? 'harness' : 'supervisor'} did not accept (once, in this turn).`
       : now.phase === 'design' ? `${t}the supervisor reviews the test of ${e(now.about || 'a hypothesis')}${(now.round || 1) > 1 ? ' again' : ''} before any of its simulations runs (round ${now.round || 1} of ${now.rounds || 3}).`
       : now.phase === 'repair' ? `${t}the researcher repairs the test of ${e(now.about || 'a hypothesis')} that was sent back, for round ${now.round || 2} of ${now.rounds || 3}.`
       : now.phase === 'ruling' ? `${t}the supervisor rules on ${e(now.about || 'each test')}: what its checks mean.`
+      : now.phase === 'objection' ? `${t}the supervisor looks again at its ruling on ${e(now.about || 'a hypothesis')}: the researcher objected to it.`
       : now.phase === 'look' ? (now.turn ? `${t}the supervisor notes what the results of ${e(now.about || 'the experiment')} leave unexplained.` : 'Before turn 1: the supervisor notes what the baseline leaves unexplained.')
       : `${t}the harness is preparing the next turn.`;
   },
@@ -101,7 +105,7 @@ Object.assign(EV, {
   liveStage(now, big) {
     if (!now) return ''; const M = EV.M, e = EV.e, fl = (M.meta && M.meta.flags) || {}, sup = fl.arm === 'supervised', x = M.recs.filter(r => r.type === 'experiment' && r.turn === now.turn).pop(), hid = now.about && M.byId[now.about] ? now.about : null;
     const go = { reply: now.turn > 0 ? ['log', now.turn] : null, baseline: x && x.turn === 0 ? ['exp', x.id] : null, sims: x && x.turn > 0 ? ['exp', x.id] : null, checks: x && x.turn > 0 && ['between', 'ruling', 'look'].includes(now.phase) ? ['exp', x.id] : null,
-      design: hid && ['design', 'repair'].includes(now.phase) ? ['hyp', hid] : null, ruling: hid && now.phase === 'ruling' ? ['hyp', hid] : null, look: x ? ['exp', x.id] : null };
+      design: hid && ['design', 'repair'].includes(now.phase) ? ['hyp', hid] : null, ruling: hid && ['ruling', 'objection'].includes(now.phase) ? ['hyp', hid] : null, look: x ? ['exp', x.id] : null };
     // a step of an agent opens what the agent wrote in it, its tokens (2026-11-22, the operator: "When user clicks past or ongoing stage here they should be able to see tokens directly")
     ['reply', 'ground', 'design', 'judge', 'ruling', 'look'].forEach(k => { go[k] = ['calls', `${now.turn}:${k}`]; });
     const opens = { log: 'the work log of this turn', exp: 'this experiment', hyp: 'this hypothesis', calls: 'what the agent wrote in this step, its tokens' }, R = now.round || 1, of = now.rounds || 3, ab = now.about || '';
@@ -117,12 +121,12 @@ Object.assign(EV, {
     } else {
       steps = [['reply', 'model', 'Reply', now.again ? 'researcher, again' : 'researcher', 'The researcher writes its reply: what it read, its guesses, its hypotheses and its test', ['reply']]]
         .concat(sup ? [
-          ['ground', now.phase === 'restate' ? 'model' : 'supervisor', 'Guesses', now.phase === 'restate' ? 'researcher restates one' : 'supervisor reads', 'The supervisor reads each new guess against the records it cites; a guess it or the harness does not accept, the researcher restates once, in this turn', ['ground', 'restate']],
+          ['ground', now.phase === 'restate' ? 'model' : 'supervisor', 'Guesses', now.phase === 'restate' ? 'researcher restates one' : 'supervisor reads', 'The supervisor reads each new guess against the records it cites; a guess it or the harness does not accept, the researcher restates once, in this turn', ['review', 'ground', 'restate']],
           ['design', now.phase === 'repair' ? 'model' : 'supervisor', 'Test review', now.phase === 'repair' ? `researcher repairs ${ab}` : now.phase === 'design' ? `supervisor, ${ab}` : `supervisor, up to ${of} rounds`, `The supervisor reviews each test before any of its simulations runs, in up to ${of} rounds; a test it sends back, the researcher repairs in this turn`, ['design', 'repair']]]
           : fl.judge === 'on' ? [['judge', 'supervisor', 'Link check', 'judge', 'The judge, a second AI, reads each new hypothesis against the guess it comes from', ['judge']]] : [])
         .concat([['sims', 'simulator', 'Simulations', 'ns-3', 'ns-3 runs the simulations of the experiment', ['sims']], ['checks', 'harness', 'Checks', 'harness', 'The harness checks each decision rule against the measured numbers', []]])
         .concat(sup ? [now.phase === 'look' ? ['look', 'supervisor', 'Findings', 'supervisor', 'The supervisor notes what the results leave unexplained (an experiment that tests nothing has no ruling)', ['look']]
-                                            : ['ruling', 'supervisor', 'Rulings', now.phase === 'ruling' && ab ? `supervisor, ${ab}` : 'supervisor', 'The supervisor rules on each checked test: what its checks mean', ['ruling']]] : [])
+                                            : ['ruling', 'supervisor', 'Rulings', now.phase === 'ruling' && ab ? `supervisor, ${ab}` : 'supervisor', 'The supervisor rules on each checked test: what its checks mean; it looks again at a ruling the researcher objects to', ['ruling', 'objection']]] : [])
         .concat([['next', 'harness', 'Next turn', now.phase === 'between' ? 'harness prepares' : 'harness', 'The harness prepares the next turn', ['between']]]);
     }
     const on = steps.findIndex(q => q[5].includes(now.phase));
@@ -150,16 +154,21 @@ Object.assign(EV, {
     const wait = M.hyps.filter(h => EV.seen(h.id) && h.state === 'open' && h.tests.some(q => { const c = M.testById[q].check; return c && EV.seen(c.id); }));
     const took = M.turns.filter(q => q.n >= 1 && q.n < n && q.rec).map(q => { const i = M.recs.indexOf(q.rec), nx = M.recs.slice(i + 1).find(r => r.turn === q.n), ms = nx && nx.ts && q.rec.ts ? new Date(nx.ts) - new Date(q.rec.ts) : NaN; return isFinite(ms) && ms >= 0 ? [q.n, ms] : null; }).filter(Boolean);
     const per = ((M.brief || {}).limits || {}).simulations_per_experiment;
-    return wrap('model', `the researcher is writing its reply${now.again ? ' again' : ''}`, [
+    const arm = ((M.meta && M.meta.flags) || {}).arm || 'hypotheses';
+    return wrap('model', `the researcher is writing its reply${now.cont ? ` (reply ${now.cont} of this turn)` : ''}${now.again ? ' again' : ''}`, [
       ['It was given', `the brief and its own record so far (${pl(M.recs.length, 'record')})<span data-new="${fresh.length}">${fresh.length ? `; new to it since its last reply: ${fresh.join('; ')}` : '; nothing new since its last reply'}</span>`, 'given'],
-      ['Waiting for its verdict', `<span data-wait="${e(wait.map(h => h.id).join(','))}">${wait.length ? `${wait.map(h => EV.link(h.id)).join(', ')} <span class="sm">· checked by the harness, not judged by the AI yet</span>` : 'no hypothesis: none has a checked decision rule and no verdict'}</span>`, 'wait'],
+      arm === 'plain' ? null : [arm === 'supervised' ? 'Waiting for a ruling' : 'Waiting for its verdict', `<span data-wait="${e(wait.map(h => h.id).join(','))}">${wait.length ? `${wait.map(h => EV.link(h.id)).join(', ')} <span class="sm">· checked by the harness, ${arm === 'supervised' ? 'not ruled on by the supervisor yet' : 'not judged by the AI yet'}</span>` : `no hypothesis: none has a checked decision rule and no ${arm === 'supervised' ? 'ruling' : 'verdict'}`}</span>`, 'wait'],
       ['This reply', e(EV.liveMay(now)), 'may'],
       ['Simulations left', `<b data-left="${t.left ?? ''}">${t.left ?? EV.nr}</b>${per && !now.mode ? ` · at most ${e(per)} in one experiment` : ''}`, 'left'],
       ['Its earlier replies took', `<span data-took="${took.map(q => q.join(':')).join(',')}">${took.length ? took.slice(-6).map(([k, ms]) => `turn ${k}: ${EV.liveClock(ms)}`).join(' · ') : 'none yet: this is its first reply'}</span>`, 'took'],
-      ['While it writes', 'nothing of the reply can be shown: it arrives whole. When it is there, this card says what it decided and why.', 'whole']]);
+      ['While it writes', 'nothing of the reply can be shown: it arrives whole. When it is there, this card says what it decided and why.', 'whole']].filter(Boolean));
   },
   // what the reply being written may fill: the reply arrives whole, so the page cannot say which
-  liveMay: now => (now.phase !== 'reply' ? '' : now.mode === 'report' ? 'This is the last turn: only the final report is accepted.' : now.mode === 'budget' ? 'This is the last turn, the simulations are used up: it may judge earlier tests, and the final report is due.' : 'It may judge earlier tests, state a new hypothesis, set up a new test, or give its final report.'),
+  liveMay: now => { const arm = ((EV.M && EV.M.meta && EV.M.meta.flags) || {}).arm || 'hypotheses';   // in the session's arm (the coherence audit, 2026-11-22: it was the single-AI arm's)
+    return now.phase !== 'reply' ? '' : now.mode === 'report' ? 'This is the last turn: only the final report is accepted.'
+      : now.mode === 'budget' ? (arm === 'hypotheses' ? 'This is the last turn, the simulations are used up: it may judge earlier tests, and the final report is due.' : arm === 'supervised' ? 'This is the last turn, the simulations are used up: the final report is due (the rulings are the supervisor’s).' : 'This is the last turn, the simulations are used up: the final report is due.')
+      : arm === 'supervised' ? 'It may read results, state guesses and hypotheses, set up a test, object to a ruling, or give its final report.' : arm === 'plain' ? 'It may ask for information, set up an experiment, or give its final report.'
+      : 'It may judge earlier tests, state a new hypothesis, set up a new test, or give its final report.'; },
   // what arrived at the last reading, in words, from the kinds of the new records
   liveArrived() {
     const f = EV.live.fresh, M = EV.M; if (!f || f.sid !== M.id) return '';
@@ -168,7 +177,7 @@ Object.assign(EV, {
     n('experiment').forEach(x => bits.push(`experiment ${x.id}`)); if (n('simulation').length) bits.push(pl(n('simulation').length, 'simulation'));
     if (ck.length) { const void_ = ck.filter(c => M.voidIds.has(c.id)).length, held = ck.filter(c => !M.voidIds.has(c.id) && c.body.result === 'held').length, failed = ck.filter(c => !M.voidIds.has(c.id) && c.body.result === 'failed').length;
       bits.push(`${pl(ck.length, 'check')} (${held} held, ${failed} failed${void_ ? `, ${void_} void` : ''})`); }
-    const no = n('malformed').length + rs.filter(r => r.type === 'note' && r.body.part).length; if (no) bits.push(`${no} refused`); if (n('report').length) bits.push('the final report');
+    const no = n('malformed').length + rs.filter(r => EV_DATA.refusal(r)).length; if (no) bits.push(`${no} refused`); if (n('report').length) bits.push('the final report');
     return bits.join(', ');
   },
   // an empty place of the glance: a dashed square; working: the work can fill it next
@@ -220,20 +229,21 @@ Object.assign(EV, {
   // ---- what an agent wrote in one step of a turn, its tokens (2026-11-22, the operator: "When user clicks past or ongoing stage here they should be
   // able to see tokens directly"). The calls come from /api/agents (calls.jsonl: each call's step since 2026-11-22; an earlier call is placed by what it
   // was given); the call being made from live_call.json, which the harness rewrites about once a second while the agent writes. id: "<turn>:<step key>"
-  CALL_STEPS: { reply: ['reply'], ground: ['ground', 'restate'], design: ['design', 'repair'], judge: ['judge'], ruling: ['ruling'], look: ['look'] },
-  CALL_SAYS: { reply: 'reply', restate: 'restatement of a guess', repair: 'repair of a test', ground: 'reading of a guess', design: 'review of a test', ruling: 'ruling', look: 'look for findings', judge: 'link check' },
+  CALL_STEPS: { reply: ['reply'], ground: ['review', 'ground', 'restate'], design: ['review', 'design', 'repair'], judge: ['judge'], ruling: ['ruling', 'objection'], look: ['look'] },
+  CALL_SAYS: { review: 'first review of the new guesses and tests, in one request', reply: 'reply', restate: 'restatement of a guess', repair: 'repair of a test', ground: 'reading of a guess', design: 'review of a test', ruling: 'ruling', objection: 'second look after an objection', look: 'look for findings', judge: 'link check' },
   callStep(c) {
-    if (c.step && c.step.step) return c.step.step;
+    if (c.step) return typeof c.step === 'string' ? c.step : c.step.step;   // calls.jsonl, and live_call.json since stage 3 (2026-11-22), keep {step, about, round, by}; the held build of 2026-11-22 spread it into the call
     const s = c.system || '', u = c.user || '';
     if (c.agent === 'judge') return 'judge';
     if (c.agent === 'researcher') return s.startsWith('You are the researcher. The supervisor, or the harness, sent back') ? 'repair' : s.startsWith('You are the researcher. One of your guesses') ? 'restate' : 'reply';
-    return u.includes("THE HARNESS'S CHECKS (facts)") ? 'ruling' : u.includes('THE RECORDS THE NEW GUESS CITES') ? 'ground' : u.includes('FINDINGS (findings, at most') ? 'look' : 'design';
+    return u.includes('THE RESEARCHER OBJECTS') ? 'objection' : u.includes("THE HARNESS'S CHECKS (facts)") ? 'ruling' : u.includes('THE RECORDS THE NEW GUESS CITES') ? 'ground' : u.includes('FINDINGS (findings, at most') ? 'look' : 'design';
   },
   async callsLoad(sid) {
     const L = EV.live; if (L.callsBusy) return; L.callsBusy = true;
+    const was = L.calls && L.calls.sid === sid ? L.calls.list : null, mark = l => (l ? `${l.length}|${(l[l.length - 1] || {}).n}` : '');
     try { const r = await fetch(`../api/agents?session=${encodeURIComponent(sid)}`, { cache: 'no-store' }); const j = r.ok ? await r.json() : null; L.calls = { sid, list: (j && j.calls) || [], at: Date.now() }; }
     catch (x) { L.calls = { sid, list: [], at: Date.now(), err: true }; }
-    L.callsBusy = false; const sel = EV.s.sel; if (sel && sel.t === 'calls' && EV.M && EV.M.id === sid) EV.draw();
+    L.callsBusy = false; const sel = EV.s.sel; if (sel && sel.t === 'calls' && EV.M && EV.M.id === sid && mark(was) !== mark(L.calls.list)) EV.draw();   // drawn again only when a call was added: a reload that brings nothing new leaves the page as it is
   },
   callBox(c, live) {
     const e = EV.e, u = c.usage || {}, rt = (u.completion_tokens_details || {}).reasoning_tokens, who = c.agent === 'researcher' ? 'model' : 'supervisor', step = EV.callStep(c);
@@ -247,9 +257,10 @@ Object.assign(EV, {
   },
   callsCard(id) {
     const M = EV.M, e = EV.e, L = EV.live, [t, key] = String(id).split(':'), turn = Number(t), steps = EV.CALL_STEPS[key] || [key];
+    if (window.EV_EXPORT) return '<h2>What the agents wrote</h2><p class="sm">An exported copy holds no calls of the model: they stay on the server.</p>';
     if (!L.calls || L.calls.sid !== M.id || L.callsStale) { L.callsStale = false; EV.callsLoad(M.id); }
     const list = L.calls && L.calls.sid === M.id ? L.calls.list.filter(c => c.turn === turn && steps.includes(EV.callStep(c))) : null;
-    const lv = L.liveCall && L.liveCall.sid === M.id ? L.liveCall.c : null, here = lv && !lv.done && lv.turn === turn && steps.includes(lv.step) && !(list || []).some(c => c.n === lv.n);
+    const lv = L.liveCall && L.liveCall.sid === M.id ? L.liveCall.c : null, here = lv && !lv.done && lv.turn === turn && steps.includes(EV.callStep(lv)) && !(list || []).some(c => c.n === lv.n);
     const title = { reply: 'The researcher’s reply', ground: 'The supervisor reads the guesses', design: 'The supervisor reviews the tests', judge: 'The judge reads the hypotheses', ruling: 'The supervisor rules', look: 'The supervisor looks for findings' }[key] || key;
     return `<h2>${e(title)} <small>turn ${e(turn)}</small></h2><p class="sm">What the agent wrote in this step, call by call: its reasoning before the answer, and the answer; what it was given is folded under each.${here ? ' The call being made grows as it is written.' : ''}</p>`
       + (list == null ? '<p class="sm">Reading the calls…</p>' : '') + (list || []).map(c => EV.callBox(c, false)).join('') + (here ? `<div id="cl-live">${EV.callBox(lv, true)}</div>` : '')
@@ -259,7 +270,10 @@ Object.assign(EV, {
   liveCallTick() {
     const sel = EV.s.sel, M = EV.M, row = (EV.files && EV.files.row) || {}; if (!sel || sel.t !== 'calls' || !M || !row.running || EV.off) return;
     fetch(`../sessions/${M.id}/live_call.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(c => {
-      if (!c || !EV.M || EV.M.id !== M.id) return; const was = EV.live.liveCall && EV.live.liveCall.c; EV.live.liveCall = { sid: M.id, c };
+      // a harness that writes no live_call.json (the one deployed before stage 3): the list of calls is read again every 10 s while the card is open (the coherence audit, 2026-11-22: it never refreshed)
+      if (!c) { const L = EV.live; if (EV.M && EV.M.id === M.id && L.calls && L.calls.sid === M.id && Date.now() - L.calls.at > 10000) EV.callsLoad(M.id); return; }
+      if (!EV.M || EV.M.id !== M.id) return; if (typeof c.step === 'string') c.step = { step: c.step, about: c.about || null, round: c.round || null, by: c.by || null };   // the held build's flat step
+      const was = EV.live.liveCall && EV.live.liveCall.c; EV.live.liveCall = { sid: M.id, c };
       if (c.done) { if (!was || !was.done || was.n !== c.n) { EV.live.callsStale = true; EV.draw(); } return; }
       const box = document.getElementById('cl-live'); if (!box) { if (!was || was.n !== c.n) EV.draw(); return; }
       const keep = pre => pre && pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;   // a box read at its end follows the text; one scrolled back stays where it is

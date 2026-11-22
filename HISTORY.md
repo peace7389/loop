@@ -37,6 +37,8 @@ no setting makes a meaningful improvement it should ask why rather than present 
 | 2026-11-22, night | The page, during s052 (the operator's requests one by one): the steps of a turn as a track in the session's arm (reply, guesses, test review in rounds, simulations, checks, rulings, next turn), read from now.json once the harness writes it; a finding's bar keeps to the lines between turns, shows a treasure chest and the finding's name only, and opens a short hover box and a new detail (its course turn by turn); derived metrics (the researcher's own measurements) marked ƒx and shown under the turn they were made in when they measure the baseline; the network's schema and its "Made of" list light together on hover; "who produced it" in the order they act. Built, checks running, not deployed: the harness writes now.json and a finding gets a name (review branch, eighth part). For discussion: ruling a hypothesis from a reading (plans/2026-11-22-ruled-from-a-reading.md). |
 | 2026-11-22, 19:20 | Session s052 (the operator's, arm "supervised", brief again_again: the network of s050) stopped in turn 3 on a harness fault of B: a repaired test carried a network change that could not be applied, and the repair path did not catch it (recorded as "stopped from outside"). 4 simulations, H2 inconclusive, H1 dropped (its own reading refuted it), H3 and H5 approved but never run. Fixed on the review branch (ninth part: a repair is checked as the normal path checks an experiment; a harness fault is recorded as one), not deployed yet. |
 | 2026-11-22, 19:46 | Deployed: s052's fault fixed (a repair never stops the session), a harness fault recorded as one, now.json (the page's track lights the step the harness is at), a finding's name, exported sessions open again. The page: the parts of a network grouped by host in the new-session form; a hypothesis's detail as its course turn by turn. |
+| 2026-11-22, night | The coherence audit (five line-by-line audits of the harness and the page): six root causes, 36 problems; the operator approved all five stages, built on the review branch one after another, each checked on its own build and on the build to deploy (plans/2026-11-22-coherence-audit.md). |
+| 2026-11-23, 00:31 | Deployed: the five stages (records and crashes; one source per rule; the page; the rest of the fixes from s052 and s053, with one batched first review of a reply's guesses and tests; competitors are guesses, reviewed and ruled by three questions). Session s054 (the operator's, arm "supervised", the new brief after_fix: the network of s052 with TCP goodput as the goal) had started at 00:28 on the harness before them, and was stopped at 00:30 so that they could go in. At 00:46 a fix a real call of the model found (the ids of the batched review); session s055 started on the new build at 00:46. |
 
 ## 3. Results (headline figures only)
 
@@ -339,6 +341,20 @@ was blocked by the tool's permission check. Asked, the operator allowed it "this
 *What we changed:* an exception to a rule the operator has just set is asked for, not reasoned out.
 *Status:* confirmed.
 
+
+**D9. A stand-in for the model answers as the harness expects; only a real call shows how the model fills a new format.**
+*Evidence:* the batched first review passed every scripted check; its first real call named the test item "H1 UDP goodput rises with its part",
+where the harness looked for "H1": every test of every batch would have been asked again alone, with nothing to show it but the time.
+*What we changed:* the ids the model gives back are constrained to their exact values (an enum in the answer format); before a deploy, every new
+answer format is sent once to the real model server, and each new kind of call is made once for real with its own token limit.
+*Status:* confirmed (the call made again returned "H1").
+
+**D10. A comparison of a few fields does not see what a misplaced comment removed.**
+*Evidence:* a patch put a comment after a replaced field in the middle of a one-line statement of the page's model: the turn's report after it was
+commented out, every "report accepted" step was gone, the script still parsed, and the comparison of the page's model over all sessions (a few
+counts) showed nothing. The page checks' replays found it: one step fewer in each session.
+*What we changed:* the page's model is compared in full before and after a change (every step of the track and every field of a turn, all sessions).
+*Status:* confirmed.
 ## 5. Open questions
 
 1. Does the loop help at all, against the same budget without hypotheses and against random search? (B1)

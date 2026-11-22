@@ -645,7 +645,7 @@ const TH_DATA = {
       if (!isFinite(n) || (unit && unit !== '%' && !rate(k)) || (unit === '%' && !frac(k))) return null;
       if (!unit && rate(k) && Math.abs(n) < 1) return null;  // a bare number below 1 after a rate's name is not that rate ("TCP goodput: 0.304 gives ..." names a weight)
       let mult = unit ? { '%': 0.01, bps: 1, kbps: 1e3, Mbps: 1e6, Gbps: 1e9 }[unit] : 1;
-      if (!unit && rate(k) && Math.abs(n) < 1e5 && measured) mult = [1e6, 1e9].sort((a, b) => Math.abs(Math.log(Math.abs(n * a / measured))) - Math.abs(Math.log(Math.abs(n * b / measured))))[0];  // "489.3" for a rate: Mbps or Gbps, whichever is nearer
+      if (!unit && rate(k) && Math.abs(n) < 1e5 && measured) mult = [1, 1e3, 1e6, 1e9].sort((a, b) => Math.abs(Math.log(Math.abs(n * a / measured))) - Math.abs(Math.log(Math.abs(n * b / measured))))[0];  // "489.3" for a rate: bps, kbps, Mbps or Gbps, whichever is nearest (s053: 5792 was read as Mbps)
       const tol = 0.5 * Math.pow(10, ex - (mant.split('.')[1] || '').length) * mult;
       return { v: n * mult, tol: approx ? Math.max(tol, 0.02 * Math.abs(measured)) : tol, digits: mant.replace(/[-.]/g, '').replace(/^0+/, '').length }; };
     const same = (w, measured) => Math.abs(w.v - measured) <= w.tol * (1 + 1e-9) + 1e-12 * Math.abs(measured);
@@ -655,9 +655,10 @@ const TH_DATA = {
       out.push({ key: k, what: what(k), written: written.replace(/\s+/g, ' ').trim(), measured: exact(k, val(m, k)), status, named, other: other || null }); };
     D.NAMES.forEach(([k, name]) => { const measured = val(m, k); if (measured == null) return;
       for (const x of T.matchAll(new RegExp('(?<![A-Za-z_])' + name + '\\s*(?:=|:|≈|~|\\bis\\b|\\bof\\b|\\bwas\\b)?\\s*' + NUM, 'gi'))) {
-        const w = read(x[1], x[2], x[3], k, measured); if (!w) continue; used.push([x.index, x.index + x[0].length]);
+        const unit = x[3] || (/_bps\b/i.test(x[0]) ? 'bps' : undefined);   // "tcp_goodput_bps=5792": the measure's own name gives the unit (the coherence audit, 2026-11-22)
+        const w = read(x[1], x[2], unit, k, measured); if (!w) continue; used.push([x.index, x.index + x[0].length]);
         if (same(w, measured)) { add(k, x[0], w, 'agrees', true); continue; }
-        const o = Object.entries(others || {}).find(([, mm]) => { const ov = val(mm, k); return ov != null && same(read(x[1], x[2], x[3], k, ov), ov); });
+        const o = Object.entries(others || {}).find(([, mm]) => { const ov = val(mm, k), wo = ov != null && read(x[1], x[2], unit, k, ov); return !!wo && same(wo, ov); });
         add(k, x[0], w, o ? 'other' : 'differs', true, o && o[0]); } });
     for (const x of T.matchAll(new RegExp('(?<![A-Za-z_0-9.,])' + NUM + '(?![0-9])', 'g'))) {
       if (used.some(([a, b]) => x.index < b && x.index + x[0].length > a)) continue;

@@ -288,7 +288,8 @@ def sessions(you=None, trusted=False):
                 "void": session_figures.void_count(shown),                # [void checks, all checks]
                 "findings": session_figures.findings_counts(shown),       # findings raised, how they ended, turns open (None: a session without findings, 2026-11-22)
                 "guesses": session_figures.guess_reviews(shown),          # guesses accepted with a warning, restated, contested (None: before 2026-11-22)
-                "rounds": session_figures.design_rounds(shown),           # the review of tests in rounds: proposed, rounds, approved first, repaired, contested, dropped (None: before 2026-11-22)
+                "rounds": session_figures.design_rounds(shown),           # the review of tests in rounds: proposed, rounds, approved first, repaired, contested, dropped
+                **({"competitors": c} if (c := session_figures.competitor_figures(shown)) else {}),   # the three questions, misses, refutations (stage 5; only where a session has them) (None: before 2026-11-22)
                 "done": any(r["type"] == "report" or (r["type"] == "note" and (r.get("body") or {}).get("text") == "model declared done") for r in recs),
                 # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
                 "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"), "against": sc.get("against_the_best"),

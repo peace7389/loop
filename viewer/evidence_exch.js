@@ -26,7 +26,8 @@ Object.assign(EV, {
     return out.length ? `<div class="tn-x">${out.join('')}</div>` : '';
   },
   // the link of an agent's box to that turn in Agent transcripts
-  tnCallLink(t, col) { return ['model', 'supervisor', 'judge'].includes(col) ? `<a class="tn-call" href="agents.html?session=${encodeURIComponent(EV.M.id)}#turn-${t}" target="_blank" rel="noopener" title="What the agents were given and what they wrote in turn ${t}, in Agent transcripts (a new tab)">transcript ↗</a>` : ''; },
+  tnCallLink(t, col) { return !window.EV_EXPORT && ['model', 'supervisor', 'judge'].includes(col) ?   // an export has no agents page
+    `<a class="tn-call" href="agents.html?session=${encodeURIComponent(EV.M.id)}#turn-${t}" target="_blank" rel="noopener" title="What the agents were given and what they wrote in turn ${t}, in Agent transcripts (a new tab)">transcript ↗</a>` : ''; },
   // pointing at a record: its partners outlined, and an arrow to each, drawn over the turns (in the box that scrolls them, or the fold itself)
   tnPoint(item) {
     EV.tnUnpoint(); const id = item && item.dataset.rid; if (!id) return;
