@@ -2298,15 +2298,25 @@ def main():
         why = rival_problem(rule)
         if why:
             return t2, why
-        t3, cuts = trim(t2, brief, ledger)
-        if t3 is None:
-            return t2, "; ".join(w for _, w in cuts) or "no simulation of the repaired test can be run"
-        needs, why, idle = lean_needs(t3, brief)
-        if why:
+        try:   # in the order of the normal path (s052, 2026-11-22: a repair's network change that could not be applied stopped the session)
+            needs, why, idle = lean_needs(t2, brief)
+            if why:
+                return t2, why
+            t2 = {**t2, "needs": needs}
+            why = experiment_problem(t2, brief, ledger, None, states(ledger)[0], lean=True)   # the experiment as sent: labels, knobs, its network changes
+            if why:
+                return t2, why
+            t3, cuts = trim(t2, brief, ledger)
+            if t3 is None:
+                return t2, "; ".join(w for _, w in cuts) or "no simulation of the repaired test can be run"
+            needs, why, idle = lean_needs(t3, brief)
+            if why:
+                return t3, why
+            t3 = without_tests({**t3, "needs": needs}, []) or t3   # the simulations no rule names leave
+            why = experiment_problem(t3, brief, ledger, budget - sims - reserved, states(ledger)[0], lean=True)   # within what the approved tests of this turn leave
             return t3, why
-        t3 = without_tests({**t3, "needs": needs}, []) or t3   # the simulations no rule names leave
-        why = experiment_problem(t3, brief, ledger, budget - sims - reserved, states(ledger)[0], lean=True)   # within what the approved tests of this turn leave
-        return t3, why
+        except (ValueError, KeyError, TypeError) as e:   # whatever the harness cannot check in a repair refuses that round, with its reason; it never stops the session
+            return t2, f"the repaired test could not be checked: {' '.join(str(e).split())[:300]}"
 
     def repair_user(hid, test, n, who, feedback):
         """What the researcher is given to repair one test: the hypothesis and its guess, the test as proposed, the round, the feedback, what was measured, the knobs."""
@@ -2624,6 +2634,13 @@ def main():
     except ModelServerError as e:  # the session ends cleanly: the error is in the ledger, and session.json says how it ended
         append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"model server error: {e}"})
         how = "model server error"
+    except Exception as e:   # a fault of the harness itself (s052, 2026-11-22: it was recorded as "stopped from outside"): the ledger and session.json say so
+        try:
+            append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"harness error: {type(e).__name__}: {' '.join(str(e).split())[:300]}"})
+        except Exception:
+            pass
+        how = f"harness error: {type(e).__name__}"
+        raise
     finally:
         try:
             if any(r["type"] == "finding" for r in ledger):   # for each finding: how it ended and what looked at it (2026-11-22)

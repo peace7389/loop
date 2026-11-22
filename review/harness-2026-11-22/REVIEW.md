@@ -336,3 +336,20 @@ would change the conditions of the comparison sessions: noted for the review of 
 Checks: `test_now_steps.py` (new: the steps of the arm "supervised" in order with a restatement, a repair in round 2, a ruling and the look after
 an explore experiment; the steps of the arm "hypotheses" with the judge; the names); `test_findings.py` expects `name` in the finding format;
 `scripted.py` keeps every step written (stages_sent.json).
+
+# Ninth part: s052 stopped on a repair (a fix of B), and a harness fault is recorded as one (2026-11-22, night)
+
+s052 (the arm "supervised", brief again_again) stopped in turn 3 at 19:20. The supervisor sent H4's test back; the researcher's repair carried a
+network change filled with the run's own label in every field (`{"do": "add_queue", "id": "q4_cubic", "on": "q4_cubic", ...}`; the brief allows
+changes). `repaired()` trimmed the test before checking it as sent, and the network raised "a queue is put on a side of a link that has none
+there", which nothing caught: the loop stopped, and session.json said "stopped from outside". H3 and H5, approved, never ran.
+
+1. **The repair is checked in the order of the normal path**: its needs from the rules, the experiment as sent (labels, knobs, network
+   changes: `experiment_problem(left=None)`), then trim, then the budget. Whatever the harness cannot check in a repair refuses that round with its
+   reason (a round "by the harness", as for any harness refusal); it never stops the session.
+2. **A fault of the harness is recorded as one**: a note "harness error: ..." in the ledger, `how` "harness error: <kind>" in session.json; the
+   error is raised again, so its traceback stays in the session's log. A stop from outside (SIGTERM) is still "stopped from outside".
+
+Check: `test_repair_structure.py` (new; brief again_again, real ns-3 runs): round 1 sent back by the supervisor; round 2 carries s052's change
+and is refused by the harness with the network's reason; round 3 is approved, runs and is ruled on in the same turn; the session ends only when
+the script has no more answers. On the live harness of 17:05 the same check stops with s052's error (FAIL, as expected).
