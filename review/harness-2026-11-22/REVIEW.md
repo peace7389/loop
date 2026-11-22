@@ -181,7 +181,9 @@ is given the decision rule of the hypothesis's test where its prediction stood (
 - `scripted.py` (updated): it no longer fills in needs for a scripted test without `varied` (a short answer), so the harness's own
   derivation is what runs.
 
-RESULTS: see below (filled in when the run of every check ends).
+RESULTS: all 20 harness checks pass on this `loop.py` (one run, 2026-11-22 14:31 to 14:55, real ns-3 runs of 2 s): test_arms, test_chain,
+test_cite_readings, test_format_fix, test_free_turns, test_keep_readings, test_measure, test_measure_relations, test_network, test_notebook_p3,
+test_roles, test_shared_page, test_short_format, test_step_c, test_structure, test_supervised, test_taps, test_task_text, test_tolerance, test_why.
 
 
 ---
