@@ -1231,7 +1231,11 @@ from a review of s047 and s048.*
   the nearest earlier guess). The judge's readings stay kept for a person (2026-11-17).
 - All three arms; the arm "plain" has no whys, rethinks or tests (for it: readings in claims, and requests and
   explore experiments on simulations already run in the free turns); the supervised arm has no rethinks.
-- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py (new);
+- The researcher's own measurements: measure has crossings (with level), corr and lag (with a second expression, `with`), also in
+  an experiment's measurements; the instructions give examples of combined measurements; on a network, trace_points(run_id) lists every object
+  a tap can name and probe(run_id, every, taps={name: ns-3 Config path}) records them (tap_<name>, tap_<name>_n, tap_<name>_bytes) with the
+  program net-taps (a copy of net, built on its own); the result run again is byte for byte the same.
+- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py, test_measure_relations.py, test_taps.py (new);
   test_supervised.py (the readings' new form; readings and observations kept, the supervisor never sees an
   observation). In a last turn (8.8) requests are
 not taken.

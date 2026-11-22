@@ -570,12 +570,18 @@ def tools_told(tools):
     told["measure"] = ("measure(run_id, of, stat, t_from, t_to, level): a measurement you define, computed from what a simulation recorded over time (nothing is simulated again, and it costs no simulation). "
                        "of: a column or arithmetic over columns of one record, by the names of this network (the bits per second of two flows added, or, once the simulation has its probe, a flow's bytes in flight divided by "
                        "its receiver's window: <flow>_inflight / <flow>_rwnd); stat: mean, min, max, std, first, last, p05, p50, p95, slope (change per second), rate ((last - first) / seconds, for a column that counts up), "
-                       "time_above, time_below (seconds spent above or below level), first_time_above, first_time_below; t_from, t_to: the window in seconds (left out: the measured seconds, from 2 s to the end)")
-    told["probe"] = ("probe(run_id, every): a finer look at a simulation you already ran. The harness runs the same simulation again (same settings, same seed) with trace sinks that only listen, and keeps their record only "
+                       "time_above, time_below (seconds spent above or below level), first_time_above, first_time_below, crossings (how often it crosses level), corr (how closely it moves with `with`, -1 to 1), "
+                       "lag (the seconds by which `with` trails it); t_from, t_to: the window in seconds (left out: the measured seconds, from 2 s to the end); with: for corr and lag, a second column or arithmetic "
+                       "over columns. Combine what is recorded into the quantity your guess is about, for example <flow>_inflight / min(<flow>_cwnd, <flow>_rwnd) (how full the window is) or "
+                       "<flow>_inflight * 8 / (<flow>_rtt_ms / 1000) (the rate the window allows, bps); a tap's columns (tap_<name>, tap_<name>_n, tap_<name>_bytes) are read the same way")   # 2026-11-22
+    told["probe"] = ("probe(run_id, every, taps): a finer look at a simulation you already ran. The harness runs the same simulation again (same settings, same seed) with trace sinks that only listen, and keeps their record only "
                      "if the result is byte for byte the same: no result can change by it, and it costs no simulation. Sampled every `every` seconds (left out: 0.01), it records, for each flow, <flow>_bps, and for a TCP flow <flow>_cwnd, "
                      "<flow>_ssthresh, <flow>_inflight (bytes sent and not yet acknowledged), <flow>_rwnd (the receiver's window as the sender knows it), <flow>_rtt_ms and <flow>_rto_ms; for each described queue the longest time a packet "
                      "waited in it since the last sample (<link>_wait_<flow or class>_ms for a scheduler's queue, <link>_wait_ms for a plain one) and the packets waiting; for each link the packets in its devices' transmit queues "
-                     "(<link>_devq, <link>_devq_back). It answers with the columns it recorded; read them with measure, or with series(run_id, every_n, probe=true)")
+                     "(<link>_devq, <link>_devq_back). taps: {name: ns-3 Config path}, at most 8, any trace sources trace_points(run_id) lists: each adds tap_<name> (a value, sampled), tap_<name>_n (events or changes since the last sample) and tap_<name>_bytes (an event's bytes). It answers with the columns it recorded; read them with measure, or with series(run_id, every_n, probe=true)")
+    told["trace_points"] = ("trace_points(run_id): every object of this network a tap can name, by its ns-3 Config path (devices and their transmit queues, queue discs, IPv4, TCP sockets, "
+                            "applications, the channels), with each trace source and whether it is a value or an event. It costs no simulation. For your own measurements of anything ns-3 traces: "
+                            "name the trace sources in probe(run_id, every, taps={name: path}), then measure them")   # 2026-11-22: taps (the program net-taps)
     return told
 
 

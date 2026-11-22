@@ -31,7 +31,8 @@ POLICY = "share"        # the scheduling policy (how the scheduler divides the l
                         # the simulation as the environment variable TWOHOSTS_SCHED, never into the session's folder or anything a tool returns
 RUN_TIMEOUT = 600
 BIN = NS3 / "build/scratch/two-hosts/ns3.49-two-hosts-optimized"  # the built program, started directly (several at once)
-NET_BIN = NS3 / "build/scratch/net/ns3.49-net-optimized"          # the program that builds a network from a description: for a brief that has "topology" (network.py)
+NET_BIN = NS3 / "build/scratch/net/ns3.49-net-optimized"
+NET_TAPS_BIN = NS3 / "build/scratch/net-taps/ns3.49-net-taps-optimized"   # the same program with taps (2026-11-22): a probe with taps, and trace_points          # the program that builds a network from a description: for a brief that has "topology" (network.py)
 KIND_TYPES = {"rate": "string", "time": "string", "choice": "string", "int": "integer", "number": "number"}  # a network setting's kind -> its type in the answer format
 
 
@@ -428,20 +429,33 @@ def _columns(run_id):
     return head("series.csv"), head("probe.csv")
 
 
-def probe(run_id, every=PROBE_EVERY):
+TAP_NAME = re.compile(r"[a-z][a-z0-9_]{0,20}")
+def probe(run_id, every=PROBE_EVERY, taps=None):
     """A finer look at a simulation that has already run (2026-11-18, the operator: the researcher may ask for measurements the simulator did
     not record, and may not change what a simulation gives). The harness runs the same simulation again, same settings, same seed, same
     scheduling policy, with the program's probe: trace sinks that only listen (TCP's round-trip time, retransmission timeout, bytes in flight,
     slow-start threshold and the receiver's window; the longest wait in each queue; the device's transmit queue), sampled every `every` seconds.
-    It keeps probe.csv only if metrics.json and series.csv of that second run are byte for byte those of the first. Costs no simulation."""
+    It keeps probe.csv only if metrics.json and series.csv of that second run are byte for byte those of the first. Costs no simulation.
+    taps (a brief with a network; 2026-11-22, the operator: measurements of its own, on demand): {name: ns-3 Config path of a trace source}, at
+    most 8, as trace_points(run_id) lists them; each adds tap_<name> (a value: its last value at each sample), tap_<name>_n (how many events, or
+    changes of the value, since the last sample) and tap_<name>_bytes (an event's bytes) to probe.csv, and the answer says how each was connected."""
     d = _dir(run_id)
     every = min(max(float(every), 0.001), 1.0)
+    if taps not in (None, {}, []):
+        if not (d / "network.txt").is_file():
+            return "error: taps are for a brief with a network (the program net); this simulation is of the two-host system"
+        if not isinstance(taps, dict) or not taps or len(taps) > 8 or not all(isinstance(k, str) and TAP_NAME.fullmatch(k) and isinstance(v, str) and v.startswith("/") and not any(c.isspace() for c in v) and len(v) <= 200 for k, v in taps.items()):
+            return ("error: taps is {name: path}, at most 8: a name of lower-case letters, digits and _ (beginning with a letter, at most 21), and the ns-3 Config path of one trace source "
+                    "without spaces, as trace_points(run_id) lists them, for example {\"cwnd\": \"/NodeList/0/$ns3::TcpL4Protocol/SocketList/0/CongestionWindow\"}")
     tmp = d / "_probe"
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir()
     try:
         if (d / "network.txt").is_file():
-            cmd = [str(NET_BIN), f"--net={d / 'network.txt'}", f"--out={tmp}"]
+            cmd = [str(NET_TAPS_BIN if taps else NET_BIN), f"--net={d / 'network.txt'}", f"--out={tmp}"]
+            if taps:
+                (tmp / "taps.txt").write_text("".join(f"{k} {v}\n" for k, v in taps.items()))
+                cmd.append(f"--taps={tmp / 'taps.txt'}")
         else:
             cmd = [str(BIN)] + [f"--{k}={v}" for k, v in json.loads((d / "params.json").read_text()).items()] + [f"--out={tmp}"]
         r = subprocess.run(cmd + [f"--probe={every}"], cwd=tmp, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, capture_output=True, text=True, timeout=RUN_TIMEOUT)
@@ -451,39 +465,56 @@ def probe(run_id, every=PROBE_EVERY):
         if not same:
             return f"error: the simulation run again with the probe did not give the same result as before ({(r.stderr or '')[-200:] or 'its measures or its series differ'}): the probe's record is not kept"
         shutil.move(str(tmp / "probe.csv"), str(d / "probe.csv"))
+        (d / "taps.json").unlink(missing_ok=True)
+        if taps and (tmp / "taps.json").is_file():
+            shutil.move(str(tmp / "taps.json"), str(d / "taps.json"))
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     rows = (d / "probe.csv").read_text().splitlines()
+    tapped = json.loads((d / "taps.json").read_text()) if taps and (d / "taps.json").is_file() else []
     return json.dumps({"run": run_id, "every_s": every, "samples": len(rows) - 1, "columns": rows[0].split(",")[1:], "same_result": True,
+                       **({"taps": [{"name": t["name"], "kind": t["kind"], "of": t["type"] + " " + t["source"] if t["type"] else t["path"], "said": t["why"]} for t in tapped]} if taps else {}),
                        "note": "the same simulation run again with trace sinks that only listen; its measures and its series are byte for byte those of the first run. Read it with measure (of: any of these columns) or series(run_id, every_n, probe=true)"})
 
 
 MEASURE_STATS = {"mean": "the average", "min": "the lowest sample", "max": "the highest sample", "std": "the standard deviation", "first": "the first sample", "last": "the last sample",
                  "p05": "the value 5 % of the samples lie below", "p50": "the median", "p95": "the value 95 % of the samples lie below", "slope": "the change per second (a straight line through the samples)",
                  "rate": "(last - first) / seconds: for a column that counts up, like drops", "time_above": "the seconds spent above level", "time_below": "the seconds spent below level",
-                 "first_time_above": "the first time it is above level (null: never)", "first_time_below": "the first time it is below level (null: never)"}
+                 "first_time_above": "the first time it is above level (null: never)", "first_time_below": "the first time it is below level (null: never)",
+                 # how two things go together, and how often one changes side (2026-11-22, the operator: measurements of relations, not only of one quantity)
+                 "crossings": "how often it crosses level, upward or downward", "corr": "how closely it moves with `with` (the correlation, from -1 to 1)",
+                 "lag": "the seconds by which `with` trails it (the shift, within a quarter of the window and at most 2 s, at which the two match best; negative: `with` leads)"}
 
 
-def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
+def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None, **more):
     """A measurement the researcher defines (2026-11-18, the operator: it may come up with the measurements it needs, and may not change what a
     simulation gives). The harness computes it from what a simulation that has already run recorded over time (series.csv): nothing is simulated
     for it, so no result can change by it, and it costs no simulation. of: a column of the series, or arithmetic over columns and numbers
     (+ - * /, parentheses, abs, min, max), for example "udp_bps + tcp_bps" or "cwnd / 1448". stat: one of MEASURE_STATS. t_from, t_to: the
-    window in seconds of the simulation (left out: the measured seconds, from 2 s to the end). level: the number time_above and the like compare with."""
+    window in seconds of the simulation (left out: the measured seconds, from 2 s to the end). level: the number time_above, crossings and the like
+    compare with. with (corr, lag): a second column or arithmetic over columns of the same record."""
     import ast, math
+    other = more.pop("with", None)
+    if more:
+        return f"error: measure takes run_id, of, stat, t_from, t_to, level and with, not {', '.join(map(str, more))}"
+    if stat in ("corr", "lag") and not other:
+        return f"error: {stat} needs with, the second column or arithmetic over columns it is compared with"
     if stat not in MEASURE_STATS:
         return f"error: stat must be one of {', '.join(MEASURE_STATS)}"
     coarse, fine = _columns(run_id)
+    known = f"the columns of the series ({', '.join(coarse)})" + (f" or of the probe ({', '.join(fine)})" if fine else "")   # both, when the probe exists (2026-11-22: the error named the series' alone)
     try:
         tree = ast.parse(str(of), mode="eval")
+        tree2 = ast.parse(str(other), mode="eval") if other else None
     except SyntaxError:
-        return f"error: of must be a column of the series or arithmetic over columns: {', '.join(coarse)}" + (f"; of the probe: {', '.join(fine)}" if fine else "")
+        return f"error: of{' and with' if other else ''} must be a column or arithmetic over columns: {known}"
     # arithmetic over columns and nothing else: a call of anything but abs, min, max, an attribute, an index or a text is refused before any column is looked up
     plain = lambda n: (isinstance(n, (ast.Expression, ast.BinOp, ast.UnaryOp, ast.Name, ast.Load, ast.Add, ast.Sub, ast.Mult, ast.Div, ast.USub)) or (isinstance(n, ast.Constant) and type(n.value) in (int, float))
                        or (isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id in ("abs", "min", "max") and not n.keywords))
-    if not all(plain(n) for n in ast.walk(tree)):
-        return f"error: cannot read {str(of)[:80]} in of: use the columns of the series ({', '.join(coarse)}), numbers, + - * /, parentheses, abs, min, max"
-    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} - {"abs", "min", "max"}
+    for tr, what in ((tree, of), (tree2, other)):
+        if tr is not None and not all(plain(n) for n in ast.walk(tr)):
+            return f"error: cannot read {str(what)[:80]}: use {known}, numbers, + - * /, parentheses, abs, min, max"
+    used = {n.id for tr in (tree, tree2) if tr is not None for n in ast.walk(tr) if isinstance(n, ast.Name)} - {"abs", "min", "max"}
     # the record that holds every column named: the series the simulation wrote, or the probe's finer one (probe(run_id) makes it)
     source = "series.csv" if used <= set(coarse) else "probe.csv" if fine and used <= set(fine) else None
     if source is None:
@@ -514,11 +545,35 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
         return f"error: no sample between {lo:g} s and {hi:g} s (the series runs from {data[0]['t']:g} s to {data[-1]['t']:g} s)"
     try:
         ts, xs = [r["t"] for r in win], [val(tree, r) for r in win]
+        ys = [val(tree2, r) for r in win] if tree2 is not None else None
     except ValueError as e:
-        return f"error: cannot read {e} in of: use the columns of the series ({', '.join(cols[1:])}), numbers, + - * /, parentheses, abs, min, max"
+        return f"error: cannot read {e}: use {known}, numbers, + - * /, parentheses, abs, min, max"
+    if ys is not None:   # pairs of the two, sample by sample
+        keep = [i for i in range(len(xs)) if not math.isnan(xs[i]) and not math.isnan(ys[i])]
+        ts, xs, ys = [ts[i] for i in keep], [xs[i] for i in keep], [ys[i] for i in keep]
     xs = [x for x in xs if not math.isnan(x)]
     step = (ts[-1] - ts[0]) / (len(ts) - 1) if len(ts) > 1 else 0.1
-    if stat in ("time_above", "time_below", "first_time_above", "first_time_below"):
+    def corr(a, b):
+        n = len(a)
+        if n < 3:
+            return None
+        ma, mb = sum(a) / n, sum(b) / n
+        va, vb = sum((x - ma) ** 2 for x in a), sum((y - mb) ** 2 for y in b)
+        return None if not va or not vb else sum((x - ma) * (y - mb) for x, y in zip(a, b)) / (va * vb) ** 0.5
+    extra = {}
+    if stat == "crossings":
+        if type(level) not in (int, float):
+            return "error: crossings needs level, the number whose crossings are counted"
+        sides = [x > level for x in xs if x != level]
+        value = sum(1 for a, b in zip(sides, sides[1:]) if a != b)
+    elif stat == "corr":
+        c = corr(xs, ys)
+        value, extra = (None if c is None else round(c, 4)), ({} if c is not None else {"why_null": "one of the two does not change in the window"})
+    elif stat == "lag":
+        K = max(1, min(len(xs) // 4, int(round(2.0 / step)) if step else 1))
+        best = max(((k, corr(xs[:len(xs) - k], ys[k:]) if k >= 0 else corr(xs[-k:], ys[:len(ys) + k])) for k in range(-K, K + 1)), key=lambda q: -2 if q[1] is None else q[1])
+        value, extra = (None if best[1] is None else round(best[0] * step, 4)), ({"corr_at_lag": None if best[1] is None else round(best[1], 4), "searched_s": round(K * step, 3)})
+    elif stat in ("time_above", "time_below", "first_time_above", "first_time_below"):
         if type(level) not in (int, float):
             return f"error: {stat} needs level, the number to compare with"
         hit = [(t, x) for t, x in zip(ts, xs) if (x > level if "above" in stat else x < level)]
@@ -532,7 +587,7 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
         value = {"mean": mean, "min": srt[0], "max": srt[-1], "std": (sum((x - mean) ** 2 for x in xs) / n) ** 0.5, "first": xs[0], "last": xs[-1], "p05": pct(0.05), "p50": pct(0.5), "p95": pct(0.95),
                  "slope": sum((t - tm) * (x - mean) for t, x in zip(ts, xs)) / den if den else 0.0, "rate": (xs[-1] - xs[0]) / (ts[-1] - ts[0]) if ts[-1] > ts[0] else 0.0}[stat]
         value = round(value, 6)
-    return json.dumps({"run": run_id, "of": str(of), "stat": stat, **({"level": level} if level is not None else {}), "from_s": lo, "to_s": hi, "samples": len(xs), "value": value,
+    return json.dumps({"run": run_id, "of": str(of), **({"with": str(other)} if other else {}), "stat": stat, **({"level": level} if level is not None else {}), "from_s": lo, "to_s": hi, "samples": len(xs), "value": value, **extra,
                        "note": "computed by the harness from the series this simulation recorded when it ran: nothing was simulated again" if source == "series.csv" else
                                "computed by the harness from the probe's record of this simulation (the same simulation run again with trace sinks that only listen, its result unchanged)"})
 
@@ -551,4 +606,30 @@ def list_runs():
     p = _runs() / "index.json"
     return [json.loads(l) for l in p.read_text().splitlines() if l.strip()] if p.exists() else []
 
-TOOLS = {"describe_system": describe_system, "metrics": metrics, "series": series, "measure": measure, "probe": probe, "grep_trace": grep_trace, "list_runs": list_runs}
+def trace_points(run_id):
+    """What a tap can name in the network of a simulation (2026-11-22): every object of it that has trace sources (devices and their transmit
+    queues, queue discs, IPv4, TCP sockets, applications, channels), by its ns-3 Config path, with each trace source's name and whether it is a
+    value (sampled) or an event (counted). The program builds the network and stops 10 ms after the last flow has started: it costs no simulation."""
+    d = _dir(run_id)
+    if not (d / "network.txt").is_file():
+        return "error: trace_points is for a brief with a network (the program net); this simulation is of the two-host system"
+    keep = d / "trace_points.json"
+    if not keep.is_file():
+        tmp = d / "_points"
+        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir()
+        try:
+            r = subprocess.run([str(NET_TAPS_BIN), f"--net={d / 'network.txt'}", f"--out={tmp}", f"--listtaps={tmp / 'points.json'}"], cwd=tmp, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY},
+                               capture_output=True, text=True, timeout=RUN_TIMEOUT)
+            if r.returncode or not (tmp / "points.json").is_file():
+                return f"error: the network could not be listed ({(r.stderr or '')[-200:]})"
+            shutil.move(str(tmp / "points.json"), str(keep))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    kind = lambda cb: "value" if "TracedValueCallback" in cb else "event" if cb.endswith("TracedCallback") or cb.endswith("Callback") else "?"
+    objs = [o for o in json.loads(keep.read_text()) if o["sources"]]
+    return "\n".join(f"{o['path'].rstrip('/')}  ({o['type']}): " + ", ".join(f"{s['name']} [{kind(s['callback'])}]" for s in o["sources"]) for o in objs) + (
+        "\nA tap is <that path>/<source name>, for example " + objs[0]["path"].rstrip("/") + "/" + objs[0]["sources"][0]["name"] + ". [value]: sampled; [event]: counted with its bytes. "
+        "Record them with probe(run_id, every, taps={name: path}); read them with measure (tap_<name>, tap_<name>_n, tap_<name>_bytes)." if objs else "")
+
+TOOLS = {"describe_system": describe_system, "metrics": metrics, "series": series, "measure": measure, "probe": probe, "grep_trace": grep_trace, "list_runs": list_runs, "trace_points": trace_points}

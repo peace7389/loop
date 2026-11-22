@@ -102,3 +102,32 @@ Two existing checks were changed, each where it encoded the old behaviour on pur
 - The judge's reading of each hypothesis (follows / does not follow from its guess, and why) is kept for a person
   (2026-11-17); only a refusal reaches the researcher. Showing every reading of the judge would complete "all
   accumulated information"; it reverses that decision, so it is left for the operator.
+
+
+---
+
+# Second commit: the researcher's own measurements, on demand (2026-11-22, later)
+
+At the operator's word ("check that the flexible probe of the researcher into the simulation is working as intended and it can come up with
+flexible and creative, on demand measurements", then "do it all"). A check of s044 to s048 found the probe and `measure` working (82
+measurements, the only errors were columns asked for before a probe, and the error said how), but rarely creative: plain means and maxima of one
+quantity; arithmetic once, windows and levels twice; and nothing outside the probe's fixed 14 quantities could be asked for.
+
+1. **Help to combine** (`prompt.txt`, the supervised arm's instructions, `manifest.json`, `network.tools_told`): examples of combined
+   measurements (`tcp_inflight / min(tcp_cwnd, tcp_rwnd)`, the rate a window allows, a share), in every arm. An expression `measure` cannot read
+   is refused with every quantity it can use, the probe's too (it named the series' alone).
+2. **Relations** (`tools.measure`, `schema.json`, `loop.measurement_problem`): `crossings` (with `level`), `corr` and `lag` (with a second
+   expression, `with`); an experiment may define them too. s048's r010: TCP's bytes in flight move with its window at corr 1.0, lag 0.
+3. **Taps** (the program `scratch/net-taps`, a copy of `net` with `--taps` and `--listtaps`; `tools.probe(run_id, every, taps)`,
+   `tools.trace_points(run_id)`; the request tool `trace_points`): the researcher lists every object of its network a tap can name (devices and
+   their transmit queues, queue discs, IPv4, TCP sockets, applications, the channel, by their ns-3 Config paths, each trace source a value or an
+   event, read from ns-3's TypeId) and records any of them in the probe's record: a value as `tap_<name>` (sampled), an event as `tap_<name>_n`
+   and `tap_<name>_bytes` per sample. Connected once the object exists (from the first flow's start, retried every 0.05 s); it only listens and
+   draws no random number. On s048's r010 with 6 taps the simulation run again gave metrics.json and series.csv byte for byte as before; the
+   device's MacTx bytes measure 1.000 Gbps (the link's rate), TCP's window 136,983 bytes on average, packets wait 2.3 ms (p95) in the scheduler;
+   an unknown trace source and a path naming two objects are refused with the reason. A probe without taps still runs the program `net`.
+   - Built on its own, from cmake's own compile and link lines (`build_net_taps.sh`), into `build/scratch/net-taps/`: the live `net` is untouched.
+     Two-host briefs (the program `two-hosts`) have no taps yet.
+
+Checks: `test_measure_relations.py` and `test_taps.py` (new) pass. All 19 harness checks on this `loop.py` and `tools.py`: a run was in
+progress when this was uploaded (the first 9 had passed); its result follows in a later commit.

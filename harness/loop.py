@@ -83,7 +83,7 @@ def outputs_of(edits, brief=None):
     """The measures of the brief's network with these changes made (the brief's own where there is none), and the measurements the experiment
     in hand defines itself: a decision rule and a need may name those like any measure."""
     b = brief or tools.describe_system()
-    own = {n: f"your own measurement: {m['stat']} of {m['of']}" for n, m in MEASURES.items()}
+    own = {n: f"your own measurement: {m['stat']} of {m['of']}" + (f" with {m['with']}" if m.get("with") else "") for n, m in MEASURES.items()}
     return {**(network.outputs(network.apply(b["topology"], edits)) if edits else tools.outputs(b)), **own}
 
 
@@ -97,7 +97,7 @@ def measurement_problem(ex, brief):
     if ms in (None, []):
         return None
     if not isinstance(ms, list) or not all(isinstance(m, dict) for m in ms) or len(ms) > 8:
-        return "measurements is a list of at most 8, each with name, of, stat, t_from, t_to and level"
+        return "measurements is a list of at most 8, each with name, of, stat, t_from, t_to, level and with"
     series, fine = network.record_columns(brief["topology"]) if brief.get("topology") else TWO_HOSTS_COLUMNS
     outs, seen = tools.outputs(brief), set()
     for m in ms:
@@ -107,12 +107,14 @@ def measurement_problem(ex, brief):
         seen.add(n)
         if m.get("stat") not in tools.MEASURE_STATS:
             return f"measurement {n}: stat must be one of {', '.join(tools.MEASURE_STATS)}"
-        if m["stat"] in ("time_above", "time_below", "first_time_above", "first_time_below") and type(m.get("level")) not in (int, float):
+        if m["stat"] in ("time_above", "time_below", "first_time_above", "first_time_below", "crossings") and type(m.get("level")) not in (int, float):
             return f"measurement {n}: {m['stat']} needs level, the number to compare with"
+        if m["stat"] in ("corr", "lag") and not (isinstance(m.get("with"), str) and m["with"].strip()):   # how two things go together (2026-11-22)
+            return f"measurement {n}: {m['stat']} needs with, the second column or arithmetic over columns it is compared with"
         if any(m.get(k) is not None and type(m.get(k)) not in (int, float) for k in ("t_from", "t_to")) or (type(m.get("t_from")) in (int, float) and type(m.get("t_to")) in (int, float) and m["t_to"] <= m["t_from"]):
             return f"measurement {n}: t_from and t_to are seconds of the simulation (or null: the measured seconds), t_from before t_to"
         try:
-            used = {x.id for x in ast.walk(ast.parse(str(m.get("of")), mode="eval")) if isinstance(x, ast.Name)} - {"abs", "min", "max"}
+            used = {x.id for e in [m.get("of")] + ([m["with"]] if m.get("with") else []) for x in ast.walk(ast.parse(str(e), mode="eval")) if isinstance(x, ast.Name)} - {"abs", "min", "max"}
         except SyntaxError:
             used = None
         if not used or not (used <= set(series) or used <= set(fine)):
@@ -341,7 +343,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
             if said.startswith("error"):
                 return {}
         for m in own:
-            said = tools.measure(run_id, m["of"], m["stat"], m.get("t_from"), m.get("t_to"), m.get("level"))
+            said = tools.measure(run_id, m["of"], m["stat"], m.get("t_from"), m.get("t_to"), m.get("level"), **({"with": m["with"]} if m.get("with") else {}))
             v = json.loads(said).get("value") if said.startswith("{") else None
             if v is not None:
                 out[m["name"]] = v
@@ -1359,8 +1361,8 @@ You do not work alone. A supervisor works apart from you. It proposes nothing an
 
 The ledger is the complete record of the session. You have no other memory. Each turn you read it and answer with ONE JSON object. Keep every text short: one or two sentences. Its parts:
 
-1. observations: one or two sentences: the most important thing the results do not yet explain. Your observations of every turn stay in the ledger, each in its place (turn N your observations: ...).
-2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded; probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a turn; the results come back in the next turn and stay in the ledger for the rest of the session, each with its id (T1, T2, ...). A turn may consist of requests only.
+1. observations: one or two sentences: the most important thing the results do not yet explain. They stay in the ledger (turn N your observations).
+2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded (measure: a statistic of a quantity you combine from them, e.g. tcp_inflight / min(tcp_cwnd, tcp_rwnd); corr and lag: do two move together, which leads); probe makes a finer record of such a simulation (TCP's round-trip time, the receiver's window, the bytes in flight, the time packets wait in each queue) by running it again with taps that only listen. Up to six requests in a turn; the results come back in the next turn and stay in the ledger with their ids (T1, T2, ...). A turn may consist of requests only.
 3. whys: your guesses of why a result came out so. Each has about (the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet), result (that result in one sentence, with its numbers), guess (what in the system would make it so), and revises (the id of an earlier guess this one replaces, or null). The harness numbers them Y1, Y2, ... The work is a chain: your first guesses start from the baseline, and every later guess is the fruit of what you learned since: its about must name at least one record made since your last guesses (a ruling, a check, a new result table, a reading, an objection of the supervisor), and its result says what that record showed. A later guess that starts from the baseline alone is refused, and the supervisor reads whether the guess really comes from the newer record or only names it. Make your several first guesses in one answer.
 4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most three in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.
 5. drop: open hypotheses you give up before they were tested (id, and why in one sentence). Usually empty.
@@ -1372,7 +1374,7 @@ The ledger is the complete record of the session. You have no other memory. Each
 7. objections: if the records show that a ruling of the supervisor is wrong, object once: to (the ruling's id, for example V2) and because (the numbers it overlooked). Usually empty.
 8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings, evidence tables and readings that support it, for example C2, V1, E3, T7).
 
-The budget counts simulations. Every turn says how many are left; one experiment may run at most half of them. When they run out you get two more turns to look further and to test on the simulations already run (no new simulation), then one last turn for the report.
+The budget counts simulations. Every turn says how many are left; one experiment may run at most half of them. When they run out you get two more turns to look and to test on simulations already run, then one last turn for the report.
 
 If a part of your answer cannot be used, the harness leaves that part out, accepts the rest, and says in a note which part and why: read the note and repair that part. Two results closer than the tolerance count as equal: a difference inside it is not a finding."""
 

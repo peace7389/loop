@@ -255,7 +255,8 @@
          "stat",
          "t_from",
          "t_to",
-         "level"
+         "level",
+         "with"
         ],
         "properties": {
          "name": {
@@ -283,7 +284,10 @@
            "time_above",
            "time_below",
            "first_time_above",
-           "first_time_below"
+           "first_time_below",
+           "crossings",
+           "corr",
+           "lag"
           ]
          },
          "t_from": {
@@ -306,6 +310,13 @@
            "null"
           ],
           "description": "the number time_above and the like compare with; null for the other statistics"
+         },
+         "with": {
+          "type": [
+           "string",
+           "null"
+          ],
+          "description": "for corr and lag only: the second column, or arithmetic over columns of the same record, that of is compared with; null otherwise"
          }
         }
        }
@@ -604,7 +615,8 @@
        "measure",
        "probe",
        "grep_trace",
-       "list_runs"
+       "list_runs",
+       "trace_points"
       ]
      },
      "args": {
