@@ -1,5 +1,9 @@
 # Part C (proposed, not built): follow-through on findings — 2026-11-22
 
+**Status: shelved until the sessions with A, B and D (deployed 2026-11-22, 17:05) have been reviewed** (the operator). Both open
+questions are answered: (1) a non-empty reason is enough to park; (2) "links from feedback" as defined (links approved after a refused
+round) is right.
+
 Harness: `harness/loop.py`. Both agents are the local model Qwen/Qwen3.8-Flash-Next-FP8. New branch `review/followthrough-2026-11-22`
 on top of A (findings) + B (test review in rounds). Flag `--followthrough on|off`, default off, stored in session.json flags. With the
 flag off, code paths, answer format and instructions are identical to A+B. Not deployed.
@@ -37,6 +41,6 @@ All harness checks with the flag off and on; scripted checks: stale; each of the
 "work" without refs not counted; link accepted; false link refused and repaired (supervised); false link removed (single-AI). The held
 note and the review form shown. s047 to s050 render unchanged. Instruction size reported, flag off and on.
 
-## Open questions for the operator
+## Open questions for the operator (answered: see the status above)
 1. A non-empty reason is enough to park (as in A); or should the harness refuse "it does not change the recommendation"?
 2. "Links from feedback" read as links approved after a refused round: right?

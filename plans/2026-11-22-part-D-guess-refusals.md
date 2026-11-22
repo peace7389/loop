@@ -1,4 +1,13 @@
-# Part D (proposed, not built): guess refusals and the cascade, arm "supervised" — 2026-11-22
+# Part D: guess refusals and the cascade, arm "supervised" — 2026-11-22
+
+**Status: built and deployed on 2026-11-22 at 17:05, together with A and B (main `bb581a5`).** The operator's additions over the
+proposal below: (1) session_figures counts the not_from_what_was_learned warnings; (2) the same-turn restatement covers every guess
+refusal, the harness's own chain rule included (checked again by the harness alone, no supervisor call); (3) after one restatement the
+guess is accepted as contested, even if its `about` changed or it would be refused again: its hypotheses and test go ahead in that turn,
+nothing cascades, and session_figures counts contested guesses (`guess_reviews`); (4) one size limit on the whole A+B+D instruction
+text: 10,000 characters (live: 9,483). The check is `test_guess_restate.py`. Point 3's "unknown ids dropped with a note" was folded into
+the restatement: a guess whose `about` names ids that are not records is refused and restated like any other; if the restatement still
+names them, the accepted (contested) guess keeps only the ids that are records (`made_whole`). What follows is the proposal as written before the build.
 
 Harness: `harness/loop.py` (ns-3 research loop). Both agents are the local model Qwen/Qwen3.8-Flash-Next-FP8: a researcher that proposes,
 and in the arm "supervised" a supervisor asked apart from it. Would be built on branch `review/harness-2026-11-22`, after parts A (findings)
@@ -36,5 +45,5 @@ s048 and s049 ran in the single-AI arm, which has no supervisor reading guesses.
 4. **Checks**: a guess with not_from_what_was_learned accepted with the warning; a refused guess restated in the same turn, its hypotheses and
    test going ahead; unknown ids in `about` dropped with a note; every harness check again; s047 to s051 render the same ledger text.
 
-## Open question for the operator
-Go ahead with this, including the same-turn restatement in (3)?
+## Open question for the operator (answered)
+Go ahead with this, including the same-turn restatement in (3)? Answer: yes, with the additions above.
