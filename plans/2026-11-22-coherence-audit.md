@@ -210,3 +210,19 @@ as before.
 2. The limit of 3 comparisons: the supervised arm only (as the sheet's heading says), or every arm?
 3. The supervisor's follow-up question: thinking off, or a thinking budget of 1,000?
 4. The competitor design: are the corrections above acceptable (especially: a refuted guess gets no new hypotheses)?
+
+## Status (2026-11-22, night): all five stages built on the review branch, nothing deployed
+
+Branch `review/harness-2026-11-22`; what each stage did, its checks and what was corrected while checking stand in
+`review/harness-2026-11-22/REVIEW.md` there (its sections "Stage 1" to "Stage 5").
+- Stage 1 (records and crashes): commit 60b000d.
+- Stage 2 (one source per rule): commit 44cd3c3. Then the branch's page was brought up to main's (cc48ea5): every page change since 17:06 had
+  gone to main only.
+- Stage 3 (the page): ec9be26. Stage 4 (the rest of "Fixes from s052 and s053", with the batched first review): c135505. Stage 5 (competitors
+  are guesses, three questions): 13992f1.
+- Every harness check was run on each stage's build and on the build to deploy (derive_dep.py): all pass (the deploy build skips the 3 checks of
+  parts 2 and 3). The researcher's ledger text of s047 to s053 is unchanged. The page draws every session as before except the intended fixes:
+  s052 and s053 show the harness's own review rounds as the harness's, s053's turn 3 shows its second experiment X2, and turns of s041 to s047 show
+  the observations the page used to drop. The page checks on the final page are running against main's page as the baseline.
+- Decisions for the operator: whether to deploy, and which stages. The arm "supervised" sessions started after a deploy of stage 5 would work with
+  competitors (COMPETITORS); a session keeps what it started with.
