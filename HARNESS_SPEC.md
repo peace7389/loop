@@ -2027,6 +2027,14 @@ strip and only the turns move under it (the operator, 2026-11-22: the big pictur
 searched): `#s-map` holds the board alone (its key and the path button stand under it, `#s-map-under`), `EV.pinFit`
 measures it after each drawing and when the fold opens or closes (turn by turn's column heads stand under it), and a
 board taller than 45 % of the window is not held. A click on a held box opens it beside, and the page does not move.
+What the agents exchanged (the operator, 2026-11-22, of three ways the first): in Turn by turn each record says what it answers ("← answers Q5 ·
+Researcher") and what answered it ("→ Harness: T5, T6"), from the records' own parent ids, between different entities, the turn records left out;
+pointing at a box outlines its partners and draws an arrow to each (asker to answer; nothing moves); an agent's first box of a turn links to that turn
+in Agent transcripts (agents.html opens at #turn-N). `evidence_exch.js`.
+The measurements the researcher made up (the operator, 2026-11-22): a small ruler mark astride the lower right corner of a box of the board (a
+hypothesis, an exploration, the aim for the baseline) says how many belong to it (a reading of measure or probe that its guess, rethink or record
+cites, else one of a run its test made; a measurement its experiment defines); a click opens them in the detail pane by turn (definition, run,
+value; a probe's quantities). `evidence_meas.js`. "Agent transcripts" stands beside Brief | Full in the header strip.
 The turns stand in a box of their own (`#tn-scroll`), as tall as the window leaves under the held board (the operator, 2026-11-22:
 "user should be able to switch to whole page scrolling when they click outside of the detail section"): after a click inside it
 (or opening the fold) the wheel scrolls the turns alone and the page stays; after a click anywhere outside it, or Esc, the wheel
@@ -2086,7 +2094,8 @@ its sign and marks. A click on a part (a host, an application with its socket, a
 its card beside the schema (the operator: "I want users to see the detail of clicked object on the right side"): its name
 and ns-3 class, where it is, each setting with its value, its ns-3 attribute and who decides it (the AI within a range,
 with the values this session tried, or the operator), and what is measured there (with a simulation open, its values).
-`EV.netCard`, `EV.netParts`; a second click on the same part closes the card. The schema's column is as wide as the
+`EV.netCard`, `EV.netParts`; a second click on the same part closes the card. "Made of" is the schema's legend at the head of the column beside it (an open card covers it); a click on any blank
+place of the network's part closes the card and "Made of" stands again. The link's words stand in a bordered label above its line. The schema's column is as wide as the
 schema; the card takes the rest of the row, at least 340 px (the operator: "the box for detail could be horizontally larger"),
 and its rows wrap rather than being cut. `EV.netSvg`, `EV.netKinds`, `EV.netWords` in `evidence_net.js` with `NETC.hostSvg` of
 `brief_canvas.js`; check `ev_net.py`); who decides what (the settings by who

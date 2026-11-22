@@ -54,7 +54,7 @@ Object.assign(EV, {
     const k = EV.stepOf(sel);
     if (S.step != null && k != null && k > S.step) return `<p class="sm">The item opened here was recorded after step ${S.step + 1}; while the replay is at that step it is not shown.</p>`;
     const body = sel.t === 'log' ? EV.logCard(sel.id) : sel.t === 'hyp' ? EV.hypCard(sel.id) : sel.t === 'why' ? EV.whyCard(sel.id) : sel.t === 'test' ? EV.testPanel(sel.id) : sel.t === 'exp' ? EV.expPanel(sel.id) : sel.t === 'sim' ? EV.simPanel(sel.id)
-      : sel.t === 'brief' ? EV.briefCard() : sel.t === 'report' ? EV.reportBody() : '<p class="sm">Nothing to open.</p>';
+      : sel.t === 'brief' ? EV.briefCard() : sel.t === 'report' ? EV.reportBody() : sel.t === 'meas' && EV.measCard ? EV.measCard(sel.id) : '<p class="sm">Nothing to open.</p>';
     return EV.trail(sel) + body + EV.reviewBox(`${sel.t}:${sel.id}`);
   },
 

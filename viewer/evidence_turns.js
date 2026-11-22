@@ -65,11 +65,12 @@ Object.assign(EV, {
       body.forEach(r => { const c = EV.tnCol(r), g = groups[groups.length - 1]; if (g && g.c === c && g.type === r.type && EV.TN_TOGETHER.includes(r.type)) g.rs.push(r); else groups.push({ c, type: r.type, rs: [r] }); });
       const count = cols.map(c => groups.filter(g => g.c === c).reduce((a, g) => a + g.rs.length, 0));
       const open = EV.s.tnOpen || {};
-      const boxes = groups.map(g => { const items = g.rs.map(r => { const q = EV.tnSays(r), more = q.more && q.more[1] ? q.more : null;
-          return `<div class="tn-item${q.warn ? ' warnc' : ''}" data-step="${st(r.id)}"${EV.freshAttr ? EV.freshAttr(r.id) : ''}><span class="tn-id">${EV.link(r.id)}</span> <b>${e(q.what)}</b>${q.says ? `<span class="tn-says">${q.says}</span>` : ''}
+      const first = {}; groups.forEach((g, gi) => { if (!(g.c in first)) first[g.c] = gi; });   // an agent's first box of the turn carries the link to its transcript
+      const boxes = groups.map((g, gi) => { const items = g.rs.map(r => { const q = EV.tnSays(r), more = q.more && q.more[1] ? q.more : null;
+          return `<div class="tn-item${q.warn ? ' warnc' : ''}" data-rid="${e(r.id)}" data-step="${st(r.id)}"${EV.freshAttr ? EV.freshAttr(r.id) : ''}><span class="tn-id">${EV.link(r.id)}</span> <b>${e(q.what)}</b>${q.says ? `<span class="tn-says">${q.says}</span>` : ''}${EV.tnXLine ? EV.tnXLine(r) : ''}
             ${q.ground.length ? `<dl class="tn-ground">${q.ground.map(([k, v]) => `<dt>${e(k)}</dt><dd>${v}</dd>`).join('')}</dl>` : ''}
             ${more ? `<button class="tn-more" data-act="tnmore" data-id="${e(r.id)}" aria-expanded="${!!open[r.id]}">${open[r.id] ? '▾' : '▸'} ${e(more[0])}</button>${open[r.id] ? `<pre class="tn-pre">${e(more[1])}</pre>` : ''}` : ''}</div>`; }).join('');
-        return `<div class="tn-box" data-by="${g.c === 'judge' ? 'supervisor' : g.c}" data-kind="${g.type}" data-step="${Math.min(...g.rs.map(r => st(r.id)))}" style="grid-column:${cols.indexOf(g.c) + 1}">${items}</div>`; }).join('');
+        return `<div class="tn-box" data-by="${g.c === 'judge' ? 'supervisor' : g.c}" data-kind="${g.type}" data-step="${Math.min(...g.rs.map(r => st(r.id)))}" style="grid-column:${cols.indexOf(g.c) + 1}">${EV.tnCallLink && first[g.c] === gi ? EV.tnCallLink(t, g.c) : ''}${items}</div>`; }).join('');
       const left = U ? `${U.body.simulations_left} simulations left` : t === 0 ? 'before the first turn: the harness runs the baseline' : '', k = Math.min(...rs.map(r => st(r.id)));
       return `<section class="tn-turn" data-turn="${t}" data-step="${k}"><button class="tn-band" data-act="tnfold" data-id="${t}" aria-expanded="${!shut[t]}" title="${shut[t] ? 'Show' : 'Fold'} this turn"><span class="lc-tw">${shut[t] ? '▸' : '▾'}</span> <b>${t === 0 ? 'Start' : 'Turn ' + t}</b> <span class="sm">${e(left)}</span>
           <span class="sm tn-count">${cols.map((c, i) => count[i] ? `${EV.TN_COLS[c][0]} ${count[i]}` : '').filter(Boolean).join(' · ')}</span></button>
