@@ -1235,7 +1235,15 @@ from a review of s047 and s048.*
   an experiment's measurements; the instructions give examples of combined measurements; on a network, trace_points(run_id) lists every object
   a tap can name and probe(run_id, every, taps={name: ns-3 Config path}) records them (tap_<name>, tap_<name>_n, tap_<name>_bytes) with the
   program net-taps (a copy of net, built on its own); the result run again is byte for byte the same.
-- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py, test_measure_relations.py, test_taps.py (new);
+- The short answer format of the arm "hypotheses" (a new session, flag `format: "short"`; a session started before keeps the full one):
+  no why.worth or reason, no hypothesis.prediction or follows_from, no experiment.varied, control or needs, no budget_request
+  (`loop.SHORT_DROP`, `short_format`, `short_prompt`, `short_fill`). The harness fills them in: worth "verify", follows_from from the
+  why's about (a reading too, in every arm), varied from the designs, needs from the decision rules (`lean_needs`), the judge given
+  the rule of the hypothesis's test where its prediction stood. A guess never taken up does not hold back the report. Kept: a
+  hypothesis's question and why, why.unseen and matters, each rule's rival, rethinks, verdicts, the whole report. In both short
+  formats designs are compared as trim compares them (`as_run`: 100 and 100.4 packets are one value), and the turn's text names
+  budget_request only to the formats that have it (the arm "plain", sessions in the full format).
+- Checks: harness_checks/test_keep_readings.py, test_cite_readings.py, test_free_turns.py, test_measure_relations.py, test_taps.py, test_short_format.py (new);
   test_supervised.py (the readings' new form; readings and observations kept, the supervisor never sees an
   observation). In a last turn (8.8) requests are
 not taken.

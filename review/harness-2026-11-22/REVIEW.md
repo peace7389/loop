@@ -133,3 +133,52 @@ Checks: all 19 harness checks pass on this `loop.py` and `tools.py` (one run, 13
 are new): test_arms, test_chain, test_cite_readings, test_format_fix, test_free_turns, test_keep_readings, test_measure,
 test_measure_relations, test_network, test_notebook_p3, test_roles, test_shared_page, test_step_c, test_structure, test_supervised, test_taps,
 test_task_text, test_tolerance, test_why.
+
+
+---
+
+# Third commit: a shorter answer for the arm "hypotheses" (2026-11-22, later)
+
+At the operator's sheet ("trim the researcher's answer format in the single-AI arm"), the way the arm "supervised" was trimmed on 2026-11-18.
+Only `harness/loop.py` changes (and `HARNESS_SPEC.md`); `prompt.txt` and `schema.json` stay as they are: the short format and its instructions
+are made from them (`short_format`, `short_prompt`), so the arm "plain" and sessions started before are unchanged.
+
+**Dropped** (`SHORT_DROP`), from a review of every answers.jsonl: `why.worth` and `why.reason` (78 of 91 whys were "verify"),
+`hypothesis.prediction` (repeats the decision rule; 43 of 288 word for word) and `follows_from`, `experiment.varied`, `control` and `needs`,
+`budget_request` (used 0 times in 166 answers). Instructions: 19,464 -> 18,123 characters.
+
+**Kept**, at the operator's word: a hypothesis's `question` and `why` ("not okay. User should read the detail when they click"); also
+`why.unseen` and `matters`, each rule's `rival` and `rival_predicts`, rethinks, verdicts, the whole report.
+
+**What the harness fills in** (`short_fill`, then `sort_out(..., short=True)`): worth "verify", reason "", prediction none; follows_from from
+the why's `about`; varied from the designs; control none; needs from the decision rules (`lean_needs`, as in the arm "supervised"). The judge
+is given the decision rule of the hypothesis's test where its prediction stood ("the decision rule of its test: ...").
+
+**The operator's decisions** (2026-11-22):
+1. Keep question and why (above).
+2. A guess never taken up does not hold back the report (in the short format every guess counts as "verify", so the old rule would hold
+   every report back until each guess had a rethink).
+3. Designs are compared as trim compares them, in both short formats (`as_run`, used by `varied_of` and `lean_needs`): written values that
+   differ only before rounding (100 and 100.4 packets, 2Gbps and 2000Mbps) are one value. Before, such a test was refused as differing "in
+   more than one setting".
+4. The turn's text names budget_request only to the formats that have it (the arm "plain", sessions in the full format): the arm
+   "supervised" no longer reads it either.
+
+**Found on the way, fixed here:**
+- A hypothesis could not follow from a reading (a T id) outside the arm "supervised", although a why may be about one since the first
+  commit: with follows_from taken from the why's about, every such hypothesis would have been refused. Now allowed in every arm.
+- A session started before the change keeps the full format when it goes on (the flag `format: "short"` is written only for new sessions).
+
+**Checks:**
+- `test_short_format.py` (new): the format lacks the eight fields and keeps the rest; the instructions name none of them; the arm "plain"
+  keeps budget_request. On the real s048 (read only): a short answer made whole, its hypothesis following from a reading (T10), the judge
+  given the rule, needs and varied worked out; s048's report with a guess never taken up held back in the full format, taken in the short
+  one. A scripted session in short answers: its test (designs with queuePkts 100 and 100.4) runs with varied ["weightUdp"], its check is
+  made, the report ends the session; the format sent and every turn's text name no dropped field; the supervised arm's turn names no
+  budget_request, the plain arm's does; a session without the flag goes on in the full format; score.py does not read loop.py (the scores
+  of earlier sessions cannot change).
+- `test_arms.py` (updated): the ordinary arm now records `format: "short"` and is given `short_prompt(prompt.txt)`.
+- `scripted.py` (updated): it no longer fills in needs for a scripted test without `varied` (a short answer), so the harness's own
+  derivation is what runs.
+
+RESULTS: see below (filled in when the run of every check ends).
