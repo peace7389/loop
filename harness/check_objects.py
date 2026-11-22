@@ -171,7 +171,7 @@ def main():
     g = find(cc, r"RngSeedManager::SetSeed\((\d+)\)", "the seed")
     if g:
         v = row(obj(O, None, "around", "Random numbers"), "Seed"); same("the seed (the run number is the knob)", g[0], v, v == g[0])
-    g = find(cc, r"double period = ([\d.]+);", "the sampling period")
+    g = find(cc, r"struct Sampler\b.*?double period = ([\d.]+);", "the sampling period")   # the series' sampler: the probe's FineSampler (0.01 s) stands before it in the source (2026-11-23)
     if g:
         m = obj(O, None, "around", "Measurement"); label = f"Every {float(g[0]):g} s"
         same("how often series.csv is sampled", label, next((r[0] for r in (m or {}).get("rows", []) if r[0].startswith("Every")), None), row(m, label) is not None)
