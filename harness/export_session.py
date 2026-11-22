@@ -2,7 +2,7 @@
 
 The folder holds the evidence page (viewer/index.html, adrs_view.js and the evidence_*.js files, without the two that
 only start things) and one file export_data.js with this session's files as text: its ledger WITHOUT the draft records,
-session.json, report.json, runs/index.json and every run's series.csv. drafts.jsonl is never read. Chart.js is put
+session.json, report.json, runs/index.json, supervisor.jsonl (an arm "supervised") and every run's series.csv. drafts.jsonl and calls.jsonl are never read. Chart.js is put
 beside them when it can be fetched once (the time charts need it; everything else draws without it).
 
 Operator-only data is left out unless asked for: the scheduling policy, the score, the review, the answer key and the
@@ -27,7 +27,7 @@ def make(sid, operator, row):
     files = {}
     ledger = [l for l in (src / "ledger.jsonl").read_text().splitlines() if l.strip() and json.loads(l).get("type") not in ("draft", "scratch")]
     files[f"sessions/{sid}/ledger.jsonl"] = "\n".join(ledger) + "\n"
-    for rel in ("session.json", "report.json", "runs/index.json"):
+    for rel in ("session.json", "report.json", "runs/index.json", "supervisor.jsonl"):   # supervisor.jsonl: what the supervisor was shown and answered, which the page shows beside its records (the coherence audit, 2026-11-22: left out)
         if (src / rel).is_file():
             files[f"sessions/{sid}/{rel}"] = (src / rel).read_text()
     if (viewer / "objects.json").is_file():  # the ns-3 objects of the picture of the system; it holds no operator-only value

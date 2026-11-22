@@ -9,16 +9,19 @@ Object.assign(EV, {
   itemOf(sel) {
     const M = EV.M; if (!sel || !M || sel.t === 'session') return '';
     if (sel.t === 'test') { const T = M.testById[sel.id]; return T && T.check ? T.check.id : String(sel.id); }
+    if (sel.t === 'meas' || sel.t === 'calls') return sel.t + '-' + sel.id;   // a measurement's card, a step's calls: no record of their own (the coherence audit, 2026-11-22)
     return sel.t === 'log' ? 'turn-' + sel.id : sel.t === 'report' ? (M.repRec ? M.repRec.id : 'report') : String(sel.id);
   },
   selOf(M, item) {  // the item a link names, as a selection of this session (null: nothing by that id)
     const m = /^turn-(\d+)$/.exec(item || ''); if (m) return M.turns.some(t => t.n === Number(m[1])) ? { t: 'log', id: Number(m[1]) } : null;
+    const mc = /^(meas|calls)-(.+)$/.exec(item || ''); if (mc) return { t: mc[1], id: mc[2] };
     if (item === 'brief' || item === 'report') return { t: item, id: item }; if (M.testById[item]) return { t: 'test', id: item };
     const r = M.byId[item]; if (!r) return null; const b = r.body || {}, test = f => M.tests.find(f);
     if (r.type === 'check') { const T = test(t => t.check && t.check.id === item); return T ? { t: 'test', id: T.id } : { t: 'exp', id: r.parent }; }
     if (r.type === 'verdict') { const T = test(t => t.verdict && t.verdict.id === item); return T ? { t: 'test', id: T.id } : { t: 'hyp', id: b.for }; }
     if (r.type === 'simulation' || (r.type === 'evidence' && M.simById[item])) return { t: 'sim', id: item };
     if (r.type === 'why' || r.type === 'rethink') return { t: 'why', id: r.type === 'why' ? item : b.for };
+    if (r.type === 'finding' || r.type === 'decision') return { t: 'finding', id: r.type === 'finding' ? item : b.for };   // it opened the turn log (the coherence audit, 2026-11-22)
     return r.type === 'hypothesis' ? { t: 'hyp', id: item } : r.type === 'drop' ? { t: 'hyp', id: b.for } : r.type === 'experiment' ? { t: 'exp', id: item } : r.type === 'evidence' ? { t: 'exp', id: b.experiment || r.parent }
       : r.type === 'report' ? { t: 'report', id: 'report' } : { t: 'log', id: r.turn };
   },

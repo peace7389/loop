@@ -687,7 +687,8 @@ def stage(step, about=None, round_no=None, by=None, again=False):
     begins, so that the page can say who works on what while no record is written yet (a supervisor's reading is recorded only when its step is
     done). step: reply (the researcher), judge, ground (the supervisor reads a guess), restate (the researcher restates a guess; by: who did not
     accept it), design (the supervisor reviews a test; round_no of REVIEW_ROUNDS), repair (the researcher repairs a test for round_no), sims, checks,
-    ruling (the supervisor rules on a test), look (the supervisor looks at results with no ruling for findings). Never stops the session."""
+    ruling (the supervisor rules on a test), objection (the supervisor looks again at a ruling the researcher objected to), look (the supervisor looks
+    at results with no ruling for findings). Never stops the session."""
     CALLS["step"] = {"step": step, "about": about, "round": round_no, "by": by}   # the step of the calls that follow (calls.jsonl, live_call.json)
     try:
         p = tools.SESSION / "now.json"
@@ -701,7 +702,7 @@ def stage(step, about=None, round_no=None, by=None, again=False):
 
 def called(agent, model, system, user, schema, draft, temperature, max_tokens):
     t0 = time.time()
-    LIVE["call"] = {"n": CALLS["n"] + 1, "turn": CALLS["turn"], "agent": agent, **(CALLS.get("step") or {}), "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "t0": t0, "reasoning": "", "answer": ""}
+    LIVE["call"] = {"n": CALLS["n"] + 1, "turn": CALLS["turn"], "agent": agent, "step": CALLS.get("step"), "started": time.strftime("%Y-%m-%dT%H:%M:%S"), "t0": t0, "reasoning": "", "answer": ""}   # step: as calls.jsonl has it (the coherence audit, 2026-11-22: it was spread into the call)
     LIVE["last"] = 0.0
     live_write()
     try:
@@ -2931,6 +2932,7 @@ def main():
                 was = next(r for r in ledger if r["id"] == o["to"])
                 oid = append(ledger, turn, "objection", o["to"], {"to": o["to"], "for": was["body"]["for"], "because": o["because"]} | obs())
                 try:
+                    stage("objection", was["body"]["for"])   # its own step (the coherence audit, 2026-11-22: its call carried the step before it)
                     again, saw = answer_objection(model, brief, ledger, was, o["because"])
                     vid = append(ledger, turn, "verdict", was["body"]["for"], {"for": was["body"]["for"], "result": again["result"], "because": again["because"], "next": was["body"].get("next") or "" if again["stands"] else "",
                                                                              "fair": again["fair"], "defect": was["body"].get("defect", "none") if again["stands"] else "none",

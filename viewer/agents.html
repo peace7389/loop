@@ -57,7 +57,7 @@ const AG = {
   async poll() {
     let d; try { d = await AG.json('../api/agents?session=' + encodeURIComponent(AG.sid)); } catch (x) { AG.timer = setTimeout(AG.poll, 8000); return; }
     const fresh = d.calls.slice(AG.data.calls.length); AG.data = d;
-    if (fresh.length) { const box = document.getElementById('ag-calls'); if (box) { const prev = AG.data.calls.length - fresh.length; box.insertAdjacentHTML('beforeend', fresh.map((c, i) => AG.callHtml(c, prev + i, true)).join('')); }
+    if (fresh.length) { const nn = document.getElementById('ag-none'); if (nn) nn.remove(); const box = document.getElementById('ag-calls'); if (box) { const prev = AG.data.calls.length - fresh.length; box.insertAdjacentHTML('beforeend', fresh.map((c, i) => AG.callHtml(c, prev + i, true)).join('')); }
       const n = document.getElementById('ag-live'); if (n) n.innerHTML = AG.liveSay(fresh.length); }
     document.getElementById('ag-facts').innerHTML = AG.factsHtml(); if (d.running) AG.timer = setTimeout(AG.poll, 4000); else { const n = document.getElementById('ag-live'); if (n) n.innerHTML = 'The session has ended: every call it made is below.'; }
   },
@@ -107,10 +107,12 @@ const AG = {
         <span class="grp">Open in every call ${[['given', 'what it was given'], ['before', 'what it wrote first'], ['answer', 'its answer']].map(([k, s]) => `<button data-act="fold" data-v="${k}" class="${AG.open[k] ? 'on' : ''}" title="open or fold this part in every call">${s}</button>`).join('')}</span>
         <a href="index.html${AG.sid ? '?session=' + encodeURIComponent(AG.sid) : ''}">the session's page</a></div>`;
     if (!D) { root.innerHTML = head + `<div class="note err"><b>Cannot show this session.</b> ${e(AG.err || '')}</div>`; return; }
-    const old = !(D.calls || []).length;
+    // an older session keeps drafts, answers or the supervisor's records but no calls; a new session (running, or ended before its first call returned) has none yet (the coherence audit, 2026-11-22: a new running session was called an older one)
+    const none = !(D.calls || []).length, old = none && !D.running && !!((D.drafts || []).length || (D.answers || []).length || (D.supervisor || []).length);
     root.innerHTML = head + `<div class="facts" id="ag-facts">${AG.factsHtml()}</div>`
       + (D.running ? `<div class="note live" id="ag-live">${AG.liveSay(0)}</div>` : '')
       + (old ? `<div class="note">This session was run before every call was recorded (2026-11-22). Kept of it: what the researcher wrote before each answer, the answers the harness accepted${(D.supervisor || []).length ? ', and what the supervisor was given and answered' : ''}. What the researcher was given in each turn, and the judge's calls, were not kept.</div>` : '')
+      + (none && !old ? `<div class="note" id="ag-none">${D.running ? 'No call of the model has returned yet in this session: each is added here as soon as it returns.' : 'No call of the model was recorded in this session.'}</div>` : '')
       + `<div id="ag-calls">${old ? AG.oldHtml() : D.calls.map((c, i) => AG.callHtml(c, i, false)).join('')}</div>`;
   },
   click(ev) {

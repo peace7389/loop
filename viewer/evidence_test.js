@@ -110,9 +110,10 @@ Object.assign(EV, {
     const hr = recs.find(r => r.id === h.id);
     steps.push(step(h.turn, 'model', `<b>stated</b>${h.from_why ? ` from the guess ${EV.link(h.from_why)}` : ''}`));
     if (h.judge) steps.push(step(h.turn, 'supervisor', `<b>the judge</b>: ${h.judge.follows ? 'it follows from its guess' : '<span class="warnc">it does not follow from its guess</span>'}${h.judge.because ? ` <span class="sm">· ${e(one(h.judge.because))}</span>` : ''}`));
-    const DEC = { approved: 'approved', sent_back: 'sent back', contested: 'contested: run all the same', dropped: 'not approved after the last round' };
+    const DEC = { approved: 'approved', sent_back: 'sent back', contested: 'contested: run all the same', dropped: 'not approved after the last round', not_run: 'not run: the last repair could not be used' };
     recs.forEach(r => { const b = r.body || {}; if (r.id === h.id) return;
-      if (r.type === 'review' && b.gate === 'design' && b.for === h.id) steps.push(step(r.turn, r.by === 'harness' ? 'harness' : 'supervisor', `<b>test review, round ${e(b.round || 1)}</b>: ${e(DEC[b.decision] || b.decision)}${r.by === 'harness' ? ' by the harness' : ''}`
+      if (r.type === 'review' && (b.gate === 'design' || (!b.gate && b.for)) && b.for === h.id) steps.push(   // no gate: a test review of a session before gates were named (s047, s050, s051; the coherence audit, 2026-11-22)
+        step(r.turn, r.by === 'harness' ? 'harness' : 'supervisor', `<b>test review, round ${e(b.round || 1)}</b>: ${e(DEC[b.decision] || b.decision)}${r.by === 'harness' ? ' by the harness' : ''}`
         + (b.decision !== 'approved' && (b.feedback || b.because) ? ` <span class="sm">· ${b.defect && b.defect !== 'none' ? e(String(b.defect).replace(/_/g, ' ')) + ': ' : ''}${e(one(b.feedback || b.because))}</span>` : '')));
       else if (r.type === 'repair' && b.for === h.id) steps.push(step(r.turn, 'model', `<b>repaired</b> for round ${e(b.round)}${b.decision_rule ? `: <code>${e(String(b.decision_rule).slice(0, 120))}</code>` : ''}`));
       else if (r.type === 'note' && b.part && new RegExp(`(test|repair) of ${h.id}\\b`).test(b.part)) steps.push(step(r.turn, 'harness', b.reason === 'could not be read'

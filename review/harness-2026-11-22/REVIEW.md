@@ -480,3 +480,47 @@ Checks:
 - Every harness check on this build and on the build to deploy (derive_dep.py: parts 2 and 3 off): all pass (the deploy build skips the three checks
   of parts 2 and 3). The checks the late corrections touch were run again on both builds after them: test_supervised, test_guess_restate,
   test_design_rounds, test_now_steps, test_stage1, test_stage2, test_repair_structure.
+
+# The page brought up to main's (2026-11-22, night)
+
+The branch's viewer/ was main's deploy of 17:06 (bb581a5); every page change since went to main and the live page. Before stage 3 the branch takes
+main's viewer/ as it is now (no change of its own was lost: the branch's viewer tree was exactly bb581a5's).
+
+# Stage 3 of the coherence audit: the page (2026-11-22, night)
+
+Built on this branch, not deployed. Patches: s3_page_a.py (27–30, 32–34, 36), s3_page_b.py (26); 31 and 35 and the agents page were edited directly.
+- 26. **Every experiment of a turn** (t.xs): the track, the turn card, the tree, the glance and the knob view show each one. s053 turn 3 ran X1 and,
+  after a repair, X2: the page showed X1 alone.
+- 27. **A note on an accepted part is no refusal**: the harness marks it (refused: false); for older ledgers the page tells it by its text. It was
+  drawn as "report refused" next to "report accepted".
+- 28. **The calls card refreshes** while a session runs: with a harness that writes no live_call.json (the one deployed), the list of calls is read
+  again every 10 s while the card is open, and drawn again only when a call was added.
+- 29. **The harness's rounds are the harness's**: in the track (its own lane, "the harness refuses a repaired test with its own checks") and in the
+  notebook's count of the supervisor's reviews (s052 G7, s053 G8 and G10 were drawn as the supervisor's).
+- 30. **Old sessions' test reviews** (no gate field: s047, s050, s051) are in a hypothesis's course.
+- 31. **A link to a finding** (and to a decision on one, a measurement's card, a step's calls) opens it; "copy link" and a reload opened a turn log.
+- 32. **The banner and the "Now" card speak of the session's arm**: what a reply may bring, "waiting for a ruling" (supervised), no verdict row for
+  the arm "plain".
+- 33. **A continued reply** (and a first reply after a ruling asked for again) reads "the researcher is writing its reply (reply 2 of this turn)", not
+  "preparing the next turn"; the turn card shows each reply's observations (the later ones were dropped).
+- 34. **One shape of a call's step**: live_call.json keeps {step, about, round, by} as calls.jsonl does; the objection's second look has its own step
+  ("objection"), on the page with the rulings. The page still reads the held build's flat step.
+- 35. **An export** holds supervisor.jsonl (what the supervisor was shown, which the page shows beside its records), and has no link to the agents
+  page or the calls (they stay on the server).
+- 36. **Who wrote a note**: a record's hover box names its own author (the researcher's observations were "written by the harness"). The agents page
+  calls a new session with no call yet a new one, not "run before every call was recorded".
+- Also: the figures count "not_run" rounds (only where they occur, so old sessions' figures are unchanged), and the page names them.
+
+Checks:
+- The page's model (EV_DATA.build, model_check.js) for every session s001–s053: every one builds; the only differences from main's page are the
+  intended ones (s052 and s053: the harness's rounds in their own lane; s053 turn 3: X1 and X2).
+- Screenshots on a scratch copy (port 8614): s053 turn 3's card with X1 and X2; a link to F1 opens the finding; s047 H1's course with its test review.
+- The page's model of every session in full (model_dump.js: each track step with its lane, label and what it opens; each turn's fields), main's page
+  against this one: the only differences are the intended ones (s052, s053), and one more: a turn's observations now stand in its card where the
+  answer's first record was a guess (s041 to s047 showed "observations: not recorded"; every reply's observations are collected since item 33).
+- The page checks (evidence_checks/ev_all.sh) on main's page and on this one, side by side: the same nine need looking at on both (format, live, net,
+  polish, readable, settings, shared, stepc, usable: they fail on main's page too, as in the earlier runs). The run on this page found one fault of
+  this stage: a comment put inside a one-line statement (s3_page_b.py) had dropped each turn's report from the page's model (the report step of the
+  track; the replays had one step fewer). Fixed here and in the script; the page checks run again on the page of stage 5, which holds this one.
+- The harness checks of stage 3's harness changes (live_call.json's step, the objection's step, the export) ran in the suites of stage 4 (below):
+  test_stream.py checks the step's one shape.

@@ -1,7 +1,8 @@
 """The calls of the model are streamed (2026-11-22, the operator: "When user clicks past or ongoing stage here they should be able to see tokens
 directly"): one small real call to the local model server (the one sessions use; SKIP when it does not answer) through loop.called():
   - the answer comes back as before: an answer that is the JSON object of the schema, the text before it (reasoning), why it stopped, the token counts;
-  - while it comes in and at its end, live_call.json says it: its number, turn, agent, step, what was written so far, and at the end done;
+  - while it comes in and at its end, live_call.json says it: its number, turn, agent, step (as calls.jsonl has it, since stage 3 of the coherence
+    audit), what was written so far, and at the end done;
   - its line in calls.jsonl names the step (now.json's) it was made in.
 python3 -I test_stream.py SCRATCH_DIR [HARNESS_DIR]"""
 import json, os, sys, threading, time
@@ -45,7 +46,7 @@ say(a == {"count": 7, "word": "network"} or (isinstance(a.get("count"), int) and
 say(reasoning.strip() and finish == "stop" and usage.get("completion_tokens", 0) > 0 and (usage.get("completion_tokens_details") or {}).get("reasoning_tokens", 0) > 0,
     f"the text before it ({len(reasoning)} characters), why it stopped ({finish}) and the token counts ({usage.get('completion_tokens')}, of them reasoning {(usage.get('completion_tokens_details') or {}).get('reasoning_tokens')}) as before")
 last = seen[-1] if seen else {}
-say(seen and not seen[0].get("done") and last.get("done") and last.get("agent") == "supervisor" and last.get("step") == "ruling" and last.get("about") == "H7" and last.get("turn") == 4
+say(seen and not seen[0].get("done") and last.get("done") and last.get("agent") == "supervisor" and last.get("step") == {"step": "ruling", "about": "H7", "round": None, "by": None} and last.get("turn") == 4
     and last.get("answer") == content and last.get("reasoning") == reasoning and last.get("n") == loop.CALLS["n"],
     f"live_call.json while it ran and at its end: {len(seen)} readings, the first not done, the last done, with agent, step, turn and the whole text ({[(x.get('done'), len(x.get('reasoning') or '')) for x in seen[:4]]} …)")
 line = json.loads((SCR / "calls.jsonl").read_text().splitlines()[-1])
