@@ -1,0 +1,93 @@
+{
+ "goal": "Maximize tcp_goodput_bps, the brief's given target.",
+ "recommendation": {
+  "l1.queue.length": 500,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [
+  {
+   "do": "remove",
+   "id": "l1",
+   "kind": "queue",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  },
+  {
+   "do": "add_queue",
+   "id": "l1",
+   "kind": "scheduler",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "limit": "At this recommendation TCP is limited by the scheduler's measured fair-share split against the always-backlogged UDP flow, about 482 Mbps payload for TCP; evidence E2, E4, E5, C4, C5, C8, V5, V8.",
+ "explanation": "The original FIFO is one shared tail-drop queue: UDP offers 2 Gbps, fills the queue, and drops about half its packets, while TCP's handshake and ACK clock are lost, giving 0 to about 5.8 kbps even with a 1000-packet queue. Replacing the sender-side FIFO with a scheduler separates UDP and TCP service; when TCP keeps its scheduler queue backlogged, Cubic and LinuxReno each reach about 482 Mbps with few TCP drops. BBR's small inflight leaves its scheduler queue mostly empty, so it gets only about 190 Mbps. Queue length under the scheduler only needs to be large enough to keep TCP backlogged; q200 and q500 are equal within tolerance, and q500 is chosen because it has fewer TCP retransmissions than q200.",
+ "claims": [
+  {
+   "text": "With the original FIFO queue, TCP is effectively starved by UDP overload: default Cubic gives 0 bps, q1000 Cubic gives 5792 bps, and q1000 BBR gives 4634 bps while UDP delivers about 979 Mbps.",
+   "evidence": [
+    "E0",
+    "E1"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "A sender-side scheduler raises TCP goodput to about 476-482 Mbps while UDP still delivers about 489 Mbps.",
+   "evidence": [
+    "E2",
+    "E4",
+    "C4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Under the scheduler at q500, TcpLinuxReno ties TcpCubic within tolerance at about 482 Mbps, while TcpBbr at q1000 is far lower at 190096915 bps.",
+   "evidence": [
+    "E5",
+    "C8",
+    "V8",
+    "E3",
+    "C5",
+    "V5"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Once the scheduler is present and TCP is backlogged, queue length is not the main lever: q200 and q500 are equal within tolerance, and q500 has fewer TCP retransmissions than q200.",
+   "evidence": [
+    "E4",
+    "C6",
+    "C7",
+    "V6",
+    "V7"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The limit at the recommendation is the scheduler's measured fair share against UDP, not the TCP controller: two backlogged loss-based TCPs reach the same about 482 Mbps ceiling, while a low-inflight TCP falls below it.",
+   "evidence": [
+    "E4",
+    "E5",
+    "C8",
+    "V8",
+    "E3",
+    "C5",
+    "V5"
+   ],
+   "role": "supports"
+  }
+ ],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": "",
+ "open_questions": []
+}
