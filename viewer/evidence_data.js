@@ -53,7 +53,7 @@ const EV_DATA = {
                                           same_as: r.body.same_as || null, exp: r.parent, ts: r.ts, turn: r.turn, structure: r.body.structure || null, topology: r.body.topology || null }));
       exps = of('experiment').map(r => { const b = r.body, own = sims.filter(s => s.exp === r.id);
         return { id: r.id, turn: r.turn, ts: r.ts, by: D.by(r), kind: b.kind, measurements: Array.isArray(b.measurements) ? b.measurements : [], tests: b.tests || [], question: b.question || '', varied: b.varied || [], control: b.control || null,
-                 runs: b.runs || [], rules: (b.decision_rules || b.rules || []).map(q => ({ for: q.for, rule: q.decision_rule || q.rule, rival: q.rival || null, rival_predicts: q.rival_predicts || null })),
+                 runs: b.runs || [], rules: (b.decision_rules || b.rules || []).map(q => ({ for: q.for, rule: q.decision_rule || q.rule, rival: q.rival || null, rival_predicts: q.rival_predicts || null, competes: q.competes_with || null })),   // competes: the guess a rule competes with (stage 5)
                  sims: own, evidence: recs.find(e => e.type === 'evidence' && e.parent === r.id) || null,
                  // a void check: its decision rule names two or more labels of which at least two are the same simulation (the same run), so
                  // it compared a simulation with itself. Its result here is "void" (what the harness recorded stays in "recorded"): it
@@ -100,7 +100,7 @@ const EV_DATA = {
     const tests = exps.flatMap(x => { const nth = {};
       const made = x.rules.map(r => { const labels = D.labels(r.rule);
         const n = nth[r.for] = (nth[r.for] || 0) + 1, same = x.checks.filter(c => c.for === r.for);
-        return { id: `${x.id}.${r.for}${n > 1 ? '.' + n : ''}`, exp: x.id, turn: x.turn, ts: x.ts, hyp: r.for, rule: r.rule, rival: r.rival, rival_predicts: r.rival_predicts, labels,
+        return { id: `${x.id}.${r.for}${n > 1 ? '.' + n : ''}`, exp: x.id, turn: x.turn, ts: x.ts, hyp: r.for, rule: r.rule, rival: r.rival, rival_predicts: r.rival_predicts, competes: r.competes || null, labels,
                  sims: labels.length ? labels.map(l => x.sims.find(s => s.label === l)).filter(Boolean) : x.sims.length === 1 ? x.sims.slice() : [],
                  missing: labels.filter(l => !x.sims.some(s => s.label === l)), control: x.control && labels.includes(x.control) ? x.control : null,
                  check: same.find(c => c.rule === r.rule) || same[n - 1] || null }; });

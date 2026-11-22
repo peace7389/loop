@@ -560,3 +560,69 @@ Checks:
   problem): passes. With batching off, every single review's request is byte for byte the one before the refactor (same_prompts.py: 7 of 7).
 - Every harness check on this build (33 pass) and on the build to deploy (30 pass; the 3 checks of parts 2 and 3 skip there).
 - The page: s053's "tcp_goodput_bps=5792" now agrees (num_check.js, before and after).
+
+# Stage 5 of the coherence audit: competitors are guesses, three questions (2026-11-22, night)
+
+Built on this branch, not deployed. The operator's sheet "competitors are guesses", with the corrections of plans/2026-11-22-coherence-audit.md (the
+operator: a refuted guess gets no new hypotheses, and may be revised). Patches: s5_core.py, s5_questions.py, s5_wire.py, s5_ground.py, s5_render.py,
+s5_page.py. Edited directly after them: the figures (session_figures.competitor_figures, the session list and the export's row), a guess
+competing with one of the same answer, a round's record keeping its rule's competes_with, the batch checking and showing a competitor of the same
+reply, and the ruling's prompt (its one-question paragraph gives way to the three questions). The arm "supervised" only, in a session started with COMPETITORS on; a session keeps what it started with
+(session.json flags.competitors), and every session before keeps its rival sentences.
+
+What was built:
+- **The competitor is a guess.** A decision rule names competes_with (a guess's id) and rival_predicts. Before any review the harness refuses, with the
+  reason and nothing else of the answer: competes_with missing, not a guess, revised, refuted by a standing ruling, the hypothesis's own guess or one
+  linked to it by revises (either way, through each other); rival_predicts missing or held. A guess of the same answer may be named (by the id it is
+  to get). "Set aside" does not occur in this arm (it has no rethinks).
+- **A guess may declare competes_with: Yn.** It may then cite Yn's records (the chain's exception); its reading is told so: "repeats" means the same
+  cause as Yn, and the question whether it comes from what was learned is not asked (a reading that names it counts as none). A guess that something
+  makes no difference must name its cause: gate 0's defect no_cause (restated once, as part D does).
+- **The review: three questions.** Honest, Consistent, Correct, each a sentence citing record ids and a box; Correct states what the rule gives under
+  the tested guess and under the competitor. The code checks Correct against the two predictions (pass only with HELD and FAILED; a prediction for
+  the competitor other than the researcher's FAILED cannot pass), asks one follow-up question on a contradiction and never picks; still
+  contradictory, it is a refusal. Approved only with all three passing. doubt_if is gone: the ruling is shown the review's three answers.
+- **A missing competitor** (the review's field missing): the test is held in that turn with no repair call, its hypothesis stays open, the note
+  names the cause; a guess then written competing with the test's own guess is recorded from_feedback (the review's id).
+- **Contested only if Consistent passed**: after the last round a refused test runs as contested only then; otherwise it is held.
+- **The ruling: the same three questions**, the result, and for each guess the test named whether it fits. fair is all three passing; the result must
+  fit the checks as before; the fits must fit the result of a fair test (one follow-up question; still contradictory, they are kept and refute
+  nothing). A question the review passed and the ruling fails is a miss when it was foreseeable, else found by the result.
+- **Refutation follows the standing ruling**: a guess that does not fit the result of a test ruled fair is refuted by that ruling; an objection whose
+  second look lets it stand keeps it, one that changes it undoes it. With the arm's earlier rule (a guess whose hypotheses were all ruled refuted) it
+  is one function (guess_refutations), and the researcher's ledger text now says "refuted by V4: no hypothesis can come from it; a new guess may revise
+  it" (that earlier rule had been applied in sort_out with no sign in the text). Open hypotheses of a refuted guess stay.
+- **Records and figures**: who wrote what as before; a ruling keeps its questions, fits, misses; competitor_figures (the session list's
+  "competitors", only where a session has them): each question's passes and failures at the tests' last rounds, approved then ruled unfair, misses
+  and found-by-result by question, guesses from feedback, guesses refuted by competition, tests held.
+- **The page**: each test's competing guess as a link, and the three answers in the review rounds list; "held" named. Nothing more.
+
+Design problems found against the code and the sessions, and how they were resolved (P1-P17 of the examination; P1, P3 and P17 were built in
+stage 1): "live" means not revised and not refuted (P2); Correct's only passing pair is HELD/FAILED, since held is refused for rival_predicts (P4);
+doubt_if replaced by the review's answers (P5); rulings checked mechanically, which they were not (P6); fits kept as boxes and checked, never picked
+(P7); refutation's consequences defined and computed from the standing ruling (P8); the missing field and "from feedback" (P9); no_cause (P10); the
+declared competitor's chain exception and its reading (P11); Consistent is the "still tests its hypothesis" rule (P12); foreseeable is a field of the
+ruling, no extra call (P13); every shared part branches by the session (P14); also found while building: a test competing with a guess of the same
+reply was left out of the batched first review, and a guess competing with one of the same answer was refused (both fixed before the checks passed).
+
+Instruction size (the arm's whole text with its findings text, one limit of 10,000 characters): 9,832 without competitors (stage 4), 9,935 with them.
+Three passages were said shorter to make room (the purpose, the chain, the list of what a guess may cite); no rule was dropped.
+
+Extra model calls per turn: none for a competitor guess in a reply with other new work (it is one more item of the batched first review, about 1,000
+more reasoning tokens); without batching, one guess review per competitor guess (about 48 s). A held test saves a repair call and a review. At most one
+follow-up per review and one per ruling (2,000 tokens each).
+
+If it were applied to the arm "hypotheses" later: its rules would name competes_with instead of a rival sentence, checked by the harness the same
+way, with "live" also excluding guesses set aside by a rethink; there is no supervisor, so the three questions would have to be the researcher's own
+verdict fields or a judge's, and refutation would follow its own verdicts and rethinks; the comparison with s049 would no longer be like for like.
+
+Checks:
+- New: test_stage5.py, the sheet's list of bad inputs (A to K): passes; each confirms that nothing unrelated is refused and the session does not stop.
+- Every harness check on this build (34 pass) and on the build to deploy (31 pass; the 3 checks of parts 2 and 3 skip there). The older scripted
+  checks run with COMPETITORS off (scripted.py), as sessions started before this stage would.
+- s047 to s053: the researcher's ledger text is the same as at stage 4 (render_cmp.py), and the page's model of every session is the same (model_dump.js).
+- The ruling's request was read in a scripted session: the review's three answers, then the three questions again; the old paragraph is gone.
+- On screen (scripted session d1, scratch port 8614): a hypothesis's course with a refused round, a harness round and an approval; its test shows
+  "competes with the guess Y2" as a link. The review rounds list with the three answers was checked in code and in the page's model, not on screen
+  (it stands in a folded card).
+- The page checks on this page: running, against the same baseline as stage 3 (main's page); their result follows in the next commit.
