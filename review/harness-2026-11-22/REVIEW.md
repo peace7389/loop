@@ -626,3 +626,23 @@ Checks:
   "competes with the guess Y2" as a link. The review rounds list with the three answers was checked in code and in the page's model, not on screen
   (it stands in a folded card).
 - The page checks on this page: running, against the same baseline as stage 3 (main's page); their result follows in the next commit.
+
+# What was deployed (2026-11-23, 00:31 and 00:46)
+
+At the operator's word ("Finish every thing"): the five stages, as derive_dep.py builds them (parts 2 and 3 off), competitors on for new supervised
+sessions; the page of stage 5. Done with deploy_build.sh (it stops if a session is running; the backup of what was live before stands in the
+session's scratch folder). The operator's own s054 (started 00:28 on the harness before) was stopped by the operator so that the deploy could go in.
+
+Checked on the live system, not only on copies:
+- the live harness and page equal the builds (diff); the server restarted and answers; the instructions of every arm pass their start-up checks;
+- every new answer format sent to the real model server with thinking off (schema_smoke.py): 16 of 16 accepted and filled, the batch with its
+  exact number of items;
+- the three new kinds of supervisor call made for real with their own token limits (real_calls.py): the batched first review (82 s, 6,499 of its
+  reasoning tokens), the follow-up question (13 s, 999 of 1,000), a ruling with three questions (57 s);
+- the stage checks run on the live harness (copied to scratch): test_stage5, test_stage4 pass.
+
+**Found by the real call, fixed and deployed at 00:46 (p1_ids.py):** the batched review's test item was named "H1 UDP goodput rises with its part",
+not "H1"; matching ids exactly, the harness would have dropped every batched test review and asked it again alone. The ids the model gives back
+are now an enum of the exact values (and read by the id they begin with); a rule's and a repair's competes_with must be a guess id (a pattern).
+The real call made again returned "H1"; test_stage4 and test_stage5 pass. Session s055 (arm "supervised", brief after_fix, budget 12) started on
+this build at 00:46.

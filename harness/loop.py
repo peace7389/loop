@@ -1316,13 +1316,18 @@ def _test_terms(ledger, xid, hid):
 
 
 def batch_schema(ng, nt):
-    """The answer of the batched first review: one item for each new guess (gate 0's fields) and one for each test (round 1's fields)."""
+    """The answer of the batched first review: one item for each new guess (gate 0's fields) and one for each test (round 1's fields). ng, nt: the
+    names of the guesses (G1, G2, ...) and the hypotheses of the tests, given back exactly (an enum: a real call wrote "H1 UDP goodput rises with
+    its part"); a number gives the names G1.. and H1.. (the older form)."""
+    gn = ng if isinstance(ng, list) else [f"G{i + 1}" for i in range(ng)]
+    tn = nt if isinstance(nt, list) else [f"H{i + 1}" for i in range(nt)]
+    ng, nt = len(gn), len(tn)
     GS = GROUND_SCHEMA_COMP if COMP["on"] else GROUND_SCHEMA
     g_item = {"type": "object", "additionalProperties": False, "required": ["guess"] + GS["required"],
-              "properties": {"guess": {"type": "string", "description": "the guess's name in this request: G1, G2, ..."}, **GS["properties"]}}
+              "properties": {"guess": {"type": "string", "enum": gn or ["G1"], "description": "the guess's name in this request, exactly as its heading writes it"}, **GS["properties"]}}
     R = REVIEW3_SCHEMA if COMP["on"] else REVIEW_SCHEMA
     t_item = {"type": "object", "additionalProperties": False, "required": ["for"] + R["required"],
-              "properties": {"for": {"type": "string", "description": "the hypothesis whose test this item reviews, as its heading names it"}, **R["properties"]}}
+              "properties": {"for": {"type": "string", "enum": tn or ["H1"], "description": "the id of the hypothesis whose test this item reviews, exactly as its heading writes it"}, **R["properties"]}}
     return {"type": "object", "additionalProperties": False, "required": ["guesses", "tests"], "properties": {
         "guesses": {"type": "array", "minItems": ng, "maxItems": ng, "items": g_item, "description": "one item for each new guess, in their order"},
         "tests": {"type": "array", "minItems": nt, "maxItems": nt, "items": t_item, "description": "one item for each test, in their order"}}}
@@ -1345,9 +1350,15 @@ def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None
             + (f"FOR EACH NEW GUESS (an item of guesses, named G1, G2, ... as above): {gp[0]['ask']}\n\n" if gp else "")
             + (f"FOR EACH TEST (an item of tests, by its hypothesis): {tp[0]['ask']}" if tp else ""))
     n = len(guesses) + len(tests)
-    d = (ask_fn or (lambda m, u, sc: supervise(m, u, sc, 9000 + 2000 * (n - 1))))(model, user, batch_schema(len(guesses), len(tests)))   # 4,500 reasoning tokens and 1,000 more for each further item
-    gs = {str(x.get("guess")): x for x in d.get("guesses") or [] if isinstance(x, dict)}
-    ts = {str(x.get("for")): x for x in d.get("tests") or [] if isinstance(x, dict)}
+    d = (ask_fn or (lambda m, u, sc: supervise(m, u, sc, 9000 + 2000 * (n - 1))))(model, user, batch_schema([f"G{i + 1}" for i in range(len(guesses))], [hid for hid, _, _ in tests]))   # 4,500 reasoning tokens and 1,000 more for each further item
+    lead = lambda v: (m.group(1) if (m := re.match(r"\s*([GH]\d+)\b", str(v))) else str(v))   # an id with words after it is read by its id
+    gs, ts = {}, {}
+    for x in d.get("guesses") or []:
+        if isinstance(x, dict):
+            gs.setdefault(lead(x.get("guess")), x)
+    for x in d.get("tests") or []:
+        if isinstance(x, dict):
+            ts.setdefault(lead(x.get("for")), x)
     return [gs.get(f"G{i + 1}") for i in range(len(guesses))], [ts.get(hid) for hid, _, _ in tests], user
 
 
@@ -2142,7 +2153,7 @@ def supervised_format(schema, competitors=False):
              "hypotheses": {**P["hypotheses"], "items": keep(P["hypotheses"]["items"], ["from_why", "text"])}, "drop": P["drop"]}
     ex = P["experiment"]["anyOf"][0]
     if competitors:   # stage 5: a rule names the guess it competes with; a guess may name one
-        CW = {"type": "string", "description": "the id of another live guess (for example Y3): not the hypothesis's own, nor one linked to it by revises"}
+        CW = {"type": "string", "pattern": "^Y[0-9]+$", "description": "the id of another live guess (for example Y3): not the hypothesis's own, nor one linked to it by revises"}
         ex["properties"]["decision_rules"]["items"]["properties"]["competes_with"] = CW
         ex["properties"]["decision_rules"]["items"]["properties"]["rival_predicts"] = {**ex["properties"]["decision_rules"]["items"]["properties"]["rival_predicts"], "description": "what this rule gives if that guess is true and the tested one false (held is refused)"}
         props["whys"]["items"]["properties"]["competes_with"] = {"anyOf": [{"type": "string", "pattern": "^Y[0-9]+$", "description": "the id of an earlier guess whose result this one explains by another cause"}, {"type": "null"}]}
@@ -2809,7 +2820,7 @@ def main():
     why_schema = schema["properties"]["whys"]["items"] if "whys" in schema["properties"] else None   # a restated guess (the arm "supervised", 2026-11-22)
     RV = "competes_with" if competitors else "rival"   # stage 5: the repair names an existing guess
     repair_schema = {"type": "object", "additionalProperties": False, "required": ["decision_rule", RV, "rival_predicts", "runs"], "properties": {   # a repaired test (the arm "supervised", 2026-11-22)
-        "decision_rule": {"type": "string"}, RV: {"type": "string", **({"description": "the id of an existing live guess the rule competes with (not the hypothesis's own)"} if competitors else {})}, "rival_predicts": {"type": "string", "enum": ["held", "failed"]},
+        "decision_rule": {"type": "string"}, RV: {"type": "string", **({"pattern": "^Y[0-9]+$", "description": "the id of an existing live guess the rule competes with (not the hypothesis's own)"} if competitors else {})}, "rival_predicts": {"type": "string", "enum": ["held", "failed"]},
         "runs": {"type": "array", "items": schema["properties"]["experiment"]["anyOf"][0]["properties"]["runs"]["items"], "description": "only if the simulations must change; empty keeps them"}}}
     judged, judge_written = {}, set()   # each pair of a guess and a hypothesis is judged once in a session: a second attempt of the same turn gets the same reading
     def judge_fn(why, h):
