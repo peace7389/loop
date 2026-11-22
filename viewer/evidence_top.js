@@ -51,6 +51,7 @@ Object.assign(EV, {
   // answer, a verdict against its check and a number that differs from its measurement); the flow, in the picture and the charts.
   // Each item of the legend has a box of its own (pointed at, or reached with the Tab key): [the name, the group it belongs to, what it means in a sentence or two, where it is seen on the page]
   LEGEND_SAYS: {
+    'key-meas': ['measurements it made up', 'a mark on a box of the board', 'The measurements the researcher defined itself for that hypothesis (or that exploration, or the baseline at the start): a statistic of what a simulation recorded, or a finer record of it (a probe). None costs a simulation. The number says how many; a click opens them beside the board, by the turn each was made in, with what it measured, on which simulation and what came out.', 'a small ruler astride the lower right corner of a box'],
     model: ['AI', 'who produced it', 'Written by the AI: its hypotheses, plans, decision rules, verdicts and final report.', 'a small mark before a line, or the left edge of a box'],
     harness: ['harness', 'who produced it', 'Made by the harness, the program that runs the session: it checks each decision rule against the measurements, counts, and refuses what it cannot use.', 'a small mark before a line, or the left edge of a box'],
     simulator: ['ns-3', 'who produced it', 'Measured by ns-3, the network simulator, in a simulation: goodput, loss, drops.', 'a small mark before a measured value'],

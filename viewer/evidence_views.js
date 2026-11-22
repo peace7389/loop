@@ -170,6 +170,9 @@ Object.assign(EV, {
         return row('box', 'A box', 'is a hypothesis, as the AI judged it', boxes)
           + (recorded ? (arrows ? row('arrow', 'An arrow', 'leads to a hypothesis that follows from', arrows) : '')
             : row('arrow', 'Arrows', `none: what each hypothesis follows from is ${EV.nr} (this session was recorded before that field existed)`, ''))
+          // the ruler mark, where the board has one (2026-11-22, the operator): the measurements the researcher made up for that box
+          + (EV.measAll && EV.measAll().some(q => EV.seen(q.id) && (q.at || []).length) ? row('meas', 'A ruler', 'on a box: measurements the researcher made up for it',
+              `${it('meas', `<svg class="ms-key" viewBox="0 0 31 15" width="31" height="15" style="display:inline" aria-hidden="true"><rect x="0.5" y="0.5" width="30" height="14" rx="4"/><path d="M4 11h12M5.5 11V8M8.5 11V5M11.5 11V8M14.5 11V5"/><text x="19" y="11.5">3</text></svg>`, 'how many · click it to open them', '')}`) : '')
           + '<p class="mk-do noprint">point at a box, an arrow or its sign to read it · click to open it</p>'; })()}</div>`;
   },
 });
