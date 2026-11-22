@@ -1209,6 +1209,37 @@ model); after more than 3 of them in a row the model is told to decide (its
 readings are no longer withheld). In a last turn (8.8) requests are
 not taken.
 
+*Deployed on 2026-11-22 at 17:05 (the operator: "Deploy A, B and D together, nothing else"; built on branch review/harness-2026-11-22,
+whose REVIEW.md has the reasons, the checks and the results):*
+- **Readings as evidence** (part 1, which A needs): a why's `about`, a rethink's `in_light_of` and a report claim's `evidence` may name a reading
+  (T*n*) or a run id (its simulation and its readings); a reading seen since a why was settled counts as new for its rethink (`since(...,
+  readings=True)`), but a reading alone does not make a why due. Within READINGS_ROOM = 40,000 characters every reading stands in full. Once the
+  budget is used up, FREE_TURNS = 2 more turns to look and to test on simulations already run, then the report-only turn. Everything recorded comes
+  back to the researcher (a hypothesis's question and why, a test's question, the supervisor's findings); the judge's readings stay a person's.
+- **Findings** (A, every arm): a finding F*n* is one thing the results do not explain (about: the records it rests on; text: one sentence with its
+  numbers), raised by the researcher (`findings` in its answer) or, in the arm "supervised", by the supervisor (in its ruling, and in one call after
+  the baseline and each explore experiment; what is unexplained, never why; kept only with ids that exist and a number). Its status changes only by
+  the researcher's decisions A*n* (`decisions`: work with refs, park with a reason, close with evidence, same_as); a work decision without refs counts
+  as worked on, not as looked at; a guess whose about names F*n* works on it. Every turn begins with the FINDINGS list; open findings are due each
+  turn, parked and idle working ones after PARK_TURNS = 2. A report offered while the researcher can still work is held while a finding was never
+  looked at (at most FINDING_HOLDS = 2 times); in the last turn the harness adds each finding not closed to open_questions. A record Z at the end
+  tallies each finding. Nothing about findings refuses another part. `session_figures.findings_counts`; the page draws a bar per finding under the
+  hypotheses (pointing links a bar and its hypotheses; a click opens its history).
+- **The review of a test in rounds** (B, the arm "supervised"): the researcher states each rule's rival and rival_predicts (`rival_problem`, as in
+  the single-AI arm; "held" is refused before any call); the supervisor judges that rival (each box after its reasoning), approved only with no
+  defect, no stronger rival and rival_outcome "failed"; contradicting boxes get one direct question, a second contradiction is a refusal; feedback
+  never holds a decision rule (cut, with a note). A refused test is repaired by the researcher in the same turn (a short call: the test only),
+  re-checked and reviewed again, REVIEW_ROUNDS = 3, then AFTER_ROUNDS = "contested" (it runs; the ruling knows). Every round ends before any
+  simulation of the experiment runs; then the approved tests run, a repaired one as an experiment of its own, in the same turn. Each round is a
+  review record, each repair a record P*n*. `session_figures.design_rounds`; a test's detail lists its rounds.
+- **Guesses** (D, the arm "supervised"): the supervisor's "not_from_what_was_learned" is a warning (the guess is accepted, its review says so);
+  any other refusal of a guess (the harness's chain rule among them, or the supervisor's) brings one restatement in the same turn, checked again
+  (by the harness alone when the harness refused it), then the guess is accepted, contested if it still fails: its hypotheses and test go ahead.
+  `session_figures.guess_reviews`. The supervised arm's whole instructions (with the findings text) are kept under 10,000 characters.
+- **Not deployed** (still under review on the branch): part 2 (the statistics crossings, corr and lag, `with`, taps on trace sources,
+  trace_points: the live tools.py, schema.json, manifest.json and network.py stay), part 3 (the short answer format of the single-AI arm:
+  `SHORT_FORMAT = False`), and part C (follow-through on findings, shelved).
+
 ### 8.4 Decision rules: `decision_rules.py`
 
 A decision rule is a comparison the harness can evaluate itself. Grammar:
@@ -3583,6 +3614,7 @@ untracked until they say otherwise.
 | 2026-11-22 | The page shows less (the operator: "too complex and obscure with too many information shown"): "Turn by turn: who did what" is no longer a card but the folded detail at the end of "What it needed to find out" (closed on a first visit, open in Full, remembered as `ev-turns`; the box "Session" of "How a session is built" opens it); "Two agents" and "The session at a glance" are not drawn for now (their code stays; the guided walk has no step for them; the page checks that read them run only where they are drawn). Repaired the same day: a network whose flows are named udp and tcp writes `udp_bps` and `tcp_bps` like the two-host program, was taken for it, and three of a simulation's four charts over time stayed empty with a script error (s045, s047, s048) |
 | 2026-11-22, later | At the operator's word: the board stays in view while turn by turn is read; the network drawn as a schema of its ns-3 objects with a "Made of" line; every call of the local model kept (`calls.jsonl`) and shown on the owner's page `agents.html` (`/api/agents`, the owner only); every reading of the tools stays in the researcher's ledger text and the supervisor is given the same readings. Also: the 11-18 harness fix of the supervised arm deployed. |
 | 2026-11-22 | The lean page, three parts (the operator): the setting; what it needed to find out (the board, turn by turn folded); the detail of what is clicked, beside it and always in the window. Every other section is kept but not drawn (`EV.LEAN`; `?page=full` draws the page as it was). A long board stays readable (85 % at least, then it scrolls sideways in its card and says so); turn by turn in the narrower column puts a label above its value. Found and repaired while building it: a shorter detail made the page jump (95 px on s046) when the pane was taller than the board's column |
+| 2026-11-22, evening | Deployed at 17:05 (the operator: "A, B and D, nothing else"): readings as evidence and two free turns (part 1); findings (A); the review of a test in rounds with the researcher's own rival (B); a guess restated once and then accepted, "not from what was learned" a warning (D). Not deployed: part 2 (measurement statistics, taps), part 3 (the short answer format), part C (shelved). See 8.3, and the branch review/harness-2026-11-22. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

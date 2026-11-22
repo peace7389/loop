@@ -121,3 +121,68 @@ def unnamed_simulations(recs):
         named = (r.get("body") or {}).get("label") in set(re.findall(r"@([A-Za-z0-9_]+)", text)) or (len(x.get("runs") or []) == 1 and bool(rules))
         unnamed += not named
     return [unnamed, testing]
+
+
+def findings_counts(recs):
+    """The findings of a session (2026-11-22, the operator: findings raised by each agent, how many ended closed, parked or unresolved, and how
+    many turns each stayed open), or None for a session without findings (every session before 2026-11-22: its row is as before).
+    {"raised": {"researcher": n, "supervisor": n}, "ended": {"closed": n, "same_as": n, "parked": n, "working": n, "unresolved": n},
+     "turns_open": {"mean": x, "max": n}, "never_looked_at": n, "final": whether the harness's tally at the end was read}.
+    From the harness's tally at the end (findings_end) when there is one; for a session still running, from its findings and decisions so far
+    (turns counted to its latest turn; never_looked_at is then not counted: None)."""
+    fs = [r for r in recs if r["type"] == "finding"]
+    if not fs:
+        return None
+    raised = {"researcher": sum(r.get("by") == "model" for r in fs), "supervisor": sum(r.get("by") == "supervisor" for r in fs)}
+    end = next((r for r in reversed(recs) if r["type"] == "findings_end"), None)
+    if end:
+        rows = (end.get("body") or {}).get("findings") or []
+        status = [x.get("status") for x in rows]
+        spans = [x.get("turns_open") or 0 for x in rows]
+        never = sum(bool(x.get("never_looked_at")) for x in rows)
+    else:
+        now, st = max((r.get("turn") or 0 for r in recs), default=0), {r["id"]: ("open", r.get("turn") or 0, None) for r in fs}
+        for r in recs:
+            b = r.get("body") or {}
+            if r["type"] == "decision" and b.get("for") in st:
+                st[b["for"]] = ({"work": "working", "park": "parked", "close": "closed", "same_as": "same_as"}.get(b.get("action"), "open"), st[b["for"]][1], r.get("turn"))
+        status = ["unresolved" if s == "open" else s for s, _, _ in st.values()]
+        spans = [((at if s in ("closed", "same_as") else now) - t) for s, t, at in st.values()]
+        never = None
+    return {"raised": raised, "ended": {k: status.count(k) for k in ("closed", "same_as", "parked", "working", "unresolved")},
+            "turns_open": {"mean": round(sum(spans) / len(spans), 1), "max": max(spans)}, "never_looked_at": never, "final": end is not None}
+
+
+def design_rounds(recs):
+    """The review of tests before they run, in rounds (the arm "supervised", since 2026-11-22, after the reviews of s047 and s050), or None for a
+    session without rounds (every session before: its row is as before). A test is one hypothesis's test proposed in one turn.
+    {"tests": proposed (reviewed, or refused by the harness before any review), "reviewed": n, "rounds": {"mean": x, "max": n} per reviewed test,
+     "approved_first": approved in round 1, "repaired_approved": approved after a repair, "contested": run although the supervisor still objected,
+     "dropped": its hypothesis dropped after the last round, "unsettled": left sent back (its repair could not be read or used),
+     "refused_by_harness": refused before any review (no rival, or one under which the rule would hold too)}"""
+    rv = [r for r in recs if r["type"] == "review" and (r.get("body") or {}).get("gate") == "design" and (r.get("body") or {}).get("round")]
+    if not rv:
+        return None
+    tests = {}
+    for r in rv:
+        tests.setdefault((r["body"].get("for"), r.get("turn")), []).append((r["body"]["round"], r["body"].get("decision")))
+    refused = sum(1 for r in recs if r["type"] == "note" and str((r.get("body") or {}).get("part") or "").startswith("test of "))
+    last = {k: max(v)[1] for k, v in tests.items()}
+    rounds = [max(n for n, _ in v) for v in tests.values()]
+    return {"tests": len(tests) + refused, "reviewed": len(tests), "rounds": {"mean": round(sum(rounds) / len(rounds), 2), "max": max(rounds)},
+            "approved_first": sum(1 for v in tests.values() if (1, "approved") in v), "repaired_approved": sum(1 for v in tests.values() if any(d == "approved" and n > 1 for n, d in v)),
+            "contested": sum(d == "contested" for d in last.values()), "dropped": sum(d == "dropped" for d in last.values()),
+            "unsettled": sum(d == "sent_back" for d in last.values()), "refused_by_harness": refused}
+
+
+def guess_reviews(recs):
+    """The guesses of a session in the arm "supervised" since 2026-11-22 (part D, after s050 and s051), or None for a session before it (its row is as
+    before): {"guesses": accepted, "warnings": accepted with the supervisor's warning (not_from_what_was_learned), "restated": restated in the same
+    turn after a refusal, "contested": accepted although the harness or the supervisor still found something against them}."""
+    ws = [r for r in recs if r["type"] == "why"]
+    ground = [r for r in recs if r["type"] == "review" and (r.get("body") or {}).get("gate") == "ground"]
+    if not any("warning" in (r.get("body") or {}) for r in ground) and not any((r.get("body") or {}).get("restated") for r in ws):
+        return None
+    contested = {r["id"] for r in ws if (r.get("body") or {}).get("contested")} | {(r.get("body") or {}).get("for") for r in ground if (r.get("body") or {}).get("decision") == "contested"}
+    return {"guesses": len(ws), "warnings": sum(1 for r in ground if (r.get("body") or {}).get("warning")), "restated": sum(1 for r in ws if (r.get("body") or {}).get("restated")),
+            "contested": len({c for c in contested if c})}

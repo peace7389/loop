@@ -32,6 +32,8 @@ no setting makes a meaningful improvement it should ask why rather than present 
 | 2026-11-17, late | The network builder reviewed against ns-3 at the operator's word ("building section should reflect ns-3 architecture") and brought nearer to it in two stages: a link is a channel and two devices, each with its own rate and transmit queue where wanted; a queue on either sending side, or both; several flows in one queue of a scheduler. Second build of `net` with five predictions met (`checks/net2`). Session s043, the first under the mandatory look-again. |
 | 2026-11-18 | The operator could not find a NIC among the builder's tools, thought a single queue for UDP and TCP needed the "Shared queue" tool, and asked whether ns-3 has separate UDP and TCP applications (it has not). The builder now names ns-3's objects: application (OnOff, BulkSend) and socket (UDP, TCP) as two choices, so TCP can send at a constant rate; the Link tool says it brings a NIC at each end. Brief `two-hosts-one-queue` for the supervisor's question: one queue under the scheduler behaves exactly as a plain shared queue (UDP at 2 Gbps leaves TCP 0). |
 | 2026-11-18, late | The rest of what ns-3 has for the builder's objects, at the operator's "Do it": an application's times, a device's largest packet and loss, TCP's options, ns-3's queue discs, the ns-3 attribute beside every setting. A review of the loop's objects (the verdict repeats the check, the judge never refused) and the operator's decision to split the AI into a researcher and an independent supervisor. |
+| 2026-11-22 | The lean page (the setting, what it needed to find out, the detail), the network as a schema of its ns-3 objects, Agent transcripts for everyone, measurement marks on the board; every reading and the researcher's own observations kept in its ledger. Sessions s048 to s051 (s051 stopped: 8 turns without a simulation). |
+| 2026-11-22, evening | Deployed (the operator: "A, B and D, nothing else"): readings as evidence and two free turns after the budget (part 1); findings, unexplained results tracked until they are closed (A); the supervisor's review of a test in rounds, with the researcher's own rival and a repair in the same turn (B); a guess is never refused for good: a warning, or one restatement, then accepted (D). Under review, not deployed: new measurement statistics and taps (part 2), the short answer format (part 3), follow-through on findings (C, shelved). |
 
 ## 3. Results (headline figures only)
 
@@ -220,6 +222,23 @@ turn's look-again at its head, and a turn that went on without it marked (s042, 
 **A16. What the AI writes about its own test repeats the test; a second voice needs a different view, not a second name.**
 *Evidence:* a review of the 43 ledgers on 2026-11-18: of 474 verdicts none contradicted its check (378 repeat it); the judge, the same model given the same words, found 20 of 20 hypotheses to follow from their guesses; a rethink called a guess supported after its only hypothesis was refuted (s043); full format and plain arm scored the same gap on the one scored brief. *What we changed:* the arm "supervised": the researcher proposes and does not rule on its own tests; a supervisor, asked in a request of its own and never shown the researcher's reasons, reads each new guess against the records it cites, reviews each test before any simulation, and rules on what the checks mean. The checks stay facts: a ruling that does not fit them is recorded as inconclusive. *Status:* built and tested with a scripted supervisor; not yet measured whether the same model, asked this way, objects where it should.
 
+
+**A17. A refusal that takes down everything built on it costs whole turns.**
+*Evidence:* s049 turn 2: one refused citation took the turn's guesses, hypotheses and experiment with it; s051: 8 turns and no simulation, guesses
+refused by the supervisor took 6 hypotheses and an experiment with them. *What we changed:* findings and decisions never refuse another part (A); a
+refused test is repaired in the same turn (B); a refused guess is restated once in the same turn and then accepted, contested if it still fails (D).
+*Status:* partly (scripted checks; no real session yet).
+
+**A18. A reviewer that invents its own rival disagrees with itself.**
+*Evidence:* s047: the supervisor's two answers about a test (the defect, and what the rule would do under its rival) disagreed 12 times, and the
+harness sided with one of them; all 3 inconclusive verdicts of s047, and H1 and H4 of s050, came from such tests. *What we changed:* the researcher
+states the rival; the supervisor judges it, each answer after its reasoning; answers that contradict each other are asked about once more (B).
+*Status:* partly.
+
+**A19. Something noticed and parked is forgotten unless it stays in view and needs a decision.**
+*Evidence:* s048 and s049: six guesses set aside, none taken up again; threads that ask "why" parked as "less urgent for the goal". *What we
+changed:* findings (A): each stays on a list at the top of every turn, needs a decision, and a report is held while one was never looked at.
+*Status:* open (no session with findings yet).
 
 ### B. Measuring and judging
 
