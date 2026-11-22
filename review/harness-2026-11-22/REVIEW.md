@@ -400,3 +400,30 @@ instructions, which refuse those words (a plain session would not have started);
 
 **Held, not deployed** (the operator, 2026-11-22: "Build on the review branch; don't deploy"): the tenth and eleventh parts. The deploy build
 (`derive_dep.py` of this branch) passed every harness check that has finished: 22 pass, 3 report SKIP (parts 2 and 3 off), none failed.
+
+# Stage 1 of the coherence audit: records and crashes (2026-11-22, night; plans/2026-11-22-coherence-audit.md on main)
+
+Built on this branch, not deployed (the operator: all stages in order, nothing deployed without their word). Each item names the audit's number.
+- 1. **Ids by position** (s1_ids.py). A new guess or hypothesis keeps the id of its position for its own answer's references (from_why, revises,
+  tests, decision_rules.for, needs.for, decision refs). A reference to a refused part is refused, saying which part. The automatic "work" decision
+  uses this reply's guesses. Scripts written for the old shifting numbering were renumbered (test_format_fix.py T1, T2).
+- 2, 12. **The supervisor is shown its answer's fields** (fields_text, generated from each schema) in every request; fields without a description
+  got one. The ruling's findings have the finding's format, name included (s1_show.py).
+- 3. **A planned simulation's network change** is shown in the test review, its follow-up, the repair and the round's record (s1_show.py).
+- 4. **The ruling's doubt_if** comes only from the supervisor's own reviews (s1_show.py).
+- 5, 6. **Guards** (s1_guards.py): each measurement and the probe are guarded on their own; a check that cannot be computed is "not checked";
+  abs/min/max arity is refused when a rule is read; measure() keeps each value with its own time and says when it is defined nowhere. tools.py and
+  decision_rules.py are patched on both builds: derive_dep.py applies the patch to the live tools.py and network.py.
+- 7. **Measurements are checked against each design's own network** (s1_measures.py).
+- 8. **The list of varied knobs** is cut when the harness removes designs (s1_varied.py).
+- 9. **REQUESTS_MOST = 3** in the single-AI arms: stated in prompt.txt, set as maxItems, and a cut is noted (s1_requests.py).
+- 10. **Budget**: repairs are charged against each other; "left" is never below 0; a continued session rebuilds sims, budget, free turns and
+  giving_up from its ledger (s1_loop.py).
+- 11. **The last turns**: findings and decisions alone are not usable; a reply with no report ends the session (s1_loop.py).
+- 13. **The baseline and the first look** run inside the guard; a model error at the look gives a note (s1_loop.py).
+- 14. **The link line** has no space inside a value (s1_net.py; both network.py builds).
+
+Checks:
+- New: test_ids_position.py, test_varied.py, test_stage1.py (A–G).
+- Each was shown to fail on the code before stage 1, where it replays a session's failure: test_ids_position, test_varied, test_stage1's D.
+- The full suite on both builds is running.

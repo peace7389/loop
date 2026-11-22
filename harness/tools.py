@@ -546,13 +546,17 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None, **more)
     try:
         ts, xs = [r["t"] for r in win], [val(tree, r) for r in win]
         ys = [val(tree2, r) for r in win] if tree2 is not None else None
-    except ValueError as e:
+    except (ValueError, TypeError) as e:   # TypeError: a function given the wrong number of values (the coherence audit, 2026-11-22)
         return f"error: cannot read {e}: use {known}, numbers, + - * /, parentheses, abs, min, max"
     if ys is not None:   # pairs of the two, sample by sample
         keep = [i for i in range(len(xs)) if not math.isnan(xs[i]) and not math.isnan(ys[i])]
         ts, xs, ys = [ts[i] for i in keep], [xs[i] for i in keep], [ys[i] for i in keep]
-    xs = [x for x in xs if not math.isnan(x)]
-    step = (ts[-1] - ts[0]) / (len(ts) - 1) if len(ts) > 1 else 0.1
+    step = (ts[-1] - ts[0]) / (len(ts) - 1) if len(ts) > 1 else 0.1   # the record's own step, before undefined samples leave
+    keep = [i for i in range(len(xs)) if not math.isnan(xs[i])]   # each value with its own time (the coherence audit, 2026-11-22: values were paired with the wrong times)
+    ts, xs = [ts[i] for i in keep], [xs[i] for i in keep]
+    ys = [ys[i] for i in keep] if ys is not None else None
+    if not xs:
+        return f"error: {of} is not defined at any sample between {lo:g} s and {hi:g} s (it divides by zero there, or reads a quantity with no value)"
     def corr(a, b):
         n = len(a)
         if n < 3:

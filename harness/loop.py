@@ -100,8 +100,26 @@ def measurement_problem(ex, brief):
         return None
     if not isinstance(ms, list) or not all(isinstance(m, dict) for m in ms) or len(ms) > 8:
         return "measurements is a list of at most 8, each with name, of, stat, t_from, t_to, level and with"
-    series, fine = network.record_columns(brief["topology"]) if brief.get("topology") else TWO_HOSTS_COLUMNS
+    def cols_of(r):   # what one design records, on its own network (the coherence audit, 2026-11-22: the brief's network was used)
+        if not brief.get("topology"):
+            return TWO_HOSTS_COLUMNS
+        e = edits_of(r, brief) if isinstance(r, dict) else []
+        if e and structure_problem(e, brief):
+            return None   # a change that cannot be made: experiment_problem refuses it with its own reason
+        try:
+            return network.record_columns(network.apply(brief["topology"], e) if e else brief["topology"])
+        except (ValueError, KeyError, TypeError):
+            return None
+    designs = [(r.get("label"), cols_of(r)) for r in ex.get("runs") or [] if isinstance(r, dict)]
+    designs = [(l, c) for l, c in designs if c] or [("the brief's network", network.record_columns(brief["topology"]) if brief.get("topology") else TWO_HOSTS_COLUMNS)]
+    series, fine = designs[0][1]
     outs, seen = tools.outputs(brief), set()
+    for r in ex.get("runs") or []:   # the names of the outputs of every design's network, which a measurement may not take
+        if isinstance(r, dict) and edits_of(r, brief) and not structure_problem(edits_of(r, brief), brief):
+            try:
+                outs = {**outs, **network.outputs(network.apply(brief["topology"], edits_of(r, brief)))}
+            except (ValueError, KeyError, TypeError):
+                pass
     for m in ms:
         n = m.get("name")
         if not (isinstance(n, str) and re.fullmatch(r"[a-z][a-z0-9_]{1,30}", n)) or n in outs or n in seen:
@@ -119,8 +137,11 @@ def measurement_problem(ex, brief):
             used = {x.id for e in [m.get("of")] + ([m["with"]] if m.get("with") else []) for x in ast.walk(ast.parse(str(e), mode="eval")) if isinstance(x, ast.Name)} - {"abs", "min", "max"}
         except SyntaxError:
             used = None
-        if not used or not (used <= set(series) or used <= set(fine)):
-            return (f"measurement {n}: of must be a column a simulation records, or arithmetic over columns of one record. The series (every 0.1 s): {', '.join(series)}. "
+        lacking = [(l, c) for l, c in designs if not used or not (used <= set(c[0]) or used <= set(c[1]))]
+        if lacking:
+            l, (series, fine) = lacking[0]
+            return (f"measurement {n}: of must be a column a simulation records, or arithmetic over columns of one record" + (f", in every design: design {l} does not record it" if len(designs) > 1 and len(lacking) < len(designs) else "")
+                    + f". What {l if len(designs) > 1 or l != designs[0][0] else 'a simulation'} records: the series (every 0.1 s): {', '.join(series)}. "
                     f"The probe (every {tools.PROBE_EVERY} s; it only listens): {', '.join(fine)}")
     return None
 
@@ -342,11 +363,17 @@ def experiment(ledger, turn, parent, ex, zero=False):
         runs it again with the probe, and uses that record only if the result is the same."""
         out = {}
         if own and "probe.csv" not in [p.name for p in tools._dir(run_id).iterdir()]:
-            said = tools.probe(run_id)
+            try:   # one that fails gives no finer record: its measurements are left out, and its rules say "not checked" (the coherence audit, 2026-11-22)
+                said = tools.probe(run_id)
+            except Exception as e:
+                said = f"error: {type(e).__name__}"
             if said.startswith("error"):
                 return {}
         for m in own:
-            said = tools.measure(run_id, m["of"], m["stat"], m.get("t_from"), m.get("t_to"), m.get("level"), **({"with": m["with"]} if m.get("with") else {}))
+            try:   # each measurement on its own: one that fails leaves the others (the coherence audit, 2026-11-22)
+                said = tools.measure(run_id, m["of"], m["stat"], m.get("t_from"), m.get("t_to"), m.get("level"), **({"with": m["with"]} if m.get("with") else {}))
+            except Exception as e:
+                said = f"error: {type(e).__name__}"
             v = json.loads(said).get("value") if said.startswith("{") else None
             if v is not None:
                 out[m["name"]] = v
@@ -372,7 +399,10 @@ def experiment(ledger, turn, parent, ex, zero=False):
             if (results.get(r["label"]) or {}).get("probe_same") is False:   # the simulation without the probe gave another result: its finer record is not used
                 body["probe"] = "not used: the same simulation run without the probe gave another result"
             else:
-                mine = measured(body["run_id"])
+                try:   # a measurement that fails is left out with its reason: it never stops the session after its simulations ran (the coherence audit, 2026-11-22)
+                    mine = measured(body["run_id"])
+                except Exception as e:
+                    mine, body["measured_error"] = {}, f"{type(e).__name__}: {' '.join(str(e).split())[:200]}"
                 body["metrics"], body["own"] = {**body["metrics"], **mine}, sorted(mine)   # own: which of its measures the experiment defined itself
         sid = append(ledger, turn, "simulation", xid, body, rid="S0" if zero else None)
         made[r["label"]] = ledger[-1]
@@ -393,7 +423,7 @@ def experiment(ledger, turn, parent, ex, zero=False):
             held, numbers = decision_rules.check(d["decision_rule"], {**tools.outputs(), **{k: "" for v in values.values() for k in v}}, labels, values)   # a changed network's own measures count too
             result = "held" if held else "failed"
             close = decided_by_little(d["decision_rule"], labels, values, ledger)
-        except decision_rules.DecisionRuleError as e:  # it was readable (validate), so: a simulation it names gave no value
+        except Exception as e:  # it was readable (validate), so: a simulation it names gave no value; anything else is "not checked" with its reason (the coherence audit, 2026-11-22)
             result, numbers, close = "not checked", str(e), []
         append(ledger, turn, "check", xid, {"for": d["for"], "experiment": xid, "decision_rule": d["decision_rule"], "rival": d.get("rival"), "rival_predicts": d.get("rival_predicts"),
                                             "with_numbers": numbers, "result": result, **({"tolerance": TOLERANCE, "within_tolerance": close} if close else {})})
@@ -740,16 +770,16 @@ REVIEW_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["
     "feedback": {"type": "string", "description": "for the researcher: what is wrong with the test (empty when there is nothing), and a stronger rival if there is one. Never a decision rule, a measure@label or simulations: the researcher finds the repair"}}}
 AGAIN_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["because", "rival_outcome", "defect"], "properties": {
     "because": {"type": "string", "description": "your answer to the question, with the numbers or record ids it rests on"},
-    "rival_outcome": {"type": "string", "enum": ["held", "failed", "cannot tell"]}, "defect": {"type": "string", "enum": list(DEFECTS)}}}
+    "rival_outcome": {"type": "string", "enum": ["held", "failed", "cannot tell"], "description": "what the decision rule would give under the rival, after your answer"},
+    "defect": {"type": "string", "enum": list(DEFECTS), "description": "the one defect your answer ends in, or none"}}}
 RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["shows", "because", "fair", "defect", "result", "retest", "findings"], "properties": {
     "shows": {"type": "string", "description": "what the measured numbers show, in one sentence, before any conclusion"},
     "because": {"type": "string", "description": "your reasoning from the numbers to the ruling: written before you rule"},
     "fair": {"type": "boolean", "description": "whether this was a fair test of the hypothesis: one that could have come out the other way if the hypothesis were false"},
     "defect": {"type": "string", "enum": list(DEFECTS), "description": "none when the test was fair"},
-    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"]},
+    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"], "description": "supported: every check held and the test was fair; refuted: a check failed and the test was fair; inconclusive: otherwise"},
     "retest": {"type": "string", "description": "when the result is inconclusive: what a fair test would have to compare; else empty"},
-    "findings": {"type": "array", "maxItems": 2, "items": {"type": "object", "additionalProperties": False, "required": ["about", "text"], "properties": {
-        "about": {"type": "array", "items": {"type": "string"}}, "text": {"type": "string"}}}, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}}}
+    "findings": {"type": "array", "maxItems": 2, "items": None, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}}}   # items: FINDING_ITEM, set where it is defined
 GROUNDS = {"none": "no defect",
            "not_in_the_records": "the result the guess starts from is not what the cited records show",
            "repeats": "the guess says again, in other words, what an earlier guess or hypothesis already said, and that one has its ruling",
@@ -774,13 +804,30 @@ REPAIR_SYSTEM = ("You are the researcher. The supervisor, or the harness, sent b
                  "true, and the simulations only if they must change. Answer with one JSON object in the format you are given.")
 SHORT_CALL_TOKENS = 12000   # a repair and a restatement (2026-11-22, the operator chose it after the review of s050 to s053): 6,000 of them reasoning; a whole reply keeps its own
 CONTINUES = 2   # (2026-11-22, the operator: "Turn 1 and 2 passed without any hypothesis are not what I intended. Fix it") a reply that states no hypothesis, test, drop, verdict, objection or report is followed by another call in the same turn, at most this many times: what it asked for is answered at once
+REQUESTS_MOST = 3   # the arms "hypotheses" and "plain": the most requests answered in one reply (stated in prompt.txt; the answer format's maxItems; a cut is noted)
 LOOKS = 6   # the arm "supervised": the most requests in one turn, and the most turns in a row that only look (the operator, 2026-11-18: observe the system whenever it wants, rather than try many simulations)
 SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of the supervisor, what it was shown and what it answered
+
+
+def fields_text(schema, indent="  "):
+    """The fields of an answer as the model is to write them, in their order, each with what it holds (the coherence audit, 2026-11-22: the schema
+    reached the model server only as a constraint, so the supervisor never saw its fields and guessed what each meant)."""
+    out = []
+    for k, v in (schema.get("properties") or {}).items():
+        kind = ("true or false" if v.get("type") == "boolean" else "one of: " + ", ".join(map(str, v["enum"])) if v.get("enum") else
+                "a list" if v.get("type") == "array" else "a number" if v.get("type") in ("number", "integer") else "text")
+        out.append(f"{indent}{k} ({kind}){': ' + v['description'] if v.get('description') else ''}")
+        items = v.get("items") if v.get("type") == "array" else None
+        if isinstance(items, dict) and items.get("properties"):
+            out.append(f"{indent}  each item of {k}:")
+            out.append(fields_text(items, indent + "    "))
+    return "\n".join(out)
 
 
 def supervise(model, user, schema):
     """One request to the supervisor: its own instructions, a request of its own (nothing of the researcher's conversation), temperature 0. The model
     reasons before it answers, as the researcher does; that reasoning is not kept (its answer says its ground)."""
+    user += "\n\nYOUR ANSWER: one JSON object with these fields, in this order:\n" + fields_text(schema)   # what each field holds (the coherence audit, 2026-11-22)
     content = called("supervisor", model, SUPERVISOR, user, schema, True, 0, 9000)[0]
     try:
         return json.loads(content)
@@ -847,7 +894,7 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlie
     rules = [d for d in ex.get("decision_rules") or [] if d.get("for") == hid]
     need = next((n for n in ex.get("needs") or [] if n.get("for") == hid), {})
     planned = plan(ledger, [r for r in ex["runs"] if r["label"] in (need.get("simulations") or [r["label"] for r in ex["runs"]])])
-    sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
+    sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"; network changed: {edits_say(r['structure'])}" if r.get("structure") else "") + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
     theirs = "".join(f"THE RESEARCHER'S RIVAL for this rule: {flat(d.get('rival'))}\nWHAT THE RESEARCHER SAYS THE RULE GIVES IF THAT RIVAL IS TRUE: {str(d.get('rival_predicts')).upper()}\n" for d in rules)
     before = "".join(f"ROUND {k} of this test: {who} sent it back: {flat(fb)}\n" for k, who, fb in earlier)
     user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + _case(ledger, hid, rules)
@@ -1353,7 +1400,12 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             w2["revises"] = None
         return w2
 
-    for w in t.get("whys") or []:
+    why_map, h_map = {}, {}   # an id by position in this answer -> the id it was recorded with, or None (not accepted): the coherence audit, 2026-11-22
+    for k_w, w in enumerate(t.get("whys") or []):
+        pid = f"Y{n_why + k_w + 1}"
+        why_map[pid] = None
+        if isinstance(w, dict) and isinstance(w.get("revises"), str) and w["revises"] in why_map:   # an earlier guess of this same answer, by the id it was to get
+            w["revises"] = why_map[w["revises"]]
         if isinstance(w, dict) and isinstance(w.get("about"), list):
             w["about"] = list(dict.fromkeys(of_run(a) for a in w["about"]))
         if mode == "report":
@@ -1387,16 +1439,26 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             w = {**w, "ground": {k: g[k] for k in ("records_show", "nearest_earlier", "defect", "because")} | {"warning": bool(g.get("warning"))}}   # kept with the guess: what the supervisor read in the records
         ok["whys"].append(w)
         new = f"Y{n_why + len(ok['whys'])}"   # the id it is about to get
+        why_map[pid] = new
         whys[new], stand[new] = w, w["worth"]
         fresh.add(new)
         if w.get("revises"):
             stand[w["revises"]], revised_as[w["revises"]] = "revised", new
-    for h in t.get("hypotheses") or []:
+    nth = lambda pid, base: int(pid[1:]) - base   # the position of a part of this answer, from the id it was to get
+    for k_h, h in enumerate(t.get("hypotheses") or []):
+        pid_h = f"H{known + k_h + 1}"
+        h_map[pid_h] = None
+        gone_why = isinstance(h, dict) and isinstance(h.get("from_why"), str) and h["from_why"] in why_map and why_map[h["from_why"]] is None
+        if isinstance(h, dict) and isinstance(h.get("from_why"), str) and why_map.get(h["from_why"]):
+            h["from_why"] = why_map[h["from_why"]]   # the guess of this answer it names, by the id that guess was recorded with
         if isinstance(h, dict) and isinstance(h.get("follows_from"), list):   # a run id stands for that run's simulation, as in a why's about (s043: three hypotheses refused for "r001")
             h["follows_from"] = list(dict.fromkeys(of_run(a) for a in h["follows_from"]))
         if isinstance(h, dict) and not h.get("follows_from") and whys.get(h.get("from_why")):
             h["follows_from"] = list(whys[h["from_why"]]["about"])   # what the hypothesis follows from: what its why is about
-        if mode == "report":
+        if gone_why:
+            no.append(("new hypothesis", f"it comes from {h['from_why']}, your new guess number {nth(h['from_why'], n_why)} of this answer, which was not accepted (its note says why): "
+                                         "no hypothesis can come from it in this answer"))
+        elif mode == "report":
             no.append(("new hypothesis", only))
         elif supervised and (waiting := (lambda st_c: [i for i, v in st_c[0].items() if v == "open" and i not in st_c[1] and i not in {d["id"] for d in ok["drop"]}])(states(ledger))):   # one checked and waiting for its ruling keeps nothing out (s053)
             # the chain is result, guess, hypothesis, test: a hypothesis is stated to be tested, and the next one comes from what its test showed (s047: eight stated, none tested)
@@ -1430,7 +1492,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             read = None
             if judge is not None:
                 try:
-                    hid = f"H{known + len(ok['hypotheses']) + 1}"   # the id it is about to get: its test's rule in this answer stands for a prediction the short format does not ask
+                    hid = pid_h   # the id the researcher gave it by its position: its test's rule in this answer names it so (a prediction the short format does not ask)
                     rules = [d.get("decision_rule") for d in ((t.get("experiment") or {}).get("decision_rules") or []) if isinstance(d, dict) and d.get("for") == hid and d.get("decision_rule")] if isinstance(t.get("experiment"), dict) else []
                     follows, because = judge(whys[h["from_why"]], {**h, "rules": rules})
                     read = {"follows": follows, "because": because}
@@ -1444,7 +1506,17 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
                 h = {**h, "judge": read}   # a copy: the answer as it was received (answers.jsonl) stays as the model wrote it
             ok["hypotheses"].append(h)
             st[f"H{known + len(ok['hypotheses'])}"] = "open"  # the id it is about to get
+            h_map[pid_h] = f"H{known + len(ok['hypotheses'])}"
     ex = t.get("experiment")
+    # (c) the experiment of this answer names its hypotheses by the ids they were to get: mapped to the recorded ones; one that was not accepted is named as such
+    gone_h = lambda x: f"{x} (your new hypothesis number {nth(x, known)} of this answer, not accepted)"
+    to_h = lambda x: (h_map[x] or gone_h(x)) if isinstance(x, str) and x in h_map else x
+    if isinstance(ex, dict):
+        if isinstance(ex.get("tests"), list):
+            ex["tests"] = [to_h(x) for x in ex["tests"]]
+        for d in [d for d in (ex.get("decision_rules") or []) + (ex.get("needs") or []) if isinstance(d, dict)]:
+            d["for"] = to_h(d.get("for"))
+    t["_ids"] = {**why_map, **h_map}   # for the decisions on findings of this answer (remap_refs)
     global MEASURES
     MEASURES = {}
     if isinstance(ex, dict) and mode is None:
@@ -1470,7 +1542,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
         else:
             if idle:   # a simulation that no decision rule names can decide nothing: it is not run, and the note says so
                 no.extend((f"design {l}", f"design `{l}` is named by no decision rule of this test, so it is not run. In a test every simulation is one a rule compares; to look around without a rule, use an explore experiment") for l in idle)
-                ex = {**ex, "runs": [r for r in ex["runs"] if r.get("label") not in idle]}
+                ex = still_varied({**ex, "runs": [r for r in ex["runs"] if r.get("label") not in idle]})
             ex = {**ex, "needs": needs}
     if ex is not None:
         why = only if mode == "report" else "the simulation budget is used up: no experiment is accepted in the last turn" if mode == "budget" else FIRST.format(look_again(due())) if due() else experiment_problem(ex, brief, ledger, None, st, lean=supervised)
@@ -1660,6 +1732,16 @@ def learned_since(ledger, turn=None):
     return {r["id"] for r in ledger if r["type"] in LEARNED and r["turn"] >= k and not (r["type"] == "review" and r["body"].get("decision") == "approved")}
 
 
+def still_varied(ex):
+    """The experiment with its list of varied knobs cut to those that still take more than one value in its designs: after the harness has removed
+    designs, a knob it left with one value is no longer varied, and the experiment is not refused for it (the coherence audit, 2026-11-22)."""
+    if not isinstance(ex, dict) or not isinstance(ex.get("varied"), list):
+        return ex
+    runs = [r for r in ex.get("runs") or [] if isinstance(r, dict)]
+    takes = lambda k: len({json.dumps((r.get("params") or {}).get(k), sort_keys=True) for r in runs})
+    return {**ex, "varied": [k for k in ex["varied"] if not isinstance(k, str) or k not in {q for r in runs for q in (r.get("params") or {})} or takes(k) > 1]}
+
+
 def without_tests(ex, gone):
     """A test experiment without the tests of the hypotheses in gone (sent back by the supervisor): their rules and needs leave, and so does a simulation
     that only they named. None when no test is left."""
@@ -1676,7 +1758,7 @@ def without_tests(ex, gone):
         out["needs"] = needs
     if ex.get("control") and ex["control"] not in {r.get("label") for r in runs}:
         out["control"] = None
-    return out
+    return still_varied(out)
 
 
 def as_run(r):
@@ -1845,6 +1927,7 @@ FINDING_ITEM = {"type": "object", "additionalProperties": False, "required": ["a
     "text": {"type": "string", "description": "one sentence: what the results do not explain, with its numbers"},
     "name": {"type": "string", "description": "at most 5 words, to show it by (for example: TCP gets nothing)"}}}   # the name (2026-11-22, the operator: the page shows it on the finding's bar)
 NAME_WORDS, NAME_CHARS = 6, 48   # a longer name is cut to this
+RULING_SCHEMA["properties"]["findings"]["items"] = FINDING_ITEM   # the ruling's findings in the finding's format, name included (the coherence audit, 2026-11-22: the ruling asked for a name its schema forbade)
 
 
 def finding_name(f):
@@ -1938,6 +2021,16 @@ def findings_in_whys(t, ledger):
                 w["about"] = list(dict.fromkeys(rest + [x for a in named for x in fs[a]["about"]]))
                 w["_findings"] = named
     return t
+
+def remap_refs(t):
+    """The refs of an answer's decisions on findings, mapped from the ids of its new guesses and hypotheses by position to the ids they were recorded
+    with (sort_out leaves the map in t["_ids"]); a ref to a part that was not accepted stays as written, and settle_findings leaves it out with a note."""
+    ids = t.get("_ids") or {}
+    for d in t.get("decisions") or []:
+        if isinstance(d, dict) and isinstance(d.get("refs"), list):
+            d["refs"] = [ids.get(r) or r if isinstance(r, str) else r for r in d["refs"]]
+    return t
+
 
 def findings_fill(t):
     """An answer without findings or decisions has none (every arm; an older script, or a model that leaves them out)."""
@@ -2227,6 +2320,8 @@ def main():
     if may_change(brief):  # only a session that may change the structure is told how
         system += STRUCTURE
     schema, system = with_findings(schema), system + FINDINGS_TEXT[arm]   # findings, in every arm (2026-11-22)
+    if isinstance(schema["properties"].get("requests"), dict):   # the most requests a reply may hold, in the answer format too (the coherence audit, 2026-11-22)
+        schema["properties"]["requests"]["maxItems"] = LOOKS if arm == "supervised" else REQUESTS_MOST
     why_schema = schema["properties"]["whys"]["items"] if "whys" in schema["properties"] else None   # a restated guess (the arm "supervised", 2026-11-22)
     repair_schema = {"type": "object", "additionalProperties": False, "required": ["decision_rule", "rival", "rival_predicts", "runs"], "properties": {   # a repaired test (the arm "supervised", 2026-11-22)
         "decision_rule": {"type": "string"}, "rival": {"type": "string"}, "rival_predicts": {"type": "string", "enum": ["held", "failed"]},
@@ -2298,15 +2393,19 @@ def main():
                                               **({"supervisor": {"model": model, "temperature": 0, "max_tokens": 9000, "draft_tokens": draft_tokens(9000), "sees": "the brief's description, the guess, the hypothesis, the decision rules, the planned simulations, the measured numbers; not the researcher's observations or reasons"}} if arm == "supervised" else {})}, "given": brief, "prompt": system}, indent=1) + "\n")
     print(f"session {SID} (brief {brief['id']}): {tools.SESSION}", flush=True)
     ledger = load_ledger()
-    fresh = not ledger   # a new ledger: the baseline runs now
-    if a.baseline == "on":
-        baseline(ledger)
+    fresh = not ledger   # a new ledger: the baseline runs now (inside the guard below, after the stop handlers: the coherence audit, 2026-11-22)
     turn, sims, tool_only, pending, budget = max([r["turn"] for r in ledger], default=0), 0, 0, [], a.budget
     stay, stay_next = 0, False   # the calls of the researcher after the first in this turn; whether the next call stays in this turn (CONTINUES)
     asked = False  # whether the model was already asked for the verdicts that were missing when it sent its report
     held_turns = set()  # the turns in which a report was held back for findings never looked at (at most FINDING_HOLDS)
     giving_up = False  # set after UNUSABLE turns in a row without a usable answer: the next turn is the last and takes only the report
     free_left = FREE_TURNS  # the turns after the budget is used up in which the researcher may still look and test on simulations already run (s048)
+    if not fresh:   # a continued session (the coherence audit, 2026-11-22: it got its whole budget again): what it used, was granted and where it stands, from its ledger
+        sims = sum(1 for r in ledger if r["type"] == "simulation" and r["turn"] >= 1 and "same_as" not in r["body"])
+        grants = [int(g.group(1)) for r in ledger if r["type"] == "note" and (g := re.search(r"the budget is now (\d+)", str(r["body"].get("text") or "")))]
+        budget = grants[-1] if grants else budget
+        free_left = max(0, FREE_TURNS - sum(1 for r in ledger if r["type"] == "turn" and r["body"].get("last_turn") == "free"))
+        giving_up = any(r["type"] == "turn" and r["body"].get("last_turn") == "report" for r in ledger)
     how, unusable = None, 0  # how the session ended (None while it runs); turns in a row without a usable answer
     count = {"calls": 0, "length": 0}  # requests answered by the model server, and how many of them ended with finish_reason "length"
 
@@ -2331,7 +2430,7 @@ def main():
         label = round_label(rev.get("approved"), n)
         gid = append(ledger, turn, "review", hid, {"for": hid, "gate": "design", "round": n, "decision": label,
                                                   "test": {"decision_rules": [{k: d.get(k) for k in ("decision_rule", "rival", "rival_predicts")} for d in (test or {}).get("decision_rules") or []],
-                                                           "runs": [{"label": r.get("label"), "params": r.get("params")} for r in (test or {}).get("runs") or [] if isinstance(r, dict)]},
+                                                           "runs": [{"label": r.get("label"), "params": r.get("params"), **({"structure": r["structure"]} if r.get("structure") else {})} for r in (test or {}).get("runs") or [] if isinstance(r, dict)]},
                                                   "rules": [d.get("decision_rule") for d in (test or {}).get("decision_rules") or []],
                                                   "simulations": next((x.get("simulations") for x in (test or {}).get("needs") or [] if x.get("for") == hid), [r.get("label") for r in (test or {}).get("runs") or []]),
                                                   **{k: v for k, v in rev.items() if k != "approved"}}, by=by)
@@ -2406,7 +2505,7 @@ def main():
             if why:
                 return t3, why
             t3 = without_tests({**t3, "needs": needs}, []) or t3   # the simulations no rule names leave
-            why = experiment_problem(t3, brief, ledger, budget - sims - reserved, states(ledger)[0], lean=True)   # within what the approved tests of this turn leave
+            why = experiment_problem(t3, brief, ledger, max(0, budget - sims - reserved), states(ledger)[0], lean=True)   # within what the approved tests of this turn leave
             return t3, why
         except (ValueError, KeyError, TypeError) as e:   # whatever the harness cannot check in a repair refuses that round, with its reason; it never stops the session
             return t2, f"the repaired test could not be checked: {' '.join(str(e).split())[:300]}"
@@ -2417,7 +2516,7 @@ def main():
         h = next((r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid), {})
         y = next((r["body"] for r in ledger if r["type"] == "why" and r["id"] == h.get("from_why")), {})
         rules = "".join(f"  decision rule: {flat(d.get('decision_rule'))}\n  rival: {flat(d.get('rival'))}\n  rival_predicts: {d.get('rival_predicts')}\n" for d in test.get("decision_rules") or [])
-        runs = "".join(f"  {r.get('label')} {{{', '.join(f'{k}={v}' for k, v in (r.get('params') or {}).items())}}}\n" for r in test.get("runs") or [] if isinstance(r, dict))
+        runs = "".join(f"  {r.get('label')} {{{', '.join(f'{k}={v}' for k, v in (r.get('params') or {}).items())}}}" + (f"; network changed: {edits_say(edits_of(r))}" if edits_of(r) else "") + "\n" for r in test.get("runs") or [] if isinstance(r, dict))
         knobs = "; ".join(f"{k} ({', '.join(map(str, v['choices'])) if 'choices' in v else str(v['min']) + ' to ' + str(v['max'])})" for k, v in brief["knobs"].items())
         return (f"YOUR TEST OF {hid} WAS SENT BACK BEFORE IT RAN. This is round {n} of at most {REVIEW_ROUNDS}.\n\nYOUR GUESS {h.get('from_why')}: {flat(y.get('guess'))}\n"
                 f"YOUR HYPOTHESIS {hid}: {flat(h.get('text'))}\n\nTHE TEST AS PROPOSED:\n{rules}  simulations:\n{runs}\nWHY IT WAS SENT BACK ({who}): {flat(feedback)}\n\n"
@@ -2503,7 +2602,7 @@ def main():
         if True:
             if not any(r["type"] == "check" and r["body"]["experiment"] == xid and r["body"]["for"] == hid and r["body"]["result"] in ("held", "failed") for r in ledger):
                 return   # nothing was checked for it (a simulation its rule names failed): it stays open
-            doubt = next((r["body"]["doubt_if"] for r in reversed(ledger) if r["type"] == "review" and r["body"]["for"] == hid), "")
+            doubt = next((r["body"].get("doubt_if") or "" for r in reversed(ledger) if r["type"] == "review" and r.get("by") == "supervisor" and r["body"].get("gate") != "ground" and r["body"].get("for") == hid), "")   # a harness round has none (the coherence audit: KeyError stopped the session)
             try:
                 stage("ruling", hid)
                 ruling, saw = rule_on(model, brief, ledger, xid, hid, doubt, contested=objected.get(hid))
@@ -2532,15 +2631,17 @@ def main():
         meta.write_text(json.dumps({k: v for k, v in m.items() if k not in ("ended", "how", "report", "left_open")}, indent=1) + "\n")
     for sig in (signal.SIGTERM, signal.SIGHUP):  # stopped from outside, or its terminal closed: still record that it ended
         signal.signal(sig, lambda *_: sys.exit(143))
-    if arm == "supervised" and fresh and any(r["id"] == "E0" for r in ledger):   # findings (2026-11-22): the baseline's results come in with no ruling, so the supervisor looks at them
-        try:
-            stage("look", "X0")
-            items, saw = sup_findings_of(model, brief, ledger, "X0")
-            take_sup_findings(ledger, 0, items, "E0")
-            sup_log("X0", "findings", saw, {"findings": items})
-        except (ValueError, KeyError, TypeError) as e:
-            append(ledger, 0, "note", "E0", {"text": f"the supervisor's look at the baseline could not be read ({type(e).__name__}): no finding of its own"})
     try:
+        if a.baseline == "on":
+            baseline(ledger)
+        if arm == "supervised" and fresh and any(r["id"] == "E0" for r in ledger):   # findings (2026-11-22): the baseline's results come in with no ruling, so the supervisor looks at them
+            try:
+                stage("look", "X0")
+                items, saw = sup_findings_of(model, brief, ledger, "X0")
+                take_sup_findings(ledger, 0, items, "E0")
+                sup_log("X0", "findings", saw, {"findings": items})
+            except Exception as e:   # its look is not needed to go on: a note, and the session goes on (the coherence audit, 2026-11-22: a model server error stopped it unrecorded)
+                append(ledger, 0, "note", "E0", {"text": f"the supervisor's look at the baseline could not be read ({type(e).__name__}): no finding of its own"})
         while how is None:
             # a last turn: "report" after too many unusable answers (only the final report is accepted), "budget" when the
             # budget is used up (no experiment is accepted and the report is required); otherwise an ordinary turn
@@ -2625,11 +2726,11 @@ def main():
                 received = json.loads(json.dumps(parsed))   # answers.jsonl keeps the answer as before findings (what findings_fill and findings_in_whys add is the harness's)
                 if isinstance(parsed, dict):   # findings (2026-11-22): none given is none; a why about a finding is about the records it rests on
                     parsed = findings_in_whys(findings_fill(parsed), ledger)
-                ok, no = sort_out(parsed, brief, ledger, budget - sims, mode, insist=not asked, judge=judge, supervised=arm == "supervised", ground=ground_fn if arm == "supervised" else None, short=short, restate=restate_fn if arm == "supervised" and RESTATE_GUESSES else None)
-                rq = [] if mode not in (None, "free") else (parsed.get("requests") or [])[:LOOKS if arm == "supervised" else 3]   # a free turn may look too (s048, 2026-11-22)   # looking is cheap in the supervised arm: more requests in one turn
+                ok, no = sort_out(parsed, brief, ledger, max(0, budget - sims), mode, insist=not asked, judge=judge, supervised=arm == "supervised", ground=ground_fn if arm == "supervised" else None, short=short, restate=restate_fn if arm == "supervised" and RESTATE_GUESSES else None)
+                rq = [] if mode not in (None, "free") else (parsed.get("requests") or [])[:LOOKS if arm == "supervised" else REQUESTS_MOST]   # a free turn may look too (s048, 2026-11-22)   # looking is cheap in the supervised arm: more requests in one turn
                 if any(r.startswith(WAIT) for _, r in no):  # said once; the note shows it, and the report is then taken as it comes
                     asked = need_now = True
-                if any(ok.values()) or rq or parsed.get("findings") or parsed.get("decisions"):  # something in the answer can be used: it is accepted, without the refused parts
+                if any(ok.values()) or rq or ((parsed.get("findings") or parsed.get("decisions")) and mode not in ("budget", "report")):   # in the last turns only the report is a usable reply (the coherence audit, 2026-11-22)  # something in the answer can be used: it is accepted, without the refused parts
                     err = None
                     break
                 again = ("\n\nYOUR ANSWER TO THIS TURN COULD NOT BE USED, AND YOU ARE ASKED ONCE MORE. What the harness refused, and why: " + " | ".join(f"{part}: {why}" for part, why in no)) if no else ""
@@ -2666,6 +2767,10 @@ def main():
                 granted = max(0, min(br["simulations"], limit - budget))
                 budget += granted
                 append(ledger, turn, "note", last, {"text": f"budget request: {br['simulations']} more simulations asked, {granted} granted; the budget is now {budget} (the brief's limit is {limit})", "why": br["why"]})
+            asked_for = [q for q in parsed.get("requests") or [] if isinstance(q, dict)]
+            if len(asked_for) > len(rq):   # what was not answered, and why (the coherence audit, 2026-11-22: they were dropped silently)
+                append(ledger, turn, "note", last, {"text": (f"requests are not answered in the last turns: {len(asked_for)} left unanswered" if mode not in (None, "free") else
+                                                             f"only the first {len(rq)} requests of a reply are answered: {len(asked_for) - len(rq)} more were left unanswered ({', '.join(str(q.get('tool')) for q in asked_for[len(rq):])})")})
             for q in rq:  # each tool request and what came back are kept in the ledger (request: by the model; result: by the harness);
                 out = call(q)  # the result (a reading) stays in the ledger text of every later turn, and the supervisor is given it too
                 qid = append(ledger, turn, "request", last, {"tool": q.get("tool"), "args": q.get("args") or {}})
@@ -2677,8 +2782,12 @@ def main():
                 if tool_only > (LOOKS if arm == "supervised" else 3):
                     pending.append("limit")
                 append(ledger, turn, "note", last, {"observations": parsed.get("observations"), "requests": rq}, by="model")
-                settle_findings(parsed, ledger, turn, due_before, [r["id"] for r in ledger if r["turn"] == turn and r["type"] == "result"], [])
+                settle_findings(remap_refs(parsed), ledger, turn, due_before, [r["id"] for r in ledger if r["turn"] == turn and r["type"] == "result"], [])
                 stay_next = mode in (None, "free") and stay < CONTINUES   # no step yet: the researcher is asked again in this turn, with what it asked for answered
+                if mode == "report":   # a last turn without the report ends the session, as an unusable one does (the coherence audit, 2026-11-22: the last turn came again without end)
+                    how = f"{UNUSABLE} turns in a row without a usable answer"
+                elif mode == "budget" and not need_now:
+                    how = "all simulations used, no usable report"
                 continue
             tool_only = 0
             stay_next = mode in (None, "free") and stay < CONTINUES and not (ok["hypotheses"] or ok["drop"] or ok["verdicts"] or ok["objections"] or ex is not None or report is not None)
@@ -2705,8 +2814,10 @@ def main():
                     append(ledger, turn, "judge", None, {"guess": k[0], "hypothesis": k[1], "follows": follows, "because": because})
             for k in ok["rethink"]:
                 append(ledger, turn, "rethink", k["id"], {"for": k["id"], "in_light_of": k["in_light_of"], "now": k["now"], "because": k["because"]} | obs())
+            made_whys = []   # the ids of this reply's guesses (the coherence audit: a continued turn paired them with the turn's first ones)
             for w in ok["whys"]:
                 last = append(ledger, turn, "why", last, {k: w[k] for k in ("about", "result", "guess", "unseen", "matters", "worth", "reason")} | ({"revises": w["revises"]} if w.get("revises") else {}) | ({"ground": w["ground"]} if w.get("ground") else {}) | ({"restated": w["restated"]} if w.get("restated") else {}) | ({"contested": w["contested"]} if w.get("contested") else {}) | obs())
+                made_whys.append(last)
                 if w.get("ground"):   # the supervisor's reading of the records this guess cites
                     k = (" ".join(str(w["guess"]).split()), tuple(w["about"]))
                     ground_written.add(k)
@@ -2722,6 +2833,7 @@ def main():
                     ex2 = repair_rounds(hid, test, rev, gid, every, reserved)
                     if ex2 is not None:
                         later.append(ex2)
+                        reserved += sum(1 for q in plan(ledger, ex2["runs"]) if not q.get("prior"))   # the next repair is checked against what is left after this one (the coherence audit, 2026-11-22)
             if ex is not None:
                 sims += experiment(ledger, turn, (ex.get("tests") or [last])[0], ex | obs())
                 if arm == "supervised" and ex.get("kind") == "test":
@@ -2741,8 +2853,8 @@ def main():
                         append(ledger, turn, "note", xid, {"text": f"the supervisor's look at {xid} could not be read ({type(e).__name__}): no finding of its own"})
             # findings and decisions (2026-11-22): after every other record of this answer, so that a decision can name what this answer made
             made = [r["id"] for r in ledger if r["turn"] == turn and (r["type"] == "result" or (r["type"] == "experiment" and r.get("by") == "model"))]
-            whys_made = [(r["id"], w.get("_findings") or []) for r, w in zip([r for r in ledger if r["turn"] == turn and r["type"] == "why"], ok["whys"])]
-            settle_findings(parsed, ledger, turn, due_before, made, [x for x in whys_made if x[1]])
+            whys_made = [(rid, w.get("_findings") or []) for rid, w in zip(made_whys, ok["whys"])]
+            settle_findings(remap_refs(parsed), ledger, turn, due_before, made, [x for x in whys_made if x[1]])
             if report is not None and mode in (None, "free") and len(held_turns - {turn}) < FINDING_HOLDS and (unseen := findings_unseen(ledger)):
                 held_turns.add(turn)   # the researcher can still work: a finding never looked at is worked on, not left (the operator, 2026-11-22)
                 _note(ledger, turn, "report", f"the report is held back: these findings were never looked at (no reading, check or evidence reaches them): {', '.join(unseen)}. "

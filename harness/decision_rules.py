@@ -67,6 +67,8 @@ def parse(text, measures, labels):
                     args.append(expr())
                 if take() != ("op", ")"):
                     raise DecisionRuleError("a bracket is not closed")
+                if (name == "abs" and len(args) != 1) or (name in ("min", "max") and len(args) < 2):   # refused when the rule is read, not when it is checked (the coherence audit, 2026-11-22)
+                    raise DecisionRuleError(f"{name}() takes {'one value' if name == 'abs' else 'two values or more, separated by commas'}")
                 return ("call", name, args)
             if name not in measures:
                 raise DecisionRuleError(f"{name} is not one of the outputs")

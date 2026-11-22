@@ -25,7 +25,7 @@ def supervisor(user, schema):
     """The scripted supervisor's answer to one request: the next of its list, or, when that is used up, no defect and a ruling as the checks say."""
     need = schema["required"]
     if need == ["findings"]:   # its look at results no ruling covers (findings, 2026-11-22): the next answer of its list only if that is one of this kind
-        return sup_answers.pop(0) if sup_answers and set(sup_answers[0]) == {"findings"} else {"findings": []}
+        return sup_answers.pop(0) if sup_answers and set(sup_answers[0]) in ({"findings"}, {"_error"}) else {"findings": []}
     if sup_answers:
         return sup_answers.pop(0)
     if "doubt_if" in need:   # the review of a test before it runs (since 2026-11-22 it judges the researcher's rival, in rounds): approved
@@ -67,6 +67,8 @@ def ask(model, system, user, schema, draft, temperature, max_tokens):
     if system == getattr(loop, "SUPERVISOR", None):   # a request to the supervisor of the arm "supervised": its own script, its own record of what it was shown
         sup_users.append(user)
         x = supervisor(user, schema)   # {"_raw": text}: an answer of the supervisor as text that may not be JSON (test_ruling_cut.py, 2026-11-22)
+        if isinstance(x, dict) and "_error" in x:   # {"_error": text}: the model server fails on this request (test_stage1.py, 2026-11-22)
+            raise loop.ModelServerError(x["_error"])
         return (x["_raw"] if isinstance(x, dict) and "_raw" in x else json.dumps(x)), "", "length" if isinstance(x, dict) and "_raw" in x else "stop", {"completion_tokens": 0}
     formats.append(schema); users.append(user)
     if not answers:

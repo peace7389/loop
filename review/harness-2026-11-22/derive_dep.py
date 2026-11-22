@@ -9,6 +9,12 @@ shutil.rmtree(out, ignore_errors=True)
 shutil.copytree(src, out, ignore=shutil.ignore_patterns("__pycache__", "loop.log"))
 for f in ("tools.py", "schema.json", "manifest.json", "network.py"):
     shutil.copy(live / f, out / f)
+# the coherence audit's stage 1 (2026-11-22) fixes the live tools.py and network.py too: the same patches as the branch's (measure() keeps each value
+# with its own time, says when it is defined nowhere, catches a function given the wrong number of values; the link line has no space inside a value)
+import subprocess
+HERE = Path(__file__).resolve().parent
+subprocess.run([sys.executable, "-I", str(HERE / "s1_guards.py"), "tools", str(out / "tools.py")], check=True)
+subprocess.run([sys.executable, "-I", str(HERE / "s1_net.py"), str(out / "network.py")], check=True)
 # prompt.txt: the sentence of part 2 (measure and probe, with combined measurements and taps) back to the live one
 p, l = (out / "prompt.txt").read_text(), (live / "prompt.txt").read_text()
 key = " Two of the tools look deeper than the outputs and cost no simulation:"
