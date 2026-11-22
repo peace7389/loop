@@ -201,7 +201,8 @@ Object.assign(EV, {
       const mx = bend ? (ax + cx - k * turn) / 2 : (ax + cx) / 2, my = F.y, ends = Object.entries(l.ends || {}).filter(([, q]) => q && 'rate' in q).map(([h, q]) => ` (${h}: ${star(`${l.id}.${h}.rate`)}${R(q.rate)})`).join('');
       const says = `link ${l.id}: ns-3 PointToPointChannel, the wire between the devices of ${a} and ${c}: ${R(l.rate)}, a one-way delay of ${R(l.delay)}${through.length ? `; ${through.join(', ')} ${through.length === 1 ? 'passes' : 'pass'} it` : '; no flow passes it'}.`;
       return `<g class="nl" data-link="${e(l.id)}" data-act="sysobj" data-id="link:${e(l.id)}"${o2.on === 'link:' + l.id ? ' data-on="1"' : ''}><title>${e(says)}</title>${inner(a, l, A, through)}${inner(c, l, C, through)}${lines}${A.svg}${C.svg}
-        <text x="${mx}" y="${my - 21}" text-anchor="middle" class="sv"><tspan class="sn2">${e(l.id)}</tspan> · ${star(`${l.id}.rate`)}${e(R(l.rate))}${e(ends)} · ${star(`${l.id}.delay`)}${e(R(l.delay))}</text><text x="${mx}" y="${my + 24}" text-anchor="middle" class="sv nl-k">channel</text></g>`; };
+        ${(() => { const line = `${l.id} · ${star(`${l.id}.rate`)}${R(l.rate)}${ends} · ${star(`${l.id}.delay`)}${R(l.delay)}`, lw = Math.max(line.length * 6.7, 120) + 16;   // the link's words in a box of their own above its line (2026-11-22, the operator: borders for clarity)
+          return `<rect class="nl-lab" x="${(mx - lw / 2).toFixed(1)}" y="${my - 47}" width="${lw.toFixed(1)}" height="33" rx="6"/><text x="${mx}" y="${my - 33}" text-anchor="middle" class="sv"><tspan class="sn2">${e(l.id)}</tspan> · ${star(`${l.id}.rate`)}${e(R(l.rate))}${e(ends)} · ${star(`${l.id}.delay`)}${e(R(l.delay))}</text><text x="${mx}" y="${my - 19}" text-anchor="middle" class="sv nl-k">point-to-point channel</text>`; })()}</g>`; };
     // a host: its frame and the builder's picture of it; on this page nothing in it is clicked, so the builder's words about clicking go, and each queue says what it is
     const qSays = Object.fromEntries(EV.netQueues(t).map(({ h, q, l, id, a }) => { const name = f => { const who = EV.netMembers(q, f); return who.length === 1 && who[0] === f ? f : `${f} (${who.join(' + ')})`; };
       return [id, `${EV.netDisc(q.kind)[0]} (ns-3 ${EV.netDisc(q.kind)[1]}) on ${h}'s side of link ${l.id}: ${star(`${a}.length`)}${q.length} packets${q.kind === 'scheduler' ? '; its parts ' + Object.entries(q.parts || {}).map(([f, v]) => `${name(f)} ${v}`).join(' : ') : ''}`]; }));
@@ -377,4 +378,11 @@ Object.assign(EV, {
   // a simulation's changes to the network, in words (the harness's own short form is in its evidence line)
   editsSay(edits) { return (edits || []).map(e => (e.do === 'add_host' ? `added host ${e.id}` : e.do === 'add_link' ? `added link ${e.id} between ${e.from} and ${e.to}${e.rate ? ' (' + TASK_VIEW._rate(e.rate) + ')' : ''}` : e.do === 'add_flow' ? `added ${String(e.kind).toUpperCase()} flow ${e.id} from ${e.from} to ${e.to}`
     : e.do === 'add_queue' ? `put a ${e.kind === 'fifo' ? 'plain queue' : EV.netDisc(e.kind || 'scheduler')[0]} on ${e.on}'s side of link ${e.id}` : `removed ${e.kind === 'queue' ? 'the queue of link' : e.kind} ${e.id}${e.kind === 'queue' && e.on ? ` on ${e.on}'s side` : ''}`)).join('; ') || 'nothing'; },
+});
+// a click on a blank place of the network's part (not on a part of the schema, not in a part's card, not in the words under it, not on a button or
+// link) closes the card that is open, and "Made of" stands there again (2026-11-22, the operator)
+document.addEventListener('click', ev => {
+  const t = ev.target; if (!t || !t.closest || !EV.s || !EV.s.sysObj || !t.closest('#s-system .sy-row.sy-net')) return;
+  if (t.closest('[data-act], #net-det.on, #net-words, a, button, input, select, label')) return;
+  EV.s.sysObj = ''; EV.draw();
 });

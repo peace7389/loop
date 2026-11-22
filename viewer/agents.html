@@ -50,6 +50,8 @@ const AG = {
   async load() {
     try { AG.data = await AG.json('../api/agents?session=' + encodeURIComponent(AG.sid || '')); AG.err = null; } catch (x) { AG.data = null; AG.err = x.message; }
     AG.draw(); clearTimeout(AG.timer); if (AG.data && AG.data.running) AG.timer = setTimeout(AG.poll, 4000);
+    // opened from a turn of the session's page (#turn-N): the page opens at that turn, once
+    if (location.hash && !AG.jumped) { AG.jumped = true; const el = document.getElementById(location.hash.slice(1)); if (el) el.scrollIntoView({ block: 'start' }); }
   },
   // a running session: the calls that came in since are added at the end; nothing that is shown is drawn again, and the page does not move
   async poll() {
