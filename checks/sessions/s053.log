@@ -1,0 +1,2 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s053 --brief harness_fixed --draft on --policy share --baseline on --arm supervised
+session s053 (brief harness_fixed): /home/chunguck.kim/project/sessions/s053

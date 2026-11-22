@@ -1378,3 +1378,6 @@
 {"session": "s051", "id": "r003", "policy": "share", "seconds": 8.8}
 {"session": "s052", "id": "r001", "policy": "share", "seconds": 9.2}
 {"session": "s052", "id": "r002", "policy": "share", "seconds": 8.7}
+{"session": "s053", "id": "r001", "policy": "share", "seconds": 8.6}
+{"session": "s053", "id": "r002", "policy": "share", "seconds": 8.6}
+{"session": "s053", "id": "r003", "policy": "share", "seconds": 8.8}
