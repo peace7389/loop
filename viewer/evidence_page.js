@@ -19,7 +19,7 @@ Object.assign(EV, {
   // that differ, those at the brief's default, and the brief's knobs the report does not name. null: no recommendation by this step
   // the network part of the recommendation (2026-11-23): whether the brief lets the network change, and the changes the report recommends (its stored
   // "structure", as it is), in words. Only where recParts() has a recommendation to show
-  recNet() { const M = EV.M, b = M.brief || {}, st = M.report && Array.isArray(M.report.structure) ? M.report.structure.filter(x => x && typeof x === 'object') : [];
+  recNet(m) { const M = m || EV.M, b = M.brief || {}, st = M.report && Array.isArray(M.report.structure) ? M.report.structure.filter(x => x && typeof x === 'object') : [];
     return { may: !!(b.topology && (b.structure || {}).may_change), edits: st, words: EV.editsAdvise ? EV.editsAdvise(st) : [] }; },
   recParts() {
     const M = EV.M, rec = M.report && M.repRec && EV.seen(M.repRec.id) ? M.report.recommendation : M.report && !M.repRec && EV.s.step == null ? M.report.recommendation : null, kn = M.brief && M.brief.knobs;

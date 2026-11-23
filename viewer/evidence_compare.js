@@ -44,6 +44,10 @@ Object.assign(EV, {
     const recs = list.map(q => (q.M.report && typeof q.M.report.recommendation === 'object' && q.M.report.recommendation) || {}), keys = [...new Set(recs.flatMap(r => Object.keys(r)))];
     const recRows = keys.map(k => { const vals = recs.map(r => (k in r ? String(r[k]) : '')), n = {}; vals.forEach(v => { n[v] = (n[v] || 0) + 1; }); const top = Object.keys(n).sort((a, b) => n[b] - n[a])[0], most = n[top] > 1 ? top : null, differ = Object.keys(n).length > 1;  // no value shared by two sessions: every cell is marked
       return `<tr><td>recommends ${e(k)}${differ ? ' <span class="warnc" title="the ticked sessions differ here">≠</span>' : ''}</td>${vals.map(v => `<td${differ && v !== most ? ' class="dif"' : ''}>${v === '' ? '<span class="mut">not stated</span>' : e(v)}</td>`).join('')}</tr>`; }).join('');
+    // the network changes each recommends (2026-11-23, the operator): a row before the settings, where a ticked session's brief lets the network change
+    const nets = list.map(q => EV.recNet(q.M)), netVals = list.map((q, i) => (!q.M.report ? '' : nets[i].edits.length ? nets[i].words.join('; ') : nets[i].may ? 'none: the network as given' : 'its brief does not let the network change'));
+    const netRow = !nets.some(n => n.may || n.edits.length) ? '' : (() => { const n = {}; netVals.forEach(v => { n[v] = (n[v] || 0) + 1; }); const top = Object.keys(n).sort((a, b) => n[b] - n[a])[0], most = n[top] > 1 ? top : null, differ = Object.keys(n).length > 1;
+      return `<tr data-row="net"><td>recommends network changes${differ ? ' <span class="warnc" title="the ticked sessions differ here">≠</span>' : ''}</td>${netVals.map(v => `<td${differ && v !== most ? ' class="dif"' : ''}>${v === '' ? '<span class="mut">no final report</span>' : e(v)}</td>`).join('')}</tr>`; })();
     const firsts = list.map(q => { const h = EV.highlights(q.M).items.find(i => i.rule === 1);
       return `<p><i class="sw" style="background:${EV.color(q.slot)}"></i><b>${e(q.x.id)}</b> ${h ? `<a data-act="pickitem" data-id="${e(q.x.id)}" data-t="${h.open.t}" data-item="${e(h.open.id)}">${h.html}</a>` : '<span class="mut">no test held</span>'}</p>`; }).join('');
     return `<div class="ev-card" id="cmp-best"><h2>Best so far, side by side <small>the best value so far among the simulations that meet the brief's conditions; one line per session, named at its end</small></h2>${chart}${rkey}</div>
@@ -51,7 +55,7 @@ Object.assign(EV, {
         ${row('how it ended', q => (q.x.running ? 'running now' : e(q.x.how || 'not recorded')))}${row(EV.term('Simulation', 'simulations') + ' used', q => `${q.x.simulations ?? 0}${q.x.allowed ? ' / ' + q.x.allowed : ''}`)}
         ${row(EV.term('Turn', 'turns'), q => q.M.counts.turn)}${row(EV.term('Hypothesis', 'hypotheses'), q => `${q.M.hyps.length}<span class="sm"> · ${EV.STATES.filter(s => q.M.hyps.some(h => h.state === s)).map(s => `${q.M.hyps.filter(h => h.state === s).length} ${s}`).join(' · ')}</span>`)}
         ${row(EV.term('Test', 'tests') + ' held / failed', q => EV.tally(q.x.held, q.x.failed, q.x.void ? q.x.void[0] : 0))}${row('refused answers or parts', q => q.M.counts.refused)}
-        ${recRows || row('recommendation', q => '<span class="mut">no final report</span>')}
+        ${netRow}${recRows || row('recommendation', q => '<span class="mut">no final report</span>')}
         ${S.op ? row(EV.term('Scheduling policy', 'scheduling policy'), q => EV.policyText(q.x)) + row('gap to the best', q => EV.gapText(q.x) || '<span class="mut">not scored</span>') : ''}</tbody></table></div>
         <p class="sm">≠ the ticked sessions recommend different values; the cells that differ from the most common value are marked.</p></div>
       ${EV.researchCompare(list)}
