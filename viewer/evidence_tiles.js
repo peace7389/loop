@@ -141,7 +141,7 @@ EV.hypHot = function (hyps) {
     const h = el.dataset.act === 'find' ? (M.testById[el.dataset.id] || {}).hyp : hypOf(el); el.classList.toggle('hyp-hot', !!h && on.has(h)); });
 };
 document.getElementById('ev').addEventListener('mouseover', ev => {
-  const t = ev.target.closest ? ev.target.closest('.lt[data-hyps], tr[data-sim]') : null; if (!t) return EV.hypHot([]);
+  const t = ev.target.closest ? ev.target.closest('.lt[data-hyps], tr[data-sim], #s-map [data-late-test][data-hyps]') : null; if (!t) return EV.hypHot([]);
   if (t.dataset.hyps != null) return EV.hypHot(t.dataset.hyps.split(' ').filter(Boolean));
   const M = EV.M, s = M && M.simById[t.dataset.sim]; if (!s) return EV.hypHot([]);
   EV.hypHot([...new Set(M.tests.filter(q => q.exp === s.exp && (q.sims.includes(s) || (q.need && (q.need.simulations || []).includes(s.label)))).map(q => q.hyp))]);

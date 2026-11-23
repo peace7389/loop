@@ -100,6 +100,14 @@ ACCESS = CHECKS / "access.json"  # {key: name}: the personal links (harness/invi
 VISITS, VISITS_LOCK, SEEN = CHECKS / "visits.jsonl", threading.Lock(), {}   # who opened the page and from where (2026-11-22, the operator: "Any other IPs who accessed the viewer? ... we should record from now"): not in git, not served to the network, not in exports
 PEOPLE, PEOPLE_LOCK = CHECKS / "people.jsonl", threading.Lock()  # who did what through the page: one line per accepted POST (account names: not in git, not in exports)
 CACHE = {}    # session id -> (file times, its row in /api/sessions)
+
+
+def granted_budget(recs, meta):
+    """The simulations a session has been granted so far, the number its researcher is told ("N granted so far"): the last
+    budget grant in its ledger, else the budget it started with, else the brief's limit. (2026-11-23: s059 started with 12 of
+    its brief's 20, in an arm that cannot ask for more, and the session list said "0 of 20".)"""
+    grants = [int(g.group(1)) for r in recs if r.get("type") == "note" and (g := re.search(r"the budget is now (\d+)", str((r.get("body") or {}).get("text") or "")))]
+    return grants[-1] if grants else (meta.get("flags") or {}).get("budget") or ((meta.get("given") or {}).get("limits") or {}).get("simulations")
 SWEEP = {}    # the sweep running here, if any: id, thread, stop
 SERVING = {}  # the port this server answers on, and whether it also answers on the network (main() sets both)
 OPEN_TO_NETWORK = ("viewer", "sessions", "briefs", "trace", "checks")  # the folders a visitor from the network may read (the page's own material)
@@ -276,7 +284,7 @@ def sessions(you=None, trusted=False):
             CACHE[d.name] = (sig, {"id": d.name, "brief": meta.get("brief"), "records": len(recs), "runs": len(lines(idx)),
                 "experiments": sum(r["type"] == "evidence" and r["id"] != "E0" for r in recs),
                 "simulations": sum(r["type"] == "simulation" and r["id"] != "S0" and not (r.get("body") or {}).get("same_as") for r in recs),  # run, as the budget counts them
-                "allowed": ((meta.get("given") or {}).get("limits") or {}).get("simulations") or (meta.get("flags") or {}).get("budget"),
+                "allowed": granted_budget(recs, meta),
                 "turns": max([r["turn"] for r in recs], default=0), "held": held, "failed": failed,
                 "started": recs[0].get("ts") if recs else None, "last": recs[-1].get("ts") if recs else None,
                 "model": (drafts[-1]["body"].get("model") if drafts else None), "how": meta.get("how"), "report": meta.get("report"), "left_open": meta.get("left_open"),
