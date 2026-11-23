@@ -719,3 +719,14 @@ The three fixes above (p2_comp.py, p3_count.py, p4_revcomp.py), as derive_dep.py
 night's deploy (never from the live folder, whose tools.py already holds stage 1's patch). Checked before the deploy on the deploy build itself:
 test_stage5 (with L), test_stage4, test_stage2 (with R), test_supervised, test_guess_restate, test_design_rounds, test_repair_structure: all pass;
 the full suite on the branch and on the deploy build ran after. Session s056 (the same brief and settings as s055) started on it at 02:19.
+
+# The page checks on the final page (2026-11-23, 02:50)
+
+The full run (ev_all.sh, every page check, on a copy of the live page): 33 ok of 36, against 27 of 36 on main's page before the night. The three it
+flagged each pass run alone on the final page with the final checks: polish (the run copied the page at 01:20, before the strip's last fix);
+live (its replay found the page one record behind at one of 114 moments on a loaded machine: a moment that differs is now read again up to three
+times, so a page that holds the wrong records still fails); usable (its TCP part had stopped it on main's page, so it never reached two more parts
+that still described the page before the operator's changes: the legend's order and words of 2026-11-22, and the key of "The session at a glance",
+which is not drawn). Copies of the changed page checks: page_checks/.
+Also checked on the live page: an exported session (s055) opens from its folder with no server, holds supervisor.jsonl, and has no link to the
+agents page; the calls card follows the call being made in s056 with the step's new shape; the agents page shows a new running session.

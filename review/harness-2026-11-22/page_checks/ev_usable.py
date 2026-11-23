@@ -294,7 +294,9 @@ def part_tcp(b):
 def part_ns3(b):
     print('NS3'); sid = SIDS[0]; pg = session(b, sid)
     lg = pg.evaluate("() => [...document.querySelectorAll('#ev-legend .lg[data-by]')].map(x => [x.dataset.by, x.textContent.trim()])")
-    say(lg == [['model', 'AI'], ['harness', 'harness'], ['simulator', 'ns-3'], ['operator', 'operator']], f"{sid}: the legend's four sources: {[q[1] for q in lg]}")
+    sup_arm = (json.loads((ROOT / 'sessions' / sid / 'session.json').read_text()).get('flags') or {}).get('arm') == 'supervised'
+    want = [['operator', 'operator'], ['model', 'researcher']] + ([['supervisor', 'supervisor']] if sup_arm else []) + [['simulator', 'ns-3'], ['harness', 'harness']]
+    say(lg == want, f"{sid}: the legend's sources, in the order the operator set on 2026-11-22: {[q[1] for q in lg]}")
     left = pg.evaluate("() => { document.querySelectorAll('details').forEach(d => { d.open = true; }); const t = document.getElementById('ev').innerText + ' ¦ ' + [...document.querySelectorAll('#ev [title]')].map(x => x.title).join(' ¦ '); return [...new Set((t.match(/.{0,30}\\bsimulator\\b.{0,25}/gi) || []).map(s => s.replace(/\\s+/g, ' ')))]; }")
     ok = [s for s in left if "simulator's code" in s or 'the network simulator' in s]
     say(len(left) == len(ok), f"{sid}: nowhere on the session's page is a record said to be produced by “the simulator”; the word is left where it describes ns-3 (“ns-3, the network simulator”) and in “the simulator's code” ({len(ok)} places)" + ('' if len(left) == len(ok) else f": {[s for s in left if s not in ok][:4]}"))
@@ -428,7 +430,7 @@ def part_marks(b):
         pg = session(b, sid)
         r = pg.evaluate("""() => { const q = s => [...document.querySelectorAll(s)], look = el => { const c = getComputedStyle(el), bf = getComputedStyle(el, '::before'); return [c.backgroundColor, c.borderTopStyle, c.borderTopColor, c.color, bf.content].join('|'); };
           const ws = q('#s-research tbody .rs-w'); return { words: ws.map(w => [w.dataset.w, look(w), Math.round(w.getBoundingClientRect().width), parseFloat(getComputedStyle(w).fontSize), getComputedStyle(w).fontWeight]),
-            key: q('#s-made .gl-key > span').map(x => [x.textContent.trim().slice(0, 30), parseFloat(getComputedStyle(x).borderTopWidth), Math.round(x.getBoundingClientRect().right), x.id, x.classList.contains('gl-note'), Math.round(x.getBoundingClientRect().top)]), card: Math.round(document.getElementById('s-made').getBoundingClientRect().right), doc: document.documentElement.scrollWidth, win: innerWidth }; }""")
+            key: q('#s-made .gl-key > span').map(x => [x.textContent.trim().slice(0, 30), parseFloat(getComputedStyle(x).borderTopWidth), Math.round(x.getBoundingClientRect().right), x.id, x.classList.contains('gl-note'), Math.round(x.getBoundingClientRect().top)]), card: (el => (el ? Math.round(el.getBoundingClientRect().right) : null))(document.getElementById('s-made')), doc: document.documentElement.scrollWidth, win: innerWidth }; }""")
         looks = {}
         for w, lk, width, size, weight in r['words']: looks.setdefault(w, set()).add(lk)
         strong = [x for x in r['words'] if x[0] in ('present', 'partly', 'absent', 'not-yet')]

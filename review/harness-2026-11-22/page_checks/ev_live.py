@@ -153,6 +153,9 @@ async def part_play(b):
         bad = {k: [] for k in ('phase', 'say', 'slots', 'wk', 'rows', 'cards', 'next', 'research', 'count', 'report', 'stage')}; phases = {}; first = {}; hyps = {}
         for k in range(N + 1):
             st['k'] = k; await reload(pg); r = await pg.evaluate(READ); n, wk, ts, now = places(lines[:k]); led = recs_of(lines[:k]); hyps = {h['id']: h for h in led if h['type'] == 'hypothesis'}
+            for _ in range(3):   # the page one record behind is read again: a page that holds the wrong records stays wrong, one that was still loading catches up (2026-11-23: one stage in a hundred on a loaded machine)
+                if r['recs'] == len(led): break
+                await pg.wait_for_timeout(400); await reload(pg); r = await pg.evaluate(READ)
             ended = any(x['type'] == 'report' for x in led)  # the report is in: the page treats the session as ended (the harness is closing it)
             if r['recs'] != len(led): bad['count'].append((k, r['recs'], len(led)))
             if ended:
