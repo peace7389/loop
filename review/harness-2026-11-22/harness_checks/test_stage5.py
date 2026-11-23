@@ -72,6 +72,8 @@ say(calm(err, meta) and y2.get("competes_with") == "Y1" and rounds(led) == [("H1
     f"Y2 competes with Y1; H1's test, competing with Y2, is approved by three questions and ruled: {v[0]['body'].get('result') if v else None}, fits {v[0]['body'].get('fits') if v else None}")
 say(len(users) >= 2 and "refuted by V1: no hypothesis can come from it" in users[1] and any("Y2 was refuted" in n for n in notes(led)),
     "turn 2's ledger text says Y2 is refuted by V1, and a hypothesis from Y2 is refused")
+say(len(users) >= 2 and "refuted by V1: no hypothesis can come from it, and no guess or test may compete with it; a new guess may revise it" in users[1],
+    "the mark says too that no guess or test may compete with a refuted guess (s057 turn 8: three refusals for naming the refuted Y23)")
 y3 = next((r["body"] for r in of(led, "why", 2)), None)
 say(y3 is not None and y3.get("competes_with") == "Y1" and y3.get("about") == ["E0"], "a competitor written in turn 2 citing only E0, the old result it explains otherwise, is accepted (the chain's exception)")
 say(meta["flags"].get("competitors") is True and "competes_with" in meta["prompt"] and "rival (the strongest competing explanation" not in meta["prompt"], "session.json keeps that the session works with competitors, and its instructions say so")
