@@ -112,6 +112,9 @@ def check_brief(b, brief_id):
     (a fixed setting by its value, a knob as "the knob <name>", so that one description stays true whoever decides a
     setting) and, when it states no task of its own, with the task written by task_text.
     The one check for a brief: loop.py (through open_session) and control.py both use it."""
+    k0, st0 = b.get("knobs"), b.get("structure")   # 2026-11-23: s060 on the brief asdg (no knob, the network fixed) stopped at its first call with a model server error
+    if isinstance(k0, dict) and not k0 and not ("topology" in b and isinstance(st0, dict) and st0.get("may_change") is True):
+        raise ValueError(f"brief {brief_id}: the AI may change nothing in it: leave at least one setting to the AI (a knob), or let it change the structure of the network")
     if "topology" in b:
         return _check_network_brief(b, brief_id)
     knobs, system, goal, limits = (b.get(k) if isinstance(b.get(k), dict) else {} for k in ("knobs", "system", "goal", "limits"))

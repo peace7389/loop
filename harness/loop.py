@@ -2121,7 +2121,9 @@ def answer_format(schema, brief):
     props = {k: {"type": "string", "enum": list(s["choices"])} if "choices" in s else {"type": tools.knob_type(k, brief)} for k, s in brief["knobs"].items()}
     ex["runs"]["items"]["properties"]["params"] = {"type": "object", "properties": props, "required": list(props), "additionalProperties": False}
     ex["runs"]["maxItems"] = brief["limits"]["simulations_per_experiment"]
-    ex["varied"]["items"] = {"type": "string", "enum": list(props)}
+    ex["varied"]["items"] = {"type": "string", "enum": list(props)} if props else {"type": "string"}   # no empty list of choices: the model server cannot take one (2026-11-23, s060)
+    if not props:   # a brief whose only change is the network's structure: no setting can differ, and none can make no difference
+        ex["varied"]["maxItems"] = 0
     need = ex["needs"]["items"]["properties"]   # what a hypothesis needs: the one knob that differs between its simulations (or none; or the structure, where that may be changed), and the measure that decides it
     need["varies"] = {**need["varies"], "enum": [*props, "none", *(["structure"] if may_change(brief) else [])]}
     if not may_change(brief):   # a changed network has measures of its own, which are not known before the answer
@@ -2129,7 +2131,9 @@ def answer_format(schema, brief):
     # the recommendation of the final report: every knob of the brief, all required, like a design. Until 2026-11-15 it had a fixed list of six knobs, all optional,
     # and the model server writes an object's properties in the format's order: a report that had passed over one could not name it any more, and a knob that was
     # not in the list (tcpBufBytes) could not be recommended at all (s030: ratio, TCP type, measured time and seed recorded; UDP rate, queue length and buffers lost)
-    schema["properties"]["report"]["anyOf"][0]["properties"]["no_difference"]["items"] = {"type": "string", "enum": list(props)}   # the brief's knobs
+    schema["properties"]["report"]["anyOf"][0]["properties"]["no_difference"]["items"] = {"type": "string", "enum": list(props)} if props else {"type": "string"}   # the brief's knobs
+    if not props:
+        schema["properties"]["report"]["anyOf"][0]["properties"]["no_difference"]["maxItems"] = 0
     if may_change(brief):  # a simulation may carry changes to the network, and the report recommends some: every field of a change is stated, in this order
         edit = {"type": "object", "additionalProperties": False, "required": list(network.EDIT), "properties": {
             "do": {"type": "string", "enum": list(network.DOES)}, "id": {"type": "string"}, "kind": {"type": "string", "enum": ["", "udp", "tcp", "host", "link", "flow", "queue", "scheduler", *network.QUEUE_DISCS]},

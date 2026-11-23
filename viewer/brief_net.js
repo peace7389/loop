@@ -254,6 +254,7 @@ const BRIEF_NET = {
   problems() {
     const N = BRIEF_NET, s = N.s, t = s.t, bad = []; N.syncDesc();
     if (t.hosts.length < 2 || !t.links.length || !t.flows.length) bad.push('A network needs at least two hosts, one link and one flow.');
+    if (!Object.keys(s.knobs).length && !s.structure) bad.push('The AI may change nothing: leave at least one setting to it (its mark “AI may change”), or let it change the structure. A session on such a brief cannot start.');   // as the harness (2026-11-23, s060 on asdg)
     const bf = N.node && N.node.querySelector('#bn-flags input[data-k=budget]'), start = String(bf ? bf.value : (EV.nw || {}).budget || '').trim();
     if (start && /^\d+$/.test(String(s.sims).trim()) && Number(start) > Number(s.sims)) bad.push(`Block 7 allows ${start} simulations at the start, more than the limit of ${String(s.sims).trim()} in block 5 (“Simulations in all”). Lower it, or empty the field to start with the limit.`);
     t.hosts.filter(h => !t.links.some(l => l.between.includes(h.id))).forEach(h => bad.push(`Host ${h.id} has no link.`));
