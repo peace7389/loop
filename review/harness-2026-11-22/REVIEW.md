@@ -821,3 +821,22 @@ in the same step), and no supervisor answer called a change of the network not a
   ends with them: "NEW IDS: the guesses you write in this answer are recorded as Y10, Y11, ... and your new hypotheses as H4, H5, ...".
   test_stage5.py O.
 Each part's full suite: 34 checks on the branch's build, 31 and 3 skipped on the deploy build, all pass.
+
+# After the deploy, part 10 and a fix of the page: the scheduler in s057 (2026-11-23, 04:55 to 05:05; built, deployed when s057 has ended)
+
+In turn 4 s057 did what the brief was made for: the researcher wrote the guess that a scheduler giving each flow its share would let TCP through
+(Y14), with its competitor (Y15: UDP's overload caps TCP whatever the queue does), and a test of it (H5); the supervisor approved the test in round
+1 with the three questions passed (no "outside the permitted settings": part 5 at work); the simulation with the scheduler gave TCP 476 Mbit/s
+where every FIFO setting had given at most 5.8 kbit/s; the ruling: supported, fair, Y14 fits and Y15 does not (refuted).
+- **Part 10, the task sentence** (p10_task.py). The task the harness writes into a brief said "You may change 2 settings (l1.queue.length,
+  tcp.type); every other setting is fixed." on after_fix, whose network may change: a contradiction of the instructions' own paragraph on the
+  network, read by both agents (s056's supervisor called the scheduler "outside the permitted settings"). On a brief whose network may change the
+  sentence now adds "and the structure of the network (its hosts, links, flows and queues, within the brief's limits)"; the page writes the same
+  sentence (task_text_check.js: the same words for the six briefs with an aim) and still takes the earlier one for the harness's, so the sessions
+  before keep "written by the harness". derive_dep.py patches the live tools.py the same way. test_task_text.py; the page checks settings and
+  usable pass on the new page.
+- **The page: a run with a network change, while it runs** (evidence_tiles.js). While an experiment runs, the page plans one card for each
+  simulation the harness will run, and took a simulation for one already run when its settings were those of an earlier one; the harness also
+  compares the changes to the network. s057's scheduler run had the settings of r002 (queue 1000, Cubic), so the page would have drawn it as
+  returned, with no card, while it ran. The key now holds the changes as the harness's does. tile_plan_check.js (s057 cut after X4: the live
+  page plans no card, the new one plans r010); ev_live.py on the new page.
