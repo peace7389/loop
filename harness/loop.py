@@ -1834,6 +1834,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
     FIRST = ("first look again at the guesses that were just tested: {}. Give a rethink for each in this answer (id: the why's own id, for example Y4, never a K number; now: supported, "
              "refuted, verify or set_aside; because: what in those results makes it so). No new hypothesis and no experiment is accepted until then: this is the review of the step from "
              "one hypothesis to the next")
+    ahead = set()   # part 8: the ids the later guesses of this answer are to get, while a guess is read
     def why_problem(w, ask=True):
         """What keeps a new why out, and by whom: (reason or None, "harness" or "supervisor", the supervisor's reading or None). ask: whether the
         supervisor is asked (gate 0); a guess restated after a refusal of the harness's is checked by the harness alone (2026-11-22)."""
@@ -1855,7 +1856,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
                     "a ruling, a check, a new result table, a reading a tool returned, or a review in which the supervisor objected. Name its id in about (for example V2, C3, E2, T7, G4) and say in "
                     "result what it showed" + (f"; made since your last guess: {', '.join(sorted(new_since, key=lambda i: (i[0], int(i[1:]))))}" if new_since else
                     "; nothing has been learned since your last guess: test what is open, or look with a request, before you guess again")), "harness", None
-        if supervised and COMP["on"] and w.get("competes_with") is not None and (w["competes_with"] not in stand or stand.get(w["competes_with"]) in ("revised", "refuted")):   # stand: the ledger's guesses and this answer's
+        if supervised and COMP["on"] and w.get("competes_with") is not None and w["competes_with"] not in ahead and (w["competes_with"] not in stand or stand.get(w["competes_with"]) in ("revised", "refuted")):   # stand: the ledger's guesses and this answer's; ahead: a later guess of this answer (part 8)
             return (f"competes_with is null, or the id of a live guess (in the ledger or earlier in this answer) whose result this one explains by another cause: {w['competes_with']!r} is "
                     + ("not a guess" if w["competes_with"] not in stand else f"{stand[w['competes_with']]}")), "harness", None
         if w.get("revises") is not None and (w["revises"] not in ws or stand[w["revises"]] == "revised"):
@@ -1881,9 +1882,12 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
         return w2
 
     why_map, h_map = {}, {}   # an id by position in this answer -> the id it was recorded with, or None (not accepted): the coherence audit, 2026-11-22
-    for k_w, w in enumerate(t.get("whys") or []):
+    why_list, forward = t.get("whys") or [], []   # forward: (the id a guess got, a later guess of this answer it competes with, by the id that one was to get)
+    for k_w, w in enumerate(why_list):
         pid = f"Y{n_why + k_w + 1}"
         why_map[pid] = None
+        ahead.clear()
+        ahead.update(f"Y{n_why + j + 1}" for j in range(k_w + 1, len(why_list)))
         if isinstance(w, dict) and isinstance(w.get("revises"), str) and w["revises"] in why_map:   # an earlier guess of this same answer, by the id it was to get
             w["revises"] = why_map[w["revises"]]
         if isinstance(w, dict) and isinstance(w.get("competes_with"), str) and w["competes_with"] in why_map:
@@ -1927,9 +1931,17 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
         new = f"Y{n_why + len(ok['whys'])}"   # the id it is about to get
         why_map[pid] = new
         whys[new], stand[new] = w, w["worth"]
+        if supervised and COMP["on"] and w.get("competes_with") in ahead:
+            forward.append((new, w["competes_with"]))
         fresh.add(new)
         if w.get("revises"):
             stand[w["revises"]], revised_as[w["revises"]] = "revised", new
+    ahead.clear()
+    for new, fwd in forward:   # part 8 (s057 Y3 named Y4, the guess after it)
+        got = why_map.get(fwd)
+        whys[new]["competes_with"] = got if got and stand.get(got) not in ("revised", "refuted") else None
+        if not whys[new]["competes_with"]:
+            whys[new]["contested"] = list(whys[new].get("contested") or []) + [f"competes_with {fwd}: your new guess number {int(fwd[1:]) - n_why} of this answer was not accepted, so this guess competes with none"]
     nth = lambda pid, base: int(pid[1:]) - base   # the position of a part of this answer, from the id it was to get
     for k_h, h in enumerate(t.get("hypotheses") or []):
         pid_h = f"H{known + k_h + 1}"

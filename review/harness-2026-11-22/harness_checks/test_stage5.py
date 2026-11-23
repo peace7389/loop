@@ -16,7 +16,8 @@ for each that nothing unrelated is refused and the session does not stop:
   J  the batched first review takes a test competing with a guess of the same reply;
   K  the instructions with competitors: their size, and the figures;
   L  a restated competitor that also revises (s055);
-  M  the batched first review marks the reply's new guesses in the list of guesses, and a reading that names the guess itself is not taken (s056).
+  M  the batched first review marks the reply's new guesses in the list of guesses, and a reading that names the guess itself is not taken (s056);
+  N  a guess that competes with a later guess of the same answer (s057); if that guess is not accepted, it competes with none and says so.
 python3 -I test_stage5.py SCRATCH_DIR [HARNESS_DIR]"""
 import json, os, shutil, subprocess, sys
 from pathlib import Path
@@ -189,6 +190,19 @@ say("[Y1] (new in this reply: G1 below)" in rq and "[Y2] (new in this reply: G2 
 say(calm(err, meta) and any("named the guess itself (Y1)" in n for n in notes(led)) and st.count(("s", "review")) == 1 and st.count(("s", "ground")) == 1
     and gr == [("Y1", "approved", "none"), ("Y2", "approved", "none")] and rounds(led) == [("H1", 1, "approved", "supervisor")] and of(led, "verdict"),
     f"a batched reading that names the guess itself is not taken: a note, that guess is read alone and accepted, the other guess and the test as the batch read them: {st}; {gr}")
+
+print("N  A GUESS THAT COMPETES WITH A LATER GUESS OF THE SAME ANSWER (s057: Y3 named Y4, and was marked contested: \"'Y4' is not a guess\")")
+FWD = {**A_, "competes_with": "Y2"}
+led, calls, users, meta, err = session("n1", [turn([FWD, {**B_, "competes_with": None}], [H("Y1")], [rule("H1", "Y2")])], [G, G, OK3, RUL3()])
+ys = {r["id"]: r["body"] for r in of(led, "why")}
+st = steps(calls)
+say(calm(err, meta) and ys.get("Y1", {}).get("competes_with") == "Y2" and not ys.get("Y1", {}).get("contested") and not ys.get("Y1", {}).get("restated") and "Y2" in ys
+    and ("r", "restate") not in st and rounds(led) == [("H1", 1, "approved", "supervisor")] and of(led, "verdict"),
+    f"Y1 competes with Y2, written after it, with no restatement and no contest; the test is reviewed and ruled: {[(k, v.get('competes_with'), bool(v.get('contested'))) for k, v in ys.items()]}; {st}")
+led, calls, users, meta, err = session("n2", [turn([FWD, {"about": ["E0"], "result": "UDP gets about half of the link", "guess": "", "revises": None, "competes_with": None}], [H("Y1")], [rule("H1", "Y2")])], [G, G, OK3, RUL3()])
+ys = {r["id"]: r["body"] for r in of(led, "why")}
+say(calm(err, meta) and list(ys) == ["Y1"] and ys["Y1"].get("competes_with") is None and "was not accepted, so this guess competes with none" in str(ys["Y1"].get("contested")),
+    f"if that later guess is not accepted, the guess competes with none and says so: {[(k, v.get('competes_with'), v.get('contested')) for k, v in ys.items()]}")
 
 print("K  THE INSTRUCTIONS AND THEIR SIZE")
 t = loop.supervised_prompt("", True) + loop.FINDINGS_TEXT["supervised"]
