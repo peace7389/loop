@@ -127,6 +127,24 @@ say('for example, on this network: [{"do": "remove", "id": "l1", "kind": "queue"
     "the repair prompt shows a change written correctly for this network, and that a run keeps its change")
 say(any(q["label"] == "sched" and q.get("structure") for q in x.get("runs") or []), f"the repaired test's sched run keeps its scheduler: {[(q['label'], bool(q.get('structure'))) for q in x.get('runs') or []]}")
 
+say(all("THE NETWORK MAY CHANGE TOO" in u for u in sup) and sup, f"W  the supervisor is told that this brief lets the network change, in every one of its {len(sup)} requests (s056 H5: a scheduler judged \"outside the permitted settings\")")
+
+print("S  A REPAIR AFTER A REFUSED ONE NAMES THE REFUSED ONE'S SIMULATION (s056 H5)")
+sched2 = [{"do": "remove", "id": "l1", "kind": "queue", "on": "sender"}, {"do": "add_queue", "id": "l1", "kind": "scheduler", "on": "sender"}]
+qq = lambda label, t="TcpCubic", st=None: {"label": label, "params": {"l1.queue.length": 1000, "tcp.type": t}, **({"structure": st} if st else {})}
+ST = {"kind": "test", "tests": ["H1"], "question": "", "measurements": [], "runs": [qq("fifo"), qq("sched", st=sched2)],
+      "decision_rules": [{"for": "H1", "decision_rule": "tcp_goodput_bps@sched > tcp_goodput_bps@fifo", "rival": "UDP fills any queue", "rival_predicts": "failed"}]}
+SA = {**turn(ex=ST), "whys": [{"about": ["E0"], "result": "TCP gets 0 bps at the default", "guess": "the shared FIFO is always full of UDP", "revises": None}],
+      "hypotheses": [{"from_why": "Y1", "text": "a scheduler lets TCP through"}]}
+R2 = {"decision_rule": "tcp_goodput_bps@q1000_bbr > tcp_goodput_bps@nothere", "rival": "UDP fills any queue", "rival_predicts": "failed", "runs": [qq("q1000_cubic"), qq("q1000_bbr", "TcpBbr")]}
+R3 = {"decision_rule": "tcp_goodput_bps@sched > 1.1 * tcp_goodput_bps@q1000_cubic", "rival": "UDP fills any queue", "rival_predicts": "failed", "runs": [qq("sched", st=sched2)]}
+led, sup, meta, err, users, calls = session("s1", [SA, R2, R3], [G, BACK, REV, RUL], brief="after_fix")
+r2 = next((r["body"] for r in of(led, "review") if r["body"].get("round") == 2), {})
+xs = [sorted(q["label"] for q in r["body"]["runs"]) for r in of(led, "experiment", 1)]
+say(rounds(led) == [(1, "sent_back", "supervisor"), (2, "sent_back", "harness"), (3, "approved", "supervisor")] and xs == [["q1000_cubic", "sched"]],
+    f"round 3 names q1000_cubic of the refused round 2: it is approved and runs against the scheduler: {rounds(led)}; {xs}")
+say("list it among the runs with its settings" in str(r2.get("feedback")), f"the refusal of a rule naming a simulation its test lacks says how to include it: “{str(r2.get('feedback'))[:160]}”")
+
 print("F  THE OBJECTION'S SECOND LOOK")
 OBJ = {**turn(why=False, hyp=False), "objections": [{"to": "V1", "because": "a rival passes the rule too"}]}
 APPEAL = {"answer": "the objection is right", "fair": False, "stands": False, "result": "supported", "because": "a rival passes it too"}

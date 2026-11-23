@@ -730,3 +730,20 @@ that still described the page before the operator's changes: the legend's order 
 which is not drawn). Copies of the changed page checks: page_checks/.
 Also checked on the live page: an exported session (s055) opens from its folder with no server, holds supervisor.jsonl, and has no link to the
 agents page; the calls card follows the call being made in s056 with the step's new shape; the agents page shows a new running session.
+
+# After the deploy, part 5: what session s056 found (2026-11-23, 03:00; built, deployed when s056 has ended)
+
+s056 (the same brief and settings as s055, on the build of 02:19) showed the fixes of part 4 at work (its repairs keep their competitor; the
+supervisor's reviews list the researcher's guesses). In turn 4 the researcher proposed the scheduler again (H5: a scheduler instead of the FIFO
+gives TCP more than ten times its goodput), and the test was lost a second time (p5_structure.py):
+- **The supervisor was never told that the network may change.** Its requests name the knobs the researcher may change and nothing of the
+  structure; its round-1 review of H5 called the scheduler "a network-structure change outside the permitted settings" (s053's H1 was judged the
+  same way). Every supervisor request on a brief whose network may change now says so, with the brief's limits.
+  Replayed on the real model with the fix (replay_g17.py), the review still fails H5's test, now for reasons the design means: its competitor Y3
+  explains another result (zero goodput at queue 100), and "ten times 5792 bps" is a threshold a negligible share passes. The wrong ground is gone.
+- **A repair after a refused one could not name the refused one's simulations**: round 3 compared the scheduler with q1000_cubic, a simulation of
+  round 2's repair, which the harness had refused (its competitor had been revised by H5's own guess: the message of part 4 said so). Since part 2
+  a repair is read against the last accepted test only; now the refused repair's simulations, as kept and as written, may be named again.
+- **A rule naming a simulation its test lacks** is refused with how to include it (list it among the runs with its settings: the same settings
+  are returned, not run again).
+test_stage2.py W and S replay both (pass here, fail on the build of 02:19).

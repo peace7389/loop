@@ -1042,8 +1042,15 @@ def findings_cut(content):
 
 def _system_for_supervisor(brief):
     knobs = "; ".join(f"{k} ({', '.join(map(str, s['choices'])) if 'choices' in s else str(s['min']) + ' to ' + str(s['max'])}, default {s['default']})" for k, s in brief["knobs"].items())
-    return (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:3000]}\nTHE SETTINGS THE RESEARCHER MAY CHANGE: {knobs}\n"
-            f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
+    st = brief.get("structure") or {}
+    net = ""
+    if brief.get("topology") and st.get("may_change"):   # the supervisor is told that the network itself may change (s056 H5, s053 H1: a scheduler was judged "outside the permitted settings")
+        most = ", ".join(f"{n} {k[:-1] if n == 1 and k.endswith('s') else k}" for k, n in (st.get("most") or {}).items())
+        net = ("THE NETWORK MAY CHANGE TOO: in this brief a simulation may change the structure of the network (add or remove hosts, links, flows and queues; "
+               "for example a link's queue replaced by a scheduler), as a legitimate way to test a guess" + (f"; at most {most}" if most else "")
+               + (f"; never removed: {', '.join(st['locked'])}" if st.get("locked") else "") + ". A planned simulation's change is shown with it (network changed: ...).\n")
+    return (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:3000]}\nTHE SETTINGS THE RESEARCHER MAY CHANGE: {knobs}\n" + net
+            + f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
 
 
 def _measured(ledger, only=None):
@@ -1588,7 +1595,9 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
             try:
                 absent = [(m, l) for m, l in decision_rules.pairs(r.get("decision_rule"), every, labels) if m not in has[l]]
             except decision_rules.DecisionRuleError as e:
-                return f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
+                return (f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
+                        + (". A rule compares the simulations of its own test: to compare with one that ran before, list it among the runs with its settings "
+                           "(the same settings are returned, not run again)" if "no simulation in this experiment is labelled" in str(e) else ""))
             if absent:
                 return (f"the decision rule for {r['for']} names {absent[0][0]}@{absent[0][1]}, but the network of simulation `{absent[0][1]}` has no such measure: "
                         "a decision rule may only name measures that exist in every simulation it names")
@@ -3067,7 +3076,7 @@ def main():
         out = without_tests(ex, [h for h, *_ in held] + gone + gone_h) if held or gone or gone_h else ex
         return out, held
 
-    def repaired(test, hid, rp, every, reserved=0):
+    def repaired(test, hid, rp, every, reserved=0, refused_runs=()):
         """The test as the researcher repaired it, made whole and checked by the harness as any test: (the test, what is wrong with it, or None)."""
         rule = {"for": hid, "decision_rule": rp.get("decision_rule"), **({"competes_with": rp.get("competes_with")} if competitors else {"rival": rp.get("rival")}), "rival_predicts": rp.get("rival_predicts")}
         # runs given replace the simulations of the same label and add new ones; the others are kept (the coherence audit, 2026-11-22: the prompt said
@@ -3075,6 +3084,7 @@ def main():
         given = {r.get("label"): r for r in rp.get("runs") or [] if isinstance(r, dict)} if isinstance(rp.get("runs"), list) else {}
         base = [r for r in test.get("runs") or [] if isinstance(r, dict)]
         base += [r for r in every if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]
+        base += [r for r in refused_runs if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]   # the refused repair's simulations may be named again (s056 H5)
         runs = [dict(given.pop(r.get("label"), r)) for r in base] + [dict(r) for r in given.values()]
         named = set(re.findall(r"@([A-Za-z0-9_]+)", str(rule.get("decision_rule") or "")))
         if named and any(r.get("label") in named for r in runs):   # the simulations the repaired rule no longer names leave before anything is counted (s055 H7)
@@ -3145,7 +3155,7 @@ def main():
         """The rounds after the first for one test sent back: the researcher repairs it from the feedback (a short call that asks for the test only),
         the harness checks the repair, the supervisor reviews it; at most REVIEW_ROUNDS rounds, then AFTER_ROUNDS. Returns the test to run now, or
         None. A repair that cannot be read gives a note: the test does not run in this turn, and nothing else is refused."""
-        n, parent, earlier, refused = 1, gid, [(1, "the supervisor", rev["feedback"])], None
+        n, parent, earlier, refused, refused_runs = 1, gid, [(1, "the supervisor", rev["feedback"])], None, []
         while True:
             who, feedback = earlier[-1][1], earlier[-1][2]
             user = repair_user(hid, test, n + 1, who, feedback, reserved, refused)
@@ -3161,7 +3171,7 @@ def main():
                 return None
             n += 1
             rid = append(ledger, turn, "repair", parent, {"for": hid, "round": n, **{k: rp.get(k) for k in ("decision_rule", "competes_with" if competitors else "rival", "rival_predicts")}, "runs": rp.get("runs") or []})
-            t2, problem = repaired(test, hid, rp, every, reserved)
+            t2, problem = repaired(test, hid, rp, every, reserved, refused_runs)
             if problem:   # the harness's own checks: a round of its own, with its reason as the feedback
                 gid, label = record_round(hid, n, t2, {"approved": False, "feedback": problem, "because": problem, "defect": "none"}, "", by="harness", label="not_run" if n >= REVIEW_ROUNDS else None)
                 if label != "sent_back":   # the last round: a test the harness cannot use is not run, and its hypothesis stays open (the harness's refusal is no objection of the supervisor's)
@@ -3169,6 +3179,7 @@ def main():
                     return None
                 earlier.append((n, "the harness", problem))
                 parent, refused = gid, t2   # the test stays the last one the harness accepted: a refused repair is not what the next is read against
+                refused_runs = [q for q in (t2.get("runs") or []) + (rp.get("runs") or []) if isinstance(q, dict)]   # but its simulations, as kept and as written, may be named again (s056 H5)
                 continue
             try:
                 stage("design", hid, n)
@@ -3189,7 +3200,7 @@ def main():
                 drop_after(hid, rev["feedback"], n)
                 return None
             earlier.append((n, "the supervisor", rev["feedback"]))
-            parent, test, refused = gid, t2, None
+            parent, test, refused, refused_runs = gid, t2, None, []
 
     def rule_tests(ex):
         """Gate 2: the harness has checked the rules; the supervisor says what each check means. Its ruling is the hypothesis's verdict."""
