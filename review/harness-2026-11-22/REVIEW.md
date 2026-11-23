@@ -680,3 +680,42 @@ Copies of the six page checks changed: page_checks/.
   other only by the network change, so that the network's reason is still what refuses it.
 - **The strip with the operator's columns and real values** ("cap", "0.000 Mbps (0.00%)") still wrapped at 1440 px: gaps of 8 px there, and a long
   brief name is cut with "…" (its hover box gives it whole). Live at 01:34.
+
+# Session s055: the first real session on the deployed build (2026-11-23, 00:46 onwards)
+
+The operator's brief after_fix (the network of s052 and s053: UDP at 2 Gbps fills one FIFO and TCP gets almost nothing; the goal is TCP goodput;
+the network may change), arm "supervised", competitors on, budget 12, started by me at the operator's prior word ("All permissions are given in
+advance") after their s054 was stopped for the deploy.
+
+What the stages did in it:
+- **Batched first review** (stage 4): every reply's new guesses and tests in one request: 9 such requests, 105 s on average, each covering up to
+  six items (turn 1: four guesses and a test in 106 s; before, one call each of about 50 s). Repairs 68 s on average (s052/s053: 174 s).
+- **Competitors** (stage 5): the researcher wrote competing guesses itself from turn 1 (Y4 competes with Y1); rulings refuted guesses that did not
+  fit fair results (Y1 by V1, Y2 by V2, ...), and its ledger text said so; a test whose competing cause was no guess yet was held (H4), the
+  researcher wrote that guess the next turn and the test ran and was supported; a "no difference" guess named its cause (Y10).
+- **Tests on simulations already run** decided by the researcher's own measurements: 8 simulations returned without running.
+- **Refusals** were few and each named its reason: a rule naming a guess that does not exist (H8, Y17), a rule comparing simulations that differ in
+  two settings (H9), guesses restated once and then accepted (contested where the supervisor still objected).
+
+Faults it found, each fixed, checked and deployed after it ended: a repair's record lost its competitor ("rival: None" in the researcher's text);
+the supervisor judged a competitor "missing" without seeing the researcher's guesses (H4 held for a cause Y2 stated); a repair that swapped
+simulations was counted with the ones it dropped (H7 refused twice, then not run).
+
+Not a fault of the harness, for the reading of the session: the researcher spent its budget on TCP types and queue lengths and on what the
+measurements mean (RTT, retransmissions); it did not try the change of structure (a scheduler) that the brief allows and that s053's H1 was about.
+- **The scheduler test that never ran** (turn 10; p4_revcomp.py): the researcher at last wrote the guess that the FIFO discipline starves TCP and
+  a scheduler would help (competing with Y10), and the hypothesis H14 to test it. The supervisor read the guess as a repetition, and the restatement
+  prompt showed no competes_with: the researcher put Y10 into revises. Y29 then both revised and competed with Y10; Y10, "revised", was no longer
+  live; H14's test, competing with Y10, was refused before any review, the refusal offering Y29, H14's own guess. In the last turn the researcher
+  wrote its report (one simulation left; a FIFO recommendation). Fixed: a guess competes with another or revises it, never both (competes_with
+  stands); the restatement shows and keeps competes_with; the refusal never offers the hypothesis's own guess. test_stage5.py L replays it.
+
+The session ended at 02:09: "done by the model", 11 turns, 11 simulations, 50 model calls (28 of the supervisor, 22 of the researcher), about 80
+minutes. Its turns took 5 to 11 minutes (the researcher's reply is the largest share now, 44 % of the waiting; the batched reviews 22 %).
+
+# Deployed at 02:19: the fixes s055 found
+
+The three fixes above (p2_comp.py, p3_count.py, p4_revcomp.py), as derive_dep.py builds them from the backup of the live harness before the
+night's deploy (never from the live folder, whose tools.py already holds stage 1's patch). Checked before the deploy on the deploy build itself:
+test_stage5 (with L), test_stage4, test_stage2 (with R), test_supervised, test_guess_restate, test_design_rounds, test_repair_structure: all pass;
+the full suite on the branch and on the deploy build ran after. Session s056 (the same brief and settings as s055) started on it at 02:19.

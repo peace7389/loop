@@ -158,6 +158,24 @@ rq = next((c["user"] for c in calls if (c.get("step") or {}).get("step") == "rev
 say(calm(err, meta) and st.count(("s", "review")) == 1 and ("s", "design") not in st and "THE GUESS THIS RULE COMPETES WITH [Y2]: the result it explains: UDP gets about half of the link | its guess: UDP's own sending rate limits it" in rq,
     f"one batched request holds the test, with its competitor Y2 written in full: {st}")
 
+print("L  A RESTATED COMPETITOR THAT ALSO REVISES (s055 turn 10: Y29 revised and competed with Y10, and the test against Y10 was refused)")
+COMP_G = {"about": ["E0"], "result": "UDP gets about half of the link", "guess": "the FIFO discipline, not the scheduler, decides the shares", "revises": None, "competes_with": "Y1"}
+RESTATE = {"about": ["E0"], "result": "UDP gets 49 % of the link in E0", "guess": "the FIFO discipline, not the scheduler, decides the shares", "revises": "Y1"}
+REPEATS = {**G, "defect": "repeats", "nearest_earlier": "Y1"}
+led, calls, users, meta, err = session("l1", [turn([A_, COMP_G], [H("Y2", "UDP goodput does not follow its part")], [rule("H1", "Y1")]), RESTATE], [G, REPEATS, G, OK3, RUL3()])
+y2 = next((r["body"] for r in of(led, "why") if r["id"] == "Y2"), {})
+rq = next((c["user"] for c in calls if (c.get("step") or {}).get("step") == "restate"), "")
+say(calm(err, meta) and y2.get("competes_with") == "Y1" and not y2.get("revises") and y2.get("restated") and rounds(led) == [("H1", 1, "approved", "supervisor")] and of(led, "verdict"),
+    f"the restated guess competes with Y1 and does not revise it (it named both), so Y1 stays live and the test against it is reviewed and ruled: {y2.get('competes_with')}, revises {y2.get('revises')}, {rounds(led)}")
+say("competes_with: Y1" in rq and "never both" in rq, "the restatement is shown the guess's competes_with and asked for it")
+L2 = [{"id": "Y1", "type": "why", "turn": 1, "body": {"guess": "a"}}, {"id": "Y2", "type": "why", "turn": 2, "body": {"guess": "b", "revises": "Y1"}},
+      {"id": "Y3", "type": "why", "turn": 2, "body": {"guess": "c"}}, {"id": "H1", "type": "hypothesis", "turn": 2, "body": {"from_why": "Y2", "text": "x"}},
+      {"id": "H2", "type": "hypothesis", "turn": 2, "body": {"from_why": "Y3", "text": "y"}}]
+loop.COMP["on"] = True
+m1 = loop.competitor_problem({"for": "H1", "competes_with": "Y1", "rival_predicts": "failed"}, L2); m2 = loop.competitor_problem({"for": "H2", "competes_with": "Y1", "rival_predicts": "failed"}, L2)
+say("Y2 is H1's own guess" in str(m1) and "name the live guess (Y2" not in str(m1) and "name the live guess (Y2, or another)" in str(m2),
+    f"a revised competitor: the refusal never offers the hypothesis's own guess ({m1}); for another hypothesis it offers the reviser ({m2})")
+
 print("K  THE INSTRUCTIONS AND THEIR SIZE")
 t = loop.supervised_prompt("", True) + loop.FINDINGS_TEXT["supervised"]
 say(len(t) <= 10_000 and "competes_with" in t and "Honest" in t, f"the instructions with competitors: {len(t)} characters of the one limit of 10,000 (without: {len(loop.LEAN_PROMPT + loop.FINDINGS_TEXT['supervised'])})")

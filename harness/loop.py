@@ -368,7 +368,10 @@ def competitor_problem(d, ledger):
                 "reviewed like any guess) and test against it in a later turn")
     later = next((r["id"] for r in ledger if r["type"] == "why" and r["body"].get("revises") == cw), None)
     if later:
-        return f"the decision rule for {h} competes with {cw}, which {later} revised: name the live guess ({later}, or another)"
+        own_y = next((r["body"].get("from_why") for r in ledger if r["type"] == "hypothesis" and r["id"] == h), None)
+        own_fam = revise_family(ledger, own_y) if own_y else set()
+        return f"the decision rule for {h} competes with {cw}, which {later} revised: " + (f"name the live guess ({later}, or another)" if later not in own_fam else
+                                                                                         f"{later} is {h}'s own guess, so name another live guess that explains the same result otherwise, or write one")
     refuted = guess_refutations(ledger).get(cw)
     if refuted:
         return f"the decision rule for {h} competes with {cw}, which the ruling {refuted} refuted: name a live guess"
@@ -1865,6 +1868,8 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             w["revises"] = why_map[w["revises"]]
         if isinstance(w, dict) and isinstance(w.get("competes_with"), str) and w["competes_with"] in why_map:
             w["competes_with"] = why_map[w["competes_with"]]
+        if isinstance(w, dict) and w.get("competes_with") and w.get("competes_with") == w.get("revises"):   # an alternative to a guess, not its revision (s055 Y29)
+            w["revises"] = None
         if isinstance(w, dict) and isinstance(w.get("about"), list):
             w["about"] = list(dict.fromkeys(of_run(a) for a in w["about"]))
         if mode == "report":
@@ -1877,7 +1882,9 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             first = {"by": by, "reason": why, "was": {k: w.get(k) for k in ("about", "result", "guess", "revises")}}
             w2 = restate(w, why, by)
             if isinstance(w2, dict):
-                w2 = {**w, **{k: v for k, v in w2.items() if k in ("about", "result", "guess", "revises")}}
+                w2 = {**w, **{k: v for k, v in w2.items() if k in ("about", "result", "guess", "revises") + (("competes_with",) if COMP["on"] else ())}}
+                if w2.get("competes_with") and w2.get("competes_with") == w2.get("revises"):   # never both (s055 Y29)
+                    w2["revises"] = None
                 if isinstance(w2.get("about"), list):
                     w2["about"] = list(dict.fromkeys(of_run(a) for a in w2["about"]))
             else:
@@ -2921,10 +2928,12 @@ def main():
         flat = lambda v: " ".join(str(v).split())
         since = learned_since(ledger)
         user = (f"YOUR GUESS WAS NOT ACCEPTED AS YOU STATED IT ({'the supervisor' if by == 'supervisor' else 'the harness'}): {flat(why)}\n\nTHE GUESS AS YOU STATED IT:\n  about: {', '.join(map(str, w.get('about') or []))}\n"
-                f"  result: {flat(w.get('result'))}\n  guess: {flat(w.get('guess'))}\n  revises: {w.get('revises')}\n\nWHAT WAS LEARNED SINCE YOUR LAST GUESS:\n"
+                f"  result: {flat(w.get('result'))}\n  guess: {flat(w.get('guess'))}\n  revises: {w.get('revises')}\n" + (f"  competes_with: {w.get('competes_with')}\n" if COMP["on"] else "") + "\nWHAT WAS LEARNED SINCE YOUR LAST GUESS:\n"
                 + ("\n".join(record_line(r, ledger) for r in ledger if r["id"] in (since or ()) and r["type"] != "simulation") or "  nothing") + "\n"
                 f"WHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nRestate this guess once, in the same form: about (the ids of the records it starts from), result (that result, with its numbers), "
-                "guess (what in the system would make it so), revises (the id of an earlier guess it states more exactly, or null). It is taken as you restate it; if it still does not meet "
+                "guess (what in the system would make it so), revises (the id of an earlier guess it states more exactly, or null)"
+                + (", competes_with (the id of an earlier guess whose result it explains by another cause, or null: a guess competes with a guess or revises it, never both)" if COMP["on"] else "")
+                + ". It is taken as you restate it; if it still does not meet "
                 "the rule above, it is recorded as contested. Answer with one JSON object.")
         try:
             stage("restate", by=by)
