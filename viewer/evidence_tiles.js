@@ -21,13 +21,15 @@ Object.assign(EV, {
   tiles: { key: null, runs: {}, more: false },
   // a rate or a number as a number, so that two designs compare as the harness compares them (2Gbps = 2000Mbps)
   tileNum(v) { const m = /^([\d.]+)\s*([kMG]?)bps$/.exec(String(v)); return m ? Number(m[1]) * ({ k: 1e3, M: 1e6, G: 1e9 }[m[2]] || 1) : typeof v === 'number' ? v : String(v); },
-  tileKey: (p, keys) => JSON.stringify(keys.map(k => EV.tileNum(p[k]))),
+  // a simulation is the same as another when its settings and its changes to the network are (as the harness reads them: s057's scheduler run had the
+  // settings of an earlier run, and was drawn as returned, not run)
+  tileKey: (p, keys, st) => JSON.stringify([keys.map(k => EV.tileNum(p[k])), (st || []).map(e => Object.keys(e || {}).filter(k => e[k] != null && e[k] !== '').sort().map(k => [k, String(e[k])]))]),
   // the designs of the open experiment that had to be run, each with the run it got
   tilePlan(now) {
     const M = EV.M, x = now && M.recs.find(r => r.id === now.exp); if (!x) return null;
     const kn = (M.brief && M.brief.knobs) || {}, keys = Object.keys(kn), dflt = Object.fromEntries(keys.map(k => [k, kn[k].default]));
-    const seen = new Set(M.sims.filter(s => !s.same_as && s.metrics).map(s => EV.tileKey({ ...dflt, ...s.params }, keys))), fresh = [], reused = [];
-    for (const r of x.body.runs || []) { const p = { ...dflt, ...(r.params || {}) }, k = EV.tileKey(p, keys); if (seen.has(k)) reused.push(r.label); else { seen.add(k); fresh.push({ label: r.label, params: p }); } }
+    const seen = new Set(M.sims.filter(s => !s.same_as && s.metrics).map(s => EV.tileKey({ ...dflt, ...s.params }, keys, s.structure))), fresh = [], reused = [];
+    for (const r of x.body.runs || []) { const p = { ...dflt, ...(r.params || {}) }, k = EV.tileKey(p, keys, r.structure); if (seen.has(k)) reused.push(r.label); else { seen.add(k); fresh.push({ label: r.label, params: p }); } }
     const first = 1 + Math.max(0, ...M.sims.map(s => Number(String(s.run || '').slice(1)) || 0));
     fresh.forEach((d, i) => { d.run = 'r' + String(first + i).padStart(3, '0'); d.differs = keys.filter(k => EV.tileNum(d.params[k]) !== EV.tileNum(dflt[k])); });
     return { key: `${M.id}/${x.id}`, exp: x.id, fresh, reused, next: 'r' + String(first + fresh.length).padStart(3, '0'), keys };
