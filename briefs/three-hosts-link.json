@@ -107,7 +107,7 @@
     ]
   },
   "limits": {
-    "simulations": 20,
+    "simulations": 16,
     "simulations_per_experiment": 4
   },
   "structure": {
