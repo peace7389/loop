@@ -840,3 +840,34 @@ where every FIFO setting had given at most 5.8 kbit/s; the ruling: supported, fa
   compares the changes to the network. s057's scheduler run had the settings of r002 (queue 1000, Cubic), so the page would have drawn it as
   returned, with no card, while it ran. The key now holds the changes as the harness's does. tile_plan_check.js (s057 cut after X4: the live
   page plans no card, the new one plans r010); ev_live.py on the new page.
+
+# After the deploy, part 11 (2026-11-23, 05:27)
+
+s057 turn 8: the researcher named the refuted Y23 as the competitor of two new guesses and of a test, and all three were refused ("'Y23' is
+refuted"); in turn 9 a repair did it a fourth time. Its ledger text marked Y23 "refuted by V8: no hypothesis can come from it; a new guess may
+revise it", and said nothing of competing with it. With competitors the mark now adds "and no guess or test may compete with it" (p11_refuted.py;
+test_stage5.py A). Its full suite: 34 on the branch's build, 31 and 3 skipped on the deploy build, all pass.
+
+# Session s057: the third real session (2026-11-23, 04:16 to 05:42)
+
+The same brief and settings, on the build of 04:16. It ended "all simulations used, report given in the last turn": 10 turns (the last two free),
+12 simulations and 5 more answered from earlier ones, 53 model calls (30 of the supervisor, 23 of the researcher), 86 minutes. 8 rulings: 5
+supported, 2 refuted, 1 inconclusive.
+- Turns 1 to 3: the FIFO. TCP gets 0 at the default queue and at most 5.8 kbit/s at any queue and TCP type (Cubic and LinuxReno 5792 bit/s at
+  1000 packets; BBR 4634; NewReno, Vegas, Bic 0).
+- Turn 4: the scheduler. The guess (Y14) that a scheduler giving each flow its share lets TCP through, against Y15 (UDP's overload caps TCP
+  whatever the queue does); the test was approved in round 1 and gave TCP 476 Mbit/s; supported, Y15 refuted.
+- Turns 5 to 9: under the scheduler, Cubic fills its share better than BBR (476 against 190 Mbit/s); a queue of 4 packets loses TCP packets
+  (464 Mbit/s, 3416 drops); a queue of 100 is the best tested (482 Mbit/s, 2.1 ms round trip against 17.2 ms at 1000).
+- Its report: remove the sender's FIFO on l1 and put a scheduler there, with a queue of 100 and Cubic; the limit is the scheduler's share of the
+  link (about 480 Mbit/s) with UDP taking the rest; "q100 is best among tested scheduler queue lengths, not a proof".
+What the night's fixes did in it: no new guess compared with itself (19 read in batches); no supervisor answer called a change of the network not
+allowed; the scheduler's tests were reviewed on the three questions. What it found: parts 8 to 11 and the two fixes of the page's cards, each
+replayed by a check and deployed at 05:42.
+
+# Deployed at 05:42: parts 8 to 11 and the page
+
+The deploy build (derive_dep.py, with part 10's patch of the live tools.py) and the branch's page: every harness check on both builds; the page
+checks settings, usable and live on the new page. After the deploy: a session opened on after_fix is given the new task sentence; the page still
+says "written by the harness" for the sessions before it (s053, s056, s057) and "written by hand" for a brief's own task (s024); no page errors.
+Session s058 (the same brief and settings) started on it at 05:43.
