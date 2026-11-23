@@ -63,6 +63,9 @@ def aim_measures(brief):
     return {g["target"]["measure"]} | {m for c in g.get("conditions") or [] for m in outs if re.search(rf"\b{re.escape(m)}\b", c)}
 
 
+LIMIT_WORDS = ("this brief allows at most", "a network holds at most", "may not be removed (the operator keeps it)", "which this network would not have")   # network.py's limits
+
+
 def structure_problem(edits, brief=None, example=True):
     """None if the brief's network with these changes may be simulated; otherwise why not, ending with one change written correctly for this
     network (s053, 2026-11-22: H1's change was written wrongly in every round)."""
@@ -76,6 +79,9 @@ def structure_problem(edits, brief=None, example=True):
         bad = [str(e)]
     if not bad:
         return None
+    if all(any(w in x for w in LIMIT_WORDS) for x in bad):   # written correctly, asks for more than the brief allows (s056 H10: 3 flows)
+        more = any("at most" in x for x in bad)
+        return "; ".join(bad) + ". The change is written correctly, but this brief does not allow it" + (": change a part the network has instead of adding one" if more else "")
     ok = change_example(b) if example else None
     return "; ".join(bad) + (f". A change written correctly for this network, for example: {json.dumps(ok)}" if ok else "")
 
@@ -1042,8 +1048,15 @@ def findings_cut(content):
 
 def _system_for_supervisor(brief):
     knobs = "; ".join(f"{k} ({', '.join(map(str, s['choices'])) if 'choices' in s else str(s['min']) + ' to ' + str(s['max'])}, default {s['default']})" for k, s in brief["knobs"].items())
-    return (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:3000]}\nTHE SETTINGS THE RESEARCHER MAY CHANGE: {knobs}\n"
-            f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
+    st = brief.get("structure") or {}
+    net = ""
+    if brief.get("topology") and st.get("may_change"):   # the supervisor is told that the network itself may change (s056 H5, s053 H1: a scheduler was judged "outside the permitted settings")
+        most = ", ".join(f"{n} {k[:-1] if n == 1 and k.endswith('s') else k}" for k, n in (st.get("most") or {}).items())
+        net = ("THE NETWORK MAY CHANGE TOO: in this brief a simulation may change the structure of the network (add or remove hosts, links, flows and queues; "
+               "for example a link's queue replaced by a scheduler), as a legitimate way to test a guess" + (f"; at most {most}" if most else "")
+               + (f"; never removed: {', '.join(st['locked'])}" if st.get("locked") else "") + ". A planned simulation's change is shown with it (network changed: ...).\n")
+    return (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:3000]}\nTHE SETTINGS THE RESEARCHER MAY CHANGE: {knobs}\n" + net
+            + f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
 
 
 def _measured(ledger, only=None):
@@ -1189,12 +1202,14 @@ QUESTIONS_ASK = ("Before any of these simulations is run, answer three questions
                  "one consequence of the guess.")
 
 
-def guesses_text(ledger):
+def guesses_text(ledger, new=None):
     """Every guess of the researcher with its standing, for the supervisor's review of a test with competitors (it judges whether a competing cause is
-    missing: s055, 2026-11-23, it held a test for a cause one of the guesses stated)."""
+    missing: s055, 2026-11-23, it held a test for a cause one of the guesses stated). new: {id: its name in the batched first review} for the reply's
+    own new guesses, marked as new (s056, 2026-11-23: unmarked, the supervisor named a new guess as its own nearest earlier guess)."""
     flat = lambda v: " ".join(str(v).split())
-    refuted, ws = guess_refutations(ledger), why_states(ledger)
-    lines = [f"  [{r['id']}] " + (f"(refuted by {refuted[r['id']]}) " if r["id"] in refuted else f"(revised as {ws[r['id']]['as']}) " if (ws.get(r["id"]) or {}).get("as") else "")
+    refuted, ws, new = guess_refutations(ledger), why_states(ledger), new or {}
+    lines = [f"  [{r['id']}] " + (f"(new in this reply: {new[r['id']]} below) " if r["id"] in new else "")
+             + (f"(refuted by {refuted[r['id']]}) " if r["id"] in refuted else f"(revised as {ws[r['id']]['as']}) " if (ws.get(r["id"]) or {}).get("as") else "")
              + f"{flat(r['body'].get('guess'))}" + (f" | competes with {r['body']['competes_with']}" if r["body"].get("competes_with") else "") for r in ledger if r["type"] == "why"]
     return "THE RESEARCHER'S GUESSES SO FAR (a competing cause may already be one of them):\n" + ("\n".join(lines) or "  (none)") + "\n\n"
 
@@ -1346,7 +1361,7 @@ def batch_schema(ng, nt):
         "tests": {"type": "array", "minItems": nt, "maxItems": nt, "items": t_item, "description": "one item for each test, in their order"}}}
 
 
-def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None):
+def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None, new=None):
     """The batched first review of a reply (stage 4 of the coherence audit, 2026-11-22): every new guess (gate 0) and every test (round 1) in one
     request; what all of them share is written once. guesses: the guesses as stated; tests: [(hypothesis, its test, its case text or None)].
     Returns (an answer or None for each guess, an answer or None for each test, what was shown). The answers are the raw items: each is then read
@@ -1356,9 +1371,11 @@ def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None
     user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned "
             f"when the researcher looked: these are measurements too, and a guess may start from them):\n{_looked(ledger)}\n\n"
             + (f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{gp[0]['earlier']}\n\nTHE RULINGS SO FAR:\n{gp[0]['rulings']}\n\n" if gp else "")
-            + (guesses_text(tledger or ledger) if COMP["on"] and tests else "")
+            + (guesses_text(tledger or ledger, new) if COMP["on"] and tests else "")
             + f"THIS REQUEST HOLDS EVERY NEW GUESS AND EVERY NEW TEST OF THE RESEARCHER'S REPLY IN THIS TURN ({len(guesses)} guess{'es' if len(guesses) != 1 else ''}, {len(tests)} test{'s' if len(tests) != 1 else ''}). "
               "Judge each on its own, as if it were asked alone, and answer each in its own item.\n\n"
+            + (f"The researcher's guesses listed above already hold this reply's new guesses ({', '.join(f'{g} is {y}' for y, g in new.items())}): the nearest earlier guess of a new guess is "
+               "one from before this reply, never the guess itself.\n\n" if new and COMP["on"] and tests else "")
             + "".join(f"== NEW GUESS G{i + 1} ==\nTHE RECORDS IT CITES:\n{q['cites']}\nTHE GUESS:\n{q['guess']}\n" for i, q in enumerate(gp))
             + "".join(f"== TEST OF {hid} ==\n{q['item']}" for (hid, _, _), q in zip(tests, tp))
             + (f"FOR EACH NEW GUESS (an item of guesses, named G1, G2, ... as above): {gp[0]['ask']}\n\n" if gp else "")
@@ -1588,7 +1605,9 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
             try:
                 absent = [(m, l) for m, l in decision_rules.pairs(r.get("decision_rule"), every, labels) if m not in has[l]]
             except decision_rules.DecisionRuleError as e:
-                return f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
+                return (f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
+                        + (". A rule compares the simulations of its own test: to compare with one that ran before, list it among the runs with its settings "
+                           "(the same settings are returned, not run again)" if "no simulation in this experiment is labelled" in str(e) else ""))
             if absent:
                 return (f"the decision rule for {r['for']} names {absent[0][0]}@{absent[0][1]}, but the network of simulation `{absent[0][1]}` has no such measure: "
                         "a decision rule may only name measures that exist in every simulation it names")
@@ -1610,8 +1629,9 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
 def rule_size_problem(r):
     """The arm "supervised": what is wrong with the size of one decision rule, or None (at most COMPARISONS_MOST comparisons)."""
     k = decision_rules.comparisons_in(r.get("decision_rule"))
-    return (f"the decision rule for {r.get('for')} makes {k} comparisons, and a rule makes at most {COMPARISONS_MOST}: a rule that needs more asks more than one "
-            "question. Decide the hypothesis by the one comparison its guess predicts, and leave the rest to a later test") if k > COMPARISONS_MOST else None
+    return (f"the decision rule for {r.get('for')} makes {k} comparisons, and a rule makes at most {COMPARISONS_MOST}: keep the comparisons that decide what "
+            f"{r.get('for')} claims, every part of it, and leave the rest, such as further settings, to a later test (a claim that needs more than "
+            f"{COMPARISONS_MOST} comparisons is more than one claim)") if k > COMPARISONS_MOST else None
 
 
 def rival_problem(r):
@@ -2885,11 +2905,13 @@ def main():
             ok0, _no0 = sort_out(json.loads(json.dumps(parsed)), brief, ledger, max(0, budget - sims), mode_now, insist=not asked, judge=None, supervised=True, ground=collect, short=short, restate=None)
         except Exception:   # the real pass says what is wrong; the batch is only a way to ask sooner
             return
-        tests = []
+        tests, new = [], {}
         ex0 = ok0.get("experiment")
         if ex0 is not None and ex0.get("kind") == "test":
             n_h, n_y = sum(r["type"] == "hypothesis" for r in ledger), sum(r["type"] == "why" for r in ledger)
             hyps, whys = {f"H{n_h + i + 1}": h for i, h in enumerate(ok0["hypotheses"])}, {f"Y{n_y + i + 1}": w for i, w in enumerate(ok0["whys"])}
+            ys = {gkey(w): y for y, w in whys.items()}
+            new = {ys[k]: f"G{i + 1}" for i, (k, _) in enumerate(found) if k in ys}   # the id each new guess will have, by its name in the request
             pseudo = ledger + [{"id": y, "type": "why", "turn": turn, "by": "model", "parent": None, "body": w} for y, w in whys.items()] + [{"id": k, "type": "hypothesis", "turn": turn, "by": "model", "parent": None, "body": h} for k, h in hyps.items()]   # the reply's own guesses and hypotheses, as they will be recorded
             for hid in ex0.get("tests") or []:
                 if any((competitor_problem(d, pseudo) if competitors else rival_problem(d)) or rule_size_problem(d) for d in ex0.get("decision_rules") or [] if d.get("for") == hid):
@@ -2905,11 +2927,16 @@ def main():
             return
         try:
             stage("review")
-            g_ans, t_ans, saw = first_review(model, brief, ledger, [w for _, w in found], [(hid, ex, case) for hid, ex, case, _ in tests], tledger=pseudo if tests else None)
+            g_ans, t_ans, saw = first_review(model, brief, ledger, [w for _, w in found], [(hid, ex, case) for hid, ex, case, _ in tests], tledger=pseudo if tests else None, new=new if tests else None)
         except (ValueError, KeyError, TypeError, IndexError, AttributeError) as e:   # a model server error ends the session, as at any other call
             append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"the supervisor's batched first review could not be read ({type(e).__name__}): each new guess and test is asked alone"})
             return
-        for (k, w), x in zip(found, g_ans):
+        own = {g: y for y, g in new.items()}
+        for i, ((k, w), x) in enumerate(zip(found, g_ans)):
+            m = re.match(r"\s*([YH]\d+)\b", str((x or {}).get("nearest_earlier") or "")) if isinstance(x, dict) else None
+            if m and own.get(f"G{i + 1}") == m.group(1):   # the guess compared with itself (s056): not taken, the guess is read alone
+                append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"the supervisor's batched reading of new guess G{i + 1} named the guess itself ({m.group(1)}) as its nearest earlier guess: that reading is not taken, and the guess is read alone"})
+                continue
             if isinstance(x, dict):
                 try:
                     g, _saw = ground_of(model, brief, ledger, w, pre=x, pre_saw=saw)
@@ -3068,7 +3095,7 @@ def main():
         out = without_tests(ex, [h for h, *_ in held] + gone + gone_h) if held or gone or gone_h else ex
         return out, held
 
-    def repaired(test, hid, rp, every, reserved=0):
+    def repaired(test, hid, rp, every, reserved=0, refused_runs=()):
         """The test as the researcher repaired it, made whole and checked by the harness as any test: (the test, what is wrong with it, or None)."""
         rule = {"for": hid, "decision_rule": rp.get("decision_rule"), **({"competes_with": rp.get("competes_with")} if competitors else {"rival": rp.get("rival")}), "rival_predicts": rp.get("rival_predicts")}
         # runs given replace the simulations of the same label and add new ones; the others are kept (the coherence audit, 2026-11-22: the prompt said
@@ -3076,6 +3103,7 @@ def main():
         given = {r.get("label"): r for r in rp.get("runs") or [] if isinstance(r, dict)} if isinstance(rp.get("runs"), list) else {}
         base = [r for r in test.get("runs") or [] if isinstance(r, dict)]
         base += [r for r in every if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]
+        base += [r for r in refused_runs if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]   # the refused repair's simulations may be named again (s056 H5)
         runs = [dict(given.pop(r.get("label"), r)) for r in base] + [dict(r) for r in given.values()]
         named = set(re.findall(r"@([A-Za-z0-9_]+)", str(rule.get("decision_rule") or "")))
         if named and any(r.get("label") in named for r in runs):   # the simulations the repaired rule no longer names leave before anything is counted (s055 H7)
@@ -3146,7 +3174,7 @@ def main():
         """The rounds after the first for one test sent back: the researcher repairs it from the feedback (a short call that asks for the test only),
         the harness checks the repair, the supervisor reviews it; at most REVIEW_ROUNDS rounds, then AFTER_ROUNDS. Returns the test to run now, or
         None. A repair that cannot be read gives a note: the test does not run in this turn, and nothing else is refused."""
-        n, parent, earlier, refused = 1, gid, [(1, "the supervisor", rev["feedback"])], None
+        n, parent, earlier, refused, refused_runs = 1, gid, [(1, "the supervisor", rev["feedback"])], None, []
         while True:
             who, feedback = earlier[-1][1], earlier[-1][2]
             user = repair_user(hid, test, n + 1, who, feedback, reserved, refused)
@@ -3162,7 +3190,7 @@ def main():
                 return None
             n += 1
             rid = append(ledger, turn, "repair", parent, {"for": hid, "round": n, **{k: rp.get(k) for k in ("decision_rule", "competes_with" if competitors else "rival", "rival_predicts")}, "runs": rp.get("runs") or []})
-            t2, problem = repaired(test, hid, rp, every, reserved)
+            t2, problem = repaired(test, hid, rp, every, reserved, refused_runs)
             if problem:   # the harness's own checks: a round of its own, with its reason as the feedback
                 gid, label = record_round(hid, n, t2, {"approved": False, "feedback": problem, "because": problem, "defect": "none"}, "", by="harness", label="not_run" if n >= REVIEW_ROUNDS else None)
                 if label != "sent_back":   # the last round: a test the harness cannot use is not run, and its hypothesis stays open (the harness's refusal is no objection of the supervisor's)
@@ -3170,6 +3198,7 @@ def main():
                     return None
                 earlier.append((n, "the harness", problem))
                 parent, refused = gid, t2   # the test stays the last one the harness accepted: a refused repair is not what the next is read against
+                refused_runs = [q for q in (t2.get("runs") or []) + (rp.get("runs") or []) if isinstance(q, dict)]   # but its simulations, as kept and as written, may be named again (s056 H5)
                 continue
             try:
                 stage("design", hid, n)
@@ -3190,7 +3219,7 @@ def main():
                 drop_after(hid, rev["feedback"], n)
                 return None
             earlier.append((n, "the supervisor", rev["feedback"]))
-            parent, test, refused = gid, t2, None
+            parent, test, refused, refused_runs = gid, t2, None, []
 
     def rule_tests(ex):
         """Gate 2: the harness has checked the rules; the supervisor says what each check means. Its ruling is the hypothesis's verdict."""

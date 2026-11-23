@@ -1,0 +1,98 @@
+{
+ "goal": "maximize tcp_goodput_bps, the brief's given goal.",
+ "recommendation": {
+  "l1.queue.length": 1000,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [],
+ "limit": "At q1000 TcpCubic the binding limit is UDP overload: 2 Gbps UDP saturates the 1 Gbps FIFO, causing tail drops and leaving TCP only rare ACK windows; the tested maximum is 5792 bps (E0,E2,E7,E9,C8,V8). Budget left some untested queue/TCP combinations, so this is the best tested setting, not a proof over all settings.",
+ "explanation": "UDP fills the FIFO and tail-drops TCP, so TCP goodput is set by rare ACK windows rather than by a fair bandwidth share. Queue length changes the UDP drop phase and the initial slow-start peak, but after the first loss Cubic collapses to one-MSS bursts; q250 and q1000 both deliver the same rare bursts (5792 bps), while q500-q750 fall to 1158 bps and q100 to 0. At q1000, Cubic and LinuxReno reach this maximum; Bbr probes more segments that are tail-dropped, and NewReno/Vegas/Bic remain in persistent timeout.",
+ "claims": [
+  {
+   "text": "The largest measured tcp_goodput_bps is 5792, at q1000 TcpCubic, q1000 TcpLinuxReno, and q250 TcpCubic.",
+   "evidence": [
+    "E2",
+    "E6",
+    "E7",
+    "E9",
+    "C6",
+    "C7",
+    "C8"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "At q1000, no tested TCP type exceeds TcpCubic; TcpLinuxReno ties, TcpBbr is lower, and TcpNewReno/TcpVegas/TcpBic are zero.",
+   "evidence": [
+    "E4",
+    "E5",
+    "C4",
+    "C5",
+    "V4",
+    "V5"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Queue length is nonmonotonic for TcpCubic: q100=0, q250=5792, q500/q625/q750=1158, q1000=5792.",
+   "evidence": [
+    "E0",
+    "E2",
+    "E6",
+    "E7",
+    "E8",
+    "C8",
+    "C9",
+    "V8",
+    "V9"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "TCP is starved by UDP saturation: l1_util is about 1, UDP loss is about 0.51, and TCP collapses to one-MSS after an initial burst.",
+   "evidence": [
+    "E0",
+    "E2",
+    "T2",
+    "T42",
+    "T46",
+    "T55"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "TcpBbr's lower q250 goodput comes from tail-dropped probe bursts: it has lower inflight max and higher retransmissions than TcpCubic at q250 and than TcpBbr at q1000.",
+   "evidence": [
+    "C10",
+    "C11",
+    "C12",
+    "V10",
+    "V11",
+    "V12",
+    "T57",
+    "T58",
+    "E10",
+    "E11"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "q250 and q1000 Cubic have different inflight peaks but the same post-collapse rare-burst pattern, so the peak difference does not change average goodput.",
+   "evidence": [
+    "T10",
+    "T42",
+    "T46",
+    "E2",
+    "E10"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [
+  "F16: inflight max equals cwnd max in r013 and r010, but tcp_rwnd was not measured, so whether cwnd or the receiver window bound the peak is unresolved."
+ ],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}

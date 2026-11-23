@@ -64,8 +64,9 @@ Object.assign(EV, {
     const nw = EV.files.now, mine = nw && typeof nw === 'object' && nw.turn === last.turn, tr = recs.filter(r => r.type === 'turn').pop(), mode = tr && tr.turn === last.turn ? tr.body.last_turn || null : null;
     if (mine && EV.LIVE_AGENT_STEPS.includes(nw.step)) return { phase: nw.step, turn: last.turn, about: nw.about || null, round: nw.round || null, rounds: nw.rounds || null, by: nw.by || null };
     // a reply begun after the newest record (a continued reply of the turn, or the first after a ruling asked for again) is being written (the coherence audit, 2026-11-22: it read "preparing the next turn")
+    // again: now.json says whether the reply is asked again; the drafts of the turn only where there is none (s056 turn 12: a reply continued after its requests read "its first reply could not be used")
     const begun = mine && nw.step === 'reply' && last.ts && nw.at && last.ts <= nw.at;
-    if (last.type === 'turn' || begun || (mine && nw.step === 'reply' && nw.again && EV.live.tries < 2)) return { phase: 'reply', turn: last.turn, mode, again: EV.live.tries > 0 || !!(mine && nw.again), cont: mine && nw.step === 'reply' && (nw.round || 1) > 1 ? nw.round : null };
+    if (last.type === 'turn' || begun || (mine && nw.step === 'reply' && nw.again && EV.live.tries < 2)) return { phase: 'reply', turn: last.turn, mode, again: mine && nw.step === 'reply' ? !!nw.again : EV.live.tries > 0, cont: mine && nw.step === 'reply' && (nw.round || 1) > 1 ? nw.round : null };
     return { phase: 'between', turn: last.turn };
   },
   // the steps of a turn done by an agent, that the records show only when they are done (the harness names them in now.json)

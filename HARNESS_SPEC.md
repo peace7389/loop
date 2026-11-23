@@ -1237,6 +1237,13 @@ review/harness-2026-11-22, whose REVIEW.md has a section for each with its check
   every guess of the researcher with its standing, so that a competing cause is "missing" only when none states it; a repair that swaps simulations
   is counted after the ones its rule no longer names leave; a guess competes with another or revises it, never both, and its restatement keeps
   competes_with (s055's scheduler test was refused because a restated guess did both).
+- **04:16**, what the second session (s056) found: every supervisor request on a brief whose network may change says so, with the brief's limits
+  (the supervisor had called a scheduler "outside the permitted settings"); a repair after a refused one may name the refused one's simulations; a
+  rule naming a simulation its test lacks is told how to include it; a rule of more than 3 comparisons is told to keep every part of its claim (it
+  was told to keep one, and the test was then held for testing part of it); a change written correctly that asks for more than the brief allows
+  is told so, without the example of an unrelated change; the batched first review marks the reply's new guesses in the list of guesses, and a
+  reading that names the guess itself as its nearest earlier guess is not taken (11 of s056's 23 batched guesses were compared with themselves).
+  The page: a reply continued after its requests is no longer called a reply "again (its first reply could not be used)" (now.json says which).
 
 *Deployed on 2026-11-22 at 19:46 (during and after s052; built on branch review/harness-2026-11-22, eighth and ninth parts of its REVIEW.md):*
 - **A repair never stops the session** (a fix of B; s052 stopped on one at 19:20): a repaired test is checked in the order of the normal path
@@ -3662,6 +3669,7 @@ untracked until they say otherwise.
 | 2026-11-22, 19:46 | Deployed after s052 stopped on a fault of B: a repair is checked as the normal path checks an experiment and never stops the session; a harness fault is recorded as one; now.json, the step a session is at, for the page's track of a turn; a finding's name; an exported session opens again (brief_canvas.js copied). Checks: 22 pass, 3 skip (parts 2 and 3 off); page checks run on the page as it is. |
 | 2026-11-23, 00:31 | Deployed: the coherence audit of the harness and the page, its five stages (records and crashes; one source per rule; the page; the rest of the fixes from s052 and s053, with one batched first review; competitors are guesses, reviewed and ruled by three questions). At 00:46 the ids the model gives back in the batched review constrained to their exact values, after a real call. Checks: every harness check on the deployed build (31 pass, the 3 of parts 2 and 3 skip); every new answer format sent to the real model server; s047 to s053 read and draw as before. See 8.3. |
 | 2026-11-23, 02:19 | Deployed: four faults the first real session on the new build (s055) found, each replayed by a scripted check first: a repair lost its competitor; the supervisor judged a competitor missing without the researcher's guesses; a repair that swapped simulations was counted with the dropped ones; a restated guess both revised and competed with a guess, and the scheduler test was refused. Session s056 started on it. |
+| 2026-11-23, 04:16 | Deployed: what the second session (s056) found, each replayed by a scripted check first: the supervisor is told when the network may change (s056's scheduler test was lost again, the supervisor calling it "outside the permitted settings"); a repair may name a refused repair's simulations; a rule over 3 comparisons is told to keep every part of its claim; a limit of the network is no format error; the batched review marks the reply's new guesses (the supervisor had compared guesses with themselves). Session s057 started on it. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
