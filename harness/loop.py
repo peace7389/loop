@@ -50,6 +50,11 @@ def may_change(brief=None):
     return bool(b.get("topology") and (b.get("structure") or {}).get("may_change"))
 
 
+def built(brief, edits):
+    """The brief's network with these changes made, a new link as the brief's structure says (network.apply; 2026-11-23: structure.new_link)."""
+    return network.apply(brief["topology"], edits, (brief.get("structure") or {}).get("new_link"))
+
+
 def edits_of(r, brief=None):
     """The changes a design asks for, as a list of plain objects with every field; none where the brief does not let the structure be changed."""
     return [{k: (e.get(k) or "") for k in network.EDIT} for e in (r.get("structure") or []) if isinstance(e, dict)] if may_change(brief) else []
@@ -73,7 +78,7 @@ def structure_problem(edits, brief=None, example=True):
     if not edits:
         return None
     try:
-        t1 = network.apply(b["topology"], edits)
+        t1 = built(b, edits)
         bad = network.problems(t1) + network.changed_problems(b["topology"], t1, b.get("structure") or {}, b.get("goal") or {}, aim_measures(b))
     except (ValueError, KeyError, TypeError) as e:
         bad = [str(e)]
@@ -88,13 +93,14 @@ def structure_problem(edits, brief=None, example=True):
 
 def change_example(brief):
     """One network change written correctly for this brief, built and checked on its network: a list of changes, or None. The first that can be
-    simulated of: a link's queue replaced by a scheduler (or by a fifo where it is a scheduler), a scheduler added on a link's side."""
+    simulated of: a link's queue taken out and put back of the same kind, a plain queue (fifo) put on a link's side. It shows the form and
+    suggests no change (2026-11-23, the operator: "describe, never suggest"; it was a scheduler in place of a queue)."""
     t = brief.get("topology")
     if not t or not (brief.get("structure") or {}).get("may_change"):
         return None
     blank = {k: "" for k in network.EDIT}
-    tries = [[{**blank, "do": "remove", "kind": "queue", "id": l["id"], "on": h}, {**blank, "do": "add_queue", "kind": "fifo" if (q or {}).get("kind") == "scheduler" else "scheduler", "id": l["id"], "on": h}]
-             for l, h, q, _ in network.queues(t)] + [[{**blank, "do": "add_queue", "kind": "scheduler", "id": l["id"], "on": h}] for l in t.get("links") or [] for h in l.get("between") or []]
+    tries = [[{**blank, "do": "remove", "kind": "queue", "id": l["id"], "on": h}, {**blank, "do": "add_queue", "kind": (q or {}).get("kind") or "fifo", "id": l["id"], "on": h}]
+             for l, h, q, _ in network.queues(t)] + [[{**blank, "do": "add_queue", "kind": "fifo", "id": l["id"], "on": h}] for l in t.get("links") or [] for h in l.get("between") or []]
     for edits in tries:
         if structure_problem(edits, brief, example=False) is None:
             return edits
@@ -111,7 +117,7 @@ def outputs_of(edits, brief=None):
     in hand defines itself: a decision rule and a need may name those like any measure."""
     b = brief or tools.describe_system()
     own = {n: f"your own measurement: {m['stat']} of {m['of']}" + (f" with {m['with']}" if m.get("with") else "") for n, m in MEASURES.items()}
-    return {**(network.outputs(network.apply(b["topology"], edits)) if edits else tools.outputs(b)), **own}
+    return {**(network.outputs(built(b, edits)) if edits else tools.outputs(b)), **own}
 
 
 def measurement_problem(ex, brief):
@@ -132,7 +138,7 @@ def measurement_problem(ex, brief):
         if e and structure_problem(e, brief):
             return None   # a change that cannot be made: experiment_problem refuses it with its own reason
         try:
-            return network.record_columns(network.apply(brief["topology"], e) if e else brief["topology"])
+            return network.record_columns(built(brief, e) if e else brief["topology"])
         except (ValueError, KeyError, TypeError):
             return None
     designs = [(r.get("label"), cols_of(r)) for r in ex.get("runs") or [] if isinstance(r, dict)]
@@ -142,7 +148,7 @@ def measurement_problem(ex, brief):
     for r in ex.get("runs") or []:   # the names of the outputs of every design's network, which a measurement may not take
         if isinstance(r, dict) and edits_of(r, brief) and not structure_problem(edits_of(r, brief), brief):
             try:
-                outs = {**outs, **network.outputs(network.apply(brief["topology"], edits_of(r, brief)))}
+                outs = {**outs, **network.outputs(built(brief, edits_of(r, brief)))}
             except (ValueError, KeyError, TypeError):
                 pass
     for m in ms:
@@ -173,7 +179,37 @@ def measurement_problem(ex, brief):
 
 def design_key(clean, edits):
     """What makes two designs the same simulation: the same settings and seed, on the same network."""
-    return (tools.same(tools.options(clean)), json.dumps(edits, sort_keys=True))
+    return (tools.same(tools.options(clean)), net_key(edits))
+
+
+def net_key(edits, brief=None):
+    """The network a list of changes builds, as one text: two lists that build the same network are the same simulation (2026-11-23: a link written
+    from b to c or from c to b, a rate written in another unit, changes made in another order, a change that changes nothing). The names of new
+    objects count: they are part of what is measured. A list that cannot be built keys as written."""
+    if not edits:
+        return "[]"
+    b = brief or tools.describe_system()
+    try:
+        t, t0 = built(b, edits), json.loads(json.dumps(b["topology"]))
+        def norm(n):
+            n = json.loads(json.dumps(n))
+            for l in n["links"]:
+                l["rate"] = network.rate_bps(l["rate"])
+                for x in (l.get("ends") or {}).values():
+                    if "rate" in x:
+                        x["rate"] = network.rate_bps(x["rate"])
+                for q in [l.get("queue")] + [x.get("queue") for x in (l.get("ends") or {}).values()]:   # a plain queue: no parts (a queue put back holds empty ones)
+                    if isinstance(q, dict) and q.get("kind") != "scheduler":
+                        for k in ("parts", "largest_rate", "classes"):
+                            q.pop(k, None)
+            for f in n["flows"]:
+                if "rate" in f:
+                    f["rate"] = network.rate_bps(f["rate"])
+            return json.dumps(n, sort_keys=True)
+        k = norm(t)
+        return "[]" if k == norm(t0) else k
+    except (ValueError, KeyError, TypeError):
+        return json.dumps(edits, sort_keys=True)
 
 
 def edits_say(edits):
@@ -192,6 +228,29 @@ In this session you may also change the structure of the network. A simulation o
    - do add_queue: id (the link), on (the host whose sending side of the link it is), kind (scheduler, fifo, or another of ns-3's queue discs: pfifofast, codel, fqcodel, red, pie). A scheduler gives each flow that passes it a part of the link; fifo is one queue for all, first in, first out. A link may have a queue on each of its two sides.
    - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's; where the link has a queue on each side, on says which). A host goes with its links and with the flows that start or end at it.
 The brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network."""
+
+
+def structure_text(brief):
+    """The structure paragraph for this brief (STRUCTURE): where the brief caps a new link (structure.new_link, 2026-11-23), its add_link line
+    says the cap, the empty rate and the delay, from the same field the harness enforces (stated_new_link checks it at the start)."""
+    nl = (brief.get("structure") or {}).get("new_link")
+    if not nl:
+        return STRUCTURE
+    old = "   - do add_link: id, from and to (the two hosts it joins), rate (for example 1Gbps). One link for each two hosts."
+    assert STRUCTURE.count(old) == 1
+    return STRUCTURE.replace(old, f"   - do add_link: id, from and to (the two hosts it joins), rate (at most {nl['rate_max']} in this brief; left empty: {nl['rate_max']}). One link for each two "
+                                  f"hosts. A new link has a one-way delay of {nl['delay']} in this brief, packets of at most 1500 bytes, a device queue of 10 packets and, on each of its two "
+                                  "sides, a plain queue of 100 packets, first in, first out.")
+
+
+def stated_new_link(text, brief):
+    """The cap and the delay of a new link as the instructions state them, against the brief's structure.new_link (one source per rule, as stated_rules)."""
+    nl = (brief.get("structure") or {}).get("new_link")
+    if not nl:
+        return
+    caps, delays = re.findall(r"rate \(at most (\S+) in this brief", text), re.findall(r"a one-way delay of (\S+) in this brief", text)
+    if caps != [nl["rate_max"]] or delays != [nl["delay"]]:
+        raise ValueError(f"the instructions state a new link's cap as {caps or 'nothing'} and its delay as {delays or 'nothing'}, the brief has {nl['rate_max']} and {nl['delay']}")
 
 
 def spend_cap(left, per):
@@ -1052,9 +1111,11 @@ def _system_for_supervisor(brief):
     net = ""
     if brief.get("topology") and st.get("may_change"):   # the supervisor is told that the network itself may change (s056 H5, s053 H1: a scheduler was judged "outside the permitted settings")
         most = ", ".join(f"{n} {k[:-1] if n == 1 and k.endswith('s') else k}" for k, n in (st.get("most") or {}).items())
-        net = ("THE NETWORK MAY CHANGE TOO: in this brief a simulation may change the structure of the network (add or remove hosts, links, flows and queues; "
-               "for example a link's queue replaced by a scheduler), as a legitimate way to test a guess" + (f"; at most {most}" if most else "")
-               + (f"; never removed: {', '.join(st['locked'])}" if st.get("locked") else "") + ". A planned simulation's change is shown with it (network changed: ...).\n")
+        nl = st.get("new_link") or {}   # no example of a change (2026-11-23, the operator: "describe, never suggest")
+        net = ("THE NETWORK MAY CHANGE TOO: in this brief a simulation may change the structure of the network (add or remove hosts, links, flows and queues), "
+               "as a legitimate way to test a guess" + (f"; at most {most}" if most else "")
+               + (f"; never removed: {', '.join(st['locked'])}" if st.get("locked") else "")
+               + (f"; a new link carries at most {nl['rate_max']} and has a one-way delay of {nl['delay']}" if nl else "") + ". A planned simulation's change is shown with it (network changed: ...).\n")
     return (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:3000]}\nTHE SETTINGS THE RESEARCHER MAY CHANGE: {knobs}\n" + net
             + f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
 
@@ -2863,13 +2924,14 @@ def main():
         schema, system = short_format(schema), short_prompt(system)
     asks_budget = arm == "plain" or (arm == "hypotheses" and not short)   # the formats that still have budget_request (the turn's text names it)
     if may_change(brief):  # only a session that may change the structure is told how
-        plain_s = STRUCTURE
+        plain_s = structure_text(brief)
         for a_, b_ in STRUCTURE_PLAIN if arm == "plain" else ():
             assert plain_s.count(a_) == 1, a_
             plain_s = plain_s.replace(a_, b_)
         system += plain_s
     schema, system = with_findings(schema), system + FINDINGS_TEXT[arm]   # findings, in every arm (2026-11-22)
     stated_rules(system, arm)
+    stated_new_link(system, brief)
     if arm == "plain" and [w for w in PLAIN_WORDS if w in system.lower()]:   # the plain arm is told nothing of hypotheses (the coherence audit, 2026-11-22: STRUCTURE was added after plain_prompt's check)
         raise ValueError(f"the instructions of the arm 'plain' name: {', '.join(w for w in PLAIN_WORDS if w in system.lower())}")
     try:   # a label's length, in the answer format too
@@ -3202,7 +3264,7 @@ def main():
             user = repair_user(hid, test, n + 1, who, feedback, reserved, refused)
             try:
                 stage("repair", hid, n + 1)
-                content, _d, _f, _u = called("researcher", model, REPAIR_SYSTEM + (STRUCTURE if may_change(brief) else ""), user, repair_schema, a.draft == "on", a.temperature, min(a.max_tokens, SHORT_CALL_TOKENS))
+                content, _d, _f, _u = called("researcher", model, REPAIR_SYSTEM + (structure_text(brief) if may_change(brief) else ""), user, repair_schema, a.draft == "on", a.temperature, min(a.max_tokens, SHORT_CALL_TOKENS))
                 count["calls"] += 1
                 rp = json.loads(content)
                 if not isinstance(rp, dict):
