@@ -63,6 +63,9 @@ def aim_measures(brief):
     return {g["target"]["measure"]} | {m for c in g.get("conditions") or [] for m in outs if re.search(rf"\b{re.escape(m)}\b", c)}
 
 
+LIMIT_WORDS = ("this brief allows at most", "a network holds at most", "may not be removed (the operator keeps it)", "which this network would not have")   # network.py's limits
+
+
 def structure_problem(edits, brief=None, example=True):
     """None if the brief's network with these changes may be simulated; otherwise why not, ending with one change written correctly for this
     network (s053, 2026-11-22: H1's change was written wrongly in every round)."""
@@ -76,6 +79,9 @@ def structure_problem(edits, brief=None, example=True):
         bad = [str(e)]
     if not bad:
         return None
+    if all(any(w in x for w in LIMIT_WORDS) for x in bad):   # written correctly, asks for more than the brief allows (s056 H10: 3 flows)
+        more = any("at most" in x for x in bad)
+        return "; ".join(bad) + ". The change is written correctly, but this brief does not allow it" + (": change a part the network has instead of adding one" if more else "")
     ok = change_example(b) if example else None
     return "; ".join(bad) + (f". A change written correctly for this network, for example: {json.dumps(ok)}" if ok else "")
 
@@ -1619,8 +1625,9 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
 def rule_size_problem(r):
     """The arm "supervised": what is wrong with the size of one decision rule, or None (at most COMPARISONS_MOST comparisons)."""
     k = decision_rules.comparisons_in(r.get("decision_rule"))
-    return (f"the decision rule for {r.get('for')} makes {k} comparisons, and a rule makes at most {COMPARISONS_MOST}: a rule that needs more asks more than one "
-            "question. Decide the hypothesis by the one comparison its guess predicts, and leave the rest to a later test") if k > COMPARISONS_MOST else None
+    return (f"the decision rule for {r.get('for')} makes {k} comparisons, and a rule makes at most {COMPARISONS_MOST}: keep the comparisons that decide what "
+            f"{r.get('for')} claims, every part of it, and leave the rest, such as further settings, to a later test (a claim that needs more than "
+            f"{COMPARISONS_MOST} comparisons is more than one claim)") if k > COMPARISONS_MOST else None
 
 
 def rival_problem(r):
