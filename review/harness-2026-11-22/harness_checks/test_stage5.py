@@ -17,7 +17,8 @@ for each that nothing unrelated is refused and the session does not stop:
   K  the instructions with competitors: their size, and the figures;
   L  a restated competitor that also revises (s055);
   M  the batched first review marks the reply's new guesses in the list of guesses, and a reading that names the guess itself is not taken (s056);
-  N  a guess that competes with a later guess of the same answer (s057); if that guess is not accepted, it competes with none and says so.
+  N  a guess that competes with a later guess of the same answer (s057); if that guess is not accepted, it competes with none and says so;
+  O  each reply request says the ids its new guesses and hypotheses will get (s057).
 python3 -I test_stage5.py SCRATCH_DIR [HARNESS_DIR]"""
 import json, os, shutil, subprocess, sys
 from pathlib import Path
@@ -203,6 +204,13 @@ led, calls, users, meta, err = session("n2", [turn([FWD, {"about": ["E0"], "resu
 ys = {r["id"]: r["body"] for r in of(led, "why")}
 say(calm(err, meta) and list(ys) == ["Y1"] and ys["Y1"].get("competes_with") is None and "was not accepted, so this guess competes with none" in str(ys["Y1"].get("contested")),
     f"if that later guess is not accepted, the guess competes with none and says so: {[(k, v.get('competes_with'), v.get('contested')) for k, v in ys.items()]}")
+
+print("O  EACH REPLY REQUEST SAYS THE IDS ITS NEW GUESSES AND HYPOTHESES WILL GET (s057 turn 3 numbered its guesses from Y13, not Y10, and lost its test)")
+led, calls, users, meta, err = session("o1", [turn([A_, B_], [H("Y1")], [rule("H1", "Y2")])], [G, G, OK3, RUL3()])
+rq = [u for u in users if "NEW IDS" in u or "LEDGER:" in u]   # every reply request, the last one too (the script had no answer for it)
+say(len(rq) >= 2 and "NEW IDS: the guesses you write in this answer are recorded as Y1, Y2, ... and your new hypotheses as H1, H2, ..." in rq[0]
+    and "recorded as Y3, Y4, ... and your new hypotheses as H2, H3, ..." in rq[1],
+    f"turn 1 is told Y1 and H1, turn 2 (after Y1, Y2 and H1) Y3 and H2: {[x[x.find('NEW IDS'):x.find('NEW IDS') + 110] for x in rq[:2]]}")
 
 print("K  THE INSTRUCTIONS AND THEIR SIZE")
 t = loop.supervised_prompt("", True) + loop.FINDINGS_TEXT["supervised"]

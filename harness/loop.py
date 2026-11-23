@@ -3363,6 +3363,10 @@ def main():
                          "and what it asked for is answered in the LEDGER above. A turn ends with a step: " + (f"{step_now}. Requests in this reply are answered "
                          "too, and you are asked once more in this turn." if stay < CONTINUES else f"this is the last reply of this turn, so {step_now} "
                          "(what this reply asks for is answered, and shown to you in the next turn)."))
+            if arm != "plain" and mode in (None, "free"):   # the ids a reply's new parts get, said before it writes them (part 9: s057 turn 3 numbered its guesses from Y13, not Y10)
+                n_y_now, n_h_now = sum(r["type"] == "why" for r in ledger), sum(r["type"] == "hypothesis" for r in ledger)
+                user += (f"\n\nNEW IDS: the {'guesses' if arm == 'supervised' else 'whys'} you write in this answer are recorded as Y{n_y_now + 1}, Y{n_y_now + 2}, ... and your new hypotheses "
+                         f"as H{n_h_now + 1}, H{n_h_now + 2}, ..., in the order you write them: name them by these ids (in from_why, competes_with, revises, tests and decision rules).")
             last, parsed, err, content, refused = (ledger[-1]["id"] if ledger else None), None, None, "", []
             again = ""   # the second attempt of a turn is told why the first could not be used (it was asked the very same thing before: a refused answer cost a whole reply and taught nothing)
             CALLS["turn"] = turn
