@@ -98,7 +98,9 @@ def task_text(b):
     this. The system itself is told in the description, not here; what a measure is, in the brief's list of outputs.
     The set-up page writes the same sentence as the form changes (brief_editor.js, taskText): keep the two alike."""
     knobs, goal = b["knobs"], b["goal"]
-    may = f"You may change {len(knobs)} setting{'' if len(knobs) == 1 else 's'} ({', '.join(knobs)}); every other setting is fixed."
+    net = bool(b.get("topology") and (b.get("structure") or {}).get("may_change"))   # a network the AI may change (part 10: three sessions on after_fix kept to the two settings)
+    may = (f"You may change {len(knobs)} setting{'' if len(knobs) == 1 else 's'} ({', '.join(knobs)})"
+           + (" and the structure of the network (its hosts, links, flows and queues, within the brief's limits)" if net else "") + "; every other setting is fixed.")
     if goal.get("kind") == "given":
         t, conds = goal["target"], goal.get("conditions") or []
         aim = f"Find the settings that give the {'largest' if t['direction'] == 'max' else 'smallest'} {t['measure']}"

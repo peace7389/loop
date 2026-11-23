@@ -1,0 +1,119 @@
+{
+ "goal": "Maximize tcp_goodput_bps, the brief's given goal.",
+ "recommendation": {
+  "l1.queue.length": 100,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [
+  {
+   "do": "remove",
+   "id": "l1",
+   "kind": "queue",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  },
+  {
+   "do": "add_queue",
+   "id": "l1",
+   "kind": "scheduler",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "limit": "At scheduler q100 TcpCubic, TCP is limited by the scheduler's work-conserving per-flow share (about 480 Mbps of the 1 Gbps link) while UDP's 2 Gbps overload consumes the rest; queue length only trades TCP drops (q4) against backlog/RTT (q1000). Evidence E4, E5, E7, T44, T45, T57. q100 is best among tested scheduler queue lengths, not a proof that no untested length or TCP type is slightly better.",
+ "explanation": "In the original FIFO, UDP offered 2 Gbps saturates l1, keeps the queue full, and tail-drops TCP, so all tested TCP types stay at or below 5792 bps. Replacing the sender FIFO with a scheduler gives each flow a service share, so Cubic reaches 476-482 Mbps while UDP takes the unused capacity. Queue length then matters only through TCP's class queue: q4 is below Cubic's ACK-clocked burst (inflight max 14 packets = 4 queue + 10 device queue) and drops 3416 TCP packets; q1000 permits a 952-packet backlog and 17.2 ms RTT; q100 caps the backlog at 100 packets (inflight max 110, RTT 2.1 ms) with only 71 drops, giving the highest measured goodput.",
+ "claims": [
+  {
+   "text": "In the original FIFO, UDP overload starves TCP: no tested TCP type exceeds 5792 bps.",
+   "evidence": [
+    "E0",
+    "E1",
+    "E2",
+    "E3",
+    "C4",
+    "V4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "A sender-side scheduler replacing the FIFO raises TCP goodput to hundreds of Mbps.",
+   "evidence": [
+    "E4",
+    "C5",
+    "V5"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Under the scheduler, Cubic fills the scheduler share better than BBR, while UDP takes the unused capacity.",
+   "evidence": [
+    "E5",
+    "C6",
+    "V6",
+    "T35",
+    "T36",
+    "T37",
+    "T43"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "q100 is the best tested scheduler queue length: q4 loses to TCP drops, q1000 loses to backlog/RTT, and q100 is 1.16% above q1000.",
+   "evidence": [
+    "E6",
+    "C7",
+    "V7",
+    "E7",
+    "C8",
+    "V8",
+    "E8",
+    "C9",
+    "V9",
+    "T47",
+    "T49",
+    "T50",
+    "T53"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The scheduler is work-conserving: TCP and UDP together use about the whole link, and TCP's rate is about its scheduler share.",
+   "evidence": [
+    "E4",
+    "E5",
+    "E7",
+    "T44",
+    "T45",
+    "T57"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The q4 drop count is compatible with only 1.2 s above 3.5 packets because drops occur in short full-queue bursts; q100's queue is usually above 3.5 but near the 100-packet cap only 1.5 s, giving 71 drops.",
+   "evidence": [
+    "E6",
+    "E9",
+    "C10",
+    "V10",
+    "T49",
+    "T50",
+    "T53",
+    "T57"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}
