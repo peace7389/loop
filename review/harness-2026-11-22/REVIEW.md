@@ -851,8 +851,8 @@ test_stage5.py A). Its full suite: 34 on the branch's build, 31 and 3 skipped on
 # Session s057: the third real session (2026-11-23, 04:16 to 05:42)
 
 The same brief and settings, on the build of 04:16. It ended "all simulations used, report given in the last turn": 10 turns (the last two free),
-12 simulations and 5 more answered from earlier ones, 53 model calls (30 of the supervisor, 23 of the researcher), 86 minutes. 8 rulings: 5
-supported, 2 refuted, 1 inconclusive.
+12 simulations and 9 more answered from earlier ones, 53 model calls (30 of the supervisor, 23 of the researcher), 86 minutes. 10 rulings: 6
+supported, 3 refuted, 1 inconclusive.
 - Turns 1 to 3: the FIFO. TCP gets 0 at the default queue and at most 5.8 kbit/s at any queue and TCP type (Cubic and LinuxReno 5792 bit/s at
   1000 packets; BBR 4634; NewReno, Vegas, Bic 0).
 - Turn 4: the scheduler. The guess (Y14) that a scheduler giving each flow its share lets TCP through, against Y15 (UDP's overload caps TCP
