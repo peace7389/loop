@@ -49,8 +49,24 @@ the FIFO with a queue of 1000, where TCP still gets almost nothing):
 - One fault of the page: while a reply continued after the researcher's questions to the tools, the banner said the first reply "could not be
   used". Fixed and deployed with the rest.
 
-**s057** (the same brief and settings, started 04:16 on the build with every fix): running as this is written (04:30); this part is filled in
-when it ends.
+**s057** (the same brief and settings, 04:16 to 05:42, on the build of 04:16; report after 10 turns and 12 simulations) found the fix the brief
+was made for:
+- In turn 4 the researcher guessed that a scheduler giving each flow its own share would let TCP through, wrote the competing guess that UDP's
+  overload caps TCP whatever the queue does, and proposed the test; the supervisor approved it in its first round. With the scheduler TCP got
+  476 Mbit/s, where every FIFO setting had given it at most 5.8 kbit/s; the ruling supported the guess and refuted its competitor.
+- It then measured what matters under the scheduler: Cubic fills TCP's share better than BBR (476 against 190 Mbit/s), a 4-packet queue loses
+  TCP packets, and the default queue of 100 is best (482 Mbit/s, a 2.1 ms round trip against 17.2 ms at 1000). Its report recommends exactly that,
+  names its limit (the scheduler's share of the link), and says the queue of 100 is the best tested, not proven best.
+- The fixes of the night held in it: no new guess was compared with itself (19 read in batches), and the supervisor never called the change of
+  the network not allowed.
+- It still showed four faults, each replayed by a check, fixed, checked on all harness checks and deployed at 05:42 (REVIEW.md, parts 8 to 11):
+  the task the harness writes into the brief said "every other setting is fixed" on a brief whose network may change (both AIs read it); the
+  researcher misnumbered its new guesses and lost a test (each request now says which ids they will get); a guess could not name a competitor
+  written after it; a refuted guess was not marked as one no test may compete with. And two of the page, both live: while a simulation with a
+  network change ran, the page took it for an earlier one with the same settings, and its card read "of 0" seconds.
+
+**s058** (the same brief and settings, started 05:43 on the build with every fix): running as this is written; this part is filled in when it
+ends.
 
 ## How it was checked
 
@@ -68,7 +84,8 @@ when it ends.
 
 ## Where to look
 
-- The live page: port 8600, the session list (s055, s056, s057).
-- The plan and its status: plans/2026-11-22-coherence-audit.md. The deploys (00:31, 00:46, 02:19, 04:16): HARNESS_SPEC.md 8.3 and 16, HISTORY.md
+- The live page: port 8600, the session list (s055, s056, s057, s058). For s057's key moment, its hypothesis H5 (the scheduler) and its simulation
+  S11 (the network drawn with the scheduler).
+- The plan and its status: plans/2026-11-22-coherence-audit.md. The deploys (00:31, 00:46, 02:19, 04:16, 05:42): HARNESS_SPEC.md 8.3 and 16, HISTORY.md
   (rows of 2026-11-23, lessons D9, D10).
 - Every change with its reason and its checks: branch review/harness-2026-11-22, review/harness-2026-11-22/REVIEW.md.
