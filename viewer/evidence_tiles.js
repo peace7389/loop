@@ -75,8 +75,9 @@ Object.assign(EV, {
       <line class="lt-ax" x1="${L}" x2="${W - Rt}" y1="${Tp}" y2="${Tp}"/><line class="lt-ax" x1="${L}" x2="${W - Rt}" y1="${H - B}" y2="${H - B}"/><line class="lt-x" x1="0" x2="0" y1="${Tp}" y2="${H - B}" style="display:none"/>
       ${line(1, '--series-1')}${line(2, '--series-2')}${dot(1, '--series-1')}${dot(2, '--series-2')}</svg>`;
   },
+  // the measured time: a setting of the run, or the brief's fixed one (a network brief fixes it: s057's running card said "measured second 10.0 of 0")
   tileHtml(d, P) {
-    const M = EV.M, e = EV.e, R = EV.tiles.runs[d.run] || { rows: [] }, rows = R.rows, last = rows[rows.length - 1], dur = Number(d.params.duration || 0);
+    const M = EV.M, e = EV.e, R = EV.tiles.runs[d.run] || { rows: [] }, rows = R.rows, last = rows[rows.length - 1], dur = Number(d.params.duration || ((M.brief && M.brief.system) || {}).duration || 0);
     const link = EV.tileNum(d.params.linkRate ?? ((M.brief && M.brief.system) || {}).linkRate ?? '1Gbps'), top = Math.max(typeof link === 'number' ? link : 1e9, ...rows.map(q => Math.max(q[1], q[2])));
     const state = R.metrics ? (R.collected ? 'collected' : 'ended') : last ? 'running' : R.there ? 'started' : 'waiting';
     const other = R.used && P.keys.some(k => k in R.used && EV.tileNum(R.used[k]) !== EV.tileNum(d.params[k]));  // its own params.json names other settings than the design the page expected
