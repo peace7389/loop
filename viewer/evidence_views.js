@@ -57,6 +57,16 @@ Object.assign(EV, {
     return Object.values(out).map(x => { const g = x.labels.some(l => good.includes(l)), b = x.labels.some(l => bad.includes(l)), strong = x.labels.filter(l => l !== 'observation' && l !== 'brief' && l !== 'not recorded');
       return { ...x, strong, kind: x.from === 'brief' ? 'brief' : g && b ? 'mixed' : g ? 'good' : b ? 'bad' : strong.length ? 'neutral' : 'weak' }; });
   },
+  // the board's zoom (2026-11-23, the operator: "enable zoom in and out so that users can look into specific when things became too lengthy"): more room
+  // for each turn, not a bigger picture of the same; past a point the boxes show their words again, and the board scrolls sideways in its card. The
+  // browser keeps the level; the place in view stays where it stood (at the pointer, for the wheel; the middle, for the buttons)
+  ZOOM_W: [0, 150, 200, 250],   // the level: 0 the whole session in view; 1 to 3 the width of a turn's column, px
+  zoom() { const z = Number(EV.store('ev-zoom-level')); return z >= 0 && z < EV.ZOOM_W.length ? z : 0; },
+  zoomBar() { const z = EV.zoom(), top = EV.ZOOM_W.length - 1;
+    return `<div class="map-zoom noprint" role="group" aria-label="Zoom the board"><span class="sm">${z === 0 ? 'the whole session in view' : `zoomed in ${z} of ${top}: more room for each turn · the board scrolls sideways`}</span><button data-act="zoom" data-id="out"${z <= 0 ? ' disabled' : ''} title="Less room for each turn">−</button><button data-act="zoom" data-id="fit"${z === 0 ? ' disabled' : ''} title="The whole session in view">fit</button><button data-act="zoom" data-id="in"${z >= top ? ' disabled' : ''} title="More room for each turn: the boxes show their words (the mouse wheel with Ctrl over the board does the same)">+</button></div>`; },
+  zoomTo(z, px) { const box = document.querySelector('#s-map .ev-map'), was = box ? { l: box.scrollLeft, w: box.scrollWidth, c: box.clientWidth } : null;
+    EV.store('ev-zoom-level', String(z)); EV.draw();
+    const now = document.querySelector('#s-map .ev-map'); if (was && now) { const x = px == null ? was.c / 2 : px, f = (was.l + x) / Math.max(1, was.w); now.scrollLeft = Math.max(0, f * now.scrollWidth - x); } },
   viewMap() {
     const M = EV.M, S = EV.s, e = EV.e, info = EV.selInfo(), now = EV.liveNow(), slotTurn = now && now.phase === 'reply' && !now.mode ? now.turn : null;
     if (!M.hyps.length && slotTurn == null) return `<p class="sm">No hypothesis ${M.ended ? 'was stated in this session.' : 'has been stated yet.'}</p>`;
@@ -76,7 +86,9 @@ Object.assign(EV, {
     // on the lean page (EV.LEAN, beside the detail pane) it is drawn smaller down to 85 %, and below that its card scrolls sideways: its words stay readable
     // where even 132 px do not fit, the boxes are small and hold the hypothesis's id and the sign of how it ended (its question is on hover and in the table below)
     const host = document.getElementById('s-map'), avail = Math.max(600, host && host.clientWidth ? host.clientWidth : (document.getElementById('ev').clientWidth || 1400) - 76),  // the room the board really has: its own container (page, less the page's and the card's margins)
-      fit = gx => Math.floor((avail - 12 - (n - 1) * gx) / n), small = fit(56) < 132, GX = small ? 40 : n > 6 ? 56 : 84, NW = small ? Math.max(58, Math.min(96, fit(40))) : Math.min(250, fit(GX)), NH = small ? 30 : 54, GY = small ? 8 : 12, pos = { brief: { x: 6, y: 8 } };
+      // zoomed in (2026-11-23), each turn has a column of a set width (150, 200 or 250 px) whatever the page's width: the boxes show their words, and the card scrolls sideways
+      ZL = EV.zoom ? EV.zoom() : 0, ZW = EV.ZOOM_W[ZL] || 0,
+      fit = gx => Math.floor((avail - 12 - (n - 1) * gx) / n), small = !ZW && fit(56) < 132, GX = small ? 40 : n > 6 ? 56 : 84, NW = small ? Math.max(58, Math.min(96, fit(40))) : Math.max(ZW, Math.min(250, fit(GX))), NH = small ? 30 : 54, GY = small ? 8 : 12, pos = { brief: { x: 6, y: 8 } };
     const chars = Math.floor((NW - 14) / 6.7) * 2 - 6, rowsOf = t => M.hyps.filter(h => h.turn === t).length + boxes.filter(q => q.turn === t).length + (t === slotTurn || t === lastTurn ? 1 : 0);
     cols.forEach((t, i) => M.hyps.filter(h => h.turn === t).forEach((h, j) => { pos[h.id] = { x: 6 + (i + 1) * (NW + GX), y: 8 + j * (NH + GY) }; }));
     const edges = M.mapEdges = EV.mapEdges(), recorded = !M.hyps.length || M.hyps.some(h => h.follows);  // "not recorded" is said only of hypotheses that are there and name nothing
@@ -167,7 +179,7 @@ Object.assign(EV, {
     const seps = Array.from({ length: cols.length + (endBox ? 1 : 0) }, (_, i) => { const x = (6 + (i + 1) * (NW + GX) - GX / 2).toFixed(1); return `<line class="map-sep" x1="${x}" y1="2" x2="${x}" y2="${HF + 6}"/>`; }).join('');
     const defs = `${EV.arrowDefs()}<defs>${[['ev-ag', '--good'], ['ev-ab', '--critical']].map(([id, c]) => `<marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(${c})"/></marker>`).join('')}</defs>`;
     const kinds = new Set(edges.filter(x => EV.seen(x.to)).map(x => x.kind)), key = (k, cls, text) => (kinds.has(k) ? `<span class="mk" data-k="${k}"><svg width="30" height="10" style="display:inline;vertical-align:0"><path class="edge ${cls}" d="M1,5 H28"/></svg> ${text}</span>` : '');
-    return `<div class="ev-map" data-cols="${n}"${small ? ' data-small="1"' : ''}><svg viewBox="0 0 ${W} ${HF + 10}" width="${W}" height="${HF + 10}" style="${EV.LEAN ? `width:100%;max-width:${W}px;min-width:${Math.round(W * 0.85)}px` : 'max-width:100%'};height:auto" role="img" aria-label="The hypotheses by the turn they were stated in, and which follows from which">${defs}${band}${seps}${svgE}${toEnd}${!repNow ? '' : explores.filter(q => M.claims.some(c => (c.exps || []).includes(q.x.id) && !(c.tests || []).length)).map(q => `<g data-to-answer="${e(q.x.id)}" data-step="${M.repRec ? M.recStep[M.repRec.id] ?? 0 : 0}"><path class="edge answer" d="${route(exAt[q.x.id].x + NW, exAt[q.x.id].y + NH / 2, ex - 2, 8 + EH / 2, 0)}" marker-end="url(#ev-ah)"/></g>`).join('')}${brief}${EV.measMark ? EV.measMark(6 + NW, 8 + AH, 'x:X0') : ''}${EV.measTurnMark ? cols.map(t => EV.measTurnMark(6 + (cols.indexOf(t) + 1) * (NW + GX), 8 + rowsOf(t) * (NH + GY), NW, t)).join('') : ''}${nodes}${expl}${slot}${lastBox}${end}${signsOut.join('')}${FL.svg}${heads}</svg></div>${EV.LEAN && avail < Math.round(W * 0.85) ? `<p class="sm map-on noprint">→ the board goes on to the right, to ${cols.length ? 'turn ' + e(String(cols[cols.length - 1])) : 'its end'} and the answer: scroll it sideways</p>` : ''}
+    return `<div class="ev-map" data-cols="${n}"${small ? ' data-small="1"' : ''}${ZW ? ` data-zoom="${ZL}"` : ''}><svg viewBox="0 0 ${W} ${HF + 10}" width="${W}" height="${HF + 10}" style="${ZW ? `width:${W}px;max-width:none` : EV.LEAN ? `width:100%;max-width:${W}px;min-width:${Math.round(W * 0.85)}px` : 'max-width:100%'};height:auto" role="img" aria-label="The hypotheses by the turn they were stated in, and which follows from which">${defs}${band}${seps}${svgE}${toEnd}${!repNow ? '' : explores.filter(q => M.claims.some(c => (c.exps || []).includes(q.x.id) && !(c.tests || []).length)).map(q => `<g data-to-answer="${e(q.x.id)}" data-step="${M.repRec ? M.recStep[M.repRec.id] ?? 0 : 0}"><path class="edge answer" d="${route(exAt[q.x.id].x + NW, exAt[q.x.id].y + NH / 2, ex - 2, 8 + EH / 2, 0)}" marker-end="url(#ev-ah)"/></g>`).join('')}${brief}${EV.measMark ? EV.measMark(6 + NW, 8 + AH, 'x:X0') : ''}${EV.measTurnMark ? cols.map(t => EV.measTurnMark(6 + (cols.indexOf(t) + 1) * (NW + GX), 8 + rowsOf(t) * (NH + GY), NW, t)).join('') : ''}${nodes}${expl}${slot}${lastBox}${end}${signsOut.join('')}${FL.svg}${heads}</svg></div>${EV.LEAN && avail < Math.round(W * 0.85) ? `<p class="sm map-on noprint">→ the board goes on to the right, to ${cols.length ? 'turn ' + e(String(cols[cols.length - 1])) : 'its end'} and the answer: scroll it sideways</p>` : ''}
       <div class="sm map-key" id="map-key">${(() => { const stOf = h => (st ? st[h.id] || 'open' : h.state), sq = cls => `<svg width="12" height="12" style="display:inline;vertical-align:-1px"><rect class="bx ${cls}" x="1" y="1" width="10" height="10" rx="3"/></svg>`, ln = cls => `<svg width="26" height="10" style="display:inline;vertical-align:0"><path class="edge ${cls}" d="M1,5 H25"/></svg>`;
         // The key is a small table of two rows: a BOX is a hypothesis and its look says how the AI judged it; an ARROW leads to a hypothesis and its colour says
         // what that one follows from. A look has a mark and a word or two; its whole sentence is in the box that opens when it is pointed at (EV.LEGEND_SAYS,
@@ -203,3 +215,12 @@ Object.assign(EV, {
           + '<p class="mk-do noprint">point at a box, an arrow or its sign to read it · click to open it</p>'; })()}</div>`;
   },
 });
+
+// the zoom's buttons, and the mouse wheel with Ctrl (or ⌘) over the board: one level a step, around the pointer
+EV.act = Object.assign(EV.act || {}, { zoom(id) { const i = EV.zoom(); EV.zoomTo(id === 'fit' ? 0 : Math.max(0, Math.min(EV.ZOOM_W.length - 1, i + (id === 'in' ? 1 : -1)))); } });
+document.getElementById('ev').addEventListener('wheel', ev => {
+  if (!(ev.ctrlKey || ev.metaKey) || !ev.target.closest || !ev.target.closest('#s-map .ev-map')) return;
+  ev.preventDefault(); if (Date.now() - (EV._zoomAt || 0) < 250) return;
+  const i = EV.zoom(), j = Math.max(0, Math.min(EV.ZOOM_W.length - 1, i + (ev.deltaY < 0 ? 1 : -1))); if (j === i) return;
+  EV._zoomAt = Date.now(); const r = ev.target.closest('.ev-map').getBoundingClientRect(); EV.zoomTo(j, ev.clientX - r.left);
+}, { passive: false });
