@@ -230,3 +230,7 @@ Branch `review/harness-2026-11-22`; what each stage did, its checks and what was
 **Deployed 2026-11-23 at 00:31** at the operator's word ("Finish every thing"): all five stages, competitors on for new supervised sessions. At
 00:46 a fix found by a real call of the model (the batched review's ids constrained to their exact values). Session s055 (arm "supervised", brief
 after_fix) started on the deployed build at 00:46. See HARNESS_SPEC.md 8.3 and HISTORY.md.
+
+**After the deploy**, what the two real sessions on it found was fixed the same way (a check that makes the fault happen first, then the fix, all
+34 harness checks on both builds) and deployed: at 02:19 four faults of s055, at 04:16 five of s056 and one of the page (REVIEW.md on the branch,
+"After the deploy", parts 2 to 7). Session s057 (the same brief and settings) started on the build of 04:16.
