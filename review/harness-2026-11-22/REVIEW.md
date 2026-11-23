@@ -871,3 +871,40 @@ The deploy build (derive_dep.py, with part 10's patch of the live tools.py) and 
 checks settings, usable and live on the new page. After the deploy: a session opened on after_fix is given the new task sentence; the page still
 says "written by the harness" for the sessions before it (s053, s056, s057) and "written by hand" for a brief's own task (s024); no page errors.
 Session s058 (the same brief and settings) started on it at 05:43.
+
+# Session s058: the fourth real session (2026-11-23, 05:43 to 07:12)
+
+The same brief and settings, on the build of 05:42, the first session given the corrected task sentence. Done by the model after 11 turns and 11
+of its 12 simulations (16 more answered from earlier ones), 54 model calls (31 of the supervisor, 23 of the researcher), 89 minutes; 12 rulings,
+6 supported and 6 refuted.
+- Turn 1: the scheduler at once, beside a larger FIFO queue: H1 (queue 1000) refuted, TCP 5.8 kbit/s; H2 (the scheduler) supported, 482 Mbit/s,
+  its competitor (TCP's own startup or the receiver) refuted.
+- Turns 2 to 9, each against a competing guess: under the scheduler no TCP type beats Cubic (BBR 190, Vegas 252 Mbit/s; NewReno, LinuxReno and
+  Bic equal within the tolerance), no queue length beats 100 (4, 10, 1000), and the TCP types differ in queue occupancy and retransmissions, not
+  in goodput. Turn 10: another queue discipline, pfifofast, gives TCP nothing (refuted).
+- Its report: the scheduler on the sender's side of l1, a queue of 100, Cubic; the limit is the scheduler's share of the link, about 482 Mbit/s,
+  the fixed 2 Gbit/s UDP flow taking the rest.
+What the fixes did in it: every reply request named the new ids (part 9) and the researcher's numbering held in every reply; no new guess was
+compared with itself; no supervisor answer called a change of the network not allowed.
+
+# After the deploy, parts 12 and 13: what s058 showed (2026-11-23, 07:00 to 07:30)
+
+Two refusals of the harness that did not say what was wrong:
+- **Part 12** (p12_measure.py): H12's last repair named q_full_fine, a measurement experiment X8 had defined, whose value the repair request
+  showed among the earlier results; the refusal said "q_full_fine is not one of the outputs" and the test was not run. A measurement is taken by
+  the experiment that defines it, and a repair cannot define one: the refusal now says where the measurement was defined, that a rule may name
+  it only where its own experiment defines it too, and which measurements the experiment has. Letting a later experiment name an earlier one's
+  measurements is a choice left to the operator. test_stage5.py P.
+- **Part 13** (p13_about.py): a guess cited another guess in about (s057 Y3 cited Y2; s058 Y31 cited Y30), and was told "about names ids that
+  are not in the ledger", not the reason. The refusal now says that about lists the records a guess starts from, never guesses, and that a guess
+  it explains otherwise goes in competes_with (one it states more exactly in revises). test_stage5.py Q.
+
+The page checks on the final page (05:51 to 07:20, every one of the 36): 35 pass; the 36th, readable, failed because its scratch copy ran the
+branch's harness, whose short answer format of part 3 is on (a session's flags held format: short), where the deploy build has it off; run again
+on a copy of the live tree it passes: every page check passes on the final page.
+
+# Deployed at 07:37: parts 12 and 13
+
+The deploy build (derive_dep.py) and the page as they were: every harness check on both builds of part 13 (34 on the branch's, 31 and 3 skipped
+on the deploy build). After the deploy the live harness holds each part, the server answers, and no session runs: the page is free for the
+morning.
