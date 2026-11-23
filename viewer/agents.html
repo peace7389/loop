@@ -41,6 +41,16 @@ const AG = {
   n: v => (v == null || v === '' ? '–' : Number(v).toLocaleString('en-US')),
   AGENT: { researcher: ['Researcher', 'the AI that proposes, runs experiments and reports'], judge: ['Judge', 'the AI asked apart whether a hypothesis comes from its guess'], supervisor: ['Supervisor', 'the AI asked apart to check each step of the researcher'] },
   sid: new URLSearchParams(location.search).get('session'), data: null, shown: 0, only: 'all', timer: null,
+  // the turn and the round shown (2026-11-23, the operator: select a turn and a round); kept in the address, so a link opens at them
+  turn: new URLSearchParams(location.search).get('turn') || 'all', round: new URLSearchParams(location.search).get('round') || 'all',
+  // the round of a call: a test is reviewed in rounds. Round 1 is its first review (the one review of a reply's new guesses and tests, or a test's first
+  // review); from round 2, the researcher's repair and the supervisor's review of it. A reply, a restated guess, a guess's review and a ruling have none
+  roundOf: c => { const s = c.step || {}; return s.round != null ? String(s.round) : s.step === 'review' || s.step === 'design' ? '1' : ''; },
+  // what a call was for, in words
+  stepSay(c) { const s = c.step || {}, a = s.about ? ` ${s.about}` : '', r = AG.roundOf(c);
+    return ({ reply: 'its reply', restate: 'its guess restated', review: 'the first review of the reply’s new guesses and tests', ground: 'the review of a guess', design: `the review of the test of${a || ' a hypothesis'}`,
+      repair: `its repair of the test of${a || ' a hypothesis'}`, ruling: `the ruling on${a || ' a hypothesis'}`, look: 'the first look at the baseline' })[s.step] + (r ? ` · round ${r}` : '') || (s.step ? String(s.step) : ''); },
+  shows: (agent, turn, round) => (AG.only === 'all' || AG.only === agent) && (AG.turn === 'all' || String(turn) === AG.turn) && (AG.round === 'all' || String(round) === AG.round),
   async json(u) { const r = await fetch(u, { cache: 'no-store' }); const d = await r.json().catch(() => ({ error: `${r.status} ${r.statusText}` })); if (!r.ok) throw new Error(d.error || r.statusText); return d; },
   async start() {
     let list = []; try { list = await AG.json('../api/sessions'); } catch (x) { /* the list is a convenience */ }
@@ -58,7 +68,7 @@ const AG = {
     let d; try { d = await AG.json('../api/agents?session=' + encodeURIComponent(AG.sid)); } catch (x) { AG.timer = setTimeout(AG.poll, 8000); return; }
     const fresh = d.calls.slice(AG.data.calls.length); AG.data = d;
     if (fresh.length) { const nn = document.getElementById('ag-none'); if (nn) nn.remove(); const box = document.getElementById('ag-calls'); if (box) { const prev = AG.data.calls.length - fresh.length; box.insertAdjacentHTML('beforeend', fresh.map((c, i) => AG.callHtml(c, prev + i, true)).join('')); }
-      const n = document.getElementById('ag-live'); if (n) n.innerHTML = AG.liveSay(fresh.length); }
+      const n = document.getElementById('ag-live'); if (n) n.innerHTML = AG.liveSay(fresh.length); const tr = document.getElementById('ag-tr'); if (tr) tr.innerHTML = AG.selectsHtml(); AG.apply(); }
     document.getElementById('ag-facts').innerHTML = AG.factsHtml(); if (d.running) AG.timer = setTimeout(AG.poll, 4000); else { const n = document.getElementById('ag-live'); if (n) n.innerHTML = 'The session has ended: every call it made is below.'; }
   },
   liveSay: k => `${AG.data.running ? '<b>This session is running.</b> ' : ''}${k ? `${k} new ${k === 1 ? 'call was' : 'calls were'} added at the end (outlined).` : 'A new call is added at the end as soon as it returns; the page does not move.'}`,
@@ -75,10 +85,10 @@ const AG = {
   // one call: who, its turn, its tokens; folded under it what it was given (the system message said once and then "the same as call n"), what it wrote before its answer, its answer
   callHtml(c, i, isNew) {
     const e = AG.e, C = AG.data.calls, u = c.usage || {}, [name, says] = AG.AGENT[c.agent] || [c.agent, ''], first = C.findIndex(x => x.system === c.system), rd = (u.completion_tokens_details || {}).reasoning_tokens;
-    const turnHead = i === 0 || C[i - 1].turn !== c.turn ? `<div class="turn" id="turn-${c.turn}">Turn ${e(c.turn)}</div>` : '';
+    const turnHead = i === 0 || C[i - 1].turn !== c.turn ? `<div class="turn" id="turn-${c.turn}" data-turn="${e(c.turn)}"${AG.turn === 'all' || AG.turn === String(c.turn) ? '' : ' hidden'}>Turn ${e(c.turn)}</div>` : '';
     const att = C.filter((x, j) => j < i && x.turn === c.turn && x.agent === c.agent).length;
-    return `${turnHead}<div class="call${isNew ? ' new' : ''}" data-agent="${e(c.agent)}" id="call-${e(c.n)}"${AG.only !== 'all' && AG.only !== c.agent ? ' hidden' : ''}>
-      <div class="ch"><span class="who" data-agent="${e(c.agent)}" title="${e(says)}">${e(name)}</span><span class="sm">call ${e(c.n)}${att ? ` · its ${att + 1}${['', '', 'nd', 'rd'][att + 1] || 'th'} call this turn` : ''} · ${e(c.at || '')}</span>
+    return `${turnHead}<div class="call${isNew ? ' new' : ''}" data-agent="${e(c.agent)}" data-turn="${e(c.turn)}" data-round="${e(AG.roundOf(c))}" id="call-${e(c.n)}"${AG.shows(c.agent, c.turn, AG.roundOf(c)) ? '' : ' hidden'}>
+      <div class="ch"><span class="who" data-agent="${e(c.agent)}" title="${e(says)}">${e(name)}</span><span class="step">${e(AG.stepSay(c))}</span><span class="sm">call ${e(c.n)}${att ? ` · its ${att + 1}${['', '', 'nd', 'rd'][att + 1] || 'th'} call this turn` : ''} · ${e(c.at || '')}</span>
         <span>given <b>${AG.n(u.prompt_tokens)}</b> tokens → wrote <b>${AG.n(u.completion_tokens)}</b>${rd != null ? ` <span class="sm">(${AG.n(rd)} before the answer)</span>` : ''}</span>
         <span class="sm">stopped: <span class="${c.finish_reason === 'length' ? 'stop-length' : ''}">${e(c.finish_reason === 'length' ? 'the length limit' : c.finish_reason || '–')}</span> · ${e(c.seconds ?? '–')} s · at most ${AG.n(c.max_tokens)} tokens · temperature ${e(c.temperature)}</span></div>
       <details data-f="given"${AG.open.given ? ' open' : ''}><summary>What it was given <span class="sm">the system message and the user message</span></summary>
@@ -90,11 +100,11 @@ const AG = {
   // a session run before calls.jsonl: by turn, what the researcher wrote before each answer (with the ledger's counts), its accepted answer, and the supervisor's records
   oldHtml() {
     const e = AG.e, D = AG.data, turns = [...new Set([...(D.drafts || []), ...(D.answers || []), ...(D.supervisor || [])].map(r => r.turn))].sort((a, b) => a - b), cnt = Object.fromEntries((D.counts || []).map(c => [c.id, c]));
-    return turns.map(t => `<div class="turn" id="turn-${t}">Turn ${e(t)}</div>`
-      + (D.drafts || []).filter(r => r.turn === t).map(r => { const k = cnt[r.id] || {}; return `<div class="call" data-agent="researcher"${AG.only !== 'all' && AG.only !== 'researcher' ? ' hidden' : ''}><div class="ch"><span class="who" data-agent="researcher">Researcher</span><span class="sm">${e(r.id)} · wrote ${AG.n(k.tokens)} tokens before its answer · stopped: <span class="${k.finish_reason === 'length' ? 'stop-length' : ''}">${e(k.finish_reason === 'length' ? 'the length limit' : k.finish_reason || '–')}</span></span></div>
+    return turns.map(t => `<div class="turn" id="turn-${t}" data-turn="${e(t)}"${AG.turn === 'all' || AG.turn === String(t) ? '' : ' hidden'}>Turn ${e(t)}</div>`
+      + (D.drafts || []).filter(r => r.turn === t).map(r => { const k = cnt[r.id] || {}; return `<div class="call" data-agent="researcher" data-turn="${e(t)}" data-round=""${AG.shows('researcher', t, '') ? '' : ' hidden'}><div class="ch"><span class="who" data-agent="researcher">Researcher</span><span class="sm">${e(r.id)} · wrote ${AG.n(k.tokens)} tokens before its answer · stopped: <span class="${k.finish_reason === 'length' ? 'stop-length' : ''}">${e(k.finish_reason === 'length' ? 'the length limit' : k.finish_reason || '–')}</span></span></div>
           <details data-f="before"${AG.open.before ? ' open' : ''}><summary>What it wrote before its answer <span class="sm">${AG.n((r.text || '').length)} characters</span></summary><pre>${e(r.text)}</pre></details></div>`; }).join('')
-      + (D.answers || []).filter(r => r.turn === t).map(r => `<div class="call" data-agent="researcher"${AG.only !== 'all' && AG.only !== 'researcher' ? ' hidden' : ''}><div class="ch"><span class="who" data-agent="researcher">Researcher</span><span class="sm">the answer the harness accepted this turn</span></div><details data-f="answer"${AG.open.answer ? ' open' : ''}><summary>Its answer</summary><pre>${e(AG.pretty(r.answer))}</pre></details></div>`).join('')
-      + (D.supervisor || []).filter(r => r.turn === t).map(r => `<div class="call" data-agent="supervisor"${AG.only !== 'all' && AG.only !== 'supervisor' ? ' hidden' : ''}><div class="ch"><span class="who" data-agent="supervisor">Supervisor</span><span class="sm">${e(r.id)} · ${e(r.gate)}</span></div>
+      + (D.answers || []).filter(r => r.turn === t).map(r => `<div class="call" data-agent="researcher" data-turn="${e(t)}" data-round=""${AG.shows('researcher', t, '') ? '' : ' hidden'}><div class="ch"><span class="who" data-agent="researcher">Researcher</span><span class="sm">the answer the harness accepted this turn</span></div><details data-f="answer"${AG.open.answer ? ' open' : ''}><summary>Its answer</summary><pre>${e(AG.pretty(r.answer))}</pre></details></div>`).join('')
+      + (D.supervisor || []).filter(r => r.turn === t).map(r => `<div class="call" data-agent="supervisor" data-turn="${e(t)}" data-round=""${AG.shows('supervisor', t, '') ? '' : ' hidden'}><div class="ch"><span class="who" data-agent="supervisor">Supervisor</span><span class="sm">${e(r.id)} · ${e(r.gate)}</span></div>
           <details data-f="given"${AG.open.given ? ' open' : ''}><summary>What it was given <span class="sm">${AG.n((r.shown || '').length)} characters</span></summary><pre>${e(r.shown)}</pre></details><details data-f="answer"${AG.open.answer ? ' open' : ''}><summary>Its answer</summary><pre>${e(AG.pretty(r.answer))}</pre></details></div>`).join('')).join('');
   },
   open: { given: false, before: true, answer: true },
@@ -102,7 +112,7 @@ const AG = {
     const e = AG.e, D = AG.data, root = document.getElementById('ag'), opt = (AG.list || []).slice().reverse().map(s => `<option value="${e(s.id)}"${s.id === AG.sid ? ' selected' : ''}>${e(s.id)} · ${e(s.brief || '')} · ${e(String(s.started || '').replace('T', ' ').slice(0, 16))}${s.running ? ' · running' : ''}</option>`).join('');
     const agents = D ? [...new Set([...(D.calls || []).map(c => c.agent), ...((D.calls || []).length ? [] : [(D.drafts || []).length || (D.answers || []).length ? 'researcher' : null, (D.supervisor || []).length ? 'supervisor' : null])].filter(Boolean))] : [];
     const head = `<h1>Agent transcripts</h1><p class="sm">Every call of the local model in this session, in order: what each agent was given and what it wrote. Anyone who can open the session's page can open this one.</p>
-      <div class="bar"><label>Session <select id="ag-sid">${opt || `<option>${e(AG.sid || '')}</option>`}</select></label>
+      <div class="bar"><label>Session <select id="ag-sid">${opt || `<option>${e(AG.sid || '')}</option>`}</select></label><span id="ag-tr">${AG.selectsHtml()}</span>
         <span class="grp">Show <button data-act="only" data-v="all" class="${AG.only === 'all' ? 'on' : ''}">every agent</button>${agents.map(a => `<button data-act="only" data-v="${e(a)}" class="${AG.only === a ? 'on' : ''}">${e((AG.AGENT[a] || [a])[0])}</button>`).join('')}</span>
         <span class="grp">Open in every call ${[['given', 'what it was given'], ['before', 'what it wrote first'], ['answer', 'its answer']].map(([k, s]) => `<button data-act="fold" data-v="${k}" class="${AG.open[k] ? 'on' : ''}" title="open or fold this part in every call">${s}</button>`).join('')}</span>
         <a href="index.html${AG.sid ? '?session=' + encodeURIComponent(AG.sid) : ''}">the session's page</a></div>`;
@@ -113,15 +123,38 @@ const AG = {
       + (D.running ? `<div class="note live" id="ag-live">${AG.liveSay(0)}</div>` : '')
       + (old ? `<div class="note">This session was run before every call was recorded (2026-11-22). Kept of it: what the researcher wrote before each answer, the answers the harness accepted${(D.supervisor || []).length ? ', and what the supervisor was given and answered' : ''}. What the researcher was given in each turn, and the judge's calls, were not kept.</div>` : '')
       + (none && !old ? `<div class="note" id="ag-none">${D.running ? 'No call of the model has returned yet in this session: each is added here as soon as it returns.' : 'No call of the model was recorded in this session.'}</div>` : '')
-      + `<div id="ag-calls">${old ? AG.oldHtml() : D.calls.map((c, i) => AG.callHtml(c, i, false)).join('')}</div>`;
+      + `<p class="sm" id="ag-shown"></p><div id="ag-calls">${old ? AG.oldHtml() : D.calls.map((c, i) => AG.callHtml(c, i, false)).join('')}</div>`;
+    AG.apply();
   },
   click(ev) {
     const b = ev.target.closest('[data-act]'); if (!b) return; const v = b.dataset.v;
-    if (b.dataset.act === 'only') { AG.only = v; document.querySelectorAll('#ag-calls .call').forEach(c => { c.hidden = v !== 'all' && c.dataset.agent !== v; }); document.querySelectorAll('[data-act=only]').forEach(x => x.classList.toggle('on', x.dataset.v === v)); }
+    if (b.dataset.act === 'only') { AG.only = v; AG.apply(); document.querySelectorAll('[data-act=only]').forEach(x => x.classList.toggle('on', x.dataset.v === v)); }
     if (b.dataset.act === 'fold') { AG.open[v] = !AG.open[v]; b.classList.toggle('on', AG.open[v]); document.querySelectorAll(`#ag-calls details[data-f=${v}]`).forEach(d => { d.open = AG.open[v]; }); }
     if (b.dataset.act === 'sys') { const c = AG.data.calls[+b.dataset.i]; b.parentElement.outerHTML = `<pre>${AG.e(c.system)}</pre>`; }
   },
-  change(ev) { if (ev.target.id === 'ag-sid') { AG.sid = ev.target.value; AG.shown = 0; history.replaceState(null, '', '?session=' + encodeURIComponent(AG.sid)); AG.load(); } },
+  change(ev) {
+    if (ev.target.id === 'ag-sid') { AG.sid = ev.target.value; AG.shown = 0; AG.turn = 'all'; AG.round = 'all'; AG.url(); AG.load(); }
+    if (ev.target.id === 'ag-turn') { AG.turn = ev.target.value; AG.round = 'all'; document.getElementById('ag-tr').innerHTML = AG.selectsHtml(); AG.apply(); }
+    if (ev.target.id === 'ag-round') { AG.round = ev.target.value; AG.apply(); }
+  },
+  // the two choices: every turn of the session, and the rounds that occur in the turn chosen (each with how many calls it holds)
+  selectsHtml() {
+    const e = AG.e, C = (AG.data && AG.data.calls) || [], D = AG.data || {}, inTurn = c => AG.turn === 'all' || String(c.turn) === AG.turn;
+    const turns = [...new Set((C.length ? C : [...(D.drafts || []), ...(D.answers || []), ...(D.supervisor || [])]).map(c => c.turn))].sort((a, b) => a - b);
+    const rounds = [...new Set(C.filter(inTurn).map(AG.roundOf).filter(Boolean))].sort();
+    const n = (f) => { const k = C.filter(f).length; return `${k} call${k === 1 ? '' : 's'}`; };
+    return ` <label>Turn <select id="ag-turn"><option value="all">every turn</option>${turns.map(t => `<option value="${e(t)}"${String(t) === AG.turn ? ' selected' : ''}>turn ${e(t)}${t === 0 ? ' (the baseline)' : ''}${C.length ? ` · ${n(c => c.turn === t)}` : ''}</option>`).join('')}</select></label>`
+      + ` <label>Round <select id="ag-round"${rounds.length ? '' : ' disabled title="No call of this turn belongs to a round of a test\u2019s review"'}><option value="all">every step</option>${rounds.map(r => `<option value="${e(r)}"${r === AG.round ? ' selected' : ''}>round ${e(r)} · ${r === '1' ? 'first review' : 'repair and review'} · ${n(c => inTurn(c) && AG.roundOf(c) === r)}</option>`).join('')}</select></label>`;
+  },
+  // hides what the three choices leave out (nothing is drawn again, the page does not move), says how many calls are shown, and keeps the choices in the address
+  apply() {
+    let k = 0; document.querySelectorAll('#ag-calls .call').forEach(el => { el.hidden = !AG.shows(el.dataset.agent, el.dataset.turn, el.dataset.round); if (!el.hidden) k++; });
+    document.querySelectorAll('#ag-calls .turn').forEach(el => { el.hidden = AG.turn !== 'all' && el.dataset.turn !== AG.turn; });
+    const all = document.querySelectorAll('#ag-calls .call').length, sh = document.getElementById('ag-shown');
+    if (sh) sh.textContent = k === all ? '' : k ? `Showing ${k} of ${all} calls.` : 'No call matches these choices.';
+    AG.url();
+  },
+  url() { const q = new URLSearchParams(); if (AG.sid) q.set('session', AG.sid); if (AG.turn !== 'all') q.set('turn', AG.turn); if (AG.round !== 'all') q.set('round', AG.round); history.replaceState(null, '', '?' + q + location.hash); },
 };
 AG.start();
 </script>
