@@ -1,0 +1,102 @@
+{
+ "goal": "max tcp_goodput_bps",
+ "recommendation": {
+  "l1.queue.length": 100,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [
+  {
+   "do": "remove",
+   "id": "l1",
+   "kind": "queue",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  },
+  {
+   "do": "add_queue",
+   "id": "l1",
+   "kind": "scheduler",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "limit": "The sender-side scheduler caps TCP at about 482 Mbps because the locked 2 Gbps UDP flow takes the other scheduler share; queue length and TCP type only change delay/retransmissions, not the cap (E3, C4, V4, E4, C5, V5, E5, E8).",
+ "explanation": "Default FIFO and pfifofast let UDP saturate l1 and starve TCP (E0, E9). A sender-side scheduler gives TCP a service share, raising it to 482007923 bps (E1, V2). Queue length 4/10/1000 and all TCP variants stay at or below this share within tolerance (E2, E3, E4, C3, C4, C5, V3, V4, V5). Retransmission differences reflect queue occupancy and inflight, not extra goodput (E5, E7, E8, T31-T34).",
+ "claims": [
+  {
+   "text": "Under FIFO or pfifofast, UDP saturates l1 and TCP delivers about zero.",
+   "evidence": [
+    "E0",
+    "T2",
+    "E9",
+    "C12",
+    "V12"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "A sender-side scheduler raises TCP to 482007923 bps by giving it a service share.",
+   "evidence": [
+    "E1",
+    "C2",
+    "V2"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Under the scheduler, queue length does not raise TCP above 482007923 bps.",
+   "evidence": [
+    "E3",
+    "C4",
+    "V4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Under the scheduler, TCP type does not raise TCP above 482007923 bps by more than tolerance.",
+   "evidence": [
+    "E2",
+    "C3",
+    "V3",
+    "E4",
+    "C5",
+    "V5"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Retransmission differences at capped goodput are explained by queue occupancy and inflight, not goodput changes.",
+   "evidence": [
+    "E5",
+    "C6",
+    "C7",
+    "V6",
+    "V7",
+    "E7",
+    "C10",
+    "V10",
+    "E8",
+    "C11",
+    "V11",
+    "T31",
+    "T32",
+    "T33",
+    "T34"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}

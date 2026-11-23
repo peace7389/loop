@@ -65,8 +65,21 @@ was made for:
   written after it; a refuted guess was not marked as one no test may compete with. And two of the page, both live: while a simulation with a
   network change ran, the page took it for an earlier one with the same settings, and its card read "of 0" seconds.
 
-**s058** (the same brief and settings, started 05:43 on the build with every fix): running as this is written; this part is filled in when it
-ends.
+**s058** (the same brief and settings, 05:43 to 07:12, on the build of 05:42; done by the model after 11 turns and 11 of its 12 simulations), the
+first session given the corrected task sentence:
+- It proposed the scheduler in its very first turn, beside the larger FIFO queue: the larger queue was refuted (5.8 kbit/s), the scheduler
+  supported (482 Mbit/s).
+- It then checked, each time against a competing guess, that no TCP type and no queue length does better under the scheduler, that another queue
+  discipline (pfifofast) does not help TCP at all, and why the TCP types differ only in delay and retransmissions. 12 rulings (6 supported, 6
+  refuted); 16 simulations answered from earlier ones at no cost.
+- Its report recommends the scheduler with a queue of 100 and Cubic, and names the limit: the scheduler caps TCP at about half the link,
+  because the fixed 2 Gbit/s UDP flow takes the other half.
+- Every request named the ids its new guesses and hypotheses would get, and the researcher's numbering held throughout. It showed two
+  small faults of wording, fixed, checked and deployed at 07:37 (REVIEW.md, parts 12 and 13): a rule that named a measurement an earlier
+  experiment had defined was refused as "not one of the outputs" (it now says where the measurement was defined and what may be named), and a
+  guess that cited another guess as a record was told "not in the ledger" (it now says that a guess starts from records, never guesses).
+
+After the night, no session is running: the page is free for a new one.
 
 ## How it was checked
 
@@ -74,7 +87,7 @@ ends.
 - Every new answer format sent once to the real model server, and each new kind of supervisor call made for real with its own token limit.
 - Each fault a real session showed was first made to happen again: by a scripted check, and where it was the model's reading, by asking the
   real model the same request again, as it was and with the fix (the scheduler review of s056, the guesses compared with themselves).
-- The page checks (36 of them, each driving the page in a browser): before the night 27 passed on the live page; on the final page all pass.
+- The page checks (36 of them, each driving the page in a browser): before the night 27 passed on the live page; on the final page (07:20) all 36 pass.
   The nine that failed were each examined: two were real faults of the page and are fixed (the top strip wrapped with the operator's columns;
   colour was used to say who wrote a part, against the rule that a small icon says it), one was a fault in a check of the harness's own, two were
   races in the checks, and the rest still described the page before the operator's own changes and were brought up to date.
@@ -86,6 +99,6 @@ ends.
 
 - The live page: port 8600, the session list (s055, s056, s057, s058). For s057's key moment, its hypothesis H5 (the scheduler) and its simulation
   S11 (the network drawn with the scheduler).
-- The plan and its status: plans/2026-11-22-coherence-audit.md. The deploys (00:31, 00:46, 02:19, 04:16, 05:42): HARNESS_SPEC.md 8.3 and 16, HISTORY.md
+- The plan and its status: plans/2026-11-22-coherence-audit.md. The deploys (00:31, 00:46, 02:19, 04:16, 05:42, 07:37): HARNESS_SPEC.md 8.3 and 16, HISTORY.md
   (rows of 2026-11-23, lessons D9, D10).
 - Every change with its reason and its checks: branch review/harness-2026-11-22, review/harness-2026-11-22/REVIEW.md.

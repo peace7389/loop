@@ -1251,6 +1251,10 @@ review/harness-2026-11-22, whose REVIEW.md has a section for each with its check
   Y10, and lost a test); a guess may name a later guess of the same answer as its competitor; a refuted guess is marked as one that no guess or
   test may compete with (the researcher named a refuted guess three times in a turn). The page: while an experiment runs, a simulation
   with a network change is not taken for an earlier one with the same settings, and its card reads the brief's fixed measured time.
+- **07:37**, what the fourth session (s058) found: a rule that names a measurement an earlier experiment defined is told where it was defined, that
+  a rule may name it only where its own experiment defines it too, and which measurements the experiment has (it was told "not one of the
+  outputs"); a guess that cites a guess in about is told that about lists records, never guesses, and where that guess goes (it was told "not in
+  the ledger").
 
 *Deployed on 2026-11-22 at 19:46 (during and after s052; built on branch review/harness-2026-11-22, eighth and ninth parts of its REVIEW.md):*
 - **A repair never stops the session** (a fix of B; s052 stopped on one at 19:20): a repaired test is checked in the order of the normal path
@@ -3678,6 +3682,7 @@ untracked until they say otherwise.
 | 2026-11-23, 02:19 | Deployed: four faults the first real session on the new build (s055) found, each replayed by a scripted check first: a repair lost its competitor; the supervisor judged a competitor missing without the researcher's guesses; a repair that swapped simulations was counted with the dropped ones; a restated guess both revised and competed with a guess, and the scheduler test was refused. Session s056 started on it. |
 | 2026-11-23, 04:16 | Deployed: what the second session (s056) found, each replayed by a scripted check first: the supervisor is told when the network may change (s056's scheduler test was lost again, the supervisor calling it "outside the permitted settings"); a repair may name a refused repair's simulations; a rule over 3 comparisons is told to keep every part of its claim; a limit of the network is no format error; the batched review marks the reply's new guesses (the supervisor had compared guesses with themselves). Session s057 started on it. |
 | 2026-11-23, 05:42 | Deployed: what the third session (s057) found, each replayed by a check first: the task sentence of a brief whose network may change says so (it said "every other setting is fixed"); each reply request says the ids its new guesses and hypotheses will get; a guess may compete with a later guess of the same answer; a refuted guess is marked as no competitor; the page's cards of a running experiment know a run with a network change, and the measured time a network brief fixes. |
+| 2026-11-23, 07:37 | Deployed: what the fourth session (s058) found, each replayed by a check first: two refusals that did not say what was wrong (a measurement an earlier experiment defined; a guess cited as a record) now say it. Every page check (36) passes on the final page. No session runs after it. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
