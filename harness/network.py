@@ -453,11 +453,17 @@ def sync(t):
     return t
 
 
-def apply(t, edits):
+NEW_LINK = {"rate": "1Gbps", "delay": "50us"}   # a link a change adds, where the brief's structure says nothing of new links
+
+
+def apply(t, edits, new_link=None):
     """The network with a list of changes made, in order (a simulation's "structure"). Each change states every field of
     EDIT; `do` is one of DOES:
       add_host   id
-      add_link   id, from, to (the two hosts), rate (empty: 1Gbps); delay 50us, MTU 1500, a device queue of 10 packets
+      add_link   id, from, to (the two hosts), rate (empty: 1Gbps, or the brief's cap); delay 50us, or the brief's; MTU 1500, a device
+                 queue of 10 packets. new_link: the brief's structure.new_link ({rate_max, delay}, 2026-11-23): an empty rate is the cap,
+                 and the delay is the brief's. Its two hosts stand in the order of the network's hosts, so that a link written from b
+                 to c and the same written from c to b are one network (and its measures name the same direction)
       add_flow   id, kind (udp or tcp), from, to, and rate for udp (empty: 100Mbps) or type for tcp (empty: TcpCubic)
       add_queue  id (the link), on (the host whose sending side it is), kind (scheduler or fifo; empty: scheduler); 100 packets.
                  A link may have one on each of its two sides.
@@ -465,6 +471,7 @@ def apply(t, edits):
                  A host goes with its links and with the flows that start or end at it.
     ValueError with the reason if a change cannot be made. Whether the result can be built is for problems()."""
     t = copy.deepcopy(t)
+    nl = {"rate": (new_link or {}).get("rate_max") or NEW_LINK["rate"], "delay": (new_link or {}).get("delay") or NEW_LINK["delay"]}
     ids = lambda: {x["id"] for k in ("hosts", "links", "flows") for x in t[k]}
     for i, e in enumerate(edits or []):
         n = f"change {i + 1}"
@@ -479,7 +486,8 @@ def apply(t, edits):
         elif do == "add_link":
             if e.get("from") not in hosts or e.get("to") not in hosts:
                 raise ValueError(f"{n}: a link joins two hosts of the network (from, to)")
-            t["links"].append({"id": oid, "between": [e["from"], e["to"]], "rate": e.get("rate") or "1Gbps", "delay": "50us", "mtu": 1500, "device_queue": 10})
+            order = [h["id"] for h in t["hosts"]]
+            t["links"].append({"id": oid, "between": sorted([e["from"], e["to"]], key=order.index), "rate": e.get("rate") or nl["rate"], "delay": nl["delay"], "mtu": 1500, "device_queue": 10})
         elif do == "add_flow":
             if e.get("kind") not in ("udp", "tcp") or e.get("from") not in hosts or e.get("to") not in hosts:
                 raise ValueError(f"{n}: a flow needs a kind (udp or tcp) and two hosts of the network (from, to)")
@@ -542,6 +550,9 @@ def structure_problems(st, t=None):
         bad.append("structure.most is smaller than the network the session starts from")
     if not isinstance(locked, list) or not all(isinstance(x, str) for x in locked) or (t and set(locked) - objects(t)):
         bad.append("structure.locked names objects of the network as kind:id (host, link, flow, or queue with its link's id)")
+    nl = st.get("new_link")   # 2026-11-23: the fastest link a change may add, and the delay every new link has
+    if nl is not None and not (isinstance(nl, dict) and set(nl) == {"rate_max", "delay"} and ok("new.rate", nl["rate_max"]) and ok("new.delay", nl["delay"])):
+        bad.append("structure.new_link gives rate_max (the fastest link a change may add, as 100Mbps) and delay (the one-way delay of every new link, as 1ms)")
     return bad
 
 
@@ -550,6 +561,10 @@ def changed_problems(t0, t1, st, goal, outs_needed=()):
     locked object is gone, a limit of the brief is passed, or a measure the aim names would not exist."""
     most = {**LIMITS, **(st.get("most") or {})}
     bad = [f"{len(t1[k])} {k}: this brief allows at most {most[k]}" for k in LIMITS if len(t1[k]) > most[k]]
+    nl, was = st.get("new_link") or {}, {(l["id"], frozenset(l["between"])) for l in t0["links"]}
+    if nl.get("rate_max"):   # 2026-11-23: a link a change adds carries at most the brief's cap
+        bad += [f"link {l['id']} carries {l['rate']}: this brief allows at most {nl['rate_max']} for a new link" for l in t1["links"]
+                if (l["id"], frozenset(l["between"])) not in was and ok(f"{l['id']}.rate", l["rate"]) and rate_bps(l["rate"]) > rate_bps(nl["rate_max"])]
     gone = sorted(set(st.get("locked") or []) & (objects(t0) - objects(t1)))
     if gone:
         bad.append(f"{', '.join(g.replace(':', ' ') for g in gone)} may not be removed (the operator keeps it)")

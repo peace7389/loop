@@ -367,7 +367,7 @@ def run_many(param_sets, structures=None, probe=None):
         out = RUNS / rid
         out.mkdir()
         if structures and structures[i]:
-            nets[rid] = network.apply(BRIEF["topology"], structures[i])
+            nets[rid] = network.apply(BRIEF["topology"], structures[i], (BRIEF.get("structure") or {}).get("new_link"))
         cmd = command(options(clean), out, topology=nets.get(rid))
         proc = subprocess.Popen(cmd + ([f"--probe={probe}"] if probe else []), cwd=out, env={"LD_LIBRARY_PATH": str(NS3 / "build/lib"), "TWOHOSTS_SCHED": POLICY}, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         jobs.append((rid, clean, clamps, out, time.time(), proc))

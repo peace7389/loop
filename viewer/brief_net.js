@@ -91,7 +91,7 @@ const BRIEF_NET = {
     }
     if (N.node.parentNode !== host) { host.appendChild(N.node); N.draw(); } else N.paint();
   },
-  fresh(t) { return { t, knobs: {}, id: '', description: '', descAuto: true, goal: 'open', measure: '', direction: 'max', conds: '', tolerance: '', sims: '40', per: '12', duration: '10', seed: '1', sel: null, pos: {}, tcpInitCwnd: '', tcpBufBytes: '', tcpSack: '', tcpTimestamps: '', tcpDelAck: '', placing: null, pending: null, drag: null, msg: null, busy: '', base: '', structure: false, most: { hosts: '', links: '', flows: '' }, locked: {} }; },
+  fresh(t) { return { t, knobs: {}, id: '', description: '', descAuto: true, goal: 'open', measure: '', direction: 'max', conds: '', tolerance: '', sims: '40', per: '12', duration: '10', seed: '1', sel: null, pos: {}, tcpInitCwnd: '', tcpBufBytes: '', tcpSack: '', tcpTimestamps: '', tcpDelAck: '', placing: null, pending: null, drag: null, msg: null, busy: '', base: '', structure: false, most: { hosts: '', links: '', flows: '' }, locked: {}, newLink: { rate: '', delay: '' } }; },
 
   // ---- the network as data
   newId(prefix) { const N = BRIEF_NET, t = N.s.t, all = new Set([...t.hosts, ...t.links, ...t.flows].map(x => x.id).concat(EV.netQueues(t).flatMap(x => Object.keys(x.q.classes || {})))); let i = 1; while (all.has(prefix + i)) i++; return prefix + i; },
@@ -255,6 +255,7 @@ const BRIEF_NET = {
     const N = BRIEF_NET, s = N.s, t = s.t, bad = []; N.syncDesc();
     if (t.hosts.length < 2 || !t.links.length || !t.flows.length) bad.push('A network needs at least two hosts, one link and one flow.');
     if (!Object.keys(s.knobs).length && !s.structure) bad.push('The AI may change nothing: leave at least one setting to it (its mark “AI may change”), or let it change the structure. A session on such a brief cannot start.');   // as the harness (2026-11-23, s060 on asdg)
+    if (s.structure && !String((s.newLink || {}).rate || '').trim() !== !String((s.newLink || {}).delay || '').trim()) bad.push('A link the AI adds: give both its fastest rate and its delay, or neither (then 1Gbps and 50us, as before).');
     const bf = N.node && N.node.querySelector('#bn-flags input[data-k=budget]'), start = String(bf ? bf.value : (EV.nw || {}).budget || '').trim();
     if (start && /^\d+$/.test(String(s.sims).trim()) && Number(start) > Number(s.sims)) bad.push(`Block 7 allows ${start} simulations at the start, more than the limit of ${String(s.sims).trim()} in block 5 (“Simulations in all”). Lower it, or empty the field to start with the limit.`);
     t.hosts.filter(h => !t.links.some(l => l.between.includes(h.id))).forEach(h => bad.push(`Host ${h.id} has no link.`));
@@ -279,14 +280,15 @@ const BRIEF_NET = {
     const knobs = {}; Object.entries(s.knobs).forEach(([k, q]) => { knobs[k] = q.choices ? { choices: q.choices, default: q.default, meaning: q.meaning } : { min: cast(k, q.min), max: cast(k, q.max), default: cast(k, q.default), meaning: q.meaning }; });
     const goal = s.goal === 'open' ? { kind: 'open' } : { kind: 'given', target: { measure: s.measure, direction: s.direction }, conditions: s.conds.split('\n').map(c => c.trim()).filter(Boolean), ...(String(s.tolerance).trim() ? { tolerance: N.num(s.tolerance) } : {}) };
     const b = { id: s.id.trim(), description: s.description.trim(), topology: net, system: { seed: N.num(s.seed), ...('duration' in knobs ? {} : { duration: N.num(s.duration) }), ...(String(s.tcpInitCwnd).trim() ? { tcpInitCwnd: N.num(s.tcpInitCwnd) } : {}), ...(String(s.tcpBufBytes).trim() ? { tcpBufBytes: N.num(s.tcpBufBytes) } : {}), ...Object.fromEntries(['tcpSack', 'tcpTimestamps', 'tcpDelAck'].filter(k => String(s[k] ?? '').trim()).map(k => [k, N.num(s[k])])) }, knobs, goal, limits: { simulations: N.num(s.sims), simulations_per_experiment: N.num(s.per) } };
-    if (s.structure) b.structure = { may_change: true, most: Object.fromEntries(Object.entries(s.most).filter(([, v]) => String(v).trim()).map(([k, v]) => [k, N.num(v)])), locked: Object.keys(s.locked).filter(k => s.locked[k]) };
+    if (s.structure) b.structure = { may_change: true, most: Object.fromEntries(Object.entries(s.most).filter(([, v]) => String(v).trim()).map(([k, v]) => [k, N.num(v)])), locked: Object.keys(s.locked).filter(k => s.locked[k]),
+      ...(String((s.newLink || {}).rate || '').trim() || String((s.newLink || {}).delay || '').trim() ? { new_link: { rate_max: String(s.newLink.rate).trim(), delay: String(s.newLink.delay).trim() } } : {}) };   // the cap and the delay of a link the AI adds (2026-11-23)
     return b;
   },
   fromBrief(b) {
     const N = BRIEF_NET, s = N.fresh(JSON.parse(JSON.stringify(b.topology))), g = b.goal || {}, st = b.structure || {};
     Object.assign(s, { knobs: JSON.parse(JSON.stringify(b.knobs || {})), description: b.description || '', descAuto: !String(b.description || '').trim(), goal: g.kind === 'given' ? 'given' : 'open', measure: (g.target || {}).measure || '', direction: (g.target || {}).direction || 'max', conds: (g.conditions || []).join('\n'), tolerance: g.tolerance == null ? '' : String(g.tolerance),
       sims: String((b.limits || {}).simulations ?? 40), per: String((b.limits || {}).simulations_per_experiment ?? 12), seed: String((b.system || {}).seed ?? 1), tcpInitCwnd: String((b.system || {}).tcpInitCwnd ?? ''), tcpBufBytes: String((b.system || {}).tcpBufBytes ?? ''), tcpSack: String((b.system || {}).tcpSack ?? ''), tcpTimestamps: String((b.system || {}).tcpTimestamps ?? ''), tcpDelAck: String((b.system || {}).tcpDelAck ?? ''), duration: String((b.system || {}).duration ?? ((b.knobs || {}).duration || {}).default ?? 10), base: b.id || '',
-      structure: !!st.may_change, most: { hosts: String((st.most || {}).hosts ?? ''), links: String((st.most || {}).links ?? ''), flows: String((st.most || {}).flows ?? '') }, locked: Object.fromEntries((st.locked || []).map(k => [k, true])) });
+      structure: !!st.may_change, most: { hosts: String((st.most || {}).hosts ?? ''), links: String((st.most || {}).links ?? ''), flows: String((st.most || {}).flows ?? '') }, locked: Object.fromEntries((st.locked || []).map(k => [k, true])), newLink: { rate: String((st.new_link || {}).rate_max ?? ''), delay: String((st.new_link || {}).delay ?? '') } });
     return s;
   },
   // a description written from the network, to start from: each setting by its name in braces, so that it stays true whoever decides it
@@ -465,7 +467,7 @@ const BRIEF_NET = {
         <tr data-k="seed"><td>seed</td><td>${N.field('seed', s.seed)}</td><td data-decides="operator"><i class="sw" data-by="operator"></i>fixed by the operator</td></tr></tbody></table>
       <p class="sm">A setting is changed in its object's card (block 1): click the object; beside each setting, “fixed” or “AI may change” says who decides it, and a click on the other one switches.</p>
       <p style="margin-top:8px"><label style="font-weight:400"><input type="checkbox" id="bn-structure"${s.structure ? ' checked' : ''}> <b>The AI may change the structure</b>: add and remove hosts, links, flows and queues in the simulations it asks for</label></p>
-      ${s.structure ? `<div class="bn-row" style="grid-template-columns:auto 80px 80px 80px"><span>at most (empty: 8 hosts, 12 links, 8 flows)</span>${['hosts', 'links', 'flows'].map(k => N.field('most:' + k, s.most[k], k)).join('')}</div><p class="sm">An object can be kept from it: click the object, then tick “the AI may not remove or change this object”. What the aim names is kept by itself.</p>` : ''}`;
+      ${s.structure ? `<div class="bn-row" style="grid-template-columns:auto 80px 80px 80px"><span>at most (empty: 8 hosts, 12 links, 8 flows)</span>${['hosts', 'links', 'flows'].map(k => N.field('most:' + k, s.most[k], k)).join('')}</div><div class="bn-row" style="grid-template-columns:auto 110px 110px" title="A link the AI adds carries at most this rate and has this one-way delay (ns-3: PointToPointNetDevice · DataRate, PointToPointChannel · Delay). Empty: 1Gbps and 50us."><span>a link it adds: fastest rate, one-way delay</span>${N.field('nl:rate', (s.newLink || {}).rate || '', '1Gbps')}${N.field('nl:delay', (s.newLink || {}).delay || '', '50us')}</div><p class="sm">An object can be kept from it: click the object, then tick “the AI may not remove or change this object”. What the aim names is kept by itself.</p>` : ''}`;
     const b3 = `<div class="be-aim" id="bn-aim"><label><input type="radio" name="bn-goal" data-goal="open"${s.goal === 'open' ? ' checked' : ''}> <b>open</b>: the AI chooses its own aim and has to justify it</label><label><input type="radio" name="bn-goal" data-goal="given"${s.goal === 'given' ? ' checked' : ''}> a target with conditions</label></div>
       ${s.goal === 'given' ? `<div class="be-two"><label>Target<small>the measure to make as large or as small as possible</small><select data-f="measure">${outs.map(k => `<option value="${e(k)}"${k === s.measure ? ' selected' : ''}>${e(TH_DATA.PLAIN[k] || k)}</option>`).join('')}</select></label>
         <label>Direction<select data-f="direction"><option value="max"${s.direction === 'max' ? ' selected' : ''}>as large as possible</option><option value="min"${s.direction === 'min' ? ' selected' : ''}>as small as possible</option></select></label>
@@ -597,6 +599,7 @@ const BRIEF_NET = {
     if (f.startsWith('k:')) { const [, a, part] = f.split(':'); s.knobs[a][part] = N.isText(a) ? t.value : N.num(t.value); if (done) N.soon(); return; }
     if (f.startsWith('lr:')) { const [, l, fl] = f.split(':'), q = N.qOf(l).q; q.largest_rate = q.largest_rate || {}; if (t.value.trim()) q.largest_rate[fl] = t.value.trim(); else delete q.largest_rate[fl]; if (done) N.soon(); return; }
     if (f.startsWith('most:')) { s.most[f.slice(5)] = t.value; return; }
+    if (f.startsWith('nl:')) { s.newLink = s.newLink || { rate: '', delay: '' }; s.newLink[f.slice(3)] = t.value; return N.paintTask(); }
     s[f] = t.value; if (f === 'description') s.descAuto = !t.value.trim();   // typed: the operator's own text from now on (emptied: written from the network again)
     if (done && ['measure', 'direction', 'tcpBufBytes', 'tcpInitCwnd', 'tcpSack', 'tcpTimestamps', 'tcpDelAck'].includes(f)) return N.soon(); N.paintTask();
   },
