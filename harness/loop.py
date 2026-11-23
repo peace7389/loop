@@ -1202,12 +1202,14 @@ QUESTIONS_ASK = ("Before any of these simulations is run, answer three questions
                  "one consequence of the guess.")
 
 
-def guesses_text(ledger):
+def guesses_text(ledger, new=None):
     """Every guess of the researcher with its standing, for the supervisor's review of a test with competitors (it judges whether a competing cause is
-    missing: s055, 2026-11-23, it held a test for a cause one of the guesses stated)."""
+    missing: s055, 2026-11-23, it held a test for a cause one of the guesses stated). new: {id: its name in the batched first review} for the reply's
+    own new guesses, marked as new (s056, 2026-11-23: unmarked, the supervisor named a new guess as its own nearest earlier guess)."""
     flat = lambda v: " ".join(str(v).split())
-    refuted, ws = guess_refutations(ledger), why_states(ledger)
-    lines = [f"  [{r['id']}] " + (f"(refuted by {refuted[r['id']]}) " if r["id"] in refuted else f"(revised as {ws[r['id']]['as']}) " if (ws.get(r["id"]) or {}).get("as") else "")
+    refuted, ws, new = guess_refutations(ledger), why_states(ledger), new or {}
+    lines = [f"  [{r['id']}] " + (f"(new in this reply: {new[r['id']]} below) " if r["id"] in new else "")
+             + (f"(refuted by {refuted[r['id']]}) " if r["id"] in refuted else f"(revised as {ws[r['id']]['as']}) " if (ws.get(r["id"]) or {}).get("as") else "")
              + f"{flat(r['body'].get('guess'))}" + (f" | competes with {r['body']['competes_with']}" if r["body"].get("competes_with") else "") for r in ledger if r["type"] == "why"]
     return "THE RESEARCHER'S GUESSES SO FAR (a competing cause may already be one of them):\n" + ("\n".join(lines) or "  (none)") + "\n\n"
 
@@ -1359,7 +1361,7 @@ def batch_schema(ng, nt):
         "tests": {"type": "array", "minItems": nt, "maxItems": nt, "items": t_item, "description": "one item for each test, in their order"}}}
 
 
-def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None):
+def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None, new=None):
     """The batched first review of a reply (stage 4 of the coherence audit, 2026-11-22): every new guess (gate 0) and every test (round 1) in one
     request; what all of them share is written once. guesses: the guesses as stated; tests: [(hypothesis, its test, its case text or None)].
     Returns (an answer or None for each guess, an answer or None for each test, what was shown). The answers are the raw items: each is then read
@@ -1369,9 +1371,11 @@ def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None
     user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned "
             f"when the researcher looked: these are measurements too, and a guess may start from them):\n{_looked(ledger)}\n\n"
             + (f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{gp[0]['earlier']}\n\nTHE RULINGS SO FAR:\n{gp[0]['rulings']}\n\n" if gp else "")
-            + (guesses_text(tledger or ledger) if COMP["on"] and tests else "")
+            + (guesses_text(tledger or ledger, new) if COMP["on"] and tests else "")
             + f"THIS REQUEST HOLDS EVERY NEW GUESS AND EVERY NEW TEST OF THE RESEARCHER'S REPLY IN THIS TURN ({len(guesses)} guess{'es' if len(guesses) != 1 else ''}, {len(tests)} test{'s' if len(tests) != 1 else ''}). "
               "Judge each on its own, as if it were asked alone, and answer each in its own item.\n\n"
+            + (f"The researcher's guesses listed above already hold this reply's new guesses ({', '.join(f'{g} is {y}' for y, g in new.items())}): the nearest earlier guess of a new guess is "
+               "one from before this reply, never the guess itself.\n\n" if new and COMP["on"] and tests else "")
             + "".join(f"== NEW GUESS G{i + 1} ==\nTHE RECORDS IT CITES:\n{q['cites']}\nTHE GUESS:\n{q['guess']}\n" for i, q in enumerate(gp))
             + "".join(f"== TEST OF {hid} ==\n{q['item']}" for (hid, _, _), q in zip(tests, tp))
             + (f"FOR EACH NEW GUESS (an item of guesses, named G1, G2, ... as above): {gp[0]['ask']}\n\n" if gp else "")
@@ -2900,11 +2904,13 @@ def main():
             ok0, _no0 = sort_out(json.loads(json.dumps(parsed)), brief, ledger, max(0, budget - sims), mode_now, insist=not asked, judge=None, supervised=True, ground=collect, short=short, restate=None)
         except Exception:   # the real pass says what is wrong; the batch is only a way to ask sooner
             return
-        tests = []
+        tests, new = [], {}
         ex0 = ok0.get("experiment")
         if ex0 is not None and ex0.get("kind") == "test":
             n_h, n_y = sum(r["type"] == "hypothesis" for r in ledger), sum(r["type"] == "why" for r in ledger)
             hyps, whys = {f"H{n_h + i + 1}": h for i, h in enumerate(ok0["hypotheses"])}, {f"Y{n_y + i + 1}": w for i, w in enumerate(ok0["whys"])}
+            ys = {gkey(w): y for y, w in whys.items()}
+            new = {ys[k]: f"G{i + 1}" for i, (k, _) in enumerate(found) if k in ys}   # the id each new guess will have, by its name in the request
             pseudo = ledger + [{"id": y, "type": "why", "turn": turn, "by": "model", "parent": None, "body": w} for y, w in whys.items()] + [{"id": k, "type": "hypothesis", "turn": turn, "by": "model", "parent": None, "body": h} for k, h in hyps.items()]   # the reply's own guesses and hypotheses, as they will be recorded
             for hid in ex0.get("tests") or []:
                 if any((competitor_problem(d, pseudo) if competitors else rival_problem(d)) or rule_size_problem(d) for d in ex0.get("decision_rules") or [] if d.get("for") == hid):
@@ -2920,11 +2926,16 @@ def main():
             return
         try:
             stage("review")
-            g_ans, t_ans, saw = first_review(model, brief, ledger, [w for _, w in found], [(hid, ex, case) for hid, ex, case, _ in tests], tledger=pseudo if tests else None)
+            g_ans, t_ans, saw = first_review(model, brief, ledger, [w for _, w in found], [(hid, ex, case) for hid, ex, case, _ in tests], tledger=pseudo if tests else None, new=new if tests else None)
         except (ValueError, KeyError, TypeError, IndexError, AttributeError) as e:   # a model server error ends the session, as at any other call
             append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"the supervisor's batched first review could not be read ({type(e).__name__}): each new guess and test is asked alone"})
             return
-        for (k, w), x in zip(found, g_ans):
+        own = {g: y for y, g in new.items()}
+        for i, ((k, w), x) in enumerate(zip(found, g_ans)):
+            m = re.match(r"\s*([YH]\d+)\b", str((x or {}).get("nearest_earlier") or "")) if isinstance(x, dict) else None
+            if m and own.get(f"G{i + 1}") == m.group(1):   # the guess compared with itself (s056): not taken, the guess is read alone
+                append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"the supervisor's batched reading of new guess G{i + 1} named the guess itself ({m.group(1)}) as its nearest earlier guess: that reading is not taken, and the guess is read alone"})
+                continue
             if isinstance(x, dict):
                 try:
                     g, _saw = ground_of(model, brief, ledger, w, pre=x, pre_saw=saw)
