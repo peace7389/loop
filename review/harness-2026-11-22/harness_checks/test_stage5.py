@@ -18,7 +18,9 @@ for each that nothing unrelated is refused and the session does not stop:
   L  a restated competitor that also revises (s055);
   M  the batched first review marks the reply's new guesses in the list of guesses, and a reading that names the guess itself is not taken (s056);
   N  a guess that competes with a later guess of the same answer (s057); if that guess is not accepted, it competes with none and says so;
-  O  each reply request says the ids its new guesses and hypotheses will get (s057).
+  O  each reply request says the ids its new guesses and hypotheses will get (s057);
+  P  a rule that names a measurement an earlier experiment defined is refused with where it was defined and what this experiment has (s058);
+  Q  a guess that cites a guess in about is told that about lists records, never guesses, and where that guess goes (s057, s058).
 python3 -I test_stage5.py SCRATCH_DIR [HARNESS_DIR]"""
 import json, os, shutil, subprocess, sys
 from pathlib import Path
@@ -213,6 +215,25 @@ rq = [u for u in users if "NEW IDS" in u or "LEDGER:" in u]   # every reply requ
 say(len(rq) >= 2 and "NEW IDS: the guesses you write in this answer are recorded as Y1, Y2, ... and your new hypotheses as H1, H2, ..." in rq[0]
     and "recorded as Y3, Y4, ... and your new hypotheses as H2, H3, ..." in rq[1],
     f"turn 1 is told Y1 and H1, turn 2 (after Y1, Y2 and H1) Y3 and H2: {[x[x.find('NEW IDS'):x.find('NEW IDS') + 110] for x in rq[:2]]}")
+
+print("P  A RULE THAT NAMES A MEASUREMENT AN EARLIER EXPERIMENT DEFINED (s058 H12 named X8's q_full_fine: \"not one of the outputs\")")
+MS = [{"name": "tcp_mean", "of": "tcp_bps", "stat": "mean", "t_from": None, "t_to": None, "level": None}]
+T1 = turn([A_, B_], [H("Y1")], [rule("H1", "Y2")]); T1["experiment"]["measurements"] = MS
+Y3 = {"about": ["E1"], "result": "UDP gets more of the link at the part 0.7 in E1", "guess": "the scheduler serves TCP's part only when TCP has data", "revises": None, "competes_with": None}
+led, calls, users, meta, err = session("p1", [T1, turn([Y3], [H("Y3", "TCP's mean rate falls as UDP's part rises")], [rule("H2", "Y1", r="tcp_mean@b < tcp_mean@a")])], [G, G, OK3, RUL3(), G])
+ref = next((n for n in notes(led) if "tcp_mean is not one of the outputs" in n), "")
+say(calm(err, meta) and "tcp_mean is a measurement experiment X1 defined" in ref and "may name it only where its own experiment defines it too" in ref and "the measurements of this experiment: none" in ref,
+    f"the refusal says where the measurement was defined and what this experiment has: {ref[:330]}")
+
+print("Q  A GUESS THAT CITES A GUESS IN about (s058 Y31 cited Y30: \"about names ids that are not in the ledger\")")
+B_CITES = {**B_, "about": ["E0", "Y1"]}
+B_FIXED = {"about": ["E0"], "result": B_["result"], "guess": B_["guess"], "revises": None, "competes_with": "Y1"}
+led, calls, users, meta, err = session("q1", [turn([A_, B_CITES], [H("Y1")], [rule("H1", "Y2")]), B_FIXED], [G, OK3, RUL3()])
+rq = next((c["user"] for c in calls if (c.get("step") or {}).get("step") == "restate"), "")
+y2 = next((r["body"] for r in of(led, "why") if r["id"] == "Y2"), {})
+say(calm(err, meta) and "never guesses: Y1 is a guess. A guess this one explains otherwise goes in competes_with" in rq and "not in the ledger" not in rq
+    and y2.get("about") == ["E0"] and y2.get("competes_with") == "Y1" and not y2.get("contested"),
+    f"the refusal says that about lists records, not guesses, and where the guess goes; restated, Y2 is accepted: {rq[rq.find('ACCEPTED AS YOU STATED IT'):][:220]}")
 
 print("K  THE INSTRUCTIONS AND THEIR SIZE")
 t = loop.supervised_prompt("", True) + loop.FINDINGS_TEXT["supervised"]

@@ -1605,9 +1605,14 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
             try:
                 absent = [(m, l) for m, l in decision_rules.pairs(r.get("decision_rule"), every, labels) if m not in has[l]]
             except decision_rules.DecisionRuleError as e:
+                nm = re.match(r"(\w+) is not one of the outputs", str(e))   # a measurement an earlier experiment defined (part 12: s058 H12 named X8's q_full_fine)
+                by_x = next((x["id"] for x in reversed(ledger) if nm and x["type"] == "experiment" and any(isinstance(m, dict) and m.get("name") == nm.group(1) for m in x["body"].get("measurements") or [])), None)
+                own = [m.get("name") for m in ex.get("measurements") or [] if isinstance(m, dict) and m.get("name")]
                 return (f"the decision rule for {r['for']} cannot be read: {e}. Decision rule: {r.get('decision_rule')}"
                         + (". A rule compares the simulations of its own test: to compare with one that ran before, list it among the runs with its settings "
-                           "(the same settings are returned, not run again)" if "no simulation in this experiment is labelled" in str(e) else ""))
+                           "(the same settings are returned, not run again)" if "no simulation in this experiment is labelled" in str(e) else
+                           f". {nm.group(1)} is a measurement experiment {by_x} defined: a measurement is taken by the experiment that defines it, so a rule may name it "
+                           f"only where its own experiment defines it too (in measurements, the same definition again); the measurements of this experiment: {', '.join(own) or 'none'}" if by_x else ""))
             if absent:
                 return (f"the decision rule for {r['for']} names {absent[0][0]}@{absent[0][1]}, but the network of simulation `{absent[0][1]}` has no such measure: "
                         "a decision rule may only name measures that exist in every simulation it names")
@@ -1846,6 +1851,12 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             return "a why says whether it is worth verifying now: worth is verify or set_aside", "harness", None
         if not isinstance(about, list) or not about or any(a != "brief" and kinds.get(a) not in ("evidence", "simulation", "check", "verdict", "result") + (("review",) if supervised else ()) for a in about):
             bad = [a for a in about or [] if a != "brief" and a not in kinds] if isinstance(about, list) else []
+            guesses = [a for a in about or [] if isinstance(a, str) and re.fullmatch(r"Y\d+", a)] if isinstance(about, list) else []   # part 13: a guess cited as a record
+            if guesses:
+                g, gs = ("guess", "guesses") if supervised else ("why", "whys")
+                return (f"about lists the records a {g} starts from (results, readings, checks, rulings), never {gs}: {', '.join(guesses)} "
+                        f"{'is a ' + g if len(guesses) == 1 else 'are ' + gs}. "
+                        + (f"A {g} this one explains otherwise goes in competes_with, one it states more exactly in revises" if supervised and COMP["on"] else f"A {g} this one states more exactly goes in revises")), "harness", None
             return ((f"about names ids that are not in the ledger: {', '.join(map(str, bad))}" if bad else
                      "about must list the records whose result the why explains: ids of evidence tables, simulations, checks, verdicts or readings in the ledger (for example E2, C3, T7), "
                      "a run id for what you read in that run's series or trace (for example r001), or the word brief")), "harness", None
