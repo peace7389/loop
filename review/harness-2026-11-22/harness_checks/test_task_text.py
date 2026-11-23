@@ -3,6 +3,7 @@ operator's question of 2026-11-17: "is it okay that the task stays the same rega
 contradicted the aim, the open settings and the fixed UDP rate). No model and no simulation is needed:
   - a brief without a task of its own gets the sentence: the aim (given: largest or smallest measure, with its
     conditions; open: choose what performance means), the settings that may be changed, by name and number;
+  - a brief whose network may change says so in that sentence (2026-11-23: on after_fix it said "every other setting is fixed");
   - the sentence follows the brief: another aim, a knob made fixed, a condition added each change it;
   - a brief that states a task of its own keeps it (the briefs made before), and so do their sessions;
   - a {placeholder} of the description stands for a fixed setting's value or, for a knob, "the knob <name>"; one that
@@ -45,6 +46,10 @@ t3 = copy.deepcopy(t2); t3["goal"]["conditions"] = []; [t3["system"].__setitem__
 say(d == "Find the settings that give the smallest udp_loss_frac. You may change 1 setting (weightUdp); every other setting is fixed. Explain why they are best.", f"no condition and one open setting: “{d}”")
 say(made(trap)["task"] == own and tools.load_brief("trap")["task"] == own and all(tools.load_brief(p.stem)["task"] == raw(p.stem)["task"] for p in (P / "briefs").glob("*.json") if raw(p.stem).get("task")),
     f"a brief that states a task of its own keeps it, word for word (the {sum(bool(raw(p.stem).get('task')) for p in (P / 'briefs').glob('*.json'))} saved briefs that state one)")
+af = raw("after_fix"); e = made(af)["task"]; af2 = copy.deepcopy(af); af2["structure"]["may_change"] = False; e2 = made(af2)["task"]
+say(e == "Find the settings that give the largest tcp_goodput_bps. You may change 2 settings (l1.queue.length, tcp.type) and the structure of the network (its hosts, links, flows and queues, within the brief's limits); every other setting is fixed. Explain why they are best."
+    and e2 == "Find the settings that give the largest tcp_goodput_bps. You may change 2 settings (l1.queue.length, tcp.type); every other setting is fixed. Explain why they are best.",
+    f"a brief whose network may change says so (s057: “every other setting is fixed” on after_fix); with its structure locked it does not: “{e}”")
 bad = copy.deepcopy(t); bad["task"] = "  "
 try: made(bad); r = None
 except ValueError as e: r = str(e)

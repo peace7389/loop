@@ -15,6 +15,8 @@ import subprocess
 HERE = Path(__file__).resolve().parent
 subprocess.run([sys.executable, "-I", str(HERE / "s1_guards.py"), "tools", str(out / "tools.py")], check=True)
 subprocess.run([sys.executable, "-I", str(HERE / "s1_net.py"), str(out / "network.py")], check=True)
+# part 10 (2026-11-23): the task sentence of a brief whose network may change says so (tools.task_text), in the live tools.py too
+subprocess.run([sys.executable, "-I", str(HERE / "p10_task.py"), "tools", str(out / "tools.py")], check=True)
 # prompt.txt: the sentence of part 2 (measure and probe, with combined measurements and taps) back to the live one
 p, l = (out / "prompt.txt").read_text(), (live / "prompt.txt").read_text()
 key = " Two of the tools look deeper than the outputs and cost no simulation:"
