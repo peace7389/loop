@@ -1,0 +1,71 @@
+{
+ "goal": "Maximize fa_goodput_bps subject to fb_loss_frac <= 0.1.",
+ "recommendation": {
+  "lc.queue.parts.fa": 0.185,
+  "lc.queue.length": 1000,
+  "fa.type": "TcpCubic"
+ },
+ "limit": "fa_goodput_bps=26036198 is capped by fa's scheduler raw-bit share at lc.queue.parts.fa=0.185 after packet-header overhead; larger tested parts.fa violates fb_loss_frac because fb's 80 Mbps offer exceeds its scheduler payload share, and lc.queue.length=1000 only delays/buffers packets beyond the measured window rather than increasing service (E6, E7, C9, C10, V9, V10, C11, V11).",
+ "explanation": "The scheduler divides raw lc bits by the parts and is work-conserving, so fa's payload goodput is its raw scheduler share reduced by header overhead. At the feasible boundary fa is backlogged, so changing fa.type or increasing lc.queue.length does not raise fa_goodput by more than tolerance; it only removes fa drops or delays fb packets. Increasing lc.queue.length from 100 to 1000 lowers measured fb_loss_frac by buffering about 900 extra packets and increasing maximum fb wait, moving the tested feasible parts.fa from 0.180 to 0.185 while leaving fa and fb goodputs unchanged. p0185_len1000 is the largest tested setting satisfying fb_loss_frac <= 0.1; p0188_len1000 gives higher fa_goodput but fb_loss_frac=0.104301.",
+ "claims": [
+  {
+   "text": "The scheduler divides raw lc bits and is work-conserving when a flow underuses its part.",
+   "evidence": [
+    "E1",
+    "V1"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "fa_goodput at the boundary is set by scheduler share and header overhead, not by fa.type or queue capacity.",
+   "evidence": [
+    "E5",
+    "C6",
+    "V6",
+    "C7",
+    "V7",
+    "C12",
+    "V12"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "lc.queue.length=1000 lowers fb_loss_frac without changing delivered goodput by increasing queue delay and buffering beyond the measured window.",
+   "evidence": [
+    "E6",
+    "C9",
+    "V9",
+    "E8",
+    "C11",
+    "V11"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The tested feasible boundary with length=1000 is at parts.fa=0.185; parts.fa=0.188 violates fb_loss_frac.",
+   "evidence": [
+    "E6",
+    "C9",
+    "V9",
+    "E7",
+    "C10",
+    "V10"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "TcpCubic is recommended because no tested congestion control raised fa_goodput by more than tolerance at the scheduler-limited boundary.",
+   "evidence": [
+    "E5",
+    "C6",
+    "V6"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}
