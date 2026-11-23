@@ -731,7 +731,7 @@ which is not drawn). Copies of the changed page checks: page_checks/.
 Also checked on the live page: an exported session (s055) opens from its folder with no server, holds supervisor.jsonl, and has no link to the
 agents page; the calls card follows the call being made in s056 with the step's new shape; the agents page shows a new running session.
 
-# After the deploy, part 5: what session s056 found (2026-11-23, 03:00; built, deployed when s056 has ended)
+# After the deploy, part 5: what session s056 found (2026-11-23, 03:00; deployed at 04:16 with parts 6 and 7)
 
 s056 (the same brief and settings as s055, on the build of 02:19) showed the fixes of part 4 at work (its repairs keep their competitor; the
 supervisor's reviews list the researcher's guesses). In turn 4 the researcher proposed the scheduler again (H5: a scheduler instead of the FIFO
@@ -747,3 +747,61 @@ gives TCP more than ten times its goodput), and the test was lost a second time 
 - **A rule naming a simulation its test lacks** is refused with how to include it (list it among the runs with its settings: the same settings
   are returned, not run again).
 test_stage2.py W and S replay both (pass here, fail on the build of 02:19).
+
+# After the deploy, parts 6 and 7: what the rest of s056 found (2026-11-23, 03:40 to 04:00)
+
+Four more faults, three in what the harness tells the agents and one on the page, each replayed by a check (pass on the new build, fail on the
+build of 02:19):
+- **Part 6, the advice of a refusal against the supervisor's question** (p6_advice.py). H11 claimed two things (at queue 500, lower inflight and
+  higher RTO than at 1000); after the supervisor asked for a second queue length, its rule had 4 comparisons, and the harness's refusal said
+  "Decide the hypothesis by the one comparison its guess predicts". The researcher kept the inflight comparison only, and the supervisor held the
+  test: it "does not test the whole hypothesis as stated" (Consistent). The refusal now says to keep the comparisons that decide every part of the
+  claim and leave the rest (further settings) to a later test. test_stage4.py E.
+  In the same turn a repair added a third flow (a probe; the brief allows 2): the refusal was right, but it ended with "A change written correctly
+  for this network, for example: [remove the queue, add a scheduler]", an unrelated change, as if the change had been written wrongly. A change
+  written correctly that asks for more than the brief allows is now told so ("change a part the network has instead of adding one"); the example is
+  kept for a change written wrongly. test_repair_structure.py U.
+- **Part 7, a new guess compared with itself** (p7_selfref.py). Since part 2 the batched first review lists the researcher's guesses so far, and
+  that list holds the reply's own new guesses, under the ids they will get (a test may compete with one of them); the new guesses themselves are
+  shown as G1, G2, ... without those ids. The supervisor named a new guess as its own nearest earlier guess for 11 of the 23 guesses it read in a
+  batch (turns 1, 8, 9 and 10; none in s055, before part 2). In turn 10 it judged both new guesses repeats of themselves: Y25 was contested and the
+  other sent back, restated and contested. The list now marks each new guess ("new in this reply: G1 below"), the request says which id each has
+  and that a new guess's nearest earlier guess is one from before this reply, never itself; a reading that still names the guess itself is not
+  taken (a note says so) and that guess is read alone. test_stage5.py M.
+  Replayed on the real model (replay_selfref.py; the batched requests of turns 8 and 10, each asked as it was and with part 7's marks): as it
+  was, the supervisor again named 4 of 4 and 2 of 2 new guesses as themselves ("repeats" in turn 10); with the marks, 0 of 4 and 0 of 2, each
+  naming a guess from before the reply, and no defect.
+- **The page: a continued reply called "again"** (evidence_live.js). In turn 12 the researcher asked the tools for readings and then wrote its
+  reply; while it wrote, the banner said "reply 2 of this turn ... again (its first reply could not be used)", though its first reply was used.
+  The page counted the turn's drafts; now.json says whether a reply is asked again, and the drafts count only where there is none.
+  live_again_check.js: the live page says "again" for the continued reply, the fixed one does not, and both say it for a reply asked again.
+
+The full suite ran on both builds of each part (34 checks; the deploy build skips the 3 that need parts it leaves out): all pass.
+
+# Session s056: the second real session (2026-11-23, 02:19 to 04:15)
+
+The same brief and settings as s055, on the build of 02:19. It ended "all simulations used, report given in the last turn": 14 turns (the last
+two free, after the budget), 12 simulations and 15 more answered from earlier ones at no cost, 75 model calls (39 of the supervisor, 36 of the
+researcher), 116 minutes. It recommends the FIFO at queue 1000 with Cubic, where TCP gets 5792 bit/s of the 1 Gbit/s link, and says that this is
+the best tested setting, not a proof over all settings.
+
+What the stages did in it: the researcher wrote competing guesses in every turn (35 guesses, 16 hypotheses); 12 rulings (8 supported, 2 refuted,
+each refuting the guess that did not fit a fair result, 2 inconclusive); two tests held (H4, H11), which the researcher then gave up with what it
+had learned; three tests not run after their last round (H5, H10, H15), each with its reason in the next turn's ledger text.
+
+What went wrong, each now fixed (parts 5 to 7 and the page, deployed at 04:16): the scheduler test (H5, turn 4) was lost when the supervisor called
+the change "outside the permitted settings", and the researcher believed it (its drop of H5: "The scheduler change is outside the task's
+permitted settings"); H11's test was held after the harness's own advice cut it to one comparison; the supervisor compared new guesses with
+themselves; the page called a continued reply "again".
+
+For the reading of the session, not a fault of the harness: without the scheduler the researcher spent turns 5 to 12 on TCP types and queue
+lengths where TCP delivers one to five packets in the measured ten seconds (1158 and 5792 bit/s), and read single-packet differences as
+patterns ("queue length quantizes the drop phase into 250-packet buckets"). The supervisor's Correct question raised the same doubt ("a
+single-seed comparison could show it by coincidence") without saying that these are differences of one packet.
+
+# Deployed at 04:16: parts 5 to 7 and the page's fix
+
+As before, the deploy build is derived by derive_dep.py from the backup of the live harness before the night's deploy. On both builds of part 7
+(the branch's, and the deploy build) every harness check passed (34; the deploy build skips the 3 that need parts it leaves out), and the page check
+of the live view (ev_live.py) passed on the fixed page. After the deploy: the live harness holds each part (the supervisor's text for after_fix
+says the network may change, with its limits), the page answers on port 8600, and session s057 (the same brief and settings) started on it at 04:16.
