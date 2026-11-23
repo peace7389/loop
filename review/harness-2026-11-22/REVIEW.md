@@ -805,3 +805,19 @@ As before, the deploy build is derived by derive_dep.py from the backup of the l
 (the branch's, and the deploy build) every harness check passed (34; the deploy build skips the 3 that need parts it leaves out), and the page check
 of the live view (ev_live.py) passed on the fixed page. After the deploy: the live harness holds each part (the supervisor's text for after_fix
 says the network may change, with its limits), the page answers on port 8600, and session s057 (the same brief and settings) started on it at 04:16.
+
+# After the deploy, parts 8 and 9: what s057 found in its first turns (2026-11-23, 04:24 to 04:50; built, deployed when s057 has ended)
+
+s057 runs on the build of 04:16. In its first combined review none of the 5 new guesses was compared with itself (part 7 at work; s056: 4 of 4
+in the same step), and no supervisor answer called a change of the network not allowed. Two faults of numbering:
+- **Part 8, a competitor written after the guess** (p8_forward.py). In turn 1 Y3 named Y4, the guess written after it, as its competitor; the
+  harness accepted only a guess of the ledger or one earlier in the answer, so Y3 was restated and then marked contested, "'Y4' is not a guess",
+  while Y4 was recorded a moment later. A later guess of the same answer may now be named, by the id it is to get; when the answer's guesses are
+  all read, the name becomes the id that guess was recorded with, and if that guess was not accepted the guess competes with none and says so.
+  test_stage5.py N (fails on the build of 04:16: the guess is sent to be restated).
+- **Part 9, the ids of the new parts said beforehand** (p9_ids.py). In turn 3 the researcher numbered its new guesses from Y13 where the harness
+  numbers them from Y10 (the last guess of the ledger was Y9): its hypothesis came "from Y16" and was refused, its test with it. The ids were said
+  only in the refusal, after the fact (the turn went on, and the second reply named them right). Every reply request of the arms with guesses now
+  ends with them: "NEW IDS: the guesses you write in this answer are recorded as Y10, Y11, ... and your new hypotheses as H4, H5, ...".
+  test_stage5.py O.
+Each part's full suite: 34 checks on the branch's build, 31 and 3 skipped on the deploy build, all pass.
