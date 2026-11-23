@@ -376,6 +376,14 @@ Object.assign(EV, {
 });
 Object.assign(EV, {
   // a simulation's changes to the network, in words (the harness's own short form is in its evidence line)
+  // a recommendation's changes to the network, in words, one phrase for each (2026-11-23, the operator: a report's network changes stand before its
+  // settings); a queue removed and put back on the same side of the same link reads as one replacement
+  editsAdvise(edits) { const out = [], es = (edits || []).filter(x => x && typeof x === 'object'), disc = k => (k === 'fifo' ? 'plain queue' : EV.netDisc(k || 'scheduler')[0]);
+    for (let i = 0; i < es.length; i++) { const x = es[i], n = es[i + 1];
+      if (x.do === 'remove' && x.kind === 'queue' && n && n.do === 'add_queue' && n.id === x.id && (!x.on || x.on === n.on)) { out.push(`replace the queue on ${n.on}'s side of link ${x.id} with a ${disc(n.kind)}`); i++; continue; }
+      out.push(x.do === 'add_host' ? `add host ${x.id}` : x.do === 'add_link' ? `add link ${x.id} between ${x.from} and ${x.to}${x.rate ? ' (' + TASK_VIEW._rate(x.rate) + ')' : ''}` : x.do === 'add_flow' ? `add ${String(x.kind).toUpperCase()} flow ${x.id} from ${x.from} to ${x.to}`
+        : x.do === 'add_queue' ? `put a ${disc(x.kind)} on ${x.on}'s side of link ${x.id}` : `remove ${x.kind === 'queue' ? 'the queue of link' : x.kind} ${x.id}${x.kind === 'queue' && x.on ? ` on ${x.on}'s side` : ''}`); }
+    return out; },
   editsSay(edits) { return (edits || []).map(e => (e.do === 'add_host' ? `added host ${e.id}` : e.do === 'add_link' ? `added link ${e.id} between ${e.from} and ${e.to}${e.rate ? ' (' + TASK_VIEW._rate(e.rate) + ')' : ''}` : e.do === 'add_flow' ? `added ${String(e.kind).toUpperCase()} flow ${e.id} from ${e.from} to ${e.to}`
     : e.do === 'add_queue' ? `put a ${e.kind === 'fifo' ? 'plain queue' : EV.netDisc(e.kind || 'scheduler')[0]} on ${e.on}'s side of link ${e.id}` : `removed ${e.kind === 'queue' ? 'the queue of link' : e.kind} ${e.id}${e.kind === 'queue' && e.on ? ` on ${e.on}'s side` : ''}`)).join('; ') || 'nothing'; },
 });
