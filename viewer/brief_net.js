@@ -133,8 +133,51 @@ const BRIEF_NET = {
     return { gone, t };
   },
   change(fn) { const N = BRIEF_NET, s = N.s; N.past.push(JSON.stringify({ t: s.t, knobs: s.knobs })); if (N.past.length > 50) N.past.shift(); N.ahead = []; fn(); N.sync(); s.msg = null; N.draw(); },
-  step(from, to) { const N = BRIEF_NET, s = N.s; if (!from.length) return; to.push(JSON.stringify({ t: s.t, knobs: s.knobs })); const o = JSON.parse(from.pop()); s.t = o.t; s.knobs = o.knobs; s.placing = s.pending = null; N.sync(); N.draw(); },
+  step(from, to) { const N = BRIEF_NET, s = N.s; if (!from.length) return; const o = JSON.parse(from.pop()); to.push(JSON.stringify({ t: s.t, knobs: s.knobs, ...(o.ren ? { ren: [o.ren[0], o.ren[2], o.ren[1]] } : {}) })); const was = s.t; s.t = o.t; s.knobs = o.knobs;
+    if (o.ren) N.renameExtras(o.ren[0], o.ren[1], o.ren[2], N.renameMaps(was, s.t));  // a rename undone or done again (2026-11-23)
+    s.placing = s.pending = null; N.sync(); N.draw(); },
   remove(kind, id) { const N = BRIEF_NET, d = N.deps(kind, id); N.change(() => { N.s.t = d.t; N.s.sel = null; }); },
+  // ---- a new name for a host, a link or a flow (2026-11-23, the operator: "I want to be able to change names of objects such as hosts, links"). It is
+  // changed everywhere the brief names the object: in the network (a link's hosts, a flow's ends, a queue's side, a scheduler's parts), in the settings
+  // the AI may change (their addresses), in the aim's measure and its conditions, in what the AI may not remove, in the description's {placeholders},
+  // and in the picture. One step of undo takes it all back.
+  KEPT: ['duration', 'seed', 'queue', 'parts', 'ends', 'classes', 'largest_rate', 'length', 'rate', 'delay', 'mtu', 'device_queue', 'type', 'packet_bytes', 'start', 'stop', 'on_time', 'off_time', 'max_bytes', 'loss'],   // network.KEPT: words of an address, never a name
+  nameProblem(kind, id, v) { const N = BRIEF_NET, t = N.s.t; if (v === id) return '';
+    if (!/^[a-z][a-z0-9]{0,11}$/.test(v)) return 'A name is 1 to 12 lower-case letters and digits, and begins with a letter.';
+    if (N.KEPT.includes(v)) return `“${v}” is a word of a setting's address (as in lc.queue.length), so it cannot be a name.`;
+    const all = [...t.hosts, ...t.links, ...t.flows].map(x => x.id).concat(EV.netQueues(t).flatMap(x => Object.keys(x.q.classes || {})));
+    return all.includes(v) ? `“${v}” is already the name of another object.` : ''; },
+  renameIn(t0, kind, a, b) { const t = JSON.parse(JSON.stringify(t0)), ren = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k === a ? b : k, v]));
+    if (kind === 'host') { t.hosts.forEach(h => { if (h.id === a) h.id = b; }); t.flows.forEach(f => { if (f.from === a) f.from = b; if (f.to === a) f.to = b; });
+      t.links.forEach(l => { l.between = l.between.map(h => (h === a ? b : h)); if (l.queue && l.queue.on === a) l.queue.on = b; if (l.ends) l.ends = ren(l.ends); }); }
+    if (kind === 'link') t.links.forEach(l => { if (l.id === a) l.id = b; });
+    if (kind === 'flow') { t.flows.forEach(f => { if (f.id === a) f.id = b; });
+      EV.netQueues(t).forEach(({ q }) => { if (q.parts) q.parts = ren(q.parts); if (q.largest_rate) q.largest_rate = ren(q.largest_rate); Object.keys(q.classes || {}).forEach(c => { q.classes[c] = q.classes[c].map(f => (f === a ? b : f)); }); }); }
+    return t; },
+  // old name -> new name of every setting's address and every measure: the two networks differ only in the name, so both lists come in the same order
+  renameMaps(t0, t1) { const z = (x, y) => Object.fromEntries(x.map((k, i) => [k, y[i]]).filter(([k, v]) => v !== undefined && k !== v));
+    return { set: z(Object.keys(EV.netSettings(t0)), Object.keys(EV.netSettings(t1))), out: z(EV.netOutNames(t0), EV.netOutNames(t1)) }; },
+  renameKey(key, kind, a, b) { const [k, ...r] = String(key).split(':'), id = r.join(':');
+    if (k === kind && id === a) return `${k}:${b}`;
+    if (k === 'queue') { const [l, h] = id.split('.'); if (kind === 'link' && l === a) return `queue:${b}${h ? '.' + h : ''}`; if (kind === 'host' && h === a) return `queue:${l}.${b}`; }
+    return key; },
+  // in the operator's own text (a knob's meaning, a written description): the object named with its kind ("link lc", "Host r") gets the new name
+  renameWords(text, kind, a, b) { const esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); return typeof text !== 'string' ? text : text.replace(new RegExp(`\\b(${kind[0].toUpperCase()}${kind.slice(1)}|${kind})(\\s+)${esc(a)}\\b`, 'g'), (m, k, sp) => `${k}${sp}${b}`); },
+  knobMeaning(a) { const N = BRIEF_NET, name = TH_DATA.KNOB[a] || (a === 'duration' ? 'seconds of measured traffic' : a); return N.kindOf(a) === 'type' ? `${name} (TCP congestion control)` : name; },
+  renameExtras(kind, a, b, map) { const N = BRIEF_NET, s = N.s, esc = x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (kind === 'host' && s.pos[a]) { s.pos[b] = s.pos[a]; delete s.pos[a]; }
+    s.locked = Object.fromEntries(Object.entries(s.locked || {}).map(([k, v]) => [N.renameKey(k, kind, a, b), v]));
+    if (map.out[s.measure]) s.measure = map.out[s.measure];
+    const outs = Object.keys(map.out).sort((x, y) => y.length - x.length);
+    if (outs.length && s.conds) s.conds = s.conds.replace(new RegExp(`\\b(${outs.map(esc).join('|')})\\b`, 'g'), m => map.out[m] || m);
+    if (s.description) s.description = N.renameWords(s.description.replace(/\{([^{}]+)\}/g, (m, k) => (map.set[k] ? `{${map.set[k]}}` : m)), kind, a, b);
+    if (s.sel) { const k2 = N.renameKey(`${s.sel[0]}:${s.sel[1]}`, kind, a, b); s.sel = [s.sel[0], k2.slice(s.sel[0].length + 1)]; }
+    s.placing = s.pending = null; N.syncDesc(); },
+  rename(kind, a, b) { const N = BRIEF_NET, s = N.s, t0 = s.t, t1 = N.renameIn(t0, kind, a, b), map = N.renameMaps(t0, t1);
+    N.past.push(JSON.stringify({ t: t0, knobs: s.knobs, ren: [kind, b, a] })); if (N.past.length > 50) N.past.shift(); N.ahead = [];
+    s.t = t1; s.knobs = Object.fromEntries(Object.entries(s.knobs).map(([k, q]) => { const k2 = map.set[k] || k; return [k2, q && q.meaning === N.knobMeaning(k) ? { ...q, meaning: N.knobMeaning(k2) } : q && typeof q.meaning === 'string' ? { ...q, meaning: N.renameWords(q.meaning, kind, a, b) } : q]; }));
+    N.renamed = { kind, id: b, from: a, own: !s.descAuto };   // said once in the card of the renamed object
+    N.renameExtras(kind, a, b, map); s.msg = null; N.sync(); N.draw(); },
   add: {
     host(at) { const N = BRIEF_NET, id = N.newId('h'); at = at || NETC.center(); if (at) N.s.pos[id] = { x: Math.round(at.x - 110), y: Math.round(at.y - 60) }; N.change(() => { N.s.t.hosts.push({ id }); N.s.sel = ['host', id]; }); },  // at: where it was dropped, in the picture
     link(a, b) { const N = BRIEF_NET, id = N.newId('l'); N.change(() => { N.s.t.links.push({ id, between: [a, b], rate: '1Gbps', delay: '50us', mtu: 1500, device_queue: 10 }); N.s.sel = ['link', id]; }); },
@@ -343,7 +386,10 @@ const BRIEF_NET = {
         + `<p class="sm">on ${e(x.h)}'s side of link ${e(x.l.id)}${o.kind === 'scheduler' ? ' · the parts are divided by their sum' : ''}</p>`; }
     // drawn the simple way, the picture shows a host as a sign: the full structure of the host that is chosen (or that holds what is chosen) stands here
     const owner = kind === 'host' ? id : kind === 'flow' ? o.from : kind === 'queue' ? N.qOf(id).h : null, detail = NETC.mode() === 'simple' && owner ? NETC.detail(t, owner, s.knobs) : '';
-    return `<div class="bn-card" id="bn-card" data-sel="${e(kind)}:${e(id)}">${detail}<h4>${e(kind === 'queue' ? `Queue of link ${N.qOf(id).l.id}${N.qOf(id).id === N.qOf(id).l.id ? '' : ` · ${N.qOf(id).h}'s side`}` : kind === 'flow' ? `${EV.NET_APP[EV.netApp(o)][0]} application ${id} · ${o.kind.toUpperCase()} socket` : `${kind[0].toUpperCase()}${kind.slice(1)} ${id}`)}</h4>${rows}${lock}${rm}</div>`;
+    // its name, which may be changed (a queue is named by its link and side, a scheduler's part by its flow)
+    const rn = N.renamed && N.renamed.kind === kind && N.renamed.id === id ? N.renamed : null; N.renamed = null;
+    const nameRow = ['host', 'link', 'flow'].includes(kind) ? `<div class="bn-row bn-name"><span>Name</span><span></span><input data-rename="${e(kind)}:${e(id)}" value="${e(id)}" spellcheck="false" autocomplete="off" aria-label="The name of ${e(kind)} ${e(id)}" title="Type a new name and press Enter: it changes everywhere the brief names this ${e(kind)} (its settings, its measures, the aim and what may not be removed)"></div><div class="sm" id="bn-name-says" role="status">${rn ? `Renamed from ${e(rn.from)} everywhere the brief names it${rn.own ? `. Your own description and the settings' meanings were changed where they say “${e(kind)} ${e(rn.from)}”: read them for other mentions of ${e(rn.from)}.` : '.'}` : ''}</div>` : '';
+    return `<div class="bn-card" id="bn-card" data-sel="${e(kind)}:${e(id)}">${detail}<h4>${e(kind === 'queue' ? `Queue of link ${N.qOf(id).l.id}${N.qOf(id).id === N.qOf(id).l.id ? '' : ` · ${N.qOf(id).h}'s side`}` : kind === 'flow' ? `${EV.NET_APP[EV.netApp(o)][0]} application ${id} · ${o.kind.toUpperCase()} socket` : `${kind[0].toUpperCase()}${kind.slice(1)} ${id}`)}</h4>${nameRow}${rows}${lock}${rm}</div>`;
   },
   // ---- one card for each part of the network, with everything it has (2026-11-17, the operator: as under the two-host picture, so that every
   // configuration can be seen; a part that is added brings its cards). A setting is set in its card (✧ fixed by the operator, ✦ left to the AI: the
@@ -513,8 +559,8 @@ const BRIEF_NET = {
     const ow = c('[data-own]'); if (ow) { const [l, h, p] = ow.dataset.own.split(':'); return N.add.own(l, h, p); }
     const rm = c('[data-remove]'); if (rm) { const [k, id] = rm.dataset.remove.split(':'); return N.remove(k, id); }
     const kn = c('[data-knob]'); if (kn) { const a = kn.dataset.knob; return N.change(() => { if (s.knobs[a]) { delete s.knobs[a]; return; }
-      const kind = N.kindOf(a), v = a === 'duration' ? s.duration : EV.netSettings(s.t)[a], name = TH_DATA.KNOB[a] || (a === 'duration' ? 'seconds of measured traffic' : a);
-      s.knobs[a] = kind === 'type' ? { choices: N.TCP.slice(), default: v, meaning: `${name} (TCP congestion control)` } : { min: N.RANGE[kind][0], max: N.RANGE[kind][1], default: v, meaning: name }; }); }
+      const kind = N.kindOf(a), v = a === 'duration' ? s.duration : EV.netSettings(s.t)[a];
+      s.knobs[a] = kind === 'type' ? { choices: N.TCP.slice(), default: v, meaning: N.knobMeaning(a) } : { min: N.RANGE[kind][0], max: N.RANGE[kind][1], default: v, meaning: N.knobMeaning(a) }; }); }
     if (c('#bn-describe')) { s.descAuto = true; s.description = N.describe(); return N.draw(); }
     if (c('#bn-save')) return N.save(false); if (c('#bn-start')) return N.save(true);
   },
@@ -530,6 +576,9 @@ const BRIEF_NET = {
       else { const v = Number(String(t.value).trim().replace(',', '.')); r.raw = String(t.value).trim() !== '' && isFinite(v) ? +(v * N.condUnit(r.measure)[1]).toPrecision(12) : NaN; }
       N.condSet(rows); if (done && part !== 'value' && part !== 'text') return N.draw();
       const says = N.node.querySelector(`[data-cond-says="${i}"]`); if (says && r.text == null) says.innerHTML = N.condSays(r); return N.paintTask(); }
+    if (t.dataset && t.dataset.rename) { const [k, old] = t.dataset.rename.split(':'), v = t.value.trim(), why = N.nameProblem(k, old, v), says = N.node.querySelector('#bn-name-says');
+      t.classList.toggle('bad', !!why); if (says) says.innerHTML = why ? `<span class="warnc">${EV.e(why)}</span>${done ? ` The name stays ${EV.e(old)}.` : ''}` : v !== old ? `Press Enter to rename ${EV.e(old)} to ${EV.e(v)} everywhere.` : '';
+      if (done && why) { t.value = old; t.classList.remove('bad'); } if (done && !why && v !== old) N.rename(k, old, v); return; }
     if (t.dataset && t.dataset.lock) { s.locked[t.dataset.lock] = t.checked; return; }
     if (t.dataset && t.dataset.qkind && done) return N.change(() => { const q = N.qOf(t.dataset.qkind).q; q.kind = t.value; if (t.value === 'scheduler') { q.parts = q.parts || {}; q.largest_rate = q.largest_rate || {}; } else { delete q.parts; delete q.largest_rate; delete q.classes; } });
     if (t.dataset && t.dataset.qclass && done) { const [qid, fl] = t.dataset.qclass.split(':'); return N.add.queueOf(qid, fl, t.value); }
