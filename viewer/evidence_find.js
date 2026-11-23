@@ -127,13 +127,15 @@ Object.assign(EV, {
     // lines here, in full in the report; a setting's name, a "name=value" and a number with its unit are set off) and what it cites at the right. "Breaks when" is
     // not repeated here: the claims under "But" say it, and the report has it in full.
     const chips = !R ? '<span class="mut">not recorded</span>' : R.text ? e(R.text) : R.differ.map(([k, v]) => `<span class="ap-chip">${e(EV.LABEL[k] || k)} ${k in kn ? `<span class="ap-from">${e(EV.adjVal(k, kn[k].default))} →</span> ` : ''}<b>${e(EV.adjVal(k, v))}</b></span>`).join('') || '<span class="mut">no setting changed</span>';
+    // the network changes it recommends stand before its settings (2026-11-23, the operator: the box said only "no setting changed" for s058's scheduler)
+    const N = EV.recNet();
     const stats = X && X.top.length ? X.top.map(([k, v]) => `<span class="ap-stat"><span class="ap-sn">${e(TH_DATA.PLAIN[k] || k)}</span><b>${EV.v4(k, v)}</b></span>`).join('') : '';
     const cites = q => (q.cites.some(c => EV.seen(c.id)) ? EV.claimMarks(q, EV.seen) : (q.exps || []).some(x => EV.seen(x)) ? `<span class="cm" data-kind="nocheck">results of ${e(q.exps.filter(x => EV.seen(x)).join(', '))}</span>` : EV.claimMarks(q, EV.seen));
     const claim = q => `<div class="ap-c"><span class="ap-t" data-own="model">${EV.hl(q.text)}</span><span class="ap-m sm">${cites(q)}</span></div>`, of = r => M.claims.filter(q => q.role === r);
     const line = (k, body, cls) => (body ? `<div class="hp-l${cls ? ' ' + cls : ''}" data-hp="${k.toLowerCase().replace(/ /g, '-')}"><span class="hp-k">${k}</span><div class="hp-v ap-v">${body}</div></div>` : '');
     const part = (k, list, says) => (list.length ? `<div class="hp-l ap-part" data-hp="${k.toLowerCase().replace(/ /g, '-')}"><span class="hp-k"><b>${k}</b><span class="ap-says">${says}</span></span><div class="hp-v ap-v">${list.map(claim).join('')}</div></div>` : '');
     return `<div class="hp ap"><p class="hp-h">${EV.bulb()}<b>Its answer</b><span class="wd-kind">final report · ${M.claims.length} claim${M.claims.length === 1 ? '' : 's'}</span></p>
-      <div class="ap-top">${line('Proposes', `<div class="ap-chips" data-exact="1">${chips}</div>`)}${line('Expects', stats ? `<div class="ap-stats">${stats}</div>` : '')}</div>
+      <div class="ap-top">${N.may || N.edits.length ? line('Network changes', N.edits.length ? `<div class="ap-net" data-exact="1">${N.words.map(e).join('<br>')}</div>` : '<span class="mut">none: the network as given</span>') + line('Settings', `<div class="ap-chips" data-exact="1">${chips}</div>`) : line('Proposes', `<div class="ap-chips" data-exact="1">${chips}</div>`)}${line('Expects', stats ? `<div class="ap-stats">${stats}</div>` : '')}</div>
       ${roles ? part('Diagnosis', of('background'), 'how the system behaves') + part('Because', of('supports'), 'reasons') + part('But', of('limits'), 'limits') : part('Its claims', M.claims, '')}
       <p class="sm hp-foot">Click the box to open the final report beside the page: every claim in full, with its evidence, and when it holds and breaks.</p></div>`;
   },
