@@ -189,9 +189,37 @@ Object.assign(EV, {
   // a why's standing at the step the page is at: { worth, by: the record that last changed it, turn }
   whyNow(w) { const M = EV.M; let now = { worth: w.worth, by: null, turn: w.turn };
     M.recs.forEach(r => { if (!EV.seen(r.id)) return; if (r.type === 'rethink' && r.body.for === w.id) now = { worth: r.body.now, by: r.id, turn: r.turn }; else if (r.type === 'why' && r.body.revises === w.id) now = { worth: 'revised', by: r.id, turn: r.turn }; });
+    // the arm "supervised" (2026-11-23): a ruling refutes a guess as the harness decides it; a replaced guess is not refuted
+    if (now.worth !== 'revised') { const g = EV.guessRefutedBy(w.id); if (g) now = { worth: 'refuted', by: g.v.id, turn: g.v.turn, ruling: g.how }; }
     return now; },
-  whyPill(w) { const now = EV.whyNow(w), e = EV.e, word = EV.WHY_NOW[now.worth] + (now.worth === 'revised' ? ' by ' + now.by : '');
-    return `<span class="pill" data-now="${e(now.worth)}" title="${e(now.by ? `stated as “${EV.WHY_NOW[w.worth]}” in turn ${w.turn}; ${now.worth === 'revised' ? `replaced by the better guess ${now.by}` : `looked at again (${now.by})`} in turn ${now.turn}` : `as the AI stated it in turn ${w.turn}`)}">${e(word)}</span>`; },
+  whyPill(w) { const now = EV.whyNow(w), e = EV.e, word = EV.WHY_NOW[now.worth] + (now.worth === 'revised' || now.ruling ? ' by ' + now.by : '');
+    const how = now.ruling === 'fits' ? `refuted by the ruling ${now.by} in turn ${now.turn}: a fair test's result did not fit it` : now.ruling === 'all' ? `refuted in turn ${now.turn}: every hypothesis from it was ruled refuted (the last by ${now.by})` : '';
+    return `<span class="pill" data-now="${e(now.worth)}" title="${e(how || (now.by ? `stated as “${EV.WHY_NOW[w.worth]}” in turn ${w.turn}; ${now.worth === 'revised' ? `replaced by the better guess ${now.by}` : `looked at again (${now.by})`} in turn ${now.turn}` : `as the AI stated it in turn ${w.turn}`))}">${e(word)}</span>`; },
+  // The ruling that stands on a hypothesis at the step the page is at, as the harness reads it (loop.standing_ruling): its last ruling by the supervisor, or,
+  // after a second look that let the first ruling stand, the first one (a raw record)
+  standRuling(hid) { const M = EV.M, h = M.hypById[hid]; if (!h) return null;
+    const vs = (h.rulings || []).filter(r => r.by === 'supervisor' && EV.seen(r.id)), last = vs[vs.length - 1]; if (!last) return null;
+    if (last.body.after && last.body.stands) { const o = M.byId[last.body.after], f = o && M.byId[o.body.to]; return f || last; }
+    return last; },
+  // The ruling that refutes a guess, as the harness decides it (loop.guess_refutations, stage 5 of the coherence audit): a guess that does not fit the
+  // result of a test its standing ruling found fair (how "fits"), or a guess every hypothesis of which was ruled refuted (how "all"); null: not refuted
+  guessRefutedBy(y) { const M = EV.M; if (!M.supervised) return null; let out = null; const own = [];
+    M.hyps.forEach(h => { if (!EV.seen(h.id)) return; const v = EV.standRuling(h.id); if (h.from_why === y) own.push(v);
+      if (!out && v && v.body.fair && !v.body.fits_contradicted && (v.body.fits || {})[y] === 'does not fit') out = { v, how: 'fits' }; });
+    if (!out && own.length && own.every(v => v && v.body.result === 'refuted')) out = { v: own[own.length - 1], how: 'all' };
+    return out; },
+  // the three questions of a review round or a ruling (honest, consistent, correct) on one line: each with pass or fail, its reason in its hover box.
+  // get(q) -> [box, why]
+  threeQ(get) { const e = EV.e;
+    return ['honest', 'consistent', 'correct'].map(q => { const [box, why] = get(q) || []; return box ? `<span class="tq" data-q="${q}" title="${e(why || '')}">${q[0].toUpperCase() + q.slice(1)} <b class="${box === 'pass' ? '' : 'warnc'}">${e(box)}</b></span>` : ''; }).filter(Boolean).join(' · '); },
+  // what a ruling's result means for the two guesses (the supervisor's boxes, applied by the harness): each guess fits the result or not; a guess
+  // that does not fit the result of a fair test is refuted, and nothing more comes from it. R: a ruling (body fields at the top level)
+  fitsRead(R) { const e = EV.e, f = R.fits || {}, ys = Object.keys(f); if (!ys.length) return '';
+    const applied = R.fair && !R.fits_contradicted;
+    // a guess the researcher replaced with a better one is not refuted (the harness's rule): it says so, as its pill does
+    const gone = y => { const w = (EV.M.whyById || {})[y], n = w ? EV.whyNow(w) : null; return n && n.worth === 'revised' ? n.by : null; };
+    return ys.map(y => `<p data-fit="${e(y)}" data-fits="${f[y] === 'fits' ? 'yes' : 'no'}">${EV.whyLink(y)} ${f[y] === 'fits' ? 'fits the result' : applied && gone(y) ? `does not fit the result <span class="sm">· the researcher replaced it with ${EV.whyLink(gone(y))}, so it is not counted as refuted</span>` : applied ? 'does not fit the result: <b>refuted</b>, nothing more comes from it' : 'does not fit the result'}</p>`).join('')
+      + (applied ? '' : `<p class="sm">${R.fits_contradicted ? 'The supervisor’s answers about the two guesses contradicted each other, so neither is refuted by this ruling.' : 'Not a fair test, so neither guess is refuted by it.'}</p>`); },
   whyLink(id, plain) { return `<a data-act="open" data-t="why" data-id="${EV.e(id)}" data-wd="y:${EV.e(id)}">${EV.e(id)}</a>`; },  // the mark of a guess (the question mark) stands on the headings only: the panel's, the pane's, the legend's
   // a turn's guesses of why: the earlier guesses it looked at again, then each new guess (what it saw, why it thinks so, what is not visible, what it would
   // mean for the goal), its standing now, and the hypotheses that come from it
