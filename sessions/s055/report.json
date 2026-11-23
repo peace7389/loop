@@ -1,0 +1,87 @@
+{
+ "goal": "max tcp_goodput_bps",
+ "recommendation": {
+  "l1.queue.length": 1000,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [],
+ "limit": "At q=1000 TcpCubic, UDP saturates l1 (E3 l1_util=1.0, l1_drops=911606) and FIFO tail drops leave only about five 1448-byte TCP segments acknowledged over 10 s; RTO backoff and phase/integer accounting cap goodput at 5792 bps (E3, E6, E7, T38, T39, C3, C6, C7).",
+ "explanation": "UDP at 2 Gbps over a 1 Gbps FIFO link keeps the queue full, so most TCP segments are tail-dropped and TCP repeatedly enters RTO backoff. Queue length and TCP type only change the rare phase in which a few segments find queue space and are acknowledged; the delivered payload is therefore an integer-segment effect, not a bandwidth-sharing effect. The best observed value is 5792 bps, tied by TcpCubic at q=1000 and q=250 and by TcpLinuxReno at q=1000, and no tested setting exceeds it by more than 1%.",
+ "claims": [
+  {
+   "text": "The best observed TCP goodput is 5792 bps, achieved by TcpCubic at q=1000 and q=250 and by TcpLinuxReno at q=1000; no tested setting exceeds it by more than 1%.",
+   "evidence": [
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "C3",
+    "C4",
+    "C5",
+    "C6",
+    "C7",
+    "C8",
+    "V3",
+    "V4",
+    "V5",
+    "V6",
+    "V7",
+    "V8"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The cap is caused by UDP saturation and FIFO tail drops, not by TCP's ability to fill the pipe; r002 had 94120 bytes in flight but only 5792 bps delivered.",
+   "evidence": [
+    "E3",
+    "E4",
+    "E6",
+    "E7",
+    "T38",
+    "T39",
+    "T26",
+    "T27",
+    "C3",
+    "C4",
+    "C5",
+    "C6"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Queue length changes phase/integer segment accounting: q500 and q750 deliver one segment, while q250 and q1000 deliver five.",
+   "evidence": [
+    "E6",
+    "T29",
+    "T30",
+    "T31",
+    "T47",
+    "T48",
+    "T49",
+    "C6",
+    "V6"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The 31.451 ms RTT in r002 is a stored TCP estimate, not current reverse traffic, because it is constant while forward wait max is 11.441 ms and reverse utilization is zero.",
+   "evidence": [
+    "E8",
+    "T20",
+    "T35",
+    "T36",
+    "T45",
+    "T46",
+    "C9",
+    "V9"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}

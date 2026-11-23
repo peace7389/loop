@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s055 --brief after_fix --budget 12 --draft on --policy share --baseline on --arm supervised
+session s055 (brief after_fix): /home/chunguck.kim/project/sessions/s055
+stopped: session s055, done by the model, 11 simulations, 11 turns, ledger /home/chunguck.kim/project/sessions/s055/ledger.jsonl

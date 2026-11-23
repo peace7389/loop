@@ -368,7 +368,10 @@ def competitor_problem(d, ledger):
                 "reviewed like any guess) and test against it in a later turn")
     later = next((r["id"] for r in ledger if r["type"] == "why" and r["body"].get("revises") == cw), None)
     if later:
-        return f"the decision rule for {h} competes with {cw}, which {later} revised: name the live guess ({later}, or another)"
+        own_y = next((r["body"].get("from_why") for r in ledger if r["type"] == "hypothesis" and r["id"] == h), None)
+        own_fam = revise_family(ledger, own_y) if own_y else set()
+        return f"the decision rule for {h} competes with {cw}, which {later} revised: " + (f"name the live guess ({later}, or another)" if later not in own_fam else
+                                                                                         f"{later} is {h}'s own guess, so name another live guess that explains the same result otherwise, or write one")
     refuted = guess_refutations(ledger).get(cw)
     if refuted:
         return f"the decision rule for {h} competes with {cw}, which the ruling {refuted} refuted: name a live guess"
@@ -602,7 +605,7 @@ def shown(r, st):
                 + (f" Feedback: {flat(b['feedback'])}" if b.get("feedback") else "") + (f" A stronger rival: {flat(b['stronger_rival'])}" if b.get("rival_is_weak") else "")
                 + (f" It would doubt the test if: {flat(b['doubt_if'])}" if b.get("doubt_if") and r.get("by") != "harness" else ""))
     if t == "repair":
-        return (f"your repair of the test of {b['for']} for round {b['round']}: {flat(b.get('decision_rule'))} (rival: {flat(b.get('rival'))}; under it: {str(b.get('rival_predicts')).upper()})"
+        return (f"your repair of the test of {b['for']} for round {b['round']}: {flat(b.get('decision_rule'))} (" + (f"competes with {b['competes_with']}" if b.get("competes_with") else f"rival: {flat(b.get('rival'))}") + f"; under it: {str(b.get('rival_predicts')).upper()})"
                 + (f"; simulations: {', '.join(str(x.get('label')) for x in b.get('runs') or [] if isinstance(x, dict))}" if b.get("runs") else ""))
     if t == "review":
         return (f"by the supervisor of the test of {b['for']}, before any simulation: " + {"approved": "approved", "sent_back": "SENT BACK, the test was not run", "contested": "run, but the supervisor still objects"}[b["decision"]]
@@ -916,7 +919,7 @@ REVIEW3_SCHEMA = {"type": "object", "additionalProperties": False, "required": [
     "if_competitor": {**GIVES, "description": "what the rule gives if the competing guess is true and the tested guess false"},
     "correct_why": {"type": "string", "description": "one sentence: why the rule gives those two outcomes"},
     "correct": {**BOX, "description": "pass only when if_tested is held and if_competitor is failed"},
-    "missing": {"type": "string", "description": "when the competing cause this test needs is not among the researcher's guesses: that cause, in one sentence; else empty"},
+    "missing": {"type": "string", "description": "only when the competing cause this test needs is stated by none of the researcher's guesses listed in the request (a refuted one is ruled out): that cause, in one sentence; else empty. When a listed guess states it, leave this empty and name that guess's id in feedback"},
     "feedback": {"type": "string", "description": "for the researcher: which question failed and the one problem that matters most, the record ids and numbers it rests on, and what a repaired test must achieve (empty when all pass). Never a decision rule, a measure@label, simulations or a network change"}}}
 AGAIN3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["because", "if_tested", "if_competitor", "correct"], "properties": {
     "because": {"type": "string", "description": "your answer to the question, with the numbers or record ids it rests on"},
@@ -1098,7 +1101,7 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlie
             + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ". A test is not defective for being small or for testing only one consequence of the guess.")
     if parts:   # the pieces of this review, for the batched first review
         return {"item": item, "ask": ask}
-    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + item + (f"THIS IS ROUND {round_no} of at most {REVIEW_ROUNDS} for this test. The researcher repaired it after:\n{before}\n" if round_no > 1 else "") + ask)
+    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + (guesses_text(ledger) if COMP["on"] else "") + item + (f"THIS IS ROUND {round_no} of at most {REVIEW_ROUNDS} for this test. The researcher repaired it after:\n{before}\n" if round_no > 1 else "") + ask)
     d = pre if pre is not None else (ask_fn or supervise)(model, user, REVIEW3_SCHEMA if COMP["on"] else REVIEW_SCHEMA)   # pre: its answer in the batched first review
     if COMP["on"]:   # the three questions (stage 5)
         return _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw)
@@ -1180,10 +1183,20 @@ def record_line(r, ledger):
 QUESTIONS_ASK = ("Before any of these simulations is run, answer three questions about this test, each with one sentence that cites record ids, then its box. Honest: "
                  + QUESTIONS["honest"] + ". Consistent: " + QUESTIONS["consistent"] + ". Correct: say what the rule gives if the tested guess is true and the competing guess false, and "
                  "what it gives if the competing guess is true and the tested guess false; pass only when the first is HELD and the second FAILED. Judge the competing guess the researcher "
-                 "named, do not replace it with your own; if the cause this test needs is none of the researcher's guesses, name it in missing. Last, feedback for the researcher: which "
+                 "named, do not replace it with your own. If the competing cause this test needs is a guess listed above other than the one the rule names, say so in feedback with its id; only if none of them states it, name it in missing. Last, feedback for the researcher: which "
                  "question failed and the one problem that matters most, the record ids and numbers it rests on, and what a repaired test must achieve. The feedback never contains a "
                  "decision rule, a measure@label, simulations or a network change: the researcher must find the repair itself. A test is not wanting for being small or for testing only "
                  "one consequence of the guess.")
+
+
+def guesses_text(ledger):
+    """Every guess of the researcher with its standing, for the supervisor's review of a test with competitors (it judges whether a competing cause is
+    missing: s055, 2026-11-23, it held a test for a cause one of the guesses stated)."""
+    flat = lambda v: " ".join(str(v).split())
+    refuted, ws = guess_refutations(ledger), why_states(ledger)
+    lines = [f"  [{r['id']}] " + (f"(refuted by {refuted[r['id']]}) " if r["id"] in refuted else f"(revised as {ws[r['id']]['as']}) " if (ws.get(r["id"]) or {}).get("as") else "")
+             + f"{flat(r['body'].get('guess'))}" + (f" | competes with {r['body']['competes_with']}" if r["body"].get("competes_with") else "") for r in ledger if r["type"] == "why"]
+    return "THE RESEARCHER'S GUESSES SO FAR (a competing cause may already be one of them):\n" + ("\n".join(lines) or "  (none)") + "\n\n"
 
 
 def competitor_text(ledger, rules, ex=None):
@@ -1343,6 +1356,7 @@ def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None
     user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned "
             f"when the researcher looked: these are measurements too, and a guess may start from them):\n{_looked(ledger)}\n\n"
             + (f"THE SESSION'S EARLIER GUESSES AND HYPOTHESES:\n{gp[0]['earlier']}\n\nTHE RULINGS SO FAR:\n{gp[0]['rulings']}\n\n" if gp else "")
+            + (guesses_text(tledger or ledger) if COMP["on"] and tests else "")
             + f"THIS REQUEST HOLDS EVERY NEW GUESS AND EVERY NEW TEST OF THE RESEARCHER'S REPLY IN THIS TURN ({len(guesses)} guess{'es' if len(guesses) != 1 else ''}, {len(tests)} test{'s' if len(tests) != 1 else ''}). "
               "Judge each on its own, as if it were asked alone, and answer each in its own item.\n\n"
             + "".join(f"== NEW GUESS G{i + 1} ==\nTHE RECORDS IT CITES:\n{q['cites']}\nTHE GUESS:\n{q['guess']}\n" for i, q in enumerate(gp))
@@ -1541,7 +1555,7 @@ def experiment_problem(ex, brief, ledger, left, st, lean=False):
     runs, per = ex.get("runs") or [], brief["limits"]["simulations_per_experiment"]
     labels = [r.get("label") for r in runs]
     if not 1 <= len(runs) <= per:
-        return f"an experiment has 1 to {per} simulations"
+        return f"an experiment has 1 to {per} simulations; this one has {len(runs)}"
     if len(set(labels)) != len(labels) or not all(re.fullmatch(rf"[A-Za-z0-9_]{{1,{LABEL_MOST}}}", str(l)) for l in labels):
         return f"every simulation needs its own label: letters, digits and _ only, at most {LABEL_MOST} characters"
     if any(set(r.get("params") or {}) - set(brief["knobs"]) - set(brief["system"]) for r in runs):
@@ -1854,6 +1868,8 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             w["revises"] = why_map[w["revises"]]
         if isinstance(w, dict) and isinstance(w.get("competes_with"), str) and w["competes_with"] in why_map:
             w["competes_with"] = why_map[w["competes_with"]]
+        if isinstance(w, dict) and w.get("competes_with") and w.get("competes_with") == w.get("revises"):   # an alternative to a guess, not its revision (s055 Y29)
+            w["revises"] = None
         if isinstance(w, dict) and isinstance(w.get("about"), list):
             w["about"] = list(dict.fromkeys(of_run(a) for a in w["about"]))
         if mode == "report":
@@ -1866,7 +1882,9 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             first = {"by": by, "reason": why, "was": {k: w.get(k) for k in ("about", "result", "guess", "revises")}}
             w2 = restate(w, why, by)
             if isinstance(w2, dict):
-                w2 = {**w, **{k: v for k, v in w2.items() if k in ("about", "result", "guess", "revises")}}
+                w2 = {**w, **{k: v for k, v in w2.items() if k in ("about", "result", "guess", "revises") + (("competes_with",) if COMP["on"] else ())}}
+                if w2.get("competes_with") and w2.get("competes_with") == w2.get("revises"):   # never both (s055 Y29)
+                    w2["revises"] = None
                 if isinstance(w2.get("about"), list):
                     w2["about"] = list(dict.fromkeys(of_run(a) for a in w2["about"]))
             else:
@@ -2911,10 +2929,12 @@ def main():
         flat = lambda v: " ".join(str(v).split())
         since = learned_since(ledger)
         user = (f"YOUR GUESS WAS NOT ACCEPTED AS YOU STATED IT ({'the supervisor' if by == 'supervisor' else 'the harness'}): {flat(why)}\n\nTHE GUESS AS YOU STATED IT:\n  about: {', '.join(map(str, w.get('about') or []))}\n"
-                f"  result: {flat(w.get('result'))}\n  guess: {flat(w.get('guess'))}\n  revises: {w.get('revises')}\n\nWHAT WAS LEARNED SINCE YOUR LAST GUESS:\n"
+                f"  result: {flat(w.get('result'))}\n  guess: {flat(w.get('guess'))}\n  revises: {w.get('revises')}\n" + (f"  competes_with: {w.get('competes_with')}\n" if COMP["on"] else "") + "\nWHAT WAS LEARNED SINCE YOUR LAST GUESS:\n"
                 + ("\n".join(record_line(r, ledger) for r in ledger if r["id"] in (since or ()) and r["type"] != "simulation") or "  nothing") + "\n"
                 f"WHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nRestate this guess once, in the same form: about (the ids of the records it starts from), result (that result, with its numbers), "
-                "guess (what in the system would make it so), revises (the id of an earlier guess it states more exactly, or null). It is taken as you restate it; if it still does not meet "
+                "guess (what in the system would make it so), revises (the id of an earlier guess it states more exactly, or null)"
+                + (", competes_with (the id of an earlier guess whose result it explains by another cause, or null: a guess competes with a guess or revises it, never both)" if COMP["on"] else "")
+                + ". It is taken as you restate it; if it still does not meet "
                 "the rule above, it is recorded as contested. Answer with one JSON object.")
         try:
             stage("restate", by=by)
@@ -3057,6 +3077,9 @@ def main():
         base = [r for r in test.get("runs") or [] if isinstance(r, dict)]
         base += [r for r in every if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]
         runs = [dict(given.pop(r.get("label"), r)) for r in base] + [dict(r) for r in given.values()]
+        named = set(re.findall(r"@([A-Za-z0-9_]+)", str(rule.get("decision_rule") or "")))
+        if named and any(r.get("label") in named for r in runs):   # the simulations the repaired rule no longer names leave before anything is counted (s055 H7)
+            runs = [r for r in runs if r.get("label") in named]
         t2 = {"kind": "test", "tests": [hid], "question": test.get("question") or "", "measurements": list(MEASURES.values()) or test.get("measurements") or [], "runs": runs, "decision_rules": [rule],   # every measurement of the answer: a repaired rule may name one a sibling test defined
               "varied": varied_of(runs, brief), "control": None}
         if not isinstance(rule["decision_rule"], str) or not rule["decision_rule"].strip():
@@ -3112,6 +3135,7 @@ def main():
                    "rival: the strongest competing explanation you can think of, one sentence. rival_predicts: held or failed, what the rule gives if the rival is true (held is refused: choose simulations where the two differ). ")
                 + "runs: only the simulations that are new "
                 "or change, each with a label and a value for every knob: one with the label of a simulation of the test replaces it, the others are kept; an empty list keeps them all. "
+                "A simulation your repaired rule does not name is not run. "
                 "A rule that names only simulations already run cannot fail and is refused, unless it compares a measurement your answer defines (listed above), which is computed now from "
                 "what those simulations recorded: " + (f"name at least one simulation that has not run yet ({left} can still run), or such a measurement." if left else "no new simulation can run now, so compare such a measurement.")
                 + (" A simulation may change the network (structure), as your instructions describe: a run keeps its change unless the feedback is about it, and a run you give states its "
@@ -3137,7 +3161,7 @@ def main():
                 append(ledger, turn, "note", parent, {"text": f"your repair of the test of {hid} for round {n + 1} could not be read ({e}): the test is not run in this turn and {hid} stays open", "part": f"repair of {hid}", "reason": "could not be read"})
                 return None
             n += 1
-            rid = append(ledger, turn, "repair", parent, {"for": hid, "round": n, **{k: rp.get(k) for k in ("decision_rule", "rival", "rival_predicts")}, "runs": rp.get("runs") or []})
+            rid = append(ledger, turn, "repair", parent, {"for": hid, "round": n, **{k: rp.get(k) for k in ("decision_rule", "competes_with" if competitors else "rival", "rival_predicts")}, "runs": rp.get("runs") or []})
             t2, problem = repaired(test, hid, rp, every, reserved)
             if problem:   # the harness's own checks: a round of its own, with its reason as the feedback
                 gid, label = record_round(hid, n, t2, {"approved": False, "feedback": problem, "because": problem, "defect": "none"}, "", by="harness", label="not_run" if n >= REVIEW_ROUNDS else None)
