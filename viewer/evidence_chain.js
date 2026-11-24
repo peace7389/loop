@@ -271,11 +271,11 @@ Object.assign(EV, {
     const M = EV.M, e = EV.e, sims = M.sims.filter(s => EV.seen(s.id)); if (!sims.length) return { h: 0, svg: '' };
     const G = EV.simGoal(), val = s => (G.target && s.metrics && typeof s.metrics[G.target] === 'number' ? s.metrics[G.target] : null), top = Math.max(0, ...sims.map(s => val(s) || 0));
     const num = (k, x) => { const [u, f] = EV.unit(k); return typeof x !== 'number' ? '–' : (+f(x).toPrecision(4)).toLocaleString('en-US') + (u ? ' ' + u : ''); }, opSay = { '<=': 'at most', '>=': 'at least', '<': 'under', '>': 'over', '==': 'exactly' };
-    const BH = 18, GAP = 3, ROW = BH + 8, wOf = s => 8 + 7.2 * String(s.id).length, byTurn = {}, color = EV.simColor(G.target);
+    const BH = 18, GAP = 3, ROW = BH + 8, W1 = Math.round(8 + 7.2 * Math.max(...sims.map(s => String(s.id).length))), wOf = () => W1, byTurn = {}, color = EV.simColor(G.target);   // one width for all, that of the longest id (2026-11-24, the operator: "all to be equal size for neatness")
     sims.forEach(s => { const t = EV.simTurnOf(s); (byTurn[t] = byTurn[t] || []).push(s); });
     // the chips of a turn fill its column from the left and go on in a next row where the column ends
     const place = {}; let rows = 1;
-    Object.values(byTurn).forEach(list => { let x = 0, row = 0; list.forEach(s => { const w = wOf(s); if (x > 0 && x + w > o.NW) { x = 0; row++; } place[s.id] = { dx: x, row, w }; x += w + GAP; }); rows = Math.max(rows, row + 1); });
+    Object.values(byTurn).forEach(list => { let x = 0, row = 0; list.forEach(s => { const w = wOf(s); if (x > 0 && x + w > o.NW + o.GX / 2 - 4) { x = 0; row++; }   /* a row may reach into the gap, up to the line between two turns */ place[s.id] = { dx: x, row, w }; x += w + GAP; }); rows = Math.max(rows, row + 1); });
     const yTop = o.y0 + 12;
     const marks = Object.entries(byTurn).flatMap(([t, list]) => { const x0 = +t <= 0 || !o.cols.includes(+t) ? (+t <= 0 ? 6 : null) : o.colX(+t); if (x0 == null) return [];
       return list.map(s => { const P = place[s.id], x = x0 + P.dx, y = yTop + P.row * ROW, BW = P.w, v = val(s), lvl = s.error ? 0 : v == null || !top ? 30 : Math.round(12 + 73 * v / top), rel = EV.simRel(s), ok = EV.simMeets(s, G), key = `${s.id}|board`;
