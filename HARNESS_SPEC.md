@@ -2484,7 +2484,24 @@ link in the same look, with the hypothesis whose rule read it and its result
 beside it), 3 Over time (the charts), 4 Records (the run's files and how
 ns-3 was started); the two older tables "Settings" and "Measurements" are
 not drawn there. Other simulations (the two-host sessions, an experiment
-with a control) keep the head and the two tables. Check: `ev_evidence.py` (each printed measure against the run's
+with a control) keep the head and the two tables.
+
+**The simulations on the board** (`EV.simLane`, 2026-11-24; the operator: "add
+simulations on each turn between hypothesis flow and findings bars ... when
+users hover over one of simulations, we emphasize relevant hypothesis and
+findings (if applicable) and vice versa"). Under the boxes of the hypotheses
+and above the findings' bars every simulation recorded so far is a small bar
+in the column of its turn (the baseline under "start"): its height is the
+measure the aim is about, against the largest of the session so far (bars of
+one height where the aim names none); a dashed bar is a result returned from
+an earlier simulation; a stroke above a bar says it does not meet the aim's
+conditions. Pointing at a bar opens its box (its setting, the aim's measure
+and conditions, the hypotheses that read it, the findings on it) and lights
+the boxes of the hypotheses whose decision rule names it and the bars of the
+findings that rest on it (a finding's records and what its decisions name: a
+simulation, an experiment or its table of evidence, a check or ruling of a
+test, a reading of a run); pointing at a box or at a finding's bar lights its
+simulations. A click opens the simulation. The key has a row for it. Check: `ev_evidence.py` (each printed measure against the run's
 `metrics.json`, the network against the run's `network.txt`, every value of
 the full setting against that file, the badges against the ledger, the pane
 a real click on a box opens, the replay, the layout). In section 3 a strip shows the steps of a turn (the AI writes its reply, the
@@ -3791,6 +3808,7 @@ untracked until they say otherwise.
 | 2026-11-24, 12:12 | The audit of the simulation and of its picture on the page (the operator: "how sound and accurate is it"). Recorded simulations run again are byte for byte the same; the seed moves a result by about 0.2 %; the measures add up on the wire. Deployed, each with its check: a simulation on a changed network that already ran is found again (8.5; s061 had run three simulations four times); `measure` takes the samples of the measured seconds only (8.3; `rate` keeps its starting count); on the page, a network session's start line is `net`'s with the run's `network.txt`, a side without a described queue is said to have ns-3's plain queue of 100 packets, a plain queue's drops are named as the program names them, a link the AI added is no longer "fixed by the operator", and a part's card shows what was measured there in the simulation, also for an added object. Left open: section 15, item 13. |
 | 2026-11-24, 13:14 | From a hypothesis to its result (`evidence_chain.js`, 12.1): a hypothesis's pane shows each test as what was set, what came out, what the rule required and how it was ruled; a simulation's pane begins with its setting, the hypotheses that used it and its records; a simulation is told apart by its network too. Check `ev_evidence.py`. |
 | 2026-11-24, 14:53 | A simulation's pane in four parts (setting, outcome, over time, records), the full setting open with names, values and objects told apart, an object's description in a box on its band (12.1). The texts the two agents are sent, read as sent in s056 to s061 (`plans/2026-11-24-prompt-audit.md`): nothing changed in them; two faults of the program found on the way repaired: a locked object could be replaced under its id (7), and the supervisor's request on an objection held unfilled placeholders. |
+| 2026-11-24, 15:02 | The simulations of each turn on the board, between the hypotheses and the findings, with pointing that lights a simulation's hypotheses and findings and the other way round (12.1). |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

@@ -39,6 +39,11 @@
 .ev table.so-t td:first-child { width: 44%; } .ev table.so-t tr.so-read td { background: color-mix(in srgb, var(--good) 11%, var(--surface-1, #fff)); } .ev table.so-t tr.so-read td:first-child { box-shadow: inset 3px 0 0 var(--good); } .ev table.so-t tr.so-read .sf-name { color: var(--text-primary); font-weight: 600; }
 .ev table.so-t td.so-by { white-space: nowrap; } .ev table.sf-t .sf-name .wd, .ev table.sf-t .sf-name b { font-weight: inherit; }
 .ev table.sf-t tr.sf-fx td, .ev table.sf-t tr.sf-fx .sf-v { color: var(--text-secondary); font-weight: 400; }
+.ev .s-lane .sl { cursor: pointer; outline: none; } .ev .s-lane .sl-frame { fill: var(--surface-1, #fff); stroke: var(--border); stroke-width: 1; } .ev .s-lane .sl-fill { fill: var(--text-secondary); }
+.ev .s-lane .sl-ret .sl-fill { fill: color-mix(in srgb, var(--text-secondary) 22%, var(--surface-1, #fff)); stroke: var(--text-secondary); stroke-width: 1; stroke-dasharray: 2 1.6; } .ev .s-lane .sl-not { stroke: var(--text-primary); stroke-width: 2; fill: none; }
+.ev .s-lane .sl:hover .sl-frame, .ev .s-lane .sl:focus .sl-frame, .ev .s-lane .sl.f-me .sl-frame, .ev .s-lane .sl.f-rel .sl-frame { stroke: var(--text-primary); stroke-width: 2; }
+.ev .s-lane .sl.f-me .sl-fill, .ev .s-lane .sl.f-rel .sl-fill, .ev .s-lane .sl:hover .sl-fill { fill: var(--text-primary); } .ev .s-lane .sl-ret.f-rel .sl-fill, .ev .s-lane .sl-ret.f-me .sl-fill, .ev .s-lane .sl-ret:hover .sl-fill { fill: color-mix(in srgb, var(--text-primary) 35%, var(--surface-1, #fff)); stroke: var(--text-primary); }
+.ev .s-lane .sl-h { font-size: var(--f-note); fill: var(--text-secondary); }
 .ev details.h-fold { margin: 10px 0 0; } .ev details.h-fold > summary { cursor: pointer; font-size: var(--f-note); font-weight: 700; color: var(--text-secondary); padding: 3px 0; }
 .ev .sh { margin: 6px 0 10px; border: 1px solid var(--border); border-radius: 10px; padding: 2px 12px; }
 .ev .sh p { margin: 0 0 3px; } .ev .sh ul { margin: 0; padding: 0; list-style: none; } .ev .sh li { margin: 0 0 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 7px; }
@@ -232,6 +237,65 @@ Object.assign(EV, {
     return `<div class="sp" data-sp="records" data-sh="records">${EV.spHead(4, 'Records', 'the files of this run, and how it was started')}${P.records}${cmd || ''}</div>`;
   },
 
+  // ---- The simulations of each turn, on the board: a lane between the hypotheses' boxes and the findings' bars (2026-11-24, the operator: "simulations
+  // results are more directly showing the hypothesis flow, so we put it on higher place than bars ... when users hover over one of simulations, we
+  // emphasize relevant hypothesis and findings (if applicable) and vice versa"). A simulation is a small bar in the column of its turn: its height is
+  // the measure the aim is about, against the largest of the session so far; dashed where the result was returned from an earlier simulation; a
+  // stroke above it where it does not meet the aim's conditions. Pointing at it opens its box and lights the hypotheses whose rule names it and the
+  // findings that rest on it; pointing at a hypothesis or a finding lights its simulations. A click opens the simulation.
+  simGoal() { const g = (EV.M.brief || {}).goal || {}, conds = (g.conditions || []).map(c => String(c).match(/^\s*([\w.]+)\s*(<=|>=|<|>|==)\s*([-\d.eE]+)\s*$/)).filter(Boolean).map(([, k, op, v]) => ({ k, op, v: +v }));
+    return { target: g.target && g.target.measure ? g.target.measure : null, conds }; },
+  simTurnOf(s) { return Math.max(0, Number(s.turn) || 0); },
+  simTurns() { return [...new Set(EV.M.sims.filter(s => EV.seen(s.id)).map(EV.simTurnOf).filter(t => t > 0))]; },
+  // the simulations a record is about: itself, those of an experiment or of its table of evidence, those a checked or ruled test compared, the one a reading read
+  simsOfRef(id) {
+    const M = EV.M, r = M.byId && M.byId[id], b = (r && r.body) || {}; if (!r) return [];
+    if (r.type === 'simulation') return [id];
+    if (r.type === 'experiment') return M.sims.filter(s => s.exp === id).map(s => s.id);
+    if (r.type === 'evidence') return M.sims.filter(s => s.exp === (b.experiment || r.parent)).map(s => s.id);
+    if (r.type === 'check' || r.type === 'verdict') return M.tests.filter(T => (T.check && T.check.id === id) || (T.verdict && T.verdict.id === id)).flatMap(T => T.sims.map(s => s.id));
+    if (r.type === 'request' || r.type === 'result') { const m = /\br\d{3}\b/.exec(JSON.stringify(b)); return m ? M.sims.filter(s => s.run === m[0]).map(s => s.id) : []; }
+    return [];
+  },
+  // what a simulation is tied to: the hypotheses whose decision rule names it, the findings that rest on it (their records, and what their decisions name)
+  simRel(s) {
+    const M = EV.M, hyps = [...new Set(M.tests.filter(T => EV.seen(T.exp) && T.sims.some(q => q.id === s.id)).map(T => T.hyp))];
+    const fnds = (EV.fndAll ? EV.fndAll() : []).filter(f => EV.seen(f.id) && [...(f.about || []), ...f.decisions.filter(d => EV.seen(d.id)).flatMap(d => d.refs || [])].some(x => EV.simsOfRef(x).includes(s.id))).map(f => f.id);
+    return { hyps, fnds };
+  },
+  simMeets(s, G) { return G.conds.every(c => { const v = (s.metrics || {})[c.k]; return typeof v !== 'number' || (c.op === '<=' ? v <= c.v : c.op === '>=' ? v >= c.v : c.op === '<' ? v < c.v : c.op === '>' ? v > c.v : v === c.v); }); },
+  simLane(o) {
+    const M = EV.M, e = EV.e, sims = M.sims.filter(s => EV.seen(s.id)); if (!sims.length) return { h: 0, svg: '' };
+    const G = EV.simGoal(), val = s => (G.target && s.metrics && typeof s.metrics[G.target] === 'number' ? s.metrics[G.target] : null), top = Math.max(0, ...sims.map(s => val(s) || 0));
+    const num = (k, x) => { const [u, f] = EV.unit(k); return typeof x !== 'number' ? '–' : (+f(x).toPrecision(4)).toLocaleString('en-US') + (u ? ' ' + u : ''); }, opSay = { '<=': 'at most', '>=': 'at least', '<': 'under', '>': 'over', '==': 'exactly' };
+    const BW = 9, BH = 22, GAP = 3, ROW = BH + 9, per = Math.max(1, Math.floor((o.NW + GAP) / (BW + GAP))), byTurn = {};
+    sims.forEach(s => { const t = EV.simTurnOf(s); (byTurn[t] = byTurn[t] || []).push(s); });
+    const rows = Math.max(...Object.values(byTurn).map(l => Math.ceil(l.length / per))), yTop = o.y0 + 20;
+    const marks = Object.entries(byTurn).flatMap(([t, list]) => { const x0 = +t <= 0 || !o.cols.includes(+t) ? (+t <= 0 ? 6 : null) : o.colX(+t); if (x0 == null) return [];
+      return list.map((s, i) => { const x = x0 + (i % per) * (BW + GAP), y = yTop + Math.floor(i / per) * ROW, v = val(s), hgt = s.error ? 0 : v == null || !top ? BH : Math.max(2, Math.round(BH * v / top)), rel = EV.simRel(s), ok = EV.simMeets(s, G), key = `${s.id}|board`;
+        const net = EV.simNet(s), kn = (M.brief && M.brief.knobs) || {}, off = Object.keys(s.params || {}).filter(k => kn[k] && 'default' in kn[k] && !EV.chSame(s.params[k], kn[k].default));
+        EV.OBJ_SAYS[key] = { title: `${s.id} ${s.label || ''}`, what: `simulation · turn ${t}${s.same_as ? ' · the result of ' + s.same_as + ', not run again' : ''}`,
+          facts: [['Setting', [net ? 'network changed: ' + net : '', off.map(k => `${EV.chName(k)} ${EV.setVal ? EV.setVal(k, s.params[k]) : s.params[k]}`).join(', ')].filter(Boolean).join(' · ') || 'the brief’s network and defaults'],
+            ...(s.error ? [['Result', 'it failed: no measurement']] : G.target && v != null ? [[EV.chMeasure(G.target), num(G.target, v) + (top && v === top ? ' (the largest so far)' : '')]] : []),
+            ...G.conds.filter(c => typeof (s.metrics || {})[c.k] === 'number').map(c => [EV.chMeasure(c.k), `${num(c.k, s.metrics[c.k])} · the aim asks ${opSay[c.op]} ${num(c.k, c.v)}: ${EV.simMeets(s, { conds: [c] }) ? 'met' : 'not met'}`]),
+            ['Read by', rel.hyps.length ? rel.hyps.map(h => `${h} (${(M.hypById[h] || {}).state || 'open'})`).join(', ') : 'no decision rule'], ...(rel.fnds.length ? [['Findings on it', rel.fnds.join(', ')]] : [])] };
+        return `<g class="sl${s.same_as ? ' sl-ret' : ''}${s.error ? ' sl-err' : ''}" data-sim="${e(s.id)}" data-turn="${t}" data-step="${M.recStep[s.id] ?? 0}" data-hyps="${e(rel.hyps.join(' '))}" data-fnds="${e(rel.fnds.join(' '))}" data-val="${v == null ? '' : v}" data-h="${hgt}" data-meets="${ok ? 1 : 0}" data-act="open" data-t="sim" data-id="${e(s.id)}" data-wd="o:${e(key)}" tabindex="0">`
+          + `<rect class="sl-frame" x="${x}" y="${y}" width="${BW}" height="${BH}" rx="2"/><rect class="sl-fill" x="${x}" y="${y + BH - hgt}" width="${BW}" height="${hgt}" rx="2"/>${ok ? '' : `<path class="sl-not" d="M${x},${y - 3.5} h${BW}"/>`}</g>`; }); }).join('');
+    const head = `<text class="sl-h" x="6" y="${o.y0 + 12}">simulations${G.target ? ' · the height of a bar: ' + e(EV.chMeasure(G.target)) : ''}</text>`;
+    return { h: 20 + rows * ROW + 4, svg: `<g class="s-lane" id="s-lane">${head}${marks}</g>` };
+  },
+  simLaneKey(row, it) {
+    const M = EV.M, G = EV.simGoal(); if (!M.sims.some(s => EV.seen(s.id))) return '';
+    EV.LEGEND_SAYS = EV.LEGEND_SAYS || {};
+    EV.LEGEND_SAYS['key-sim'] = ['A simulation', 'the board', `Each bar under the boxes is one simulation, in the column of the turn it was made in. ${G.target ? 'Its height is ' + EV.chMeasure(G.target) + ', the measure the aim is about, against the largest of the session so far. ' : ''}Point at one to read it and to see the hypotheses and findings it belongs to; click to open it.`, 'the lane between the boxes and the findings'];
+    EV.LEGEND_SAYS['key-simret'] = ['A returned simulation', 'the board', 'The same settings, seed and network as an earlier simulation: its result was returned and nothing was run again.', 'a dashed bar'];
+    EV.LEGEND_SAYS['key-simnot'] = ['Not within the aim’s conditions', 'the board', `The simulation does not meet ${G.conds.length ? 'the condition the aim states (' + G.conds.map(c => `${EV.chMeasure(c.k)} ${c.op} ${c.v}`).join(', ') + ')' : 'a condition of the aim'}.`, 'a stroke above the bar'];
+    const sv = inner => `<svg class="s-lane" width="14" height="18" viewBox="0 0 14 18" style="display:inline;vertical-align:-4px">${inner}</svg>`;
+    return row('sim', 'A bar', `is a simulation${G.target ? ': its height is ' + EV.e(EV.chMeasure(G.target)) : ''}`,
+      it('simret', sv('<g class="sl sl-ret"><rect class="sl-frame" x="3" y="4" width="8" height="13" rx="2"/><rect class="sl-fill" x="3" y="9" width="8" height="8" rx="2"/></g>'), 'returned, not run again', '')
+      + (G.conds.length ? it('simnot', sv('<g class="sl"><rect class="sl-frame" x="3" y="4" width="8" height="13" rx="2"/><rect class="sl-fill" x="3" y="9" width="8" height="8" rx="2"/><path class="sl-not" d="M3,1.5 h8"/></g>'), 'not within the aim’s conditions', '') : ''));
+  },
+
   // The band that heads an object's rows: its kind and its name. What the object is opens in a box on hover or Tab (the page's own box, data-wd "o:<key>"):
   // pop = { what: the chip beside the name, lead: a sentence, facts: [[label, value], ...] }, kept by key until the pane is drawn again.
   OBJ_SAYS: {},
@@ -279,3 +343,14 @@ document.getElementById('ev').addEventListener('click', ev => {
   if (!(ev.target.closest && ev.target.closest('#t-rec > summary'))) return;
   setTimeout(() => { const d = document.getElementById('t-rec'); if (!d || !EV.store) return; EV.store('ev-trec', d.open ? '1' : '0'); if (d.open && EV.flowFit) EV.flowFit(); }, 0);
 });
+
+// the board: pointing at a simulation lights the hypotheses whose rule names it and the findings that rest on it; pointing at a hypothesis's box or at a
+// finding's bar lights its simulations (the marks f-me and f-rel are those the findings' bars use: evidence_findings.js takes them off again)
+EV.simPoint = g => { const map = g && g.closest('.ev-map'); if (!map) return;
+  const has = (el, k, id) => (el.dataset[k] || '').split(' ').includes(id);
+  if (g.matches('g.sl')) { g.classList.add('f-me');
+    (g.dataset.hyps || '').split(' ').filter(Boolean).forEach(h => map.querySelectorAll(`g[data-node="${CSS.escape(h)}"]`).forEach(x => x.classList.add('f-rel')));
+    (g.dataset.fnds || '').split(' ').filter(Boolean).forEach(f => map.querySelectorAll(`g.fb[data-f="${CSS.escape(f)}"]`).forEach(x => x.classList.add('f-rel'))); }
+  else { const mine = [...map.querySelectorAll('g.sl')].filter(x => (g.matches('g.fb') ? has(x, 'fnds', g.dataset.f) : has(x, 'hyps', g.dataset.node))); mine.forEach(x => x.classList.add('f-rel')); if (mine.length) g.classList.add('f-me'); } };
+document.addEventListener('mouseover', ev => { const g = ev.target.closest && ev.target.closest('.ev-map g.sl, .ev-map g.fb, .ev-map g[data-node]'); if (g) EV.simPoint(g); });
+document.addEventListener('focusin', ev => { const g = ev.target.closest && ev.target.closest('.ev-map g.sl'); if (g) { if (EV.fndUnpoint) EV.fndUnpoint(); EV.simPoint(g); } });
