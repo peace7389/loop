@@ -2503,7 +2503,14 @@ the boxes of the hypotheses whose decision rule names it and the bars of the
 findings that rest on it (a finding's records and what its decisions name: a
 simulation, an experiment or its table of evidence, a check or ruling of a
 test, a reading of a run); pointing at a box or at a finding's bar lights its
-simulations. A click opens the simulation. The key has a row for it. Check: `ev_evidence.py` (each printed measure against the run's
+simulations. What is lit keeps its look and gets a thin edge in the page's accent;
+the rest of the board fades (the operator: thick black borders were "not
+readable"). A click opens the simulation. The key has a row for it: the depth
+of the colour is one strip from pale to deep, with 0 at one end and the largest
+value of the session so far at the other (the operator: "show it using
+gradation instead" of a pale and a deep sample box). The hover boxes of a
+simulation and of the objects in its pane have the key letter `g:` (`o:` is
+the parts of the two-host network). Check: `ev_evidence.py` (each printed measure against the run's
 `metrics.json`, the network against the run's `network.txt`, every value of
 the full setting against that file, the badges against the ledger, the pane
 a real click on a box opens, the replay, the layout). In section 3 a strip shows the steps of a turn (the AI writes its reply, the

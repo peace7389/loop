@@ -191,7 +191,7 @@ Object.assign(EV, {
         const boxes = EV.STATES.filter(q => q !== 'open' && M.hyps.some(h => stOf(h) === q)).map(q => it(q.split(' ')[0], sq(EV.stCls(q)), SAY[q] || e(q), `data-s="${e(q)}"`)).join('')
           + (M.hyps.some(h => ['open', 'ended without a verdict'].includes(stOf(h)) && h.tests.some(q => { const c = M.testById[q].check; return c && EV.seen(c.id); })) ? it('ck', sq('ck-held') + ' ' + sq('ck-failed'), 'checked, not judged yet', 'id="mk-ck"') : '')
           + (ringed.size ? it('ans', '<svg width="30" height="14" style="display:inline;vertical-align:-2px"><rect class="bx" x="3" y="3" width="8" height="8" rx="2"/><rect class="ring" x="1" y="1" width="12" height="12" rx="4" style="stroke-width:1.6"/><path class="edge answer" d="M14,7 H29"/></svg>', 'cited by the final report', 'id="mk-ans"') : '')
-          + (small ? '<span class="mk">many turns: a box holds only the name and how it ended</span>' : '');
+          + (small ? '<span class="mk" data-wrap="1">many turns: a box holds only the name and how it ended</span>' : '');
         const key = (k, cls, text) => (kinds.has(k) ? it(k, ln(cls), text, `data-k="${k}"`) : '');
         const arrows = key('good', 'good', 'one that was supported') + key('bad', 'bad', 'one that was refuted') + key('mixed', 'mixed', 'results of both kinds') + key('neutral', 'neutral', 'an inconclusive result')
           + key('weak', 'weak', 'an experiment’s result table') + key('brief', 'brief', 'the brief or the baseline');
@@ -201,7 +201,7 @@ Object.assign(EV, {
                        arrow: '<svg class="mk-ic" width="28" height="16" viewBox="0 0 28 16"><path class="edge mk-shaft" d="M2,8 H20"/><path class="mk-head" d="M19,3.5 L27,8 L19,12.5 z"/></svg>',
                        finding: `<svg class="mk-ic" width="26" height="16" viewBox="-5 -1 25 15">${EV.fndChest ? EV.fndChest(0, 0) : ''}</svg>`,   // a treasure chest (2026-11-22, the operator)
                        meas: `<svg class="mk-ic" viewBox="-3 -2 23 16" width="26" height="17">${EV.measBadge ? EV.measBadge(0, 0) : ''}</svg>`,
-                       sim: '<svg class="mk-ic s-lane" width="26" height="16" viewBox="0 0 26 16"><g class="sl"><rect class="sl-frame" x="2" y="2" width="22" height="12" rx="4" style="fill:color-mix(in srgb, var(--text-secondary) 30%, var(--surface-1, #fff))"/><text class="sl-t" x="13" y="12" text-anchor="middle" style="font-size:10px">S</text></g></svg>' };   // a formula badge, ƒx (2026-11-22, the operator)
+                       sim: '<svg class="mk-ic s-lane" width="26" height="16" viewBox="0 0 26 16"><g class="sl"><rect class="sl-frame" x="2" y="0.5" width="22" height="15" rx="4" style="fill:color-mix(in srgb, var(--text-secondary) 30%, var(--surface-1, #fff))"/><text class="sl-t" x="13" y="12.5" text-anchor="middle">S</text></g></svg>' };   // a formula badge, ƒx (2026-11-22, the operator)
         const row = (g, name, is, items) => `<div class="mk-grp" data-g="${g}"><b class="mk-h" title="${e(name)}">${ICON[g] || ''}<span class="mk-sr">${e(name)}</span></b><span class="mk-is${items ? '' : ' mk-all'}">${is}</span>${items ? `<span class="mk-items">${items}</span>` : ''}</div>`;
         return row('box', 'A box', 'is a hypothesis, as the AI judged it', boxes)
           + (recorded ? (arrows ? row('arrow', 'An arrow', 'leads to a hypothesis that follows from', arrows) : '')
