@@ -610,7 +610,7 @@ def shown(r, st):
     b, t, flat = r["body"], r["type"], lambda v: " ".join(str(v).split())
     if t == "why":
         w = st.get(r["id"]) if isinstance(st.get(r["id"]), dict) else {"worth": b["worth"]}   # its standing now, which a rethink or a later why may have changed
-        now = STANDING[w["worth"]] + (f" as {w['as']}" if w.get("as") else "") + (f" by the ruling {w['by']} on a hypothesis that follows from it: no new hypothesis is accepted from it" + (", and no guess or test may name it as a competitor" if COMP["on"] else "") + "; a new guess may revise it" if w.get("by") else "") + (f"; stated before the results of {', '.join(w['stale'][:3])}: rethink it before a new hypothesis comes from it" if w.get("stale") else "") + ("; no hypothesis has come from it yet" if w.get("idle") else "")
+        now = STANDING[w["worth"]] + (f" as {w['as']}" if w.get("as") else "") + (f" by the ruling {w['by']}" + (", which found that it does not fit the result of a fair test" if w.get("through") == "fit" else " on a hypothesis that follows from it") + ": no new hypothesis is accepted from it" + (", and no guess or test may name it as a competitor" if COMP["on"] else "") + "; a new guess may revise it" if w.get("by") else "") + (f"; stated before the results of {', '.join(w['stale'][:3])}: rethink it before a new hypothesis comes from it" if w.get("stale") else "") + ("; no hypothesis has come from it yet" if w.get("idle") else "")
         return (f"[{now}] " + (f"revises {b['revises']}: " if b.get("revises") else "") + (f"competes with {b['competes_with']}: " if b.get("competes_with") else "") + f"about {', '.join(b['about'])}: {flat(b['result'])} | guess: {flat(b['guess'])}"
                 + (f" | not visible: {flat(b['unseen'])}" if b.get("unseen") else "") + (f" | for the goal: {flat(b['matters'])}" if b.get("matters") else "") + (f" | {flat(b['reason'])}" if b.get("reason") else "")
                 + (f" [restated in the same turn: first not accepted by the {b['restated'].get('by')}: {flat(b['restated'].get('reason'))[:240]}" + (f"; accepted as contested: {flat('; '.join(b['contested']))[:240]}" if b.get("contested") else "") + "]" if b.get("restated") else ""))   # 2026-11-22
@@ -721,7 +721,9 @@ def render(ledger, readings=True, rethinks=True, supervised=False):
     if supervised:   # a guess refuted by a ruling, as sort_out holds it (stage 5 of the coherence audit, 2026-11-22: it was refused with no sign in this text)
         for y, v in guess_refutations(ledger).items():
             if isinstance(st.get(y), dict) and st[y].get("worth") == "verify":
-                st[y] = {**st[y], "worth": "refuted", "by": v, "idle": False}
+                hid = next((r["body"].get("for") for r in ledger if r["id"] == v), None)   # the hypothesis that ruling is about: this guess's own, or another guess's (then this one was its competitor)
+                own = any(r["type"] == "hypothesis" and r["id"] == hid and r["body"].get("from_why") == y for r in ledger)
+                st[y] = {**st[y], "worth": "refuted", "by": v, "through": "own" if own else "fit", "idle": False}
     by = {r["id"]: r for r in ledger}
     out, forms = [], reading_forms(ledger)
     for r in ledger:
@@ -1516,9 +1518,9 @@ RULING3_ASK = ("Answer three questions with the result in hand, each with one se
 
 
 def _rule3(model, ledger, user, hid, checks, review, ask_fn):
-    """The ruling with the three questions (stage 5): (ruling, what it was shown). fair is all three passing; the result must fit the checks and the fits
-    must fit the result of a fair test (one follow-up question; still contradictory, the fits are kept but refute nothing). A question the review passed
-    and the ruling fails is a miss when it was foreseeable, else found by the result."""
+    """The ruling with the three questions (stage 5; v2): (ruling, what it was shown). fair is all three passing ("cannot tell" is not passing); the
+    result must fit the checks. Each guess is said to fit, not to fit, or "cannot tell", by itself: no answer is asked for a second time (v2, B1). A
+    question the review passed and the ruling does not is kept as "changed": the harness compares the two sets of boxes itself (v2, B4)."""
     flat = lambda v: " ".join(str(v).split())
     i, j = user.find("What does this test show about the hypothesis?"), user.find("\n\nTHE FINDINGS SO FAR:")
     if 0 <= i < j:   # the single-question paragraph and its defects give way to the three questions

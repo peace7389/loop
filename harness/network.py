@@ -488,7 +488,7 @@ def apply(t, edits, new_link=None):
                 raise ValueError(f"{n}: a link joins two hosts of the network (from, to)")
             order = [h["id"] for h in t["hosts"]]
             if not e.get("rate"):   # v2: stated, never filled in (left empty it was the brief's cap, the best value there is)
-                raise ValueError(f"{n}: a new link states its rate (for example 1Gbps)")
+                raise ValueError(f"{n}: a new link states its rate")
             t["links"].append({"id": oid, "between": sorted([e["from"], e["to"]], key=order.index), "rate": e["rate"], "delay": nl["delay"], "mtu": 1500, "device_queue": 10})
         elif do == "add_flow":
             if e.get("kind") not in ("udp", "tcp") or e.get("from") not in hosts or e.get("to") not in hosts:

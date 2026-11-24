@@ -20,7 +20,7 @@ first, with fairness audits, before the rest.
 |---|---|---|
 | 1 | Neutral texts in both arms (A1, A2, A7, A10, A11, C29): `s1_neutral.py` | built |
 | 1b | Briefs three-hosts-2, three-hosts-link-2; the chain rule's refusal says the open way (A8): `s1b_briefs.py` | built |
-| 2, 2b | The supervisor: the competing guess at the ruling, every round shown, only the rule's simulations, "cannot tell", the box "Follows", no forced choice, no earlier answers quoted (B1 to B14, item 4, A9, B6): `s2_supervisor.py`, `s2b_lines.py` | built; the harness checks are being brought in line |
+| 2, 2b | The supervisor: the competing guess at the ruling, every round shown, only the rule's simulations, "cannot tell", the box "Follows", no forced choice, no earlier answers quoted (B1 to B14, item 4, A9, B6): `s2_supervisor.py`, `s2b_lines.py`, `s2c_record.py`, `s2d_marks.py`, `s2e_figures.py` | built; every harness check passes on it (2026-11-24) |
 | 3 | One purpose (A4), parking a finding inside the tolerance (A5), true statements from the code's constants (C1 to C13), what the other arms are told | not started |
 | 4 | A brief with several moves, with reference runs | not started |
 | 5 | The confirmation tool | not started |
@@ -47,3 +47,13 @@ first, with fairness audits, before the rest.
   existed counts as before, so s047 to s061 read unchanged.
 - Stage 2: the scripted supervisor of the harness checks (`harness_checks/scripted.py`, outside the repository) fills in Follows for scripts written
   before it; the checks that state their own answers keep them.
+- Stage 2d: the refusal of a new link without a rate said "(for example 1Gbps)": an example value is a pointer, so it is gone. The mark of a
+  refuted guess said "on a hypothesis that follows from it" for every refuted guess; a competing guess is refuted another way (the supervisor
+  found that it does not fit the result of a fair test), and its mark now says that.
+- Stage 2e: the session's figures (`session_figures.competitor_figures`) count, for a v2 session only: the box Follows, the boxes answered
+  "cannot tell" (reviews of every round, rulings, the two fits), and by question the rulings that do not pass what the review passed (`changed`).
+  A session before v2 gives the figures it gave.
+- The harness checks (outside the repository) read which harness they run on: on v2 they check the new marks, `changed` in place of
+  "foreseeable", no second question on the fits; two scripted sessions were added for the rule of item 4 (a refuted hypothesis the review did
+  not find to follow from its guess leaves the guess standing, and the same test with Follows passed refutes it) and one for "cannot tell" (it
+  sends a test back at the review, makes a ruling inconclusive, and is counted). The same files still pass on the live harness.

@@ -196,7 +196,9 @@ def competitor_figures(recs):
     ruled not fair; "misses": by question, the ruling's failures of a question the review passed that could have been seen before the run, and
     "found_by_result" those that could not; "from_feedback": competing guesses written after the supervisor named a missing competitor;
     "refuted_by_competition": guesses refuted because they did not fit the result of a fair test; "held": tests held for a missing competitor or a
-    failed Consistent}."""
+    failed Consistent}. A session of v2 (its reviews have the box Follows) adds "follows" to the questions, and: "cannot_tell", the boxes answered
+    "cannot tell" at the reviews (every round) and at the rulings (the questions and the two fits); "changed", by question, the rulings that do not pass
+    a question the review passed (it replaces "misses" and "found_by_result", which stay at 0 there: the supervisor is no longer asked "foreseeable")."""
     rv = [r for r in recs if r["type"] == "review" and r.get("by") == "supervisor" and (r.get("body") or {}).get("gate") == "design" and "honest" in (r.get("body") or {})]
     if not rv:
         return None
@@ -208,10 +210,20 @@ def competitor_figures(recs):
     qs = ("honest", "consistent", "correct")
     rulings = [r for r in recs if r["type"] == "verdict" and r.get("by") == "supervisor" and (r.get("body") or {}).get("questions")]
     approved = {(r["body"].get("for"), r.get("turn")) for r in last.values() if r["body"].get("decision") == "approved"}
-    misses = {q: sum(1 for v in rulings for m in v["body"].get("misses") or [] if m.get("question") == q and m.get("foreseeable") == "yes") for q in qs}
-    found = {q: sum(1 for v in rulings for m in v["body"].get("misses") or [] if m.get("question") == q and m.get("foreseeable") != "yes") for q in qs}
-    refuted = {y for v in rulings if v["body"].get("fair") and not v["body"].get("fits_contradicted") for y, f in (v["body"].get("fits") or {}).items() if f == "does not fit"}
-    return {"questions": {q: {"pass": sum(1 for r in last.values() if r["body"].get(q) == "pass"), "fail": sum(1 for r in last.values() if r["body"].get(q) == "fail")} for q in qs},
+    old = ("honest", "consistent", "correct")
+    misses = {q: sum(1 for v in rulings for m in v["body"].get("misses") or [] if m.get("question") == q and m.get("foreseeable") == "yes") for q in old}
+    found = {q: sum(1 for v in rulings for m in v["body"].get("misses") or [] if m.get("question") == q and m.get("foreseeable") != "yes") for q in old}
+    from_why = {r["id"]: (r.get("body") or {}).get("from_why") for r in recs if r["type"] == "hypothesis"}
+    # as loop.guess_refutations: the tested guess is refuted through its hypothesis only where the review found that the hypothesis follows from it (v2)
+    refuted = {y for v in rulings if v["body"].get("fair") and not v["body"].get("fits_contradicted") for y, f in (v["body"].get("fits") or {}).items()
+               if f == "does not fit" and not (y == from_why.get(v["body"].get("for")) and v["body"].get("follows") not in (None, "pass"))}
+    v2 = any("follows" in r["body"] for r in rv)
+    if v2:
+        qs = ("follows",) + qs
+    new = {} if not v2 else {
+        "cannot_tell": sum(1 for r in rv for q in qs if r["body"].get(q) == "cannot tell") + sum(len(v["body"].get("cannot_tell") or []) for v in rulings),
+        "changed": {q: sum(1 for v in rulings if q in (v["body"].get("changed") or [])) for q in qs if q != "follows"}}
+    return {**new, "questions": {q: {"pass": sum(1 for r in last.values() if r["body"].get(q) == "pass"), "fail": sum(1 for r in last.values() if r["body"].get(q) == "fail")} for q in qs},
             "approved_then_unfair": sum(1 for v in rulings if (v["body"].get("for"), v.get("turn")) in approved and not v["body"].get("fair")),
             "misses": misses, "found_by_result": found, "from_feedback": sum(1 for r in recs if r["type"] == "why" and (r.get("body") or {}).get("from_feedback")),
             "refuted_by_competition": len(refuted), "held": sum(1 for r in last.values() if r["body"].get("decision") == "held")}
