@@ -3354,7 +3354,7 @@ def main():
             vid = append(ledger, turn, "verdict", hid, {"for": hid, "result": ruling["result"], "because": ruling["because"], "next": ruling["retest"], "fair": ruling["fair"], "defect": ruling["defect"],
                                                        "shows": ruling["shows"], "checks": ruling["checks"], "experiment": xid, **({"doubt_if": doubt} if doubt else {}),
                                                        **({"changed_by_harness": ruling["changed_by_harness"]} if ruling.get("changed_by_harness") else {}), **({"contested": True} if objected.get(hid) else {}),
-                                                       **{k: ruling[k] for k in ("questions", "fits", "competes_with", "fits_again", "fits_contradicted", "misses") if ruling.get(k)}}, by="supervisor")
+                                                       **{k: ruling[k] for k in ("questions", "fits", "competes_with", "fits_again", "fits_contradicted", "misses", "follows", "changed", "cannot_tell") if ruling.get(k)}}, by="supervisor")
             sup_log(vid, "ruling", saw, ruling)
             if ruling.get("findings_cut"):
                 append(ledger, turn, "note", vid, {"text": f"the supervisor's ruling on {hid} ran on in its findings and was cut off at its limit: the ruling stands, its findings are left out"})
