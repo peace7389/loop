@@ -487,7 +487,9 @@ def apply(t, edits, new_link=None):
             if e.get("from") not in hosts or e.get("to") not in hosts:
                 raise ValueError(f"{n}: a link joins two hosts of the network (from, to)")
             order = [h["id"] for h in t["hosts"]]
-            t["links"].append({"id": oid, "between": sorted([e["from"], e["to"]], key=order.index), "rate": e.get("rate") or nl["rate"], "delay": nl["delay"], "mtu": 1500, "device_queue": 10})
+            if not e.get("rate"):   # v2: stated, never filled in (left empty it was the brief's cap, the best value there is)
+                raise ValueError(f"{n}: a new link states its rate (for example 1Gbps)")
+            t["links"].append({"id": oid, "between": sorted([e["from"], e["to"]], key=order.index), "rate": e["rate"], "delay": nl["delay"], "mtu": 1500, "device_queue": 10})
         elif do == "add_flow":
             if e.get("kind") not in ("udp", "tcp") or e.get("from") not in hosts or e.get("to") not in hosts:
                 raise ValueError(f"{n}: a flow needs a kind (udp or tcp) and two hosts of the network (from, to)")
@@ -500,7 +502,9 @@ def apply(t, edits, new_link=None):
             link = next((l for l in t["links"] if l["id"] == oid), None)
             if link is None or e.get("on") not in link["between"] or ends(link)[e["on"]]["queue"] is not None:
                 raise ValueError(f"{n}: a queue is put on a side of a link that has none there (id: the link; on: one of its two hosts)")
-            new = {"kind": e.get("kind") if e.get("kind") in QUEUE_KINDS else "scheduler", "length": 100, "parts": {}, "largest_rate": {}}
+            if e.get("kind") not in QUEUE_KINDS:   # v2: stated, never filled in (an empty or unknown kind became a scheduler)
+                raise ValueError(f"{n}: a new queue states its kind: one of {', '.join(sorted(QUEUE_KINDS))}")
+            new = {"kind": e["kind"], "length": 100, "parts": {}, "largest_rate": {}}
             if not any(x["queue"] is not None for x in ends(link).values()):
                 link["queue"] = {"on": e["on"], **new}   # the first queue of a link: the older form, as before
             else:   # the other side's: in the link's ends (the first keeps its place and its addresses)
@@ -607,8 +611,7 @@ def tools_told(tools):
                       "described queue the packets waiting at the sample time (<link>_q_<flow> for a scheduler's queue, named after its flow or its class; <link>_q for a plain queue) and the packets dropped "
                       "since traffic began (<link>_drops_<flow>, <link>_drops) (at most 100 rows; the measured seconds begin at t = 2)")
     told["measure"] = ("measure(run_id, of, stat, t_from, t_to, level): a measurement you define, computed from what a simulation recorded over time (nothing is simulated again, and it costs no simulation). "
-                       "of: a column or arithmetic over columns of one record, by the names of this network (the bits per second of two flows added, or, once the simulation has its probe, a flow's bytes in flight divided by "
-                       "its receiver's window: <flow>_inflight / <flow>_rwnd); stat: mean, min, max, std, first, last, p05, p50, p95, slope (change per second), rate ((last - first) / seconds, for a column that counts up), "
+                       "of: a column or arithmetic over columns of one record, by the names of this network (for example <column_a> + <column_b> or <column_a> / <column_b>; the probe's columns too, once the simulation has its probe); stat: mean, min, max, std, first, last, p05, p50, p95, slope (change per second), rate ((last - first) / seconds, for a column that counts up), "
                        "time_above, time_below (seconds spent above or below level), first_time_above, first_time_below; t_from, t_to: the window in seconds (left out: the measured seconds, from 2 s to the end)")
     told["probe"] = ("probe(run_id, every): a finer look at a simulation you already ran. The harness runs the same simulation again (same settings, same seed) with trace sinks that only listen, and keeps their record only "
                      "if the result is byte for byte the same: no result can change by it, and it costs no simulation. Sampled every `every` seconds (left out: 0.01), it records, for each flow, <flow>_bps, and for a TCP flow <flow>_cwnd, "

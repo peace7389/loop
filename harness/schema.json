@@ -260,11 +260,11 @@
         "properties": {
          "name": {
           "type": "string",
-          "description": "a name of its own: lower-case letters, digits and _, for example rwnd_mean"
+          "description": "a name of its own: lower-case letters, digits and _, for example <column>_mean"
          },
          "of": {
           "type": "string",
-          "description": "a column a simulation records over time, or arithmetic over columns of one record, for example rwnd or inflight / rwnd"
+          "description": "a column a simulation records over time, or arithmetic over columns of one record, for example <column> or <column_a> / <column_b>"
          },
          "stat": {
           "type": "string",
