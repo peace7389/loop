@@ -474,7 +474,7 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
     simulation gives). The harness computes it from what a simulation that has already run recorded over time (series.csv): nothing is simulated
     for it, so no result can change by it, and it costs no simulation. of: a column of the series, or arithmetic over columns and numbers
     (+ - * /, parentheses, abs, min, max), for example "udp_bps + tcp_bps" or "cwnd / 1448". stat: one of MEASURE_STATS. t_from, t_to: the
-    window in seconds of the simulation (left out: the measured seconds, from 2 s to the end). level: the number time_above and the like compare with."""
+    window in seconds of the simulation (left out: the measured seconds, from 2 s to the end); a sample at time t stands for the step that ends at t, so the window holds the samples after t_from, up to t_to (rate also takes the sample at t_from: the count it starts from). level: the number time_above and the like compare with."""
     import ast, math
     if stat not in MEASURE_STATS:
         return f"error: stat must be one of {', '.join(MEASURE_STATS)}"
@@ -514,7 +514,10 @@ def measure(run_id, of, stat="mean", t_from=None, t_to=None, level=None):
             return funcs[n.func.id](*[val(a, row) for a in n.args])
         raise ValueError(ast.unparse(n) if hasattr(ast, "unparse") else "that")
     lo, hi = (2.0 if t_from is None else float(t_from)), (data[-1]["t"] if t_to is None else float(t_to))
-    win = [r for r in data if lo - 1e-9 <= r["t"] <= hi + 1e-9]
+    # a sample at time t stands for the step that ends at t (a rate is counted over it), so a window from lo to hi holds the samples after lo, up to hi
+    # (2026-11-24: the sample at lo was taken too; in the default window that is the last step of the second that is not measured, s059 H12)
+    # rate, the change of a column that counts up, starts from the count at lo: for it the sample at lo is kept
+    win = [r for r in data if (lo - 1e-9 <= r["t"] if stat == "rate" else lo + 1e-9 < r["t"]) and r["t"] <= hi + 1e-9]
     if not win:
         return f"error: no sample between {lo:g} s and {hi:g} s (the series runs from {data[0]['t']:g} s to {data[-1]['t']:g} s)"
     try:

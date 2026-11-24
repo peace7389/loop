@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s061 --brief three-hosts-link --budget 16 --draft on --policy share --baseline on --arm supervised
+session s061 (brief three-hosts-link): /home/chunguck.kim/project/sessions/s061
+stopped: session s061, done by the model, 12 simulations, 6 turns, ledger /home/chunguck.kim/project/sessions/s061/ledger.jsonl

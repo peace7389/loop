@@ -1444,3 +1444,17 @@
 {"session": "s059", "id": "r010", "policy": "share", "seconds": 1.2}
 {"session": "s059", "id": "r011", "policy": "share", "seconds": 1.2}
 {"session": "s059", "id": "r012", "policy": "share", "seconds": 1.1}
+{"session": "s060", "id": "r001", "policy": "share", "seconds": 8.7}
+{"session": "s061", "id": "r001", "policy": "share", "seconds": 0.9}
+{"session": "s061", "id": "r002", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r003", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r004", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r005", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r006", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r007", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r008", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r009", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r010", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r011", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r012", "policy": "share", "seconds": 1.9}
+{"session": "s061", "id": "r013", "policy": "share", "seconds": 1.9}

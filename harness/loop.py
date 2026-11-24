@@ -493,7 +493,7 @@ def plan(ledger, runs, complete=True):
         edits = edits_of(r)
         key = design_key(clean, edits)
         prior = next((q for q in ledger if q["type"] == "simulation" and "metrics" in q["body"] and not q["body"].get("same_as")
-                      and (tools.same(q["body"]["params"]), json.dumps(q["body"].get("structure") or [], sort_keys=True)) == key), None)
+                      and (tools.same(q["body"]["params"]), net_key(q["body"].get("structure") or [])) == key), None)   # the earlier one keyed as this one is, by the network its changes build (2026-11-24: it was keyed by the list as written, which no key of a changed network equals, so s061 ran three simulations four times)
         out.append({"label": r["label"], "params": clean, "clamped": clamps, "structure": edits, "key": key, "prior": prior, "twin": None if prior else next((q["label"] for q in out if q["key"] == key), None)})
     return out
 

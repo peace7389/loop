@@ -1,0 +1,88 @@
+{
+ "goal": "Maximize fa_goodput_bps subject to fb_loss_frac <= 0.1.",
+ "recommendation": {
+  "lc.queue.length": 100,
+  "fa.type": "TcpBbr"
+ },
+ "structure": [
+  {
+   "do": "add_link",
+   "id": "lac",
+   "kind": "",
+   "from": "a",
+   "to": "c",
+   "on": "",
+   "rate": "100Mbps",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "limit": "At this recommendation fa is limited by the added a-c link lac's 100Mbps capacity and packet/header overhead: lac_util=0.999996 and payload goodput is about 96.4Mbps in E1/E4; lc.queue.length no longer limits fa because fa uses lac and lc carries only fb with zero drops.",
+ "explanation": "Baseline fa shares the saturated lc bottleneck with 80Mbps fb, leaving only about 17.9Mbps (E0). Adding a one-hop a-c link makes fa's shortest path use lac, removing it from lc contention; fa rises to about 96.4Mbps and fb_loss_frac becomes 0.0 (E1,C1,V1). On lac, Cubic, BBR and NewReno all reach the same link-limited payload rate within tolerance (C2,V2), but BBR has zero lac_drops and zero fa_retrans, so it is the robust choice. The remaining limit is lac's 100Mbps rate and MTU/header overhead, not lc queue length or TCP type.",
+ "claims": [
+  {
+   "text": "Baseline fa_goodput is limited by sharing lc with fb, not by la or lb.",
+   "evidence": [
+    "E0",
+    "T1",
+    "T3",
+    "T4",
+    "V1"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Adding a direct a-c link raises fa_goodput from 17.86Mbps to 96.38Mbps while keeping fb_loss_frac=0.0.",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "On the direct link, TCP type does not materially change fa_goodput; Cubic, BBR and NewReno are within 0.03% (within tolerance).",
+   "evidence": [
+    "E1",
+    "C2",
+    "V2",
+    "E4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "BBR is preferred because it has zero lac_drops and zero fa_retrans at the same goodput.",
+   "evidence": [
+    "E1",
+    "E4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The recommended network is limited by lac's 100Mbps capacity and packet overhead, with lac_util=0.999996.",
+   "evidence": [
+    "E1",
+    "E4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The small direct-link drop differences are consistent with Cubic/NewReno having much larger maximum fa_inflight than BBR (185344 vs 60816 bytes).",
+   "evidence": [
+    "E3",
+    "E4",
+    "C5",
+    "V5",
+    "T12",
+    "T13",
+    "T14"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}

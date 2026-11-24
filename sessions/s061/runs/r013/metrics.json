@@ -1,0 +1,22 @@
+{
+  "fa_goodput_bps": 96404365,
+  "fa_retrans": 4,
+  "fb_goodput_bps": 80001600,
+  "fb_loss_frac": 0.000000,
+  "la_util": 0.000000,
+  "la_util_back": 0.000000,
+  "la_drops": 0,
+  "la_drops_back": 0,
+  "lb_util": 0.081714,
+  "lb_util_back": 0.000000,
+  "lb_drops": 0,
+  "lb_drops_back": 0,
+  "lc_util": 0.817136,
+  "lc_util_back": 0.000000,
+  "lc_drops": 0,
+  "lc_drops_back": 0,
+  "lac_util": 0.999996,
+  "lac_util_back": 0.018265,
+  "lac_drops": 4,
+  "lac_drops_back": 0
+}

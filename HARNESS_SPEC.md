@@ -961,6 +961,10 @@ what one did on what ground and what the other said to it.
   - *Looking.* `measure(run_id, of, stat, t_from, t_to, level)` computes a statistic over a column, or over
     arithmetic over columns, of what a simulation recorded (`tools.MEASURE_STATS`: mean, min, max, std, first,
     last, p05, p50, p95, slope, rate, time above or below a level, the first time above or below it).
+    A sample at time t stands for the step that ends at t, so a window from `t_from` to `t_to` holds the samples
+    after `t_from`, up to `t_to` (`rate` also takes the sample at `t_from`, the count it starts from); left out, the window is the measured seconds, and its first sample is the one at
+    2.1 s (until 2026-11-24 the sample at 2.0 s, the last step of the second that is not measured, was taken too:
+    in s059 it made a mean of `fa_bps` 0.79 % larger than the goodput of the same simulation).
     `probe(run_id, every)` runs a simulation that already ran again with the probe, same settings, seed and
     scheduling policy, and keeps its record only if `metrics.json` and `series.csv` of that second run equal the
     first's (logged in the session's `probes.jsonl`); `measure` then reads its columns, and
@@ -1402,7 +1406,13 @@ What the harness then does (`loop.experiment`):
 simulation of an earlier experiment of the session (compared on every program
 option, rates by value) is not run again: its record carries the earlier
 result and `same_as`, a note says so, and it is not counted against the
-budget. Within one experiment a repeated design is refused (above); sessions
+budget. For a simulation on a changed network "the same" also means the same
+network: the one its changes build (`loop.net_key`), for the planned
+simulation and for the earlier one alike. From the deploy of 2026-11-23,
+15:35, to 2026-11-24 the earlier one was keyed by its list of changes as
+written, which no key of a built network equals: s061 ran the same three
+simulations in four experiments (12 counted, 4 different). Check:
+`harness_checks/test_reuse_structure.py`. Within one experiment a repeated design is refused (above); sessions
 before s020 hold such repeats, returned under `same_as` as well.
 
 The budget counts simulations actually run.
@@ -2409,7 +2419,12 @@ while it runs, and ns-3's logging is not in the optimized build; a
 simulation's detail shows instead how the simulator was started: the
 program's name (kept in `objects.json` as `program`, which `check_objects.py`
 compares with `BIN` of `tools.py`) with the options that run recorded, and
-that the scheduling policy does not reach the program through its options. In section 3 a strip shows the steps of a turn (the AI writes its reply, the
+that the scheduling policy does not reach the program through its options. For a
+session on a network (since 2026-11-24; it showed the two-host program's name and
+the settings as its options) the line is the one `net` is started with,
+`--net=<the run's folder>/network.txt --out=<the run's folder>`, with a link to
+that run's `network.txt`: the network as it ran, the simulation's changes and
+settings in it. In section 3 a strip shows the steps of a turn (the AI writes its reply, the
 simulator runs its simulations, the harness checks each decision rule, the
 next turn), the one being worked on with its moving icon and the time; before
 the first hypothesis the section shows that strip alone. Section 6 says "not
@@ -3634,6 +3649,33 @@ untracked until they say otherwise.
     (b) Sessions on the briefs made before 2026-11-17 still get those briefs' hand-written task; `trap` contradicts
     its own aim and settings and is kept only as the record of s031. (c) The page has no view for a session of the
     arm "plain" or for a random search: they are compared by their figures (section 11), not on the page.
+13. **Open after the audit of the simulation and of its picture (2026-11-24)**, each for the operator to decide.
+    (a) *A loss measured over a short window.* `<flow>_loss_frac` counts the packets sent inside the measured
+    seconds that arrive at any time up to 1 s after the stop, so packets still waiting in a long queue at the stop
+    count as arrived. With 5 measured seconds and a queue of 1000 packets this decides a result: the answer s059
+    reported (three-hosts, part 0.185, queue 1000) loses 9.990 % at 5 s, 10.511 % at 20 s and 10.640 % at 80 s
+    (queue 100: 10.674 % at each), so it meets "at most 10 %" only inside the window; part 0.179 loses 9.86 % at
+    5, 20 and 80 s. Ways out: longer measured seconds in such briefs, the harness measuring a recommendation
+    again at several times the duration, or a loss counted from the drops.
+    (b) *One seed.* The seed moves a result by about 0.2 % (fa's goodput 17.85 to 17.90 Mbit/s over seeds 1 to 5
+    on the baseline of three-hosts-link). The tolerance (1 %) guards a comparison of two results, not a result
+    against a limit the aim states: 9.99 % against "at most 10 %" passes as met.
+    (c) *The scheduler's queue for everything else* (acknowledgements of flows going the other way) is served
+    first, outside cap and largest rate, and its drops are in no measure. It is empty in every brief so far.
+    (d) *The page, said wrongly or left out* (found by reading the page's code against the program and by
+    rendering real sessions): a test's sentence says "every setting at its default" and "given the same settings"
+    of simulations that differ in their network (`EV.simSays` reads settings only; s061 H1, s058 H2); the final
+    report's line "No number in the report names or equals a measurement" in network sessions (the name list is
+    the two-host one); a running tile's clock (it says "measured second 6.0 of 5", draws the second that is not
+    measured, and its top line is 1 Gbps whatever the link); the time charts' axis "since the traffic began"
+    from the simulation's clock, with the measured seconds unmarked; "the recommended settings were run as S0"
+    where the recommendation changes the network (s058); measurements an experiment defined shown without a unit
+    or a mark among the recorded measures; raw names for the measures of an added object (`lac_util`); "Made of"
+    counts the described queue discs only (ns-3 has one in front of every device); a queue disc other than fifo
+    and the scheduler is drawn with the words of a plain queue; the scheduler is labelled "ns-3 FlowQueueDisc"
+    (it is this project's); no policy line under the picture of a simulation that added a scheduler; nothing
+    says what prio does with the parts. In the builder: the segment size by the flow's own way (the program
+    takes the smallest MTU of the whole network), fixed texts for TCP's options, "turn size 3000 bytes x part".
 
 ## 16. History in short
 
@@ -3683,6 +3725,7 @@ untracked until they say otherwise.
 | 2026-11-23, 04:16 | Deployed: what the second session (s056) found, each replayed by a scripted check first: the supervisor is told when the network may change (s056's scheduler test was lost again, the supervisor calling it "outside the permitted settings"); a repair may name a refused repair's simulations; a rule over 3 comparisons is told to keep every part of its claim; a limit of the network is no format error; the batched review marks the reply's new guesses (the supervisor had compared guesses with themselves). Session s057 started on it. |
 | 2026-11-23, 05:42 | Deployed: what the third session (s057) found, each replayed by a check first: the task sentence of a brief whose network may change says so (it said "every other setting is fixed"); each reply request says the ids its new guesses and hypotheses will get; a guess may compete with a later guess of the same answer; a refuted guess is marked as no competitor; the page's cards of a running experiment know a run with a network change, and the measured time a network brief fixes. |
 | 2026-11-23, 07:37 | Deployed: what the fourth session (s058) found, each replayed by a check first: two refusals that did not say what was wrong (a measurement an earlier experiment defined; a guess cited as a record) now say it. Every page check (36) passes on the final page. No session runs after it. |
+| 2026-11-24, 12:12 | The audit of the simulation and of its picture on the page (the operator: "how sound and accurate is it"). Recorded simulations run again are byte for byte the same; the seed moves a result by about 0.2 %; the measures add up on the wire. Deployed, each with its check: a simulation on a changed network that already ran is found again (8.5; s061 had run three simulations four times); `measure` takes the samples of the measured seconds only (8.3; `rate` keeps its starting count); on the page, a network session's start line is `net`'s with the run's `network.txt`, a side without a described queue is said to have ns-3's plain queue of 100 packets, a plain queue's drops are named as the program names them, a link the AI added is no longer "fixed by the operator", and a part's card shows what was measured there in the simulation, also for an added object. Left open: section 15, item 13. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
