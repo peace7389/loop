@@ -396,14 +396,16 @@ def guess_refutations(ledger):
         b = v["body"]
         if b.get("fair") and not b.get("fits_contradicted"):
             for y, f in (b.get("fits") or {}).items():
-                if f == "does not fit":
+                # v2 (item 4): the tested guess is refuted through its hypothesis only where the review found that the hypothesis follows from it (s058: H1 did
+                # not follow from Y1, failed, and Y1 was marked refuted); a ruling made before the box Follows existed counts as before
+                if f == "does not fit" and not (y == hyps.get(hid) and b.get("follows") not in (None, "pass")):
                     out.setdefault(y, v["id"])
     of = {}
     for hid, y in hyps.items():
         if y:
             of.setdefault(y, []).append(hid)
     for y, hs in of.items():
-        if y not in out and all(h in by_h and by_h[h]["body"].get("result") == "refuted" for h in hs):
+        if y not in out and all(h in by_h and by_h[h]["body"].get("result") == "refuted" and by_h[h]["body"].get("follows") in (None, "pass") for h in hs):
             out[y] = by_h[hs[-1]]["id"]
     revised = {r["body"].get("revises") for r in ledger if r["type"] == "why" and r["body"].get("revises")}
     return {y: v for y, v in out.items() if y not in revised}
@@ -608,7 +610,7 @@ def shown(r, st):
     b, t, flat = r["body"], r["type"], lambda v: " ".join(str(v).split())
     if t == "why":
         w = st.get(r["id"]) if isinstance(st.get(r["id"]), dict) else {"worth": b["worth"]}   # its standing now, which a rethink or a later why may have changed
-        now = STANDING[w["worth"]] + (f" as {w['as']}" if w.get("as") else "") + (f" by {w['by']}: no hypothesis can come from it" + (", and no guess or test may compete with it" if COMP["on"] else "") + "; a new guess may revise it" if w.get("by") else "") + (f"; stated before the results of {', '.join(w['stale'][:3])}: rethink it before a new hypothesis comes from it" if w.get("stale") else "") + ("; no hypothesis has come from it yet" if w.get("idle") else "")
+        now = STANDING[w["worth"]] + (f" as {w['as']}" if w.get("as") else "") + (f" by the ruling {w['by']} on a hypothesis that follows from it: no new hypothesis is accepted from it" + (", and no guess or test may name it as a competitor" if COMP["on"] else "") + "; a new guess may revise it" if w.get("by") else "") + (f"; stated before the results of {', '.join(w['stale'][:3])}: rethink it before a new hypothesis comes from it" if w.get("stale") else "") + ("; no hypothesis has come from it yet" if w.get("idle") else "")
         return (f"[{now}] " + (f"revises {b['revises']}: " if b.get("revises") else "") + (f"competes with {b['competes_with']}: " if b.get("competes_with") else "") + f"about {', '.join(b['about'])}: {flat(b['result'])} | guess: {flat(b['guess'])}"
                 + (f" | not visible: {flat(b['unseen'])}" if b.get("unseen") else "") + (f" | for the goal: {flat(b['matters'])}" if b.get("matters") else "") + (f" | {flat(b['reason'])}" if b.get("reason") else "")
                 + (f" [restated in the same turn: first not accepted by the {b['restated'].get('by')}: {flat(b['restated'].get('reason'))[:240]}" + (f"; accepted as contested: {flat('; '.join(b['contested']))[:240]}" if b.get("contested") else "") + "]" if b.get("restated") else ""))   # 2026-11-22
@@ -634,15 +636,15 @@ def shown(r, st):
         if b.get("competes_with") and b.get("rival_predicts") in ("held", "failed") and b["result"] in ("held", "failed"):   # the competing guess (stage 5): what it predicted; whether it fits is the supervisor's ruling
             b = {**b, "rival": f"the guess {b['competes_with']}"}
         rival = "" if not b.get("rival") or b.get("rival_predicts") not in ("held", "failed") or b["result"] not in ("held", "failed") else (
-            f"  [this is what the rival explanation predicted: {flat(b['rival'])}]" if b["rival_predicts"] == b["result"]
-            else f"  [the rival explanation predicted {b['rival_predicts'].upper()} and does not fit this result: {flat(b['rival'])}]")
+            f"  [the rule was declared to give {b['rival_predicts'].upper()} under {flat(b['rival'])}, and gave {b['result'].upper()}]")
         close = "".join(f"  [NOTE: {q['left']} against {q['right']}: the two sides differ by {q['percent']:.3g} %, less than the tolerance of {b['tolerance']:g} %. They count as equal: "
                         "this comparison is decided by a difference that does not matter, so it is no evidence of a difference.]" for q in b.get("within_tolerance") or [])
         return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}{rival}{close}"
     if t == "verdict" and r.get("by") == "supervisor" and b.get("questions"):   # the three questions (stage 5): which failed, and which guess fits the result
         qs = b["questions"]
-        return (f"by the supervisor on {b['for']}: {b['result']}. {flat(b['because'])}" + ("" if b.get("fair") else " Not a fair test: " + "; ".join(f"{q.capitalize()} failed: {flat(qs[q]['why'])}" for q in qs if qs[q]["box"] == "fail") + ".")
+        return (f"by the supervisor on {b['for']}: {b['result']}. {flat(b['because'])}" + ("" if b.get("fair") else " Not a fair test: " + "; ".join(f"{q.capitalize()} {'could not be told' if qs[q]['box'] == CANNOT else 'failed'}: {flat(qs[q]['why'])}" for q in qs if qs[q]["box"] != "pass") + ".")
                 + (" " + "; ".join(f"the guess {y} {f} this result" for y, f in (b.get("fits") or {}).items()) + ("." if b.get("fair") and not b.get("fits_contradicted") else " (not applied: " + ("its boxes contradicted each other" if b.get("fits_contradicted") else "the test was not fair") + ").") if b.get("fits") else "")
+                + (" The review had not found that the hypothesis follows from its guess: this ruling is about the hypothesis, and the guess is not refuted by it." if b.get("follows") not in (None, "pass") and b.get("result") == "refuted" else "")
                 + (f" A fair test: {flat(b['next'])}" if b.get("next") else "") + (f" [after your objection {b['after']}: {'the ruling stands' if b.get('stands') else 'the ruling is changed'}]" if b.get("after") else "")
                 + (f" What the records show: {flat(b['shows'])}" if b.get("shows") else ""))
     if t == "verdict" and r.get("by") == "supervisor":
@@ -666,7 +668,7 @@ def shown(r, st):
                    "held": "HELD: not run in this turn, the hypothesis stays open (see the note)",
                    "not_run": "not run: the harness could not use the last repair, and the hypothesis stays open"}.get(b["decision"], b["decision"])
         return (f"by {'the harness' if r.get('by') == 'harness' else 'the supervisor'} of the test of {b['for']}, round {b['round']} of {REVIEW_ROUNDS}, before any simulation: {verdict}. The test: {rules}."
-                + (" Honest {honest}, Consistent {consistent}, Correct {correct}.".format(**b) if b.get("honest") else "")   # the three questions (stage 5)
+                + ((f" Follows {b['follows']}," if b.get("follows") else "") + " Honest {honest}, Consistent {consistent}, Correct {correct}.".format(**b) if b.get("honest") else "")   # the questions (stage 5; Follows since v2)
                 + (f" Feedback: {flat(b['feedback'])}" if b.get("feedback") else "") + (f" A stronger rival: {flat(b['stronger_rival'])}" if b.get("rival_is_weak") else "")
                 + (f" It would doubt the test if: {flat(b['doubt_if'])}" if b.get("doubt_if") and r.get("by") != "harness" else ""))
     if t == "repair":
@@ -929,13 +931,13 @@ def judge_link(model, brief, why, hyp):
 # and what it answered is kept beside the ledger (supervisor.jsonl) so that a person can see on what ground it decided. Facts stay the harness's: a
 # ruling that does not fit the checks (supported although a check failed) is recorded as inconclusive.
 SUPERVISOR = ("You are the supervisor of a researcher who studies a simulated network by experiments. You are not the researcher and you do not help it to find anything: your one "
-              "task is that what goes on record is sound. You never propose a hypothesis, a setting or an experiment of your own. You are shown the system as its brief describes it, "
+              "task is that what goes on record is sound. You never propose a hypothesis, a setting or an experiment of your own; only where a field asks what is missing or what a fair test would have to compare do you name it. You are shown the system as its brief describes it, "
               "the researcher's guess of a cause, the hypothesis it wants to test, its decision rules, the simulations and the measured numbers. You are not shown the researcher's "
-              "reasoning and you owe it no agreement: a test that cannot tell whether the guess is true wastes simulations and puts a false certainty on record. Words: a guess is the "
+              "reasoning and you owe it no agreement: a test that cannot tell whether the guess is true wastes simulations and puts a false certainty on record, and a sound test sent back wastes a round. Words: a guess is the "
               "researcher's idea of a cause; a hypothesis is a measurable consequence of it; a decision rule is the comparison, fixed before the simulations, that the harness checks "
               "from the measured values; HELD or FAILED is the harness's finding and is a fact. A test need not run a new simulation: its rule may be about a measurement of the researcher's own, taken now "
-              "from the record of a simulation that already ran. That costs nothing and is a proper test, never by itself a reason to send it back: the defect already_answered means only "
-              "that the very value the rule compares already stands in the ledger or in the tool results you are shown. Judge by the description of the system and by the numbers, name the numbers and record "
+              "from the record of a simulation that already ran. That costs nothing and is a proper test as long as the value its rule compares, and the series it is computed from, are not already "
+              "in the records you are shown. Judge by the description of the system and by the numbers, name the numbers and record "
               "ids you rest on, and say plainly when something cannot be told. Answer in the JSON format you are given, each text in one or two plain sentences.")
 DEFECTS = {"none": "no defect",
            "not_about_the_guess": "the hypothesis would come out the same whether the guess is true or not, or is about another cause than the guess",
@@ -969,37 +971,45 @@ RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["
     "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"], "description": "supported: every check held and the test was fair; refuted: a check failed and the test was fair; inconclusive: otherwise"},
     "retest": {"type": "string", "description": "when the result is inconclusive: what a fair test would have to compare; else empty"},
     "findings": {"type": "array", "maxItems": 2, "items": None, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}}}   # items: FINDING_ITEM, set where it is defined
-QUESTIONS = {"honest": "can the test fail? Its result is not already known from the records, and its threshold is not one that almost any result passes",
-             "consistent": "does the rule test what the hypothesis claims, and only that? The simulations it compares differ only in what the claim is about, its measure can see it, and the competing guess explains the same result",
+QUESTIONS = {"follows": "does the hypothesis follow from the tested guess? Pass only if someone who held the guess to be true would have to expect what the hypothesis says; fail if the guess leaves it open, or would expect otherwise",
+             "honest": "can the test fail? Pass only if no value its rule compares, and no series such a value is computed from, already stands in the records you are shown, and its threshold is not one that almost any result passes; otherwise fail",
+             "consistent": "does the rule test what the hypothesis claims, and only that? Pass only if the simulations it compares differ only in what the claim is about, its measure can see it, and the competing guess is about the same result; otherwise fail",
              "correct": "does the rule come out differently under the two guesses: HELD if the tested guess is true, FAILED if the competing guess is true?"}
-BOX = {"type": "string", "enum": ["pass", "fail"]}
+# the same questions once the result is there (v2): Honest is about the time before the run, when its result was not known
+QUESTIONS_AFTER = {"honest": "could the test have failed? Pass only if, before it ran, no value its rule compares stood in the records, and its threshold is not one that almost any result passes; otherwise fail",
+                   "consistent": QUESTIONS["consistent"], "correct": QUESTIONS["correct"]}
+REVIEW_QS, RULING_QS = ("follows", "honest", "consistent", "correct"), ("honest", "consistent", "correct")
+CANNOT = "cannot tell"   # v2: an answer of every box; at the review it counts as a fail (its sentence says what is missing to tell), at the ruling it makes the result inconclusive
+BOX = {"type": "string", "enum": ["pass", "fail", CANNOT]}
 GIVES = {"type": "string", "enum": ["held", "failed", "cannot tell"]}
-REVIEW3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["reads", "honest_why", "honest", "consistent_why", "consistent", "if_tested", "if_competitor", "correct_why", "correct", "missing", "feedback"], "properties": {
+REVIEW3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["reads", "follows_why", "follows", "honest_why", "honest", "consistent_why", "consistent", "if_tested", "if_competitor", "correct_why", "correct", "missing", "feedback"], "properties": {
     "reads": {"type": "string", "description": "what the decision rule compares, in which simulations"},
-    "honest_why": {"type": "string", "description": "one sentence, with record ids: can the test fail? (its result not already known from the records; a threshold that not almost any result passes)"},
-    "honest": {**BOX, "description": "pass: it can fail"},
-    "consistent_why": {"type": "string", "description": "one sentence, with record ids: does the rule test what the hypothesis claims and only that (its simulations differ only in what the claim is about, its measure can see it), and does the competing guess explain the same result?"},
-    "consistent": {**BOX, "description": "pass: it tests the claim and only it, against a guess about the same result"},
+    "follows_why": {"type": "string", "description": "one sentence: would someone who held the tested guess to be true have to expect what the hypothesis says, and why (or what is missing to tell)"},
+    "follows": {**BOX, "description": "pass: the hypothesis follows from the guess; fail: the guess leaves it open or would expect otherwise; cannot tell: the sentence says what is missing"},
+    "honest_why": {"type": "string", "description": "one sentence, with record ids: can the test fail? (no value its rule compares, and no series it is computed from, already in the records shown; a threshold that not almost any result passes)"},
+    "honest": {**BOX, "description": "pass: it can fail; fail: it cannot; cannot tell: the sentence says what is missing"},
+    "consistent_why": {"type": "string", "description": "one sentence, with record ids: does the rule test what the hypothesis claims and only that (its simulations differ only in what the claim is about, its measure can see it), and is the competing guess about the same result?"},
+    "consistent": {**BOX, "description": "pass: it tests the claim and only it, against a guess about the same result; fail: it does not; cannot tell: the sentence says what is missing"},
     "if_tested": {**GIVES, "description": "what the rule gives if the tested guess is true and the competing guess false"},
     "if_competitor": {**GIVES, "description": "what the rule gives if the competing guess is true and the tested guess false"},
     "correct_why": {"type": "string", "description": "one sentence: why the rule gives those two outcomes"},
-    "correct": {**BOX, "description": "pass only when if_tested is held and if_competitor is failed"},
+    "correct": {**BOX, "description": "pass only when if_tested is held and if_competitor is failed; cannot tell when one of the two cannot be told"},
     "missing": {"type": "string", "description": "only when the competing cause this test needs is stated by none of the researcher's guesses listed in the request (a refuted one is ruled out): that cause, in one sentence; else empty. When a listed guess states it, leave this empty and name that guess's id in feedback"},
-    "feedback": {"type": "string", "description": "for the researcher: which question failed and the one problem that matters most, the record ids and numbers it rests on, and what a repaired test must achieve (empty when all pass). Never a decision rule, a measure@label, simulations or a network change"}}}
+    "feedback": {"type": "string", "description": "for the researcher: which question did not pass and the one problem that matters most, the record ids and numbers it rests on, and what a repaired test must achieve (empty when all pass). Never a decision rule, a measure@label, simulations or a network change"}}}
 AGAIN3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["because", "if_tested", "if_competitor", "correct"], "properties": {
     "because": {"type": "string", "description": "your answer to the question, with the numbers or record ids it rests on"},
     "if_tested": {**GIVES, "description": "what the rule gives if the tested guess is true and the competing guess false"},
     "if_competitor": {**GIVES, "description": "what the rule gives if the competing guess is true and the tested guess false"},
-    "correct": {**BOX, "description": "pass only when if_tested is held and if_competitor is failed"}}}
+    "correct": {**BOX, "description": "pass only when if_tested is held and if_competitor is failed; cannot tell when one of the two cannot be told"}}}
 FORESEE = {"type": "string", "enum": ["yes", "no", "n/a"]}
-RULING3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["shows", "honest_why", "honest", "honest_foreseeable", "consistent_why", "consistent", "consistent_foreseeable", "correct_why", "correct", "correct_foreseeable", "because", "result", "fits_tested", "fits_competitor", "retest", "findings"], "properties": {
+RULING3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["shows", "honest_why", "honest", "consistent_why", "consistent", "correct_why", "correct", "because", "result", "fits_tested", "fits_competitor", "retest", "findings"], "properties": {
     "shows": {"type": "string", "description": "what the measured numbers show, in one sentence, before any conclusion"},
-    **{k: v for q in ("honest", "consistent", "correct") for k, v in ((f"{q}_why", {"type": "string", "description": f"one sentence, with the result in hand and record ids: {QUESTIONS[q]}"}), (q, BOX),
-        (f"{q}_foreseeable", {**FORESEE, "description": "only when this question passed at the review before the run and fails now: could the problem have been seen before the simulations ran? Otherwise n/a"}))},
+    **{k: v for q in RULING_QS for k, v in ((f"{q}_why", {"type": "string", "description": f"one sentence, with the result in hand and record ids: {QUESTIONS_AFTER[q]}"}),
+                                              (q, {**BOX, "description": "pass, fail, or cannot tell: then the sentence says what is missing to tell"}))},
     "because": {"type": "string", "description": "your reasoning from the numbers to the result: written before you give it"},
-    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"], "description": "supported: every check held and all three questions pass; refuted: a check failed and all three pass; inconclusive: otherwise"},
-    "fits_tested": {"type": "string", "enum": ["fits", "does not fit"], "description": "whether the tested guess fits this result"},
-    "fits_competitor": {"type": "string", "enum": ["fits", "does not fit"], "description": "whether the competing guess fits this result"},
+    "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"], "description": "supported: every check held and all three questions pass; refuted: a check failed and all three pass; inconclusive: otherwise (a question failed or could not be told, or the checks disagree)"},
+    "fits_tested": {"type": "string", "enum": ["fits", "does not fit", CANNOT], "description": "whether the tested guess, as the researcher states it above, fits this result: fits, does not fit, or cannot tell. A result may fit both guesses, or neither"},
+    "fits_competitor": {"type": "string", "enum": ["fits", "does not fit", CANNOT], "description": "whether the competing guess, as the researcher states it above, fits this result: fits, does not fit, or cannot tell. A result may fit both guesses, or neither"},
     "retest": {"type": "string", "description": "when the result is inconclusive: what a fair test would have to compare; else empty"},
     "findings": {"type": "array", "maxItems": 2, "items": None, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}}}   # items: FINDING_ITEM, set where it is defined
 FITS_AGAIN_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["because", "fits_tested", "fits_competitor"], "properties": {
@@ -1120,9 +1130,11 @@ def _system_for_supervisor(brief):
             + f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
 
 
-def _measured(ledger, only=None):
-    """Every simulation measured so far as the evidence tables give it (label, run, settings changed from the defaults | measured), or those of one experiment."""
-    lines = [f"  [{r['id']}] " + l for r in ledger if r["type"] == "evidence" and (only is None or r["body"]["experiment"] == only) for l in r["body"]["lines"]]
+def _measured(ledger, only=None, labels=None, others=False):
+    """Every simulation measured so far as the evidence tables give it (label, run, settings changed from the defaults | measured), or those of one experiment.
+    labels (v2): of that experiment, only the simulations with these labels (those a test's rules name); others: only the rest."""
+    named = lambda l: l.split(" ", 1)[0] in (labels or ())
+    lines = [f"  [{r['id']}] " + l for r in ledger if r["type"] == "evidence" and (only is None or r["body"]["experiment"] == only) for l in r["body"]["lines"] if labels is None or named(l) != others]
     return "\n".join(lines[-60:]) or "  (nothing yet)"
 
 
@@ -1160,7 +1172,8 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlie
     planned = plan(ledger, [r for r in ex["runs"] if r["label"] in (need.get("simulations") or [r["label"] for r in ex["runs"]])])
     sims = "\n".join(f"  {r['label']} {{{', '.join(f'{k}={v}' for k, v in r['params'].items())}}}" + (f"; network changed: {edits_say(r['structure'])}" if r.get("structure") else "") + (f"  (already run as {r['prior']['id']}: its result is in the table above and will be returned, not run again)" if r["prior"] else "  (new)") for r in planned)
     theirs = "".join(f"THE RESEARCHER'S RIVAL for this rule: {flat(d.get('rival'))}\nWHAT THE RESEARCHER SAYS THE RULE GIVES IF THAT RIVAL IS TRUE: {str(d.get('rival_predicts')).upper()}\n" for d in rules) if not COMP["on"] else competitor_text(ledger, rules, ex)
-    before = "".join(f"ROUND {k} of this test: {who} sent it back: {flat(fb)}\n" for k, who, fb in earlier)
+    # v2 (B3, B6): each earlier round with the test as it stood then; the harness's reason without the example change it gives the researcher
+    before = "".join(f"ROUND {k} of this test" + (f", as it stood then: {flat(rest[0])}" if rest and rest[0] else "") + f"\n  {who} sent it back: {flat(re.sub(r'[.] A change written correctly for this network, for example: .*$', '', str(fb)))}\n" for k, who, fb, *rest in earlier)
     item = (case if case is not None else _case(ledger, hid, rules))
     item = (item
             + "".join(f"A MEASUREMENT THE RESEARCHER DEFINES FOR THIS TEST: {m['name']} = {m['stat']} of {m['of']}" + (f" against the level {m['level']}" if m.get("level") is not None else "") + f", from {m.get('t_from') if m.get('t_from') is not None else 2} s to {m.get('t_to') if m.get('t_to') is not None else 'the end'} (computed by the harness from what each simulation records; the probe only listens)\n" for m in ex.get("measurements") or [])
@@ -1175,7 +1188,8 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlie
             + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + ". A test is not defective for being small or for testing only one consequence of the guess.")
     if parts:   # the pieces of this review, for the batched first review
         return {"item": item, "ask": ask}
-    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + (guesses_text(ledger) if COMP["on"] else "") + item + (f"THIS IS ROUND {round_no} of at most {REVIEW_ROUNDS} for this test. The researcher repaired it after:\n{before}\n" if round_no > 1 else "") + ask)
+    user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + (guesses_text(ledger) if COMP["on"] else "") + item + (f"THIS IS ROUND {round_no} of at most {REVIEW_ROUNDS} for this test. The test above is the researcher's answer to these rounds; it may be unchanged, so judge it as it stands and compare it with the "
+                                                                                                                 f"earlier rounds. A test sent back in round {REVIEW_ROUNDS} is run all the same, marked as contested.\n{before}\n" if round_no > 1 else "") + ask)
     d = pre if pre is not None else (ask_fn or supervise)(model, user, REVIEW3_SCHEMA if COMP["on"] else REVIEW_SCHEMA)   # pre: its answer in the batched first review
     if COMP["on"]:   # the three questions (stage 5)
         return _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw)
@@ -1254,13 +1268,14 @@ def record_line(r, ledger):
     return f"[{r['id']}] {r['type']}: {flat(json.dumps(b))[:600]}"
 
 
-QUESTIONS_ASK = ("Before any of these simulations is run, answer three questions about this test, each with one sentence that cites record ids, then its box. Honest: "
-                 + QUESTIONS["honest"] + ". Consistent: " + QUESTIONS["consistent"] + ". Correct: say what the rule gives if the tested guess is true and the competing guess false, and "
+QUESTIONS_ASK = ("Before any of these simulations is run, answer four questions about this test, each with one sentence that cites record ids, then its box: pass, fail, or cannot tell "
+                 "(then the sentence says what is missing to tell). Follows: " + QUESTIONS["follows"] + ". Honest: " + QUESTIONS["honest"] + ". Consistent: " + QUESTIONS["consistent"]
+                 + ". Correct: say what the rule gives if the tested guess is true and the competing guess false, and "
                  "what it gives if the competing guess is true and the tested guess false; pass only when the first is HELD and the second FAILED. Judge the competing guess the researcher "
                  "named, do not replace it with your own. If the competing cause this test needs is a guess listed above other than the one the rule names, say so in feedback with its id; only if none of them states it, name it in missing. Last, feedback for the researcher: which "
-                 "question failed and the one problem that matters most, the record ids and numbers it rests on, and what a repaired test must achieve. The feedback never contains a "
+                 "question did not pass and the one problem that matters most, the record ids and numbers it rests on, and what a repaired test must achieve. The feedback never contains a "
                  "decision rule, a measure@label, simulations or a network change: the researcher must find the repair itself. A test is not wanting for being small or for testing only "
-                 "one consequence of the guess.")
+                 "one consequence of the guess. A test that passes runs; one that does not goes back to the researcher to repair.")
 
 
 def guesses_text(ledger, new=None):
@@ -1282,8 +1297,7 @@ def competitor_text(ledger, rules, ex=None):
     out = ""
     for d in rules:
         w = whys.get(d.get("competes_with")) or {}
-        out += (f"THE GUESS THIS RULE COMPETES WITH [{d.get('competes_with')}]: the result it explains: {flat(w.get('result'))} | its guess: {flat(w.get('guess'))}\n"
-                f"WHAT THE RESEARCHER SAYS THE RULE GIVES IF THAT GUESS IS TRUE AND THE TESTED ONE FALSE: {str(d.get('rival_predicts')).upper()}\n")
+        out += f"THE GUESS THIS RULE COMPETES WITH [{d.get('competes_with')}]: the result it explains: {flat(w.get('result'))} | its guess: {flat(w.get('guess'))}\n"
     return out
 
 
@@ -1291,9 +1305,9 @@ def _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw):
     """The three questions' review of one test (stage 5): (review, what it was shown). The boxes are read as given; Correct is checked against the two
     predictions (pass only with HELD and FAILED); on a contradiction one follow-up question, and still contradictory it is a refusal."""
     flat = lambda v: " ".join(str(v).split())
-    box = lambda v: v if v in ("pass", "fail") else "fail"
+    box = lambda v: v if v in ("pass", "fail", CANNOT) else "fail"
     gives = lambda v: v if v in ("held", "failed", "cannot tell") else "cannot tell"
-    rev = {"reads": flat(d.get("reads")), **{k: flat(d.get(k)) for k in ("honest_why", "consistent_why", "correct_why")}, **{q: box(d.get(q)) for q in ("honest", "consistent", "correct")},
+    rev = {"reads": flat(d.get("reads")), **{q + "_why": flat(d.get(q + "_why")) for q in REVIEW_QS}, **{q: box(d.get(q)) for q in REVIEW_QS},
            "if_tested": gives(d.get("if_tested")), "if_competitor": gives(d.get("if_competitor")), "missing": flat(d.get("missing") or ""), "feedback": flat(d.get("feedback") or ""),
            "competes_with": next((x.get("competes_with") for x in rules if x.get("competes_with")), None), "defect": "none"}
     def clash_of(r):   # what contradicts what, or None
@@ -1325,11 +1339,14 @@ def _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw):
             else:
                 rev.update({k: again[k] for k in ("if_tested", "if_competitor", "correct")})
         user = q + "\n[the answer: " + (json.dumps(a) if a is not None else "could not be read") + "]"
-    ok = not (rev.get("again") or {}).get("still") and not (clash and "again" not in rev) and all(rev[q] == "pass" for q in ("honest", "consistent", "correct"))
-    failed = [q for q in ("honest", "consistent", "correct") if rev[q] == "fail"]
-    rev["defect"] = failed[0] if failed else ("contradiction" if not ok else "none")   # which question failed (the figures and the page read the three boxes)
+    ok = not (rev.get("again") or {}).get("still") and not (clash and "again" not in rev) and all(rev[q] == "pass" for q in REVIEW_QS)
+    failed = [q for q in REVIEW_QS if rev[q] != "pass"]   # a box that says cannot tell does not pass (v2)
+    cannot = [q for q in REVIEW_QS if rev[q] == CANNOT]
+    if cannot:
+        rev["cannot_tell"] = cannot
+    rev["defect"] = failed[0] if failed else ("contradiction" if not ok else "none")   # which question did not pass (the figures and the page read the boxes)
     if not ok and not rev["feedback"]:   # a refusal always says what is wrong
-        rev["feedback"] = ("; ".join(f"{q.capitalize()} failed: {rev[q + '_why']}" for q in failed) if failed else
+        rev["feedback"] = ("; ".join(f"{q.capitalize()} {'could not be told' if rev[q] == CANNOT else 'failed'}: {rev[q + '_why']}" for q in failed) if failed else
                            "the supervisor's review contradicted itself: " + (rev.get("again", {}).get("still") or clash or "").replace("you passed", "it passed").replace("you failed", "it failed").replace("you said", "it said"))
     if RULE_IN_TEXT.search(rev["feedback"]):
         bits = re.split(r"(?<=[.;!?])\s+", rev["feedback"])
@@ -1368,9 +1385,8 @@ def ground_of(model, brief, ledger, why, ask_fn=None, parts=False, pre=None, pre
     rival_w = next((r["body"] for r in ledger if r["type"] == "why" and r["id"] == why.get("competes_with")), None) if COMP["on"] and why.get("competes_with") else None
     the_guess = (f"The result it starts from, as the researcher states it: {flat(why['result'])}\nThe guess of why: {flat(why['guess'])}\n" + (f"What would make it so, not directly visible: {flat(why['unseen'])}\n" if why.get("unseen") else ""))
     if rival_w:   # a declared competitor (stage 5)
-        the_guess += (f"It competes with {why['competes_with']}, whose guess is: {' '.join(str(rival_w.get('guess')).split())} (about {', '.join(rival_w.get('about') or [])}). It explains the same result by another "
-                      f"cause and may cite {why['competes_with']}'s records: here the defect repeats means that it names the same cause as {why['competes_with']}, and the question whether it comes from "
-                      "what was learned since is not asked of it.\n")
+        the_guess += (f"It competes with {why['competes_with']}, whose guess is: {' '.join(str(rival_w.get('guess')).split())} (about {', '.join(rival_w.get('about') or [])}). The researcher declares it a competitor of "
+                      f"{why['competes_with']}, so it may cite {why['competes_with']}'s records without a new one: whether it is about the same result is for you to say; here the defect repeats means that it names the same cause as {why['competes_with']}.\n")
     ask = ("Before anything is built on this guess: first say what the cited records show about the result it starts from. Then name the earlier guess or hypothesis nearest to it. Then name the defect, or none. "
             "The defects: " + "; ".join(f"{k}: {v}" for k, v in G.items()) + ". A guess may be wrong and still be sound here: you judge whether it starts from what was measured and adds something, "
             "not whether it is true. A guess that takes up an earlier one with a stated difference (another cause, another range, a reason why the earlier test was not fair) is not a repetition."
@@ -1471,11 +1487,14 @@ def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None, contested=Non
     rules = [{"decision_rule": c["body"]["decision_rule"]} for c in checks]
     lines = "\n".join(f"  [{c['id']}] {flat(c['body']['decision_rule'])}  ->  {c['body']['with_numbers']}  :  {c['body']['result'].upper()}"
                        + "".join(f"  (note: {q['left']} against {q['right']} differ by {q['percent']:.3g} %)" for q in c["body"].get("within_tolerance") or []) for c in checks)
-    user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, rules) + f"\nTHE SIMULATIONS OF THIS TEST, as measured:\n{_measured(ledger, xid)}\n\nTHE BASELINE and what was measured before:\n{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] == xid)])}\n\n"
+    named = sorted({l for c in checks for l in re.findall(r"@([A-Za-z0-9_]+)", c["body"]["decision_rule"])})   # v2 (B10): under the test, only the simulations its rules name
+    rest = _measured(ledger, xid, named, others=True)
+    comp = competitor_text(ledger, [c["body"] for c in checks if c["body"].get("competes_with")][:1]) if COMP["on"] else ""   # v2 (B2): the competing guess in the researcher's words, as at the review
+    user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, rules) + comp + f"\nTHE SIMULATIONS THIS TEST'S RULES NAME, as measured:\n{_measured(ledger, xid, named)}\n\n"
+            + (f"OTHER SIMULATIONS OF THE SAME EXPERIMENT (they belong to other tests of it, not to this one):\n{rest}\n\n" if rest != "  (nothing yet)" else "")
+            + f"THE BASELINE and what was measured before:\n{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] == xid)])}\n\n"
             f"EVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\nTHE HARNESS'S CHECKS (facts):\n{lines}\n\n" + _test_terms(ledger, xid, hid) + "\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
             + (f"BEFORE IT RAN, the review of this test ended with you still objecting, after the last round: {flat(contested)}\n\n" if contested else "")   # contested (2026-11-22)
-            + (("AT THE REVIEW BEFORE THE RUN you answered: " + "; ".join(f"{q.capitalize()} {review.get(q)}: {flat(review.get(q + '_why'))}" for q in ("honest", "consistent", "correct"))
-                + f" (the rule gives {str(review.get('if_tested')).upper()} if the tested guess is true, {str(review.get('if_competitor')).upper()} if {review.get('competes_with')} is true)\n\n") if COMP["on"] and review else "")
             + "What does this test show about the hypothesis? supported: every check HELD and the test was a fair one. refuted: a check FAILED and the test was a fair one. inconclusive: the test "
               "was not fair (name the defect and what a fair test would compare), or the checks disagree. A check that failed because another setting limited the result, or one that held "
               "although it would have held under a rival explanation too, is not a fair test. The defects: " + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + "."
@@ -1490,10 +1509,10 @@ def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None, contested=Non
     return ruling, user
 
 
-RULING3_ASK = ("Answer the three questions again with the result in hand, each with one sentence that cites record ids, then its box: Honest: " + QUESTIONS["honest"]
-               + ". Consistent: " + QUESTIONS["consistent"] + ". Correct: " + QUESTIONS["correct"] + " For a question that passed at the review and fails now, say whether the problem could have "
-               "been seen before the run (foreseeable). Then your reasoning, the result (supported: every check HELD and all three pass; refuted: a check FAILED and all three pass; inconclusive: "
-               "otherwise), and whether each guess the test named fits this result.")
+RULING3_ASK = ("Answer three questions with the result in hand, each with one sentence that cites record ids, then its box (pass, fail, or cannot tell: then the sentence says what is missing "
+               "to tell): Honest: " + QUESTIONS_AFTER["honest"] + ". Consistent: " + QUESTIONS_AFTER["consistent"] + ". Correct: " + QUESTIONS_AFTER["correct"]
+               + " Then your reasoning, the result (supported: every check HELD and all three pass; refuted: a check FAILED and all three pass; inconclusive: otherwise), and, for each of the "
+               "two guesses the test named, whether it fits this result: each is judged by itself, from its own words above, and a result may fit both, or neither.")
 
 
 def _rule3(model, ledger, user, hid, checks, review, ask_fn):
@@ -1505,36 +1524,24 @@ def _rule3(model, ledger, user, hid, checks, review, ask_fn):
     if 0 <= i < j:   # the single-question paragraph and its defects give way to the three questions
         user = user[:i] + RULING3_ASK + user[j:]
     d = (ask_fn or supervise)(model, user, RULING3_SCHEMA)
-    box = lambda v: v if v in ("pass", "fail") else "fail"
-    qs = {q: {"why": flat(d.get(q + "_why")), "box": box(d.get(q)), "foreseeable": d.get(q + "_foreseeable") if d.get(q + "_foreseeable") in ("yes", "no") else "n/a"} for q in ("honest", "consistent", "correct")}
-    fair = all(v["box"] == "pass" for v in qs.values())
+    box = lambda v: v if v in ("pass", "fail", CANNOT) else "fail"
+    qs = {q: {"why": flat(d.get(q + "_why")), "box": box(d.get(q))} for q in RULING_QS}
+    fair = all(v["box"] == "pass" for v in qs.values())   # a question that failed or could not be told: not a fair test, and the result is inconclusive
     res = [c["body"]["result"] for c in checks]
     fits = {"supported": all(x == "held" for x in res) and fair, "refuted": any(x == "failed" for x in res) and fair, "inconclusive": True}.get(d.get("result"), False)
     result = d.get("result") if fits else "inconclusive"
     h = next((r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid), {})
     own, cw = h.get("from_why"), next((c["body"].get("competes_with") for c in checks if c["body"].get("competes_with")), None) or (review or {}).get("competes_with")
-    given = {"tested": d.get("fits_tested") if d.get("fits_tested") in ("fits", "does not fit") else None, "competitor": d.get("fits_competitor") if d.get("fits_competitor") in ("fits", "does not fit") else None}
-    want = {"supported": {"tested": "fits", "competitor": "does not fit"}, "refuted": {"tested": "does not fit", "competitor": "fits"}}.get(result) if fair else None
-    contradicted, again = False, None
-    if want and given != want:   # the fits do not fit the result of a fair test: one question, and its answer stands only if it fits
-        q = (user + f"\n\nYOUR RULING: {result}, a fair test; the tested guess {own}: {given['tested']}; the competing guess {cw}: {given['competitor']}. These do not fit together: a fair test "
-             f"that {('held' if result == 'supported' else 'failed')} fits the guess that predicted it and not the other. One question: which of the two guesses does this result fit? Answer, then the two boxes.")
-        try:
-            a = (ask_fn or (lambda m, u, sc: supervise(m, u, sc, AGAIN_TOKENS)))(model, q, FITS_AGAIN_SCHEMA)
-            again = {"because": flat(a.get("because")), "tested": a.get("fits_tested"), "competitor": a.get("fits_competitor")}
-            if {"tested": again["tested"], "competitor": again["competitor"]} == want:
-                given = dict(want)
-            else:
-                contradicted = True
-        except (ValueError, KeyError, TypeError, AttributeError):
-            contradicted = True
-        user = q
+    fit = lambda v: v if v in ("fits", "does not fit", CANNOT) else None
+    given = {"tested": fit(d.get("fits_tested")), "competitor": fit(d.get("fits_competitor"))}   # v2 (B1): as the supervisor says it of each guess; no answer is asked for a second time
     rev = review or {}
-    misses = [{"question": q, "foreseeable": qs[q]["foreseeable"]} for q in ("honest", "consistent", "correct") if rev.get(q) == "pass" and qs[q]["box"] == "fail"]
-    failed = [q for q in qs if qs[q]["box"] == "fail"]
+    changed = [q for q in RULING_QS if rev.get(q) == "pass" and qs[q]["box"] != "pass"]   # v2 (B4): a question the review passed and the ruling does not, found by comparing the two
+    failed = [q for q in qs if qs[q]["box"] != "pass"]
+    cannot = [q for q in qs if qs[q]["box"] == CANNOT] + [k for k, v in (("fits_tested", given["tested"]), ("fits_competitor", given["competitor"])) if v == CANNOT]
     ruling = {"shows": flat(d.get("shows")), "fair": fair, "defect": failed[0] if failed else "none", "result": result, "because": flat(d.get("because")), "retest": flat(d.get("retest") or ""),
               "checks": [c["id"] for c in checks], "questions": qs, "fits": {k: v for k, v in ((own, given["tested"]), (cw, given["competitor"])) if k and v}, "competes_with": cw,
-              **({"fits_again": again} if again else {}), **({"fits_contradicted": True} if contradicted else {}), **({"misses": misses} if misses else {}),
+              # v2 (item 4): whether the review found that the hypothesis follows from its guess; only then can this ruling refute the guess (guess_refutations)
+              **({"follows": rev["follows"]} if rev.get("follows") else {}), **({"changed": changed} if changed else {}), **({"cannot_tell": cannot} if cannot else {}),
               "findings": list(d.get("findings") or []) if isinstance(d.get("findings"), list) else [], **({"findings_cut": True} if d.get("findings_cut") else {}),
               **({} if fits else {"changed_by_harness": f"the supervisor said {d.get('result')}, which does not fit the checks ({', '.join(res)}) or its three questions (" + ", ".join(f"{q} {qs[q]['box']}" for q in qs) + ")"})}
     return ruling, user
@@ -2809,9 +2816,9 @@ FINDINGS_TEXT["hypotheses"] = FINDINGS_TEXT["hypotheses"].replace("{sup}", "")
 COMP_LEAN = (   # LEAN_PROMPT -> the instructions of a session with competitors (stage 5): (as it stands, what replaces it), each found once
     ("it is shown your guess, your hypothesis, your decision rule and its rival, the planned simulations", "it is shown your guess, your hypothesis, your decision rule and the guess it competes with, the planned simulations"),
     ("- a test, before it runs: can it tell your guess from your rival? If not, it says what is wrong and you repair that test at once, up to three rounds; the other tests run meanwhile;",
-     "- a test, before it runs, by three questions: can it fail (Honest), does it test your claim and only it (Consistent), does its rule give HELD under your guess and FAILED under the guess it competes with (Correct)? "
+     "- a test, before it runs, by four questions: does your hypothesis follow from your guess (Follows), can the test fail (Honest), does it test your claim and only it (Consistent), does its rule give HELD under your guess and FAILED under the guess it competes with (Correct)? "
      "If one fails, it says what is wrong and you repair that test at once, up to three rounds; the other tests run meanwhile;"),
-    ("closes the hypothesis. You do not give verdicts.", "closes the hypothesis; a guess that does not fit the result of a fair test is refuted: no hypothesis comes from it, a new guess may revise it. You do not give verdicts."),
+    ("closes the hypothesis. You do not give verdicts.", "closes the hypothesis; a guess is refuted when a fair test of a hypothesis that follows from it fails, or when the supervisor finds that it does not fit a fair test's result: no new hypothesis comes from it, a new guess may revise it. A failed hypothesis that did not follow from its guess refutes only itself. You do not give verdicts."),
     ("The purpose of the work is to understand why the system behaves as it does. You are not an optimiser: do not try many settings and keep whichever comes out slightly ahead. Look at the system, ask why each result came out so, guess what in the system (not directly visible in the outputs) makes it so, and test that guess.",
      "The purpose is to understand why the system behaves as it does, not to optimise: look at it, ask why each result came out so, guess what in the system (not directly visible) makes it so, and test that guess."),
     ("(the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet)",
@@ -3264,7 +3271,8 @@ def main():
         """The rounds after the first for one test sent back: the researcher repairs it from the feedback (a short call that asks for the test only),
         the harness checks the repair, the supervisor reviews it; at most REVIEW_ROUNDS rounds, then AFTER_ROUNDS. Returns the test to run now, or
         None. A repair that cannot be read gives a note: the test does not run in this turn, and nothing else is refused."""
-        n, parent, earlier, refused, refused_runs = 1, gid, [(1, "the supervisor", rev["feedback"])], None, []
+        say = lambda t: "; ".join(f"{d.get('decision_rule')}" + (f" (competes with {d['competes_with']})" if d.get("competes_with") else "") for d in (t or {}).get("decision_rules") or [] if d.get("for") == hid) + " | simulations: " + ", ".join(str(r.get("label")) for r in (t or {}).get("runs") or [] if isinstance(r, dict))   # v2 (B3): a round's test in a line
+        n, parent, earlier, refused, refused_runs = 1, gid, [(1, "the supervisor", rev["feedback"], say(test))], None, []
         while True:
             who, feedback = earlier[-1][1], earlier[-1][2]
             user = repair_user(hid, test, n + 1, who, feedback, reserved, refused)
@@ -3286,7 +3294,7 @@ def main():
                 if label != "sent_back":   # the last round: a test the harness cannot use is not run, and its hypothesis stays open (the harness's refusal is no objection of the supervisor's)
                     append(ledger, turn, "note", gid, {"text": f"the test of {hid} is not run: its last repair could not be used ({problem}); {hid} stays open"})
                     return None
-                earlier.append((n, "the harness", problem))
+                earlier.append((n, "the harness", problem, say(t2)))
                 parent, refused = gid, t2   # the test stays the last one the harness accepted: a refused repair is not what the next is read against
                 refused_runs = [q for q in (t2.get("runs") or []) + (rp.get("runs") or []) if isinstance(q, dict)]   # but its simulations, as kept and as written, may be named again (s056 H5)
                 continue
@@ -3308,7 +3316,7 @@ def main():
             if label == "dropped":
                 drop_after(hid, rev["feedback"], n)
                 return None
-            earlier.append((n, "the supervisor", rev["feedback"]))
+            earlier.append((n, "the supervisor", rev["feedback"], say(t2)))
             parent, test, refused, refused_runs = gid, t2, None, []
 
     def rule_tests(ex):
