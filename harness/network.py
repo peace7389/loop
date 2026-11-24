@@ -561,13 +561,37 @@ def changed_problems(t0, t1, st, goal, outs_needed=()):
     locked object is gone, a limit of the brief is passed, or a measure the aim names would not exist."""
     most = {**LIMITS, **(st.get("most") or {})}
     bad = [f"{len(t1[k])} {k}: this brief allows at most {most[k]}" for k in LIMITS if len(t1[k]) > most[k]]
-    nl, was = st.get("new_link") or {}, {(l["id"], frozenset(l["between"])) for l in t0["links"]}
-    if nl.get("rate_max"):   # 2026-11-23: a link a change adds carries at most the brief's cap
+    nl = st.get("new_link") or {}
+    def as_given(kind, x):
+        """An object as the brief states it, in a form that is equal exactly when it is the same object: a link without its queues (a queue is an
+        object of its own), a flow whole, a queue by its kind and its classes; rates by value."""
+        if x is None:
+            return None
+        num = lambda v: rate_bps(v) if ok("x.rate", v) else v
+        if kind == "link":
+            ends_ = {h: {k: (num(v) if k == "rate" else v) for k, v in e.items() if k != "queue"} for h, e in (x.get("ends") or {}).items()}
+            return {**{k: v for k, v in x.items() if k not in ("queue", "ends", "between", "rate")}, "between": sorted(x["between"]), "rate": num(x.get("rate")), "ends": {h: e for h, e in ends_.items() if e}}
+        if kind == "flow":
+            return {**{k: v for k, v in x.items() if k != "rate"}, **({"rate": num(x["rate"])} if "rate" in x else {})}
+        return {"kind": x.get("kind"), "classes": x.get("classes") or {}}
+    def named(t, key):
+        kind, oid = key.split(":", 1)
+        if kind == "queue":   # a queue is named by its link, or by link.host where the link's ends are described each by itself
+            return next((q for l, h, q, a in queues(t) if (f"{l['id']}" if a.count(".") == 1 else f"{l['id']}.{h}") == oid), None)
+        return next((x for x in t.get({"host": "hosts", "link": "links", "flow": "flows"}.get(kind, ""), []) if x["id"] == oid), None)
+    if nl.get("rate_max"):   # 2026-11-23: a link a change adds carries at most the brief's cap. 2026-11-24: a link of the brief taken out and put back with other values is a new link too
+        brief_links = [as_given("link", l) for l in t0["links"]]
         bad += [f"link {l['id']} carries {l['rate']}: this brief allows at most {nl['rate_max']} for a new link" for l in t1["links"]
-                if (l["id"], frozenset(l["between"])) not in was and ok(f"{l['id']}.rate", l["rate"]) and rate_bps(l["rate"]) > rate_bps(nl["rate_max"])]
-    gone = sorted(set(st.get("locked") or []) & (objects(t0) - objects(t1)))
+                if as_given("link", l) not in brief_links and ok(f"{l['id']}.rate", l["rate"]) and rate_bps(l["rate"]) > rate_bps(nl["rate_max"])]
+    locked = set(st.get("locked") or [])
+    gone = sorted(locked & (objects(t0) - objects(t1)))
     if gone:
         bad.append(f"{', '.join(g.replace(':', ' ') for g in gone)} may not be removed (the operator keeps it)")
+    # 2026-11-24: a locked object is the operator's as the brief states it. Removed and added again under its id with other values (a flow at another rate, a
+    # link at another rate) it was "still there" for the test above, and a fixed setting could be changed that way
+    replaced = sorted(k for k in locked & objects(t0) & objects(t1) if k.split(":", 1)[0] != "host" and as_given(k.split(":", 1)[0], named(t0, k)) != as_given(k.split(":", 1)[0], named(t1, k)))
+    if replaced:
+        bad.append(f"{', '.join(g.replace(':', ' ') for g in replaced)} may not be replaced: the operator keeps it as the brief states it (it was taken out and put back with other values; a setting of it that is a knob is set by its knob)")
     have = outputs(t1) if not problems(t1) else {}
     aim = [m for m in outs_needed if have and m not in have]
     if aim:

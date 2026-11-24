@@ -93,7 +93,8 @@ Object.assign(EV, {
     const num = v => (typeof v === 'number' ? v : /^[0-9.]+\s*[kMG]?bps$/.test(String(v)) ? EV.knNum(v) : NaN), same = (a, b) => (isNaN(num(a)) || isNaN(num(b)) ? String(a) === String(b) : num(a) === num(b));
     const val = (q, k) => (q.params && k in q.params ? q.params[k] : (kn[k] || {}).default), show = (k, v) => (k === 'tcpBufBytes' && /^\d+$/.test(String(v)) ? EV.bytes(+v) : TASK_VIEW._rate(String(EV.val(k, v))).replace(/^Tcp/, '') + (k === 'duration' ? ' s' : ''));  // a buffer's size as a person says it
     const vary = keys.filter(k => mine.some(q => !same(val(q, k), val(mine[0], k)))), use = vary.length ? vary : keys.filter(k => kn[k] && 'default' in kn[k] && !same(val(r, k), kn[k].default));
-    return (C[key] = use.length ? use.map(k => `${TH_DATA.KNOB[k] || k} ${show(k, val(r, k))}`).join(', ') : 'every setting at its default');
+    const netOf = q => (q && Array.isArray(q.structure) && q.structure.length && EV.editsSay ? EV.editsSay(q.structure) : ''), netSay = new Set(mine.map(netOf)).size > 1 || (mine.length === 1 && netOf(r)) ? (netOf(r) ? `the changed network (${netOf(r)})` : 'the network as given') : '';
+    return (C[key] = [netSay, use.length ? use.map(k => `${TH_DATA.KNOB[k] || k} ${show(k, val(r, k))}`).join(', ') : netSay ? '' : 'every setting at its default'].filter(Boolean).join(', '));
   },
   // the same after a measure's name: " at ratio 0.25 (w025b)": what the simulation is, then the AI's own name for it, small
   simAt(T, label) { const e = EV.e, says = EV.simSays(T, label); return says ? ` at <span class="sim-says" data-exact="1" title="${e(`The simulation the AI named “${label}”: ${says}`)}">${e(says)}</span> <span class="sim-lab" data-own="model" data-wd="n:${e(T.exp)}:${e(label)}" tabindex="0">${e(label)}</span>` : ` at <span data-own="model">${e(label)}</span>`; },

@@ -808,6 +808,16 @@ keeps its addresses; removing a queue of a link that has two names its side
 step with the flows that pass it: a new flow gets a queue of its own, and a
 class that holds no flow any more goes with its part.
 
+A locked object (`locked`: `kind:id`) is the operator's as the brief states
+it (`network.changed_problems`): it may not be removed, and since 2026-11-24
+it may not be replaced either, that is taken out and put back under its id
+with other values (a flow at another rate or as another application, a link
+at another rate; a link is compared without its queues, which are objects of
+their own, and a queue by its kind). Until then only its presence was tested,
+so the fixed UDP flow could be put back at 1 Mbit/s. A link of the brief put
+back with other values is a new link for `structure.new_link`'s cap. Check:
+`harness_checks/test_locked_replace.py`.
+
 ## 8. The session: `loop.py`
 
 ```
@@ -2424,7 +2434,60 @@ session on a network (since 2026-11-24; it showed the two-host program's name an
 the settings as its options) the line is the one `net` is started with,
 `--net=<the run's folder>/network.txt --out=<the run's folder>`, with a link to
 that run's `network.txt`: the network as it ran, the simulation's changes and
-settings in it. In section 3 a strip shows the steps of a turn (the AI writes its reply, the
+settings in it.
+
+**From a hypothesis to its result** (`viewer/evidence_chain.js`, 2026-11-24; the
+operator: "view clearly the simulation setting, simulation records, simulation
+outcomes, and more connection between hypothesis, simulation setting,
+simulation outcome, hypothesis accepted or refuted"). The pane of a hypothesis
+shows, under its statement, one block for each of its tests, read from top to
+bottom: (1) a table with a row for each simulation the decision rule names:
+left, what was set (the network, "as given" or its change in words, and the
+settings; what differs between the rows in bold; what is the same in all in
+one line under it), right, what came out (the measures the rule reads, four
+digits; `ƒx` beside one the experiment defined itself); a simulation on the
+network as given stands first; (2) what the hypothesis required of those
+numbers: the decision rule against the outcome (`EV.ruleBars`); (3) the
+result: the harness's check, an arrow, the ruling or the verdict with who
+gave it and its first sentence, and what it did to the guesses. The course of
+the hypothesis, step by step, is folded under it (open where there is no test).
+The pane of a simulation begins with three rows (`EV.simHead`): its setting
+(the network changed or not, the settings that are not at the brief's
+default), the hypotheses whose rule names it, each with its result and the
+measures that rule reads here, and its records: links to the run's
+`network.txt`, `params.json`, `metrics.json` and `series.csv`. Its table of
+settings has the brief's default beside each setting where the experiment has
+no control. A simulation is said by its network too wherever simulations
+that differ in it are told apart (`EV.simSays`: "the changed network (added
+link lac between a and c)", "the network as given"), and the measures of an
+object a simulation added have plain names (`EV.simNames`). Stepped back,
+a simulation that has not been recorded shows its planned setting and no
+number. The same block stands in the pane a box of the board opens (the
+pane of a test), under its guesses and its review and before its older
+sections (every simulation made for the hypothesis, the chain of boxes,
+plan, expected, result, ruling, chart, exact records), which are one fold
+there, "The same test, record by record": closed on the lean page, open on
+the full one, remembered by the browser (`ev-trec`). In a simulation's pane
+the row "Setting" holds a fold "The full setting" (`EV.simFull`, a session on
+a network; remembered as `ev-simfull`): every value of the network and the
+run as that simulation had them, by link and by flow, beside the brief's
+value, what differs marked (a tinted row and a sign), an added link or flow
+marked, and as its last group what the program fixes for every simulation.
+It is open unless the reader folded it. The name of a setting, its value
+(strong, the unit light) and the band of an object (its kind and name) each
+have a look of their own; what an object is (what a link joins and its
+queues, a flow's way and application) opens in a box on its band
+(`EV.objBand`, the page's own boxes, key `o:`). For a session on a network
+whose experiment has no control the pane is four numbered parts, each said
+once (`EV.simNew`): 1 Setting, 2 Outcome (every measure under its flow or
+link in the same look, with the hypothesis whose rule read it and its result
+beside it), 3 Over time (the charts), 4 Records (the run's files and how
+ns-3 was started); the two older tables "Settings" and "Measurements" are
+not drawn there. Other simulations (the two-host sessions, an experiment
+with a control) keep the head and the two tables. Check: `ev_evidence.py` (each printed measure against the run's
+`metrics.json`, the network against the run's `network.txt`, every value of
+the full setting against that file, the badges against the ledger, the pane
+a real click on a box opens, the replay, the layout). In section 3 a strip shows the steps of a turn (the AI writes its reply, the
 simulator runs its simulations, the harness checks each decision rule, the
 next turn), the one being worked on with its moving icon and the time; before
 the first hypothesis the section shows that strip alone. Section 6 says "not
@@ -3663,14 +3726,14 @@ untracked until they say otherwise.
     (c) *The scheduler's queue for everything else* (acknowledgements of flows going the other way) is served
     first, outside cap and largest rate, and its drops are in no measure. It is empty in every brief so far.
     (d) *The page, said wrongly or left out* (found by reading the page's code against the program and by
-    rendering real sessions): a test's sentence says "every setting at its default" and "given the same settings"
-    of simulations that differ in their network (`EV.simSays` reads settings only; s061 H1, s058 H2); the final
+    rendering real sessions; a test's sentence that took no notice of a changed network, and the raw names of an
+    added object's measures, were repaired the same day, 12.1): the final
     report's line "No number in the report names or equals a measurement" in network sessions (the name list is
     the two-host one); a running tile's clock (it says "measured second 6.0 of 5", draws the second that is not
     measured, and its top line is 1 Gbps whatever the link); the time charts' axis "since the traffic began"
     from the simulation's clock, with the measured seconds unmarked; "the recommended settings were run as S0"
     where the recommendation changes the network (s058); measurements an experiment defined shown without a unit
-    or a mark among the recorded measures; raw names for the measures of an added object (`lac_util`); "Made of"
+    or a mark among the recorded measures; "Made of"
     counts the described queue discs only (ns-3 has one in front of every device); a queue disc other than fifo
     and the scheduler is drawn with the words of a plain queue; the scheduler is labelled "ns-3 FlowQueueDisc"
     (it is this project's); no policy line under the picture of a simulation that added a scheduler; nothing
@@ -3726,6 +3789,8 @@ untracked until they say otherwise.
 | 2026-11-23, 05:42 | Deployed: what the third session (s057) found, each replayed by a check first: the task sentence of a brief whose network may change says so (it said "every other setting is fixed"); each reply request says the ids its new guesses and hypotheses will get; a guess may compete with a later guess of the same answer; a refuted guess is marked as no competitor; the page's cards of a running experiment know a run with a network change, and the measured time a network brief fixes. |
 | 2026-11-23, 07:37 | Deployed: what the fourth session (s058) found, each replayed by a check first: two refusals that did not say what was wrong (a measurement an earlier experiment defined; a guess cited as a record) now say it. Every page check (36) passes on the final page. No session runs after it. |
 | 2026-11-24, 12:12 | The audit of the simulation and of its picture on the page (the operator: "how sound and accurate is it"). Recorded simulations run again are byte for byte the same; the seed moves a result by about 0.2 %; the measures add up on the wire. Deployed, each with its check: a simulation on a changed network that already ran is found again (8.5; s061 had run three simulations four times); `measure` takes the samples of the measured seconds only (8.3; `rate` keeps its starting count); on the page, a network session's start line is `net`'s with the run's `network.txt`, a side without a described queue is said to have ns-3's plain queue of 100 packets, a plain queue's drops are named as the program names them, a link the AI added is no longer "fixed by the operator", and a part's card shows what was measured there in the simulation, also for an added object. Left open: section 15, item 13. |
+| 2026-11-24, 13:14 | From a hypothesis to its result (`evidence_chain.js`, 12.1): a hypothesis's pane shows each test as what was set, what came out, what the rule required and how it was ruled; a simulation's pane begins with its setting, the hypotheses that used it and its records; a simulation is told apart by its network too. Check `ev_evidence.py`. |
+| 2026-11-24, 14:53 | A simulation's pane in four parts (setting, outcome, over time, records), the full setting open with names, values and objects told apart, an object's description in a box on its band (12.1). The texts the two agents are sent, read as sent in s056 to s061 (`plans/2026-11-24-prompt-audit.md`): nothing changed in them; two faults of the program found on the way repaired: a locked object could be replaced under its id (7), and the supervisor's request on an objection held unfilled placeholders. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two
