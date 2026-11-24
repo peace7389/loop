@@ -2490,12 +2490,14 @@ with a control) keep the head and the two tables.
 simulations on each turn between hypothesis flow and findings bars ... when
 users hover over one of simulations, we emphasize relevant hypothesis and
 findings (if applicable) and vice versa"). Under the boxes of the hypotheses
-and above the findings' bars every simulation recorded so far is a small bar
-in the column of its turn (the baseline under "start"): its height is the
-measure the aim is about, against the largest of the session so far (bars of
-one height where the aim names none); a dashed bar is a result returned from
-an earlier simulation; a stroke above a bar says it does not meet the aim's
-conditions. Pointing at a bar opens its box (its setting, the aim's measure
+and above the findings' bars every simulation recorded so far is a small box
+with its id (S4) in the column of its turn (the baseline under "start"). Its
+colour is that of the flow the aim's measure belongs to, deeper the larger
+that measure is against the largest of the session so far (one neutral colour
+where the aim names none); a dashed edge is a result returned from an earlier
+simulation; a stroke above a box says it does not meet the aim's conditions.
+(First drawn as bars under a line of words; the operator: "remove it and put
+index like 'S4' and put some color".) Pointing at a bar opens its box (its setting, the aim's measure
 and conditions, the hypotheses that read it, the findings on it) and lights
 the boxes of the hypotheses whose decision rule names it and the bars of the
 findings that rest on it (a finding's records and what its decisions name: a
