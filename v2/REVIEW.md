@@ -4,7 +4,7 @@ Branch `v2`, from main (05cb959). Nothing here is deployed. Base: `plans/2026-11
 with the seven corrections and three proposals the operator accepted. Each stage is one patch script in this folder (`s*.py`, run once from the
 tree's root); every text a stage changed stands, before and after, in `texts_<stage>.md`.
 
-## Where it stands (2026-11-25, 16:20): every stage is built; ready to deploy when the operator says
+## Where it stands: deployed on 2026-11-25 at 16:30 at the operator's word, tagged `v2` (it was ready at 16:20)
 
 **The state of the checks**, all on one copy of this branch's files (harness, page, briefs as committed):
 
