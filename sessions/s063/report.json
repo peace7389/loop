@@ -1,0 +1,86 @@
+{
+ "goal": "maximize tcp_goodput_bps",
+ "recommendation": {
+  "l1.queue.length": 100,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [
+  {
+   "do": "remove",
+   "id": "l1",
+   "kind": "queue",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  },
+  {
+   "do": "add_queue",
+   "id": "l1",
+   "kind": "scheduler",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "limit": "The best measured value is about 482,007,923 bps under a sender-side scheduler with TcpCubic at l1.queue.length=100; this is near the scheduler's equal-share ceiling for TCP on the 1 Gbps link, and the search was limited to the tested queue disciplines, queue lengths, and TCP types (E1, E3, E4, E5, C2, V2).",
+ "explanation": "A shared FIFO or pfifofast queue lets the 2 Gbps UDP flow saturate l1 and starve TCP, giving tcp_goodput_bps=0 (E0, E2, T1, T18). A per-flow scheduler or fqcodel queue isolates TCP service, allowing loss-based TCP to fill about half the link, about 482 Mbps (E1, E2, C2, V2). Scheduler q100 with TcpCubic is preferred over fqcodel because it reaches the same tcp_goodput_bps with far fewer TCP retransmissions (E1, E2). Smaller queues cause TCP drops and lower goodput, larger queues add delay and slightly lower goodput, and delay-based BBR/Vegas underfill the scheduler share (E3, E4, E5, T8, T16, T17, T26-T30).",
+ "claims": [
+  {
+   "text": "Shared FIFO/pfifo service starves TCP under the 2 Gbps UDP flow.",
+   "evidence": [
+    "E0",
+    "E2",
+    "T1",
+    "T18",
+    "C3",
+    "V3"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Per-flow scheduler or fqcodel service isolates TCP and lets loss-based TCP reach about 482 Mbps.",
+   "evidence": [
+    "E1",
+    "E2",
+    "C2",
+    "V2"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Scheduler q100 with TcpCubic is the best tested setting; Bic, NewReno, and LinuxReno are within tolerance but not better, while BBR and Vegas underfill.",
+   "evidence": [
+    "E1",
+    "E3",
+    "E4",
+    "E5",
+    "T8",
+    "T26",
+    "T27",
+    "T29"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Queue length matters only through drops or added delay: q4 lowers goodput by causing TCP drops, q1000 removes drops but lowers goodput slightly.",
+   "evidence": [
+    "E3",
+    "E4",
+    "T16",
+    "T17"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}
