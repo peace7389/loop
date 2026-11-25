@@ -25,7 +25,7 @@ first, with fairness audits, before the rest.
 | 4 | A brief with several moves, with reference runs: `briefs/three-hosts-moves.json`, `v2/ref/` | a candidate, with its reference runs (below); no session on it before the operator has seen them |
 | 5 | The confirmation tool: `harness/confirm.py SESSION` | built; its check (`harness_checks/test_confirm.py`, copies of s059, s062, s006, s024, s007) passes |
 | 6 | The page: the fourth box, "cannot tell", the confirmation result: `s6_page.py` (17 changes, `texts_stage6.md`) | built; its check `evidence_checks/ev_v2.py` passes on a scratch copy (2026-11-25); the full page suite on the whole tree: see stage 8 |
-| 7 | The text-audit script and the fairness checklist; figures in session_figures | not started |
+| 7 | The text-audit script and the fairness checklist; figures in session_figures: `harness/text_audit.py`, `harness/fairness.py`, `checks/fairness/CHECKLIST.md`, `session_figures.fairness_figures`; `s7_figures.py`, `s7b_found.py`, `s7c_found.py` | built; its check (`harness_checks/test_fairness.py`) passes; the report of the texts: `plans/2026-11-25-v2-text-audit.md` |
 | 8 | Checks of bad input; all harness checks; s047 to s061 rendered unchanged | not started |
 
 ## Found while building (for the operator)
@@ -88,6 +88,20 @@ first, with fairness audits, before the rest.
   `loop.guess_refutations` gives, by the same ruling; the eleven supervised sessions s047 to s061 read word for word the same on v2's page as
   on main's, on the full and on the lean page, hover texts included.
 - main was merged into v2 on 2026-11-25 (the board's simulations, the set-up page starting with a researcher and a supervisor, s062).
+- Stage 7: `session_figures.fairness_figures` gives, for a session with a supervisor: the guesses refused by the rule of the chain, the boxes
+  answered "cannot tell", in which round each test was approved, and whether the answer stands in turn 1 (each move of the report: simulated in
+  turn 1, named in the words of turn 1, the turn that first simulated it). On the sessions so far: s047 first simulated its answer in turn 9;
+  s058, s061 and s062 simulated and named theirs in turn 1.
+- Stage 7: `harness/fairness.py SESSION` writes the figures (`checks/fairness/<session>.figures.json`) and, once, the audit's form with the 14 items
+  of `checks/fairness/CHECKLIST.md`; the judgements are the auditor's and a form that exists is never touched.
+- Stage 7: `harness/text_audit.py` writes out the texts as built for a brief in each arm, or as a session was sent them (its calls.jsonl: what
+  was given, never what the model wrote), and marks examples that name a value, lists of choices out of alphabetical order, a kind of queue
+  described at greater length or apart, and placeholders left unfilled. To build the texts without a session, the lines of `main` that make the
+  instructions and the format are now the function `loop.built_texts` (the same lines in the same order; `texts_stage7.md`).
+- Stage 7b and 7c, found by the text audit in v2's own texts and fixed: an example rate in the line on a new link ("for example 1Gbps"); the
+  scheduler named before the list of the kinds of queue and apart from it; "checks, verdicts" in the answer format of the arms that have neither;
+  the TCP types of the three briefs of v2 with the default first (now alphabetical). After the fixes nothing in v2's own texts is marked; the
+  list of TCP types of `after_fix` is (the brief is left as its sessions read it: the operator's to decide).
 
 ## Stage 4: the candidate brief `three-hosts-moves` and its reference runs (2026-11-25)
 

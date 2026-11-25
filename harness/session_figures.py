@@ -4,7 +4,7 @@ The page counts the same figures for the one session it has open, from that sess
 (viewer/evidence_verdicts.js); the page checks compare both with a third count made from the ledgers.
 A void check (void_checks: its decision rule compared a simulation with itself) counts neither as held nor as failed
 in any of these figures; harness/audit.py writes the same finding out in full for one session."""
-import re
+import json, re
 
 LABEL = re.compile(r"[A-Za-z_][A-Za-z0-9_]*@([A-Za-z0-9_]+)")  # measure@label in a decision rule
 
@@ -227,3 +227,84 @@ def competitor_figures(recs):
             "approved_then_unfair": sum(1 for v in rulings if (v["body"].get("for"), v.get("turn")) in approved and not v["body"].get("fair")),
             "misses": misses, "found_by_result": found, "from_feedback": sum(1 for r in recs if r["type"] == "why" and (r.get("body") or {}).get("from_feedback")),
             "refuted_by_competition": len(refuted), "held": sum(1 for r in last.values() if r["body"].get("decision") == "held")}
+
+
+CHAIN_REFUSAL = "starts only from records your earlier guesses already had"   # the first words of the refusal by the rule of the chain (loop.why_problem)
+
+
+def _move(change):
+    """One change of the network in a form that is equal when it is the same move: what is done, to which kind of object, between or on which hosts
+    (a new link's or flow's own name and its rate are not part of the move: two sessions name them differently)."""
+    do = change.get("do")
+    if do in ("add_link", "add_flow"):
+        ends = tuple(sorted((str(change.get("from")), str(change.get("to"))))) if do == "add_link" else (str(change.get("from")), str(change.get("to")))
+        return (do, change.get("kind") or "", ends)
+    if do == "add_queue":
+        return (do, change.get("kind") or "", (str(change.get("id")), str(change.get("on"))))
+    if do == "remove":
+        return (do, change.get("kind") or "", (str(change.get("id")), str(change.get("on") or "")))
+    return (do, change.get("kind") or "", (str(change.get("id")),))
+
+
+def _said(move):
+    do, kind, where = move
+    return {"add_link": f"a new link between {where[0]} and {where[1]}", "add_flow": f"a new {kind} flow from {where[0]} to {where[1]}", "add_queue": f"a queue of kind {kind} on {where[1]}'s side of {where[0]}",
+            "remove": f"the {kind} {where[0]}" + (f" on {where[1]}'s side" if len(where) > 1 and where[1] else "") + " removed", "add_host": f"a new host {where[0]}"}.get(do, f"{do} {kind} {' '.join(where)}")
+
+
+def fairness_figures(recs, given=None):
+    """v2 (the operator, 2026-11-24): the figures a fairness audit of one session begins from (checks/fairness/). None for a session without guesses
+    (not in the arm "supervised"). given: what the session was given (session.json's "given"), for the defaults of the settings; without it the
+    settings of the answer are not counted as moves.
+      "chain_refusals": guesses the harness refused by the rule of the chain (a later guess must come from something learned since its earlier
+          guesses), whether restated after it or left out;
+      "cannot_tell": boxes answered "cannot tell" at the reviews of every round and at the rulings (None: a session before v2);
+      "approved_by_round": {round: tests approved in that round}, and "not_approved": tests whose last round did not approve them;
+      "turn_1": is the answer stated in turn 1? Turn 1 depends on the texts alone (the operator's note), so this tests the texts. None without a
+          final report. "answer": the moves of the report (each setting that differs from the brief's default, each change of the network);
+          "simulated_in_turn_1": those a simulation designed in turn 1 already has; "named_in_turn_1": those whose objects or value are named in the
+          words of turn 1's guesses and hypotheses (a change of the network: its kind of queue, or both hosts of its link or flow; a setting: its
+          value, where the value is a word; a numeric setting is not judged by words and is not listed there); "first_seen": for each move the turn
+          whose designs first have it."""
+    whys = [r for r in recs if r["type"] == "why"]
+    if not whys:
+        return None
+    chain = sum(1 for r in recs if r["type"] in ("why", "note", "malformed") and CHAIN_REFUSAL in json.dumps(r.get("body") or {}))
+    rv = [r for r in recs if r["type"] == "review" and (r.get("body") or {}).get("gate") == "design" and (r.get("body") or {}).get("round")]
+    tests = {}
+    for r in rv:
+        tests.setdefault((r["body"].get("for"), r.get("turn")), []).append((r["body"]["round"], r["body"].get("decision")))
+    by_round = {}
+    for v in tests.values():
+        ok = [n for n, d in v if d == "approved"]
+        if ok:
+            by_round[min(ok)] = by_round.get(min(ok), 0) + 1
+    comp = competitor_figures(recs) or {}
+    rep = next((r["body"] for r in reversed(recs) if r["type"] == "report"), None)
+    turn1 = None
+    if rep is not None:
+        knobs = (given or {}).get("knobs") or {}
+        sets = [(k, v) for k, v in (rep.get("recommendation") or {}).items() if k in knobs and v != knobs[k].get("default")] if isinstance(rep.get("recommendation"), dict) else []
+        moves = [_move(c) for c in rep.get("structure") or [] if isinstance(c, dict)]
+        designs = {}   # turn -> the designs of its experiments (the model's)
+        for r in recs:
+            if r["type"] == "experiment" and r.get("by") != "harness":
+                designs.setdefault(r.get("turn"), []).extend(d for d in (r.get("body") or {}).get("runs") or [] if isinstance(d, dict))
+        has_set = lambda d, k, v: (d.get("params") or {}).get(k) == v
+        has_move = lambda d, m: m in [_move(c) for c in d.get("structure") or [] if isinstance(c, dict)]
+        first = lambda test: next((t for t in sorted(k for k in designs if isinstance(k, int)) if any(test(d) for d in designs[t])), None)
+        words = " ".join(str(v) for r in recs if r.get("turn") == 1 and r["type"] in ("why", "hypothesis") for v in (r.get("body") or {}).values() if isinstance(v, str)).lower()
+        word = lambda w: re.search(r"(?<![a-z0-9_])" + re.escape(str(w).lower()) + r"(?![a-z0-9_])", words) is not None
+        named = []
+        for m in moves:
+            do, kind, where = m
+            if (do == "add_queue" and word(kind)) or (do in ("add_link", "add_flow") and word(where[0]) and word(where[1]) and word(do[4:])) or (do == "remove" and word(kind) and word(where[0]) and (word("remove") or word("removed") or word("removing") or word("without"))):
+                named.append(_said(m))
+        for k, v in sets:
+            if isinstance(v, str) and (word(v) or word(v[3:] if v.startswith("Tcp") else v)):
+                named.append(f"{k} = {v}")
+        answer = [_said(m) for m in moves] + [f"{k} = {v}" for k, v in sets]
+        seen = {**{_said(m): first(lambda d, m=m: has_move(d, m)) for m in moves}, **{f"{k} = {v}": first(lambda d, k=k, v=v: has_set(d, k, v)) for k, v in sets}}
+        turn1 = {"answer": answer, "simulated_in_turn_1": [a for a in answer if seen[a] == 1], "named_in_turn_1": named, "first_seen": seen}
+    return {"chain_refusals": chain, "cannot_tell": comp.get("cannot_tell"), "approved_by_round": {str(k): by_round[k] for k in sorted(by_round)},
+            "not_approved": sum(1 for v in tests.values() if not any(d == "approved" for _, d in v)), "turn_1": turn1}

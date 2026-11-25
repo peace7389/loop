@@ -225,9 +225,9 @@ STRUCTURE = """
 
 In this session you may also change the structure of the network. A simulation of an experiment carries structure: a list of changes made, in order, to the network of the brief (always to the brief's network, never to that of an earlier simulation); an empty list runs the network as it is. A change states every field (do, id, kind, from, to, on, rate, type, app), with "" where one does not apply:
    - do add_host: id, a new name (at most 12 lower-case letters and digits, beginning with a letter). A new host has no link and no flow until a change adds them; a host with more than one link forwards packets.
-   - do add_link: id, from and to (the two hosts it joins) and rate (state it, for example 1Gbps). One link for each two hosts. A new link has a one-way delay of 50us, packets of at most 1500 bytes, a device queue of 10 packets and, on each of its two sides, a plain queue of 100 packets, first in, first out.
+   - do add_link: id, from and to (the two hosts it joins) and rate (state it, written as the brief writes rates). One link for each two hosts. A new link has a one-way delay of 50us, packets of at most 1500 bytes, a device queue of 10 packets and, on each of its two sides, a plain queue of 100 packets, first in, first out.
    - do add_flow: id, kind (udp or tcp: the socket), from, to, and rate for udp (left empty: 100Mbps) or type for tcp (left empty: TcpCubic). app is the application that sends: "" for the usual one (udp: packets of 1400 bytes at a constant rate; tcp: always has data, as fast as TCP accepts), or onoff with kind tcp for a TCP flow that sends at the constant rate you state in rate.
-   - do add_queue: id (the link), on (the host whose sending side of the link it is) and kind (state it). A new queue holds 100 packets, and a link may have a queue on each of its two sides. The kinds, each ns-3's queue disc of that name except the scheduler: codel: one queue, it drops packets that have waited longer than a target time; fifo: one queue, first in, first out, it drops a packet that arrives when it is full; fqcodel: a queue for each flow, served in turn, each dropping as codel does; pfifofast: three queues by a packet's priority, the higher served first; pie: one queue, it drops arriving packets at random, more often the longer packets wait; red: one queue, it drops arriving packets at random, more often the fuller it is; scheduler: a queue for each flow that passes it, each with an equal part of the link.
+   - do add_queue: id (the link), on (the host whose sending side of the link it is) and kind (state it). A new queue holds 100 packets, and a link may have a queue on each of its two sides. The kinds: codel: one queue, it drops packets that have waited longer than a target time; fifo: one queue, first in, first out, it drops a packet that arrives when it is full; fqcodel: a queue for each flow, served in turn, each dropping as codel does; pfifofast: three queues by a packet's priority, the higher served first; pie: one queue, it drops arriving packets at random, more often the longer packets wait; red: one queue, it drops arriving packets at random, more often the fuller it is; scheduler: a queue for each flow that passes it, each with an equal part of the link.
    - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's; where the link has a queue on each side, on says which). A host goes with its links and with the flows that start or end at it. Where a queue is removed, a plain queue of 100 packets, first in, first out, stands in its place.
 Packets take the way with the fewest links from their sender to their receiver; the ways are worked out once, before traffic starts, and a flow needs exactly one such way.
 The brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network."""
@@ -240,7 +240,7 @@ def structure_text(brief):
     if not nl:
         return STRUCTURE
     # v2: the line on a new link is the same in every brief; a brief that caps new links has its numbers in it (it had a longer line of its own, and an empty rate gave the cap)
-    old, old2 = "rate (state it, for example 1Gbps)", "A new link has a one-way delay of 50us,"
+    old, old2 = "rate (state it, written as the brief writes rates)", "A new link has a one-way delay of 50us,"
     assert STRUCTURE.count(old) == 1 and STRUCTURE.count(old2) == 1
     return STRUCTURE.replace(old, f"rate (state it; at most {nl['rate_max']} in this brief)").replace(old2, f"A new link has a one-way delay of {nl['delay']} in this brief,")
 
@@ -2917,6 +2917,43 @@ def call(q):
     s = out if isinstance(out, str) else json.dumps(out)
     return s[:CAP] + (" ...[truncated]" if len(s) > CAP else "")
 
+FINDING_ABOUT = {"plain": "the ids of the records it rests on: evidence tables, simulations or readings (for example E2, T7)",
+                 "supervised": "the ids of the records it rests on: evidence tables, simulations, checks, rulings or readings (for example E2, C3, T7)"}
+
+
+def built_texts(schema, system, brief, arm, competitors, short):
+    """The instructions and the answer format of a session as the loop sends them: main calls it, and harness/text_audit.py to write the texts out
+    without a session. schema: answer_format(schema.json, the brief); system: prompt.txt. COMP["on"] is set by the caller (competitors)."""
+    if arm == "plain":
+        schema, system = plain_format(schema), plain_prompt(system)
+    if arm == "supervised":
+        schema, system = supervised_format(schema, competitors), supervised_prompt(system, competitors)
+    if short:
+        schema, system = short_format(schema), short_prompt(system)
+    if may_change(brief):  # only a session that may change the structure is told how
+        plain_s = structure_text(brief)
+        for a_, b_ in STRUCTURE_PLAIN if arm == "plain" else ():
+            assert plain_s.count(a_) == 1, a_
+            plain_s = plain_s.replace(a_, b_)
+        system += plain_s
+    schema, system = with_findings(schema), system + FINDINGS_TEXT[arm]   # findings, in every arm (2026-11-22)
+    if arm in FINDING_ABOUT:   # v2: the format's line on a finding's records names what this arm has, as the arm's own text on findings does
+        item = json.loads(json.dumps(schema["properties"]["findings"]["items"]))
+        item["properties"]["about"]["description"] = FINDING_ABOUT[arm]
+        schema["properties"]["findings"] = {**schema["properties"]["findings"], "items": item}
+    stated_rules(system, arm)
+    stated_new_link(system, brief)
+    if arm == "plain" and [w for w in PLAIN_WORDS if w in system.lower()]:   # the plain arm is told nothing of hypotheses (the coherence audit, 2026-11-22: STRUCTURE was added after plain_prompt's check)
+        raise ValueError(f"the instructions of the arm 'plain' name: {', '.join(w for w in PLAIN_WORDS if w in system.lower())}")
+    try:   # a label's length, in the answer format too
+        schema["properties"]["experiment"]["anyOf"][0]["properties"]["runs"]["items"]["properties"]["label"]["maxLength"] = LABEL_MOST
+    except (KeyError, IndexError, TypeError):
+        pass
+    if isinstance(schema["properties"].get("requests"), dict):   # the most requests a reply may hold, in the answer format too (the coherence audit, 2026-11-22)
+        schema["properties"]["requests"]["maxItems"] = LOOKS if arm == "supervised" else REQUESTS_MOST
+    return schema, system
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--session", help="session id: its folder is sessions/<id>/ (ledger.jsonl and runs/). Default: a new id sNNN. An existing id continues that session")
@@ -2949,34 +2986,12 @@ def main():
     if was and a.arm and a.arm != was:
         ap.error(f"session {SID} works in the arm {was}, not {a.arm}")
     arm = was or a.arm or "hypotheses"
-    if arm == "plain":
-        schema, system = plain_format(schema), plain_prompt(system)
     competitors = arm == "supervised" and (json.loads((tools.SESSION / "session.json").read_text()).get("flags", {}).get("competitors", False) if was else COMPETITORS)   # a session keeps what it started with
     COMP["on"] = competitors
-    if arm == "supervised":
-        schema, system = supervised_format(schema, competitors), supervised_prompt(system, competitors)
     # the short format of the arm "hypotheses" (2026-11-22): a new session, or one that started in it; a session started before keeps the full format
     short = SHORT_FORMAT and arm == "hypotheses" and (was is None or json.loads((tools.SESSION / "session.json").read_text()).get("flags", {}).get("format") == "short")
-    if short:
-        schema, system = short_format(schema), short_prompt(system)
     asks_budget = arm == "plain" or (arm == "hypotheses" and not short)   # the formats that still have budget_request (the turn's text names it)
-    if may_change(brief):  # only a session that may change the structure is told how
-        plain_s = structure_text(brief)
-        for a_, b_ in STRUCTURE_PLAIN if arm == "plain" else ():
-            assert plain_s.count(a_) == 1, a_
-            plain_s = plain_s.replace(a_, b_)
-        system += plain_s
-    schema, system = with_findings(schema), system + FINDINGS_TEXT[arm]   # findings, in every arm (2026-11-22)
-    stated_rules(system, arm)
-    stated_new_link(system, brief)
-    if arm == "plain" and [w for w in PLAIN_WORDS if w in system.lower()]:   # the plain arm is told nothing of hypotheses (the coherence audit, 2026-11-22: STRUCTURE was added after plain_prompt's check)
-        raise ValueError(f"the instructions of the arm 'plain' name: {', '.join(w for w in PLAIN_WORDS if w in system.lower())}")
-    try:   # a label's length, in the answer format too
-        schema["properties"]["experiment"]["anyOf"][0]["properties"]["runs"]["items"]["properties"]["label"]["maxLength"] = LABEL_MOST
-    except (KeyError, IndexError, TypeError):
-        pass
-    if isinstance(schema["properties"].get("requests"), dict):   # the most requests a reply may hold, in the answer format too (the coherence audit, 2026-11-22)
-        schema["properties"]["requests"]["maxItems"] = LOOKS if arm == "supervised" else REQUESTS_MOST
+    schema, system = built_texts(schema, system, brief, arm, competitors, short)   # the instructions and the format, as every text audit reads them too
     why_schema = schema["properties"]["whys"]["items"] if "whys" in schema["properties"] else None   # a restated guess (the arm "supervised", 2026-11-22)
     RV = "competes_with" if competitors else "rival"   # stage 5: the repair names an existing guess
     repair_schema = {"type": "object", "additionalProperties": False, "required": ["decision_rule", RV, "rival_predicts", "runs"], "properties": {   # a repaired test (the arm "supervised", 2026-11-22)

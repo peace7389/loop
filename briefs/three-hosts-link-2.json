@@ -87,9 +87,9 @@
   },
   "fa.type": {
    "choices": [
+    "TcpBbr",
     "TcpCubic",
     "TcpNewReno",
-    "TcpBbr",
     "TcpVegas"
    ],
    "default": "TcpCubic",
