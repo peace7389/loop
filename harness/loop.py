@@ -1314,6 +1314,32 @@ def competitor_text(ledger, rules, ex=None):
     return out
 
 
+UNREAD_REVIEW = "the supervisor's review of this test could not be read"   # v2: the reason of every box of a review that could not be read twice
+
+
+def review_or_cannot(note, model, brief, ledger, ex, hid, **k):
+    """review_design, and what happens when its answer cannot be read (v2, the operator's decision of 2026-11-25): it is asked for once more, alone;
+    unreadable again, the review counts as "cannot tell" in every box, so the test is sent back as any box that could not be told sends it back
+    (a test that ran unreviewed had no answer to Follows, and its guess could be refuted through it). note(text) writes the ledger's note. A session
+    without competitors has no boxes: the error is raised again, and its test is run unreviewed as before."""
+    try:
+        return review_design(model, brief, ledger, ex, hid, **k)
+    except (ValueError, KeyError, TypeError) as e:
+        if not COMP["on"]:
+            raise
+        note(f"the supervisor's review of the test of {hid} could not be read ({type(e).__name__}): it is asked for once more")
+    again = {**k, "pre": None, "pre_saw": None}
+    try:
+        return review_design(model, brief, ledger, ex, hid, **again)
+    except (ValueError, KeyError, TypeError) as e:
+        note(f"the supervisor's review of the test of {hid} could not be read a second time ({type(e).__name__}): it counts as \"cannot tell\" in every box, and the test is sent back")
+    d = {"reads": "", **{q + "_why": UNREAD_REVIEW for q in REVIEW_QS}, **{q: CANNOT for q in REVIEW_QS}, "if_tested": "cannot tell", "if_competitor": "cannot tell", "missing": "",
+         "feedback": UNREAD_REVIEW + ", twice, so no box could be told. Send the test again, as it is or changed."}
+    rev, saw = review_design(model, brief, ledger, ex, hid, **{**again, "pre": d, "pre_saw": ""})
+    rev["unread"] = True
+    return rev, saw
+
+
 def _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw):
     """The three questions' review of one test (stage 5): (review, what it was shown). The boxes are read as given; Correct is checked against the two
     predictions (pass only with HELD and FAILED); on a contradiction one follow-up question, and still contradictory it is a refusal."""
@@ -3218,7 +3244,7 @@ def main():
             try:
                 if pre is None:
                     stage("design", hid, 1)
-                rev, saw = review_design(model, brief, ledger, ex, hid, pre=pre[0] if pre else None, pre_saw=pre[1] if pre else None)
+                rev, saw = review_or_cannot(lambda text, hid=hid: append(ledger, turn, "note", hid, {"text": text}), model, brief, ledger, ex, hid, pre=pre[0] if pre else None, pre_saw=pre[1] if pre else None)
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", hid, {"text": f"the supervisor's review of the test of {hid} could not be read ({type(e).__name__}): the test is run unreviewed"})
                 continue
@@ -3345,7 +3371,7 @@ def main():
                 continue
             try:
                 stage("design", hid, n)
-                rev, saw = review_design(model, brief, ledger, t2, hid, round_no=n, earlier=earlier)
+                rev, saw = review_or_cannot(lambda text, rid=rid: append(ledger, turn, "note", rid, {"text": text}), model, brief, ledger, t2, hid, round_no=n, earlier=earlier)
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", rid, {"text": f"the supervisor's review of the repaired test of {hid} could not be read ({type(e).__name__}): the test is run unreviewed"})
                 return t2

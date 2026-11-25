@@ -259,6 +259,7 @@ def fairness_figures(recs, given=None):
       "chain_refusals": guesses the harness refused by the rule of the chain (a later guess must come from something learned since its earlier
           guesses), whether restated after it or left out;
       "cannot_tell": boxes answered "cannot tell" at the reviews of every round and at the rulings (None: a session before v2);
+      "unread_reviews": reviews that could not be read twice and so count as "cannot tell" in every box (they are among the boxes above);
       "approved_by_round": {round: tests approved in that round}, and "not_approved": tests whose last round did not approve them;
       "turn_1": is the answer stated in turn 1? Turn 1 depends on the texts alone (the operator's note), so this tests the texts. None without a
           final report. "answer": the moves of the report (each setting that differs from the brief's default, each change of the network);
@@ -306,5 +307,6 @@ def fairness_figures(recs, given=None):
         answer = [_said(m) for m in moves] + [f"{k} = {v}" for k, v in sets]
         seen = {**{_said(m): first(lambda d, m=m: has_move(d, m)) for m in moves}, **{f"{k} = {v}": first(lambda d, k=k, v=v: has_set(d, k, v)) for k, v in sets}}
         turn1 = {"answer": answer, "simulated_in_turn_1": [a for a in answer if seen[a] == 1], "named_in_turn_1": named, "first_seen": seen}
-    return {"chain_refusals": chain, "cannot_tell": comp.get("cannot_tell"), "approved_by_round": {str(k): by_round[k] for k in sorted(by_round)},
+    return {"chain_refusals": chain, "cannot_tell": comp.get("cannot_tell"), "unread_reviews": sum(1 for r in rv if r["body"].get("unread")),
+            "approved_by_round": {str(k): by_round[k] for k in sorted(by_round)},
             "not_approved": sum(1 for v in tests.values() if not any(d == "approved" for _, d in v)), "turn_1": turn1}

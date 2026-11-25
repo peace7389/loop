@@ -15,9 +15,8 @@ A marked line is a candidate for a pointer to an answer; an unmarked line is lis
    - the answer format's line on the records of a finding said "checks, verdicts" in every arm: the arm "plain" is never told of either, the
      arm "supervised" has rulings. Each arm's line now names what the arm's own text on findings names;
    - the three briefs of v2 listed the TCP types with the default first. Now alphabetical (the default stays TcpCubic).
-2. **Still marked, left for the operator**: the brief `after_fix` lists its TCP types with the default first. It is unchanged in v2 because its
-   earlier sessions read it so; a copy with the list in alphabetical order (and, as noted in `v2/REVIEW.md`, its TCP flow locked) would be a new
-   brief.
+2. **The brief after_fix**: it lists its TCP types with the default first, and is left as its sessions read it. By the operator's decision of
+   2026-11-25 the run plan uses a new brief, `after_fix-2` (the list in alphabetical order, the TCP flow locked), in which nothing is marked.
 3. **For comparison, the texts s062 was in fact sent** (2026-11-25, on main, brief after_fix2): five marks, among them the two the operator
    called the scheduler hint: the kinds of queue listed "scheduler, fifo, pfifofast, codel, fqcodel, red, pie", and the sentence "A scheduler
    gives each flow that passes it a part of the link; fifo is one queue for all". Its answer (the scheduler in place of the queue) is simulated
@@ -30,7 +29,7 @@ paragraph on changes of the network they are about 13,330 (the limit of 10,000 i
 
 # The four briefs of the run plan, as built
 
-## Brief after_fix: the texts as built for a new session
+## Brief after_fix-2: the texts as built for a new session
 
 | Text | Characters |
 |---|---|
@@ -133,12 +132,12 @@ paragraph on changes of the network they are about 13,330 (the limit of 10,000 i
 - [plain: the answer format's descriptions] properties.report.anyOf.properties.limit: what limits the result at the recommendation, that is, why it is not better: the cause and the ledger ids that show it; if you did not find it, say so and what you would test next  <- better
 - [plain: the answer format's descriptions] properties.report.anyOf.properties.explanation: why this setting is best, building on limit and no_difference  <- best
 
-**Lists of choices and their order**: 4 found, 1 marked.
+**Lists of choices and their order**: 4 found, 0 marked.
 
 - [supervised: the instructions] the kinds of queue, in the order the sentence names them: codel, fifo, fqcodel, pfifofast, pie, red, scheduler
 - [hypotheses: the instructions] the kinds of queue, in the order the sentence names them: codel, fifo, fqcodel, pfifofast, pie, red, scheduler
 - [plain: the instructions] the kinds of queue, in the order the sentence names them: codel, fifo, fqcodel, pfifofast, pie, red, scheduler
-- **MARKED** [brief after_fix] the choices of tcp.type, as the brief lists them: TcpCubic, TcpNewReno, TcpLinuxReno, TcpBbr, TcpVegas, TcpBic (default TcpCubic)
+- [brief after_fix-2] the choices of tcp.type, as the brief lists them: TcpBbr, TcpBic, TcpCubic, TcpLinuxReno, TcpNewReno, TcpVegas (default TcpCubic)
 
 **How long each kind of queue is described**: 3 found, 0 marked.
 
@@ -497,7 +496,7 @@ paragraph on changes of the network they are about 13,330 (the limit of 10,000 i
 **Placeholders left unfilled**: 0 found, 0 marked.
 
 
-Marked in all: 1.
+Marked in all: 0.
 
 # Session s062, as sent (main's texts)
 

@@ -1766,7 +1766,10 @@ is one patch script `v2/s*.py`). What it changes, by the sections above:
   made before the box existed counts as before).
 - **"Cannot tell"** is a third answer of every box and of each fit: at a review the test is sent back as if the box had failed, with the reason
   (an empty reason is said to be empty: `NO_REASON`); at a ruling the result is inconclusive and nothing is refuted. The record keeps
-  `cannot_tell`; the figures count them.
+  `cannot_tell`; the figures count them. A review that cannot be read is asked for once more, and unreadable again it counts as "cannot tell" in
+  every box (`loop.review_or_cannot`, the record marked `unread`; the operator's decision of 2026-11-25): until then its test ran unreviewed, so
+  that it had no answer to Follows and its guess could be refuted through it. A session without competitors has no boxes and runs such a test
+  as before.
 - **The ruling** is shown the guess the rule competes with and only the simulations its rule names; every round of the review is shown; the
   second question that made the supervisor choose between the two guesses is gone (each is said to fit, not to fit, or "cannot tell" by
   itself); its earlier answers are not quoted to it: the harness compares the review's boxes with the ruling's and records `changed` (it replaces
@@ -1779,7 +1782,8 @@ is one patch script `v2/s*.py`). What it changes, by the sections above:
   proposal, and the other tests run afterwards.
 - **One function builds the instructions and the format** (`loop.built_texts`; 8.1): `main` calls it, and the text audit (10.11) calls it to
   write the texts out without a session.
-- **Briefs** (7): `three-hosts-2` (the description without the sentence that named the hidden behaviour), `three-hosts-link-2` (6 hosts, 6
+- **Briefs** (7): `after_fix-2` (after_fix with its TCP types in alphabetical order and its TCP flow locked: in after_fix the flow could be
+  taken out and put back as a TCP flow at a constant rate), `three-hosts-2` (the description without the sentence that named the hidden behaviour), `three-hosts-link-2` (6 hosts, 6
   links, 4 flows allowed), `three-hosts-moves` (the network of three-hosts-2, the network may change, a new link carries at most 90 Mbit/s:
   four kinds of move meet the condition and give 18 to 96 Mbit/s; its reference runs are in `v2/REVIEW.md` and `v2/ref/`).
 - **A session recorded before v2** reads as before: the page word for word (`ev_v2.py old`), the ledger's text but for two notes at the end of a
@@ -3850,14 +3854,12 @@ untracked until they say otherwise.
     says what prio does with the parts. In the builder: the segment size by the flow's own way (the program
     takes the smallest MTU of the whole network), fixed texts for TCP's options, "turn size 3000 bytes x part".
 
-14. **v2, left open** (2026-11-25): (a) the brief `three-hosts-moves` is a candidate: whether a new link's cap of 90 Mbit/s and its limits are
-    the ones to run, and whether its network should break the condition at the defaults (as three-hosts-2 does) or meet it, is the operator's;
-    (b) a review of the supervisor that cannot be read lets its test run unreviewed, with a note (a ruling that cannot be read is asked for
-    again), as before v2: whether such a test should rather be sent back, as "cannot tell" is, would be a new rule; (c) the brief `after_fix` lists its TCP
-    types with the default first and does not lock its TCP flow (it may be replaced by a TCP flow at a constant rate): a new brief would be
-    needed, since its sessions read it so; (d) the format requires a reason with every box, not that it be filled: an empty one is said to be
-    empty, not refused; (e) no session has run on v2 yet: the run plan is one session for each brief first, each with a fairness audit
-    (`checks/fairness/`), before the rest.
+14. **v2, left open** (2026-11-25; the operator decided three questions the same day: `three-hosts-moves` stays as built, the brief
+    `after_fix-2`, and the rule for a review that cannot be read, 8.10): (a) the format requires a reason with every box, not that it be
+    filled: an empty one is said to be empty, not refused; (b) `after_fix-2` keeps after_fix's limits (2 hosts, 1 link, 2 flows): only the queue
+    and the two settings can change, so it is the brief with one kind of move, by intent; (c) no session has run on v2 yet: the run plan is one
+    session for each brief first (`after_fix-2`, `three-hosts-2`, `three-hosts-link-2`, `three-hosts-moves`), each with a fairness audit
+    (`checks/fairness/`) and its answer measured again (`confirm.py`), before the rest.
 
 ## 16. History in short
 

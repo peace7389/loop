@@ -4,6 +4,34 @@ Branch `v2`, from main (05cb959). Nothing here is deployed. Base: `plans/2026-11
 with the seven corrections and three proposals the operator accepted. Each stage is one patch script in this folder (`s*.py`, run once from the
 tree's root); every text a stage changed stands, before and after, in `texts_<stage>.md`.
 
+## Where it stands (2026-11-25, 16:00): every stage is built; ready to deploy when the operator says
+
+**The state of the checks**, all on one copy of this branch's files (harness, page, briefs as committed):
+
+- every harness check (`~/research/tools/harness_checks`, scripted sessions, no model): 36 pass, 3 skip parts that are in neither harness
+  (measurements of relations, the short format, taps). They include the checks written for v2: `test_confirm`, `test_fairness`,
+  `test_bad_input`, and sections R, S, T and the new G of `test_stage5`. The checks changed for v2 read which harness they run on and pass on
+  main's as well.
+- the page's own check of v2 (`evidence_checks/ev_v2.py`): 139 points pass. On every supervised session the guesses the page shows as refuted
+  are those `loop.guess_refutations` gives; 20 sessions recorded before v2 (one AI and supervised, s006 to s062) read word for word the same
+  on v2's page as on main's, on the full and on the lean page, hover texts included.
+- the page checks of what v2 touches (the set-up page and the builder, a session's page, the lean page, the words, the board, the layout): see
+  the report given in the session of 2026-11-25. The whole page suite (about 90 minutes, mostly parts v2 does not touch) runs after the report,
+  as a follow-up that does not hold the deploy back (the operator, 2026-11-25: the long runs are not all necessary).
+
+**The size of the instructions** (characters; main -> v2): the supervised researcher with competing guesses 9,782 -> 9,978 of the limit of
+10,000; the paragraph on changes of the network 2,373 -> 3,347 (every change at the same depth, every kind of queue described); `prompt.txt`
+(one AI) 19,258 -> 19,336; the arm "plain" 10,524 -> 10,598; the supervisor's instructions 1,530 -> 1,606.
+
+**Every text changed**, before and after: `v2/texts_stage1.md` (17), `1b` (3), `2` (32), `2b` (3), `2c` (1), `2d` (4), `2e` (3), `3` (53),
+`6` (17, the page), `7` (2, no text changed), `7b` (5), `7c` (4), `8` (1), `8b` (6), `9` (7).
+
+**To deploy** (only at the operator's word; no session running): merge this branch into main; copy this branch's `HARNESS_SPEC.md` to
+`~/ADRS/openevolve/HARNESS_SPEC.md` before `snapshot.sh` (it copies from there); restart the control server (tmux `control`); look at
+`/api/status` and the page; tag `v2`, push main and the tag. After the tag the texts the agents are sent and the harness's rules are not changed
+(a repair of the page would change neither). Then the run plan: one session for each of `after_fix-2`, `three-hosts-2`, `three-hosts-link-2`,
+`three-hosts-moves`, each with `harness/fairness.py` and `harness/confirm.py`, before the rest.
+
 ## Decisions of the operator (2026-11-24)
 
 New branch from main. One purpose: "Explain what decides <measure>, and say which settings (and network, where it may change) give the largest
@@ -22,7 +50,7 @@ first, with fairness audits, before the rest.
 | 1b | Briefs three-hosts-2, three-hosts-link-2; the chain rule's refusal says the open way (A8): `s1b_briefs.py` | built |
 | 2, 2b | The supervisor: the competing guess at the ruling, every round shown, only the rule's simulations, "cannot tell", the box "Follows", no forced choice, no earlier answers quoted (B1 to B14, item 4, A9, B6): `s2_supervisor.py`, `s2b_lines.py`, `s2c_record.py`, `s2d_marks.py`, `s2e_figures.py` | built; every harness check passes on it (2026-11-24) |
 | 3 | One purpose (A4), parking a finding inside the tolerance (A5), true statements from the code's constants (C1 to C13), what the other arms are told: `s3_true.py` (48 changes, `texts_stage3.md`) | built; every harness check passes on it and on main (2026-11-25: 33 pass, 3 skip parts that are in neither harness). The three viewer files it touches (the page's copy of the task sentence, the writer of a network's description) have had no page check yet: stage 6 |
-| 4 | A brief with several moves, with reference runs: `briefs/three-hosts-moves.json`, `v2/ref/` | a candidate, with its reference runs (below); no session on it before the operator has seen them |
+| 4 | A brief with several moves, with reference runs: `briefs/three-hosts-moves.json`, `v2/ref/` | built; the operator saw its reference runs (below) and kept it as built (2026-11-25) |
 | 5 | The confirmation tool: `harness/confirm.py SESSION` | built; its check (`harness_checks/test_confirm.py`, copies of s059, s062, s006, s024, s007) passes |
 | 6 | The page: the fourth box, "cannot tell", the confirmation result: `s6_page.py` (17 changes, `texts_stage6.md`) | built; its check `evidence_checks/ev_v2.py` passes on a scratch copy (2026-11-25); the full page suite on the whole tree: see stage 8 |
 | 7 | The text-audit script and the fairness checklist; figures in session_figures: `harness/text_audit.py`, `harness/fairness.py`, `checks/fairness/CHECKLIST.md`, `session_figures.fairness_figures`; `s7_figures.py`, `s7b_found.py`, `s7c_found.py` | built; its check (`harness_checks/test_fairness.py`) passes; the report of the texts: `plans/2026-11-25-v2-text-audit.md` |
@@ -113,6 +141,13 @@ first, with fairness audits, before the rest.
   (now read as an answer that cannot be read: a review's test is run unreviewed with a note, a ruling is asked for again, as before).
 - The build specification on this branch (`HARNESS_SPEC.md`) describes v2: 8.10, 10.10, 10.11, 12.1, 15 item 14, 16. At the deploy it is copied
   to `~/ADRS/openevolve/HARNESS_SPEC.md` before `snapshot.sh` runs (which copies from there).
+- Stage 9, the operator's decisions of 2026-11-25 ("Do as you recommend") on the three questions left (`s9_decisions.py`, `texts_stage9.md`):
+  (1) `three-hosts-moves` stays as built: it differs from three-hosts-2 in one thing, that the network may change; (2) the brief `after_fix-2`:
+  after_fix with its TCP types in alphabetical order and its TCP flow locked (in after_fix the flow can be taken out and put back as a TCP flow
+  at a constant rate: tried, accepted there, refused in after_fix-2); after_fix and the operator's after_fix2 stay as their sessions read them;
+  (3) a review that cannot be read is asked for once more and, unreadable again, counts as "cannot tell" in every box: the test is sent back
+  (it ran unreviewed: it then had no answer to Follows, and its guess could be refuted through it, against item 4). The figures count such
+  reviews (`unread_reviews`).
 
 ## Stage 4: the candidate brief `three-hosts-moves` and its reference runs (2026-11-25)
 
@@ -143,5 +178,5 @@ With three seeds at 25 s measured each figure is the same to the last digit show
 The scheduling policy (share or cap) makes no difference in a network brief (48.20 against 48.27 at the defaults, every other row the same).
 With a new link of at most 60 Mbit/s only one move is left (a-c: 57.84; b-c loses 26.57 % of fb), so 90 was taken.
 
-Open for the operator: whether 90 Mbit/s and these limits are the brief to run; whether the given network should break the condition at its
-defaults (as in three-hosts-2) or meet it (a plain queue as in three-hosts-link-2: 17.86 at the start, and no setting for fa's part).
+Decided by the operator on 2026-11-25: the brief stays as built (90 Mbit/s, these limits, the condition not met at the defaults as in
+three-hosts-2).
