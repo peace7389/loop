@@ -23,7 +23,7 @@ first, with fairness audits, before the rest.
 | 2, 2b | The supervisor: the competing guess at the ruling, every round shown, only the rule's simulations, "cannot tell", the box "Follows", no forced choice, no earlier answers quoted (B1 to B14, item 4, A9, B6): `s2_supervisor.py`, `s2b_lines.py`, `s2c_record.py`, `s2d_marks.py`, `s2e_figures.py` | built; every harness check passes on it (2026-11-24) |
 | 3 | One purpose (A4), parking a finding inside the tolerance (A5), true statements from the code's constants (C1 to C13), what the other arms are told: `s3_true.py` (48 changes, `texts_stage3.md`) | built; every harness check passes on it and on main (2026-11-25: 33 pass, 3 skip parts that are in neither harness). The three viewer files it touches (the page's copy of the task sentence, the writer of a network's description) have had no page check yet: stage 6 |
 | 4 | A brief with several moves, with reference runs: `briefs/three-hosts-moves.json`, `v2/ref/` | a candidate, with its reference runs (below); no session on it before the operator has seen them |
-| 5 | The confirmation tool | not started |
+| 5 | The confirmation tool: `harness/confirm.py SESSION` | built; its check (`harness_checks/test_confirm.py`, copies of s059, s062, s006, s024, s007) passes |
 | 6 | The page: the fourth box, "cannot tell", the confirmation result | not started |
 | 7 | The text-audit script and the fairness checklist; figures in session_figures | not started |
 | 8 | Checks of bad input; all harness checks; s047 to s061 rendered unchanged | not started |
@@ -72,6 +72,12 @@ first, with fairness audits, before the rest.
   checks that compare old sessions allow these two notes on v2 and nothing else.
 - The harness checks brought in line for stage 3 (each reads which harness it runs on; the same files pass on main): test_arms, test_continue,
   test_design_rounds, test_findings, test_guess_restate, test_network, test_now_steps, test_supervised, test_task_text, test_tolerance.
+- Stage 5: `harness/confirm.py SESSION` measures a finished session's answer again, apart from the session: its report's settings (and, where the
+  network may change, its report's changes) with three seeds (the session's and the next two) at five times the measured time, into
+  `checks/confirm/<session>.json` (each simulation's target and conditions with the numbers, whether the conditions hold in all three, the spread,
+  what the session itself measured at that answer, what the report expects). Operator only: under `checks/`, named by no tool, text or instruction.
+  Tried on copies of real sessions: the answer of s059 (three-hosts) met fb_loss_frac <= 0.1 over 5 s and does not over 25 s (10.5 % in each of the
+  three seeds), as the audit of 2026-11-24 had found by hand; s062 and s006 hold.
 
 ## Stage 4: the candidate brief `three-hosts-moves` and its reference runs (2026-11-25)
 
