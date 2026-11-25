@@ -24,7 +24,7 @@ first, with fairness audits, before the rest.
 | 3 | One purpose (A4), parking a finding inside the tolerance (A5), true statements from the code's constants (C1 to C13), what the other arms are told: `s3_true.py` (48 changes, `texts_stage3.md`) | built; every harness check passes on it and on main (2026-11-25: 33 pass, 3 skip parts that are in neither harness). The three viewer files it touches (the page's copy of the task sentence, the writer of a network's description) have had no page check yet: stage 6 |
 | 4 | A brief with several moves, with reference runs: `briefs/three-hosts-moves.json`, `v2/ref/` | a candidate, with its reference runs (below); no session on it before the operator has seen them |
 | 5 | The confirmation tool: `harness/confirm.py SESSION` | built; its check (`harness_checks/test_confirm.py`, copies of s059, s062, s006, s024, s007) passes |
-| 6 | The page: the fourth box, "cannot tell", the confirmation result | not started |
+| 6 | The page: the fourth box, "cannot tell", the confirmation result: `s6_page.py` (17 changes, `texts_stage6.md`) | built; its check `evidence_checks/ev_v2.py` passes on a scratch copy (2026-11-25); the full page suite on the whole tree: see stage 8 |
 | 7 | The text-audit script and the fairness checklist; figures in session_figures | not started |
 | 8 | Checks of bad input; all harness checks; s047 to s061 rendered unchanged | not started |
 
@@ -78,6 +78,16 @@ first, with fairness audits, before the rest.
   what the session itself measured at that answer, what the report expects). Operator only: under `checks/`, named by no tool, text or instruction.
   Tried on copies of real sessions: the answer of s059 (three-hosts) met fb_loss_frac <= 0.1 over 5 s and does not over 25 s (10.5 % in each of the
   three seeds), as the audit of 2026-11-24 had found by hand; s062 and s006 hold.
+- Stage 6, the page, only what the new boxes and the confirmation need: Follows stands first on the line of a review's questions where the record has
+  it; "cannot tell" is a third answer with a look of its own (not the colour of a fail) and a sentence on hover saying what it means at a review
+  and at a ruling; a guess the supervisor could not tell to fit a result is said so and is not shown as refuted; a guess is shown as refuted by
+  the harness's own rule (not through a hypothesis the review did not find to follow from it), and its sentence says how it was refuted; the
+  confirmation of the answer stands under "Recommended configuration", marked as the operator's, not printed, and absent in the replay before its
+  last step. `control.py` gives each session's row `confirm` (whether the file exists).
+- Stage 6, checked (`ev_v2.py`, reads only): on every supervised session, old and new, the guesses the page shows as refuted are exactly those
+  `loop.guess_refutations` gives, by the same ruling; the eleven supervised sessions s047 to s061 read word for word the same on v2's page as
+  on main's, on the full and on the lean page, hover texts included.
+- main was merged into v2 on 2026-11-25 (the board's simulations, the set-up page starting with a researcher and a supervisor, s062).
 
 ## Stage 4: the candidate brief `three-hosts-moves` and its reference runs (2026-11-25)
 

@@ -34,7 +34,7 @@ def make(sid, operator, row):
         files["objects.json"] = (viewer / "objects.json").read_text()
     for series in sorted((src / "runs").glob("*/series.csv")):
         files[f"sessions/{sid}/runs/{series.parent.name}/series.csv"] = series.read_text()
-    line = {k: row.get(k) for k in ROW} | {"running": False, "stoppable": False, "policy": None, "policy_hidden": False, "score": None, "review": {"n": 0, "ticked": [], "signed": None}}
+    line = {k: row.get(k) for k in ROW} | {"running": False, "stoppable": False, "policy": None, "policy_hidden": False, "score": None, "confirm": False, "review": {"n": 0, "ticked": [], "signed": None}}
     if operator:
         line.update(policy=row.get("policy"), policy_hidden=row.get("policy_hidden"), score=row.get("score"), review=row.get("review"))
         for rel in (f"checks/scores/{sid}.json", f"checks/reviews/{sid}.json", f"checks/keys/{row.get('brief')}.json"):

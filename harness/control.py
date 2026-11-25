@@ -272,7 +272,8 @@ def sessions(you=None, trusted=False):
     out = []
     for d in dirs:
         led, idx, score, review = d / "ledger.jsonl", d / "runs/index.json", CHECKS / "scores" / f"{d.name}.json", CHECKS / "reviews" / f"{d.name}.json"
-        sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in (led, idx, d / "session.json", score, review))
+        confirm = CHECKS / "confirm" / f"{d.name}.json"   # v2: the answer measured again by harness/confirm.py (operator only)
+        sig = tuple(p.stat().st_mtime if p.exists() else 0 for p in (led, idx, d / "session.json", score, review, confirm))
         if CACHE.get(d.name, (None,))[0] != sig:
             recs = lines(led)
             drafts = [r for r in recs if r["type"] in ("draft", "scratch")]
@@ -302,6 +303,7 @@ def sessions(you=None, trusted=False):
                 # operator-only, from checks/: the score in short, and the reviewer's ticks and sign-off
                 "score": sc and {"gap": sc.get("gap_on_target"), "part": sc.get("gap_as_part_of_best"), "target": (sc.get("goal") or {}).get("target"), "against": sc.get("against_the_best"),
                                  "holds": all((sc.get("conditions_hold_at_the_recommendation") or {}).values())},
+                "confirm": confirm.is_file(),
                 "review": {"n": len(marks), "ticked": sorted(k for k, m in marks.items() if m.get("tick") and k != "signoff"),
                            "signed": {"name": marks["signoff"].get("note"), "at": marks["signoff"].get("at")} if "signoff" in marks else None}})
         row = CACHE[d.name][1]

@@ -72,12 +72,12 @@ const EV = {
     if (S.view === 'home' || S.view === 'compare' || S.view === 'new') {
       const sig = JSON.stringify([S.view, S.from, all.map(x => [x.id, x.records, x.running, x.how, x.score, x.review, x.policy]), st.briefs, st.session && st.session.running]);
       if (sig === EV.sig) return; EV.sig = sig; return EV.draw(); }
-    const base = `../sessions/${S.sid}/`, sig = JSON.stringify([S.sid, row.records, row.running, row.how, S.view, row.score, row.policy]);
+    const base = `../sessions/${S.sid}/`, sig = JSON.stringify([S.sid, row.records, row.running, row.how, S.view, row.score, row.policy, row.confirm]);
     if (sig === EV.sig) return; EV.sig = sig;
-    const [led, meta, rep, idx, score, marks] = await Promise.all([EV.liveGet(base + 'ledger.jsonl'), EV.json(base + 'session.json'), EV.json(base + 'report.json'), EV.get(base + 'runs/index.json'),
-      row.score ? EV.json(`../checks/scores/${S.sid}.json`) : null, row.review && row.review.n ? EV.json(`../checks/reviews/${S.sid}.json`) : null]);
+    const [led, meta, rep, idx, score, marks, confirm] = await Promise.all([EV.liveGet(base + 'ledger.jsonl'), EV.json(base + 'session.json'), EV.json(base + 'report.json'), EV.get(base + 'runs/index.json'),
+      row.score ? EV.json(`../checks/scores/${S.sid}.json`) : null, row.review && row.review.n ? EV.json(`../checks/reviews/${S.sid}.json`) : null, row.confirm ? EV.json(`../checks/confirm/${S.sid}.json`) : null]);
     // the scheduling policy comes from control.py only: it withholds a policy the harness chose until the session is scored
-    EV.files = { row, score, index: EV_DATA.lines(idx), policy: row.policy || null, key: row.brief ? await EV.json(`../checks/keys/${row.brief}.json`) : null };
+    EV.files = { row, score, confirm, index: EV_DATA.lines(idx), policy: row.policy || null, key: row.brief ? await EV.json(`../checks/keys/${row.brief}.json`) : null };
     EV.files.now = row.running ? await EV.json(base + 'now.json') : null;   // the step a running session is at, as the harness wrote it when the step began (since 2026-11-22)
     // a supervised session: what the supervisor was shown and answered for each of its records (supervisor.jsonl, beside the ledger), by the record's id
     EV.files.supervisor = meta && meta.flags && meta.flags.arm === 'supervised' ? Object.fromEntries(EV_DATA.lines(await EV.get(base + 'supervisor.jsonl')).map(q => [q.id, q])) : {};
