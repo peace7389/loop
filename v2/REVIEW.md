@@ -22,7 +22,7 @@ first, with fairness audits, before the rest.
 | 1b | Briefs three-hosts-2, three-hosts-link-2; the chain rule's refusal says the open way (A8): `s1b_briefs.py` | built |
 | 2, 2b | The supervisor: the competing guess at the ruling, every round shown, only the rule's simulations, "cannot tell", the box "Follows", no forced choice, no earlier answers quoted (B1 to B14, item 4, A9, B6): `s2_supervisor.py`, `s2b_lines.py`, `s2c_record.py`, `s2d_marks.py`, `s2e_figures.py` | built; every harness check passes on it (2026-11-24) |
 | 3 | One purpose (A4), parking a finding inside the tolerance (A5), true statements from the code's constants (C1 to C13), what the other arms are told: `s3_true.py` (48 changes, `texts_stage3.md`) | built; every harness check passes on it and on main (2026-11-25: 33 pass, 3 skip parts that are in neither harness). The three viewer files it touches (the page's copy of the task sentence, the writer of a network's description) have had no page check yet: stage 6 |
-| 4 | A brief with several moves, with reference runs | not started |
+| 4 | A brief with several moves, with reference runs: `briefs/three-hosts-moves.json`, `v2/ref/` | a candidate, with its reference runs (below); no session on it before the operator has seen them |
 | 5 | The confirmation tool | not started |
 | 6 | The page: the fourth box, "cannot tell", the confirmation result | not started |
 | 7 | The text-audit script and the fairness checklist; figures in session_figures | not started |
@@ -72,3 +72,35 @@ first, with fairness audits, before the rest.
   checks that compare old sessions allow these two notes on v2 and nothing else.
 - The harness checks brought in line for stage 3 (each reads which harness it runs on; the same files pass on main): test_arms, test_continue,
   test_design_rounds, test_findings, test_guess_restate, test_network, test_now_steps, test_supervised, test_task_text, test_tolerance.
+
+## Stage 4: the candidate brief `three-hosts-moves` and its reference runs (2026-11-25)
+
+The network and the three settings of `three-hosts-2` (a scheduler on r's side of lc, fa's part a setting; fb is UDP at 80 Mbit/s over a link of
+100 Mbit/s; the aim: the largest fa_goodput_bps with fb_loss_frac <= 0.1), and the network may change: at most 6 hosts, 6 links, 4 flows; the four
+hosts, three links and two flows it has are locked; a link a change adds carries at most 90 Mbit/s. 20 simulations, 4 in one experiment. The
+description is that of three-hosts-2, word for word; it names no change.
+
+Reference runs (the built program through the harness's own run path, in a scratch folder, 5 s measured, seed 1; `v2/ref/`):
+
+| What is changed | fa goodput, Mbit/s | fb loss | Condition |
+|---|---|---|---|
+| nothing (the network as given, defaults) | 48.20 | 38.81 % | not met |
+| a setting alone: fa's part 0.17 (0.18: 10.02 %, not met; 0.15: 22.32 with 5.86 %) | 24.46 | 8.67 % | met |
+| the scheduler removed (a plain queue) | 17.86 | 0.30 % | met |
+| the scheduler replaced by codel / red / pie / pfifofast | 17.90 / 19.51 / 17.83 / 17.86 | 0.40 / 2.39 / 0.27 / 0.30 % | met |
+| the scheduler replaced by fqcodel | 48.20 | 38.75 % | not met |
+| a new link a-c at 90 Mbit/s (fa takes it) | 86.77 | 0.00 % | met |
+| a new link b-c at 90 Mbit/s (fb takes it; fa has lc alone) | 96.40 | 0.00 % | met |
+| a new link b-c at 85 / 80 / 75 / 70 Mbit/s | 96.40 | 0.00 / 2.10 / 8.22 / 14.34 % | met / met / met / not met |
+| both new links, the scheduler removed | 86.77 | 0.00 % | met |
+| on the link b-c at 90: fa NewReno / BBR / Vegas | 96.40 / 96.40 / 82.86 | 0.00 % | met |
+
+So four kinds of move meet the condition and give different results: a setting alone (24), another queue (18 to 20), a link for fa (87), a link
+for fb (96). The largest needs the less direct move: the new link is slower than lc, so the other flow goes on it. With the new link, fa's part and
+the scheduler make no difference; both new links with the scheduler kept cannot be built (no flow passes it), and the harness says so.
+With three seeds at 25 s measured each figure is the same to the last digit shown but for the plain queue (17.85 to 17.88; fb loss 0.28 to 0.31 %).
+The scheduling policy (share or cap) makes no difference in a network brief (48.20 against 48.27 at the defaults, every other row the same).
+With a new link of at most 60 Mbit/s only one move is left (a-c: 57.84; b-c loses 26.57 % of fb), so 90 was taken.
+
+Open for the operator: whether 90 Mbit/s and these limits are the brief to run; whether the given network should break the condition at its
+defaults (as in three-hosts-2) or meet it (a plain queue as in three-hosts-link-2: 17.86 at the start, and no setting for fa's part).

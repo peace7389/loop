@@ -1,0 +1,147 @@
+{
+ "id": "three-hosts-moves",
+ "description": "A network of four hosts: a, b, r and c. Host a sends a TCP flow, fa, to c; host b sends a UDP flow, fb, to c at a constant rate ({fb.rate}, packets of {fb.packet_bytes} bytes). Both reach c through r, which forwards them. Link la joins a and r and link lb joins b and r; each carries {la.rate}. Link lc joins r and c and carries {lc.rate} with a one-way delay of {lc.delay}. On r's side of lc a scheduler divides the link between the two flows by two parts, {lc.queue.parts.fa} for fa and {lc.queue.parts.fb} for fb (the parts are divided by their sum); each flow waits in a queue of its own of {lc.queue.length} packets, and a packet that arrives at a full queue is dropped. The congestion control of fa is {fa.type}. In each simulation the flows start at 1 s of the simulation's clock, within 10 ms of each other; traffic runs for one second that is not measured, and then for duration seconds, over which the outputs are measured.",
+ "topology": {
+  "hosts": [
+   {
+    "id": "a"
+   },
+   {
+    "id": "b"
+   },
+   {
+    "id": "r"
+   },
+   {
+    "id": "c"
+   }
+  ],
+  "links": [
+   {
+    "id": "la",
+    "between": [
+     "a",
+     "r"
+    ],
+    "rate": "1Gbps",
+    "delay": "50us",
+    "mtu": 1500,
+    "device_queue": 10
+   },
+   {
+    "id": "lb",
+    "between": [
+     "b",
+     "r"
+    ],
+    "rate": "1Gbps",
+    "delay": "50us",
+    "mtu": 1500,
+    "device_queue": 10
+   },
+   {
+    "id": "lc",
+    "between": [
+     "r",
+     "c"
+    ],
+    "rate": "100Mbps",
+    "delay": "1ms",
+    "mtu": 1500,
+    "device_queue": 10,
+    "queue": {
+     "on": "r",
+     "kind": "scheduler",
+     "length": 100,
+     "parts": {
+      "fa": 0.5,
+      "fb": 0.5
+     },
+     "largest_rate": {}
+    }
+   }
+  ],
+  "flows": [
+   {
+    "id": "fa",
+    "kind": "tcp",
+    "from": "a",
+    "to": "c",
+    "type": "TcpCubic"
+   },
+   {
+    "id": "fb",
+    "kind": "udp",
+    "from": "b",
+    "to": "c",
+    "rate": "80Mbps",
+    "packet_bytes": 1400
+   }
+  ]
+ },
+ "system": {
+  "seed": 1,
+  "duration": 5
+ },
+ "knobs": {
+  "lc.queue.parts.fa": {
+   "min": 0.05,
+   "max": 4,
+   "default": 0.5,
+   "meaning": "the part of link lc for flow fa (fb's part is fixed at 0.5; the parts are divided by their sum)"
+  },
+  "lc.queue.length": {
+   "min": 4,
+   "max": 1000,
+   "default": 100,
+   "meaning": "most packets each of the two queues of the scheduler holds"
+  },
+  "fa.type": {
+   "choices": [
+    "TcpCubic",
+    "TcpNewReno",
+    "TcpBbr",
+    "TcpVegas"
+   ],
+   "default": "TcpCubic",
+   "meaning": "TCP congestion control of flow fa"
+  }
+ },
+ "goal": {
+  "kind": "given",
+  "target": {
+   "measure": "fa_goodput_bps",
+   "direction": "max"
+  },
+  "conditions": [
+   "fb_loss_frac <= 0.1"
+  ]
+ },
+ "limits": {
+  "simulations": 20,
+  "simulations_per_experiment": 4
+ },
+ "structure": {
+  "may_change": true,
+  "most": {
+   "hosts": 6,
+   "links": 6,
+   "flows": 4
+  },
+  "locked": [
+   "host:a",
+   "host:b",
+   "host:r",
+   "host:c",
+   "flow:fa",
+   "flow:fb",
+   "link:la",
+   "link:lb",
+   "link:lc"
+  ],
+  "new_link": {
+   "rate_max": "90Mbps",
+   "delay": "1ms"
+  }
+ }
+}

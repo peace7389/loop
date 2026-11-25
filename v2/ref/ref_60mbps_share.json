@@ -1,0 +1,227 @@
+[
+ {
+  "design": "given network, defaults",
+  "params": {},
+  "structure": [],
+  "fa_goodput_bps": 48198707,
+  "fb_loss_frac": 0.388083,
+  "fb_goodput_bps": 48952960,
+  "run": "r001"
+ },
+ {
+  "design": "setting: fa's part 0.19",
+  "params": {
+   "lc.queue.parts.fa": 0.19
+  },
+  "structure": [],
+  "fa_goodput_bps": 26552845,
+  "fb_loss_frac": 0.113261,
+  "fb_goodput_bps": 70938560,
+  "run": "r002"
+ },
+ {
+  "design": "new link a-c",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "a",
+    "to": "c",
+    "on": "",
+    "rate": "60Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 57843546,
+  "fb_loss_frac": 0.0,
+  "fb_goodput_bps": 80001600,
+  "run": "r003"
+ },
+ {
+  "design": "new link a-c + fa's part 0.05",
+  "params": {
+   "lc.queue.parts.fa": 0.05
+  },
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "a",
+    "to": "c",
+    "on": "",
+    "rate": "60Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 57843546,
+  "fb_loss_frac": 0.0,
+  "fb_goodput_bps": 80001600,
+  "run": "r004"
+ },
+ {
+  "design": "new link a-c + scheduler removed",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "a",
+    "to": "c",
+    "on": "",
+    "rate": "60Mbps",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 57843546,
+  "fb_loss_frac": 0.0,
+  "fb_goodput_bps": 80001600,
+  "run": "r005"
+ },
+ {
+  "design": "new link b-c",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "60Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.265722,
+  "fb_goodput_bps": 58741760,
+  "run": "r006"
+ },
+ {
+  "design": "new link b-c + fa's part 4",
+  "params": {
+   "lc.queue.parts.fa": 4
+  },
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "60Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.265722,
+  "fb_goodput_bps": 58741760,
+  "run": "r007"
+ },
+ {
+  "design": "new link b-c + scheduler removed",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "60Mbps",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.265722,
+  "fb_goodput_bps": 58741760,
+  "run": "r008"
+ },
+ {
+  "design": "scheduler removed (plain queue)",
+  "params": {},
+  "structure": [
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 17864845,
+  "fb_loss_frac": 0.003024,
+  "fb_goodput_bps": 79759680,
+  "run": "r009"
+ },
+ {
+  "design": "scheduler replaced by fqcodel",
+  "params": {},
+  "structure": [
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "add_queue",
+    "id": "lc",
+    "kind": "fqcodel",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 48201024,
+  "fb_loss_frac": 0.387467,
+  "fb_goodput_bps": 48950720,
+  "run": "r010"
+ }
+]

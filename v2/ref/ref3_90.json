@@ -1,0 +1,97 @@
+[
+ {
+  "design": "setting: fa's part 0.17",
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "duration": 25,
+  "fa_goodput_bps": [
+   24461701,
+   24461701,
+   24461701
+  ],
+  "fb_loss_frac": [
+   0.086744,
+   0.086744,
+   0.086744
+  ]
+ },
+ {
+  "design": "new link a-c at 90Mbps",
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "duration": 25,
+  "fa_goodput_bps": [
+   86764623,
+   86764160,
+   86764160
+  ],
+  "fb_loss_frac": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "design": "new link b-c at 90Mbps",
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "duration": 25,
+  "fa_goodput_bps": [
+   96404828,
+   96404365,
+   96404828
+  ],
+  "fb_loss_frac": [
+   0.0,
+   0.0,
+   0.0
+  ]
+ },
+ {
+  "design": "new link b-c at 75Mbps",
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "duration": 25,
+  "fa_goodput_bps": [
+   96404828,
+   96404365,
+   96404828
+  ],
+  "fb_loss_frac": [
+   0.082163,
+   0.082169,
+   0.082163
+  ]
+ },
+ {
+  "design": "scheduler removed (plain queue)",
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "duration": 25,
+  "fa_goodput_bps": [
+   17846310,
+   17875502,
+   17879209
+  ],
+  "fb_loss_frac": [
+   0.002806,
+   0.003086,
+   0.003091
+  ]
+ }
+]

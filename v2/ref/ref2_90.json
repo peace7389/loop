@@ -1,0 +1,366 @@
+[
+ {
+  "design": "setting: fa's part 0.15",
+  "params": {
+   "lc.queue.parts.fa": 0.15
+  },
+  "structure": [],
+  "fa_goodput_bps": 22324685,
+  "fb_loss_frac": 0.058576,
+  "run": "r001"
+ },
+ {
+  "design": "setting: fa's part 0.17",
+  "params": {
+   "lc.queue.parts.fa": 0.17
+  },
+  "structure": [],
+  "fa_goodput_bps": 24463091,
+  "fb_loss_frac": 0.086745,
+  "run": "r002"
+ },
+ {
+  "design": "setting: fa's part 0.18",
+  "params": {
+   "lc.queue.parts.fa": 0.18
+  },
+  "structure": [],
+  "fa_goodput_bps": 25521869,
+  "fb_loss_frac": 0.100213,
+  "run": "r003"
+ },
+ {
+  "design": "new link b-c at 70Mbps",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "70Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.143361,
+  "run": "r004"
+ },
+ {
+  "design": "new link b-c at 75Mbps",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "75Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.082153,
+  "run": "r005"
+ },
+ {
+  "design": "new link b-c at 80Mbps",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "80Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.020972,
+  "run": "r006"
+ },
+ {
+  "design": "new link b-c at 85Mbps",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "85Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.0,
+  "run": "r007"
+ },
+ {
+  "design": "new link b-c at 90Mbps, fa TcpNewReno",
+  "params": {
+   "fa.type": "TcpNewReno"
+  },
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "90Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.0,
+  "run": "r008"
+ },
+ {
+  "design": "new link b-c at 90Mbps, fa TcpBbr",
+  "params": {
+   "fa.type": "TcpBbr"
+  },
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "90Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 96404365,
+  "fb_loss_frac": 0.0,
+  "run": "r009"
+ },
+ {
+  "design": "new link b-c at 90Mbps, fa TcpVegas",
+  "params": {
+   "fa.type": "TcpVegas"
+  },
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "90Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 82858035,
+  "fb_loss_frac": 0.0,
+  "run": "r010"
+ },
+ {
+  "design": "new link a-c at 90Mbps, fa TcpBbr",
+  "params": {
+   "fa.type": "TcpBbr"
+  },
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "a",
+    "to": "c",
+    "on": "",
+    "rate": "90Mbps",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 86766477,
+  "fb_loss_frac": 0.0,
+  "run": "r011"
+ },
+ {
+  "design": "queue at r replaced by codel",
+  "params": {},
+  "structure": [
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "add_queue",
+    "id": "lc",
+    "kind": "codel",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 17901914,
+  "fb_loss_frac": 0.003976,
+  "run": "r012"
+ },
+ {
+  "design": "queue at r replaced by red",
+  "params": {},
+  "structure": [
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "add_queue",
+    "id": "lc",
+    "kind": "red",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 19507456,
+  "fb_loss_frac": 0.023884,
+  "run": "r013"
+ },
+ {
+  "design": "queue at r replaced by pie",
+  "params": {},
+  "structure": [
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "add_queue",
+    "id": "lc",
+    "kind": "pie",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 17825459,
+  "fb_loss_frac": 0.002744,
+  "run": "r014"
+ },
+ {
+  "design": "queue at r replaced by pfifofast",
+  "params": {},
+  "structure": [
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "add_queue",
+    "id": "lc",
+    "kind": "pfifofast",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 17864845,
+  "fb_loss_frac": 0.003024,
+  "run": "r015"
+ },
+ {
+  "design": "both new links (a-c, b-c), scheduler removed",
+  "params": {},
+  "structure": [
+   {
+    "do": "add_link",
+    "id": "ld",
+    "kind": "",
+    "from": "a",
+    "to": "c",
+    "on": "",
+    "rate": "90Mbps",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "add_link",
+    "id": "le",
+    "kind": "",
+    "from": "b",
+    "to": "c",
+    "on": "",
+    "rate": "90Mbps",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "remove",
+    "id": "lc",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "r",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ],
+  "fa_goodput_bps": 86766477,
+  "fb_loss_frac": 0.0,
+  "run": "r016"
+ }
+]
