@@ -101,7 +101,7 @@ Object.assign(EV, {
   wdBody(key) {
     if (key[0] === 'b') return EV.briefPop(key.slice(2));
     // an item of the legend (the legend stands on every page, also where no session is open): its name, the group on a chip, what it means, where it is seen
-    if (key[0] === 'o') return EV.objPop ? EV.objPop(key.slice(2)) : '';   // the band of an object in a simulation's setting or outcome (evidence_chain.js)
+    if (key[0] === 'g') return EV.objPop ? EV.objPop(key.slice(2)) : '';   // an object of a simulation's setting or outcome, or a simulation on the board (evidence_chain.js)
     if (key[0] === 'l') { const s = EV.LEGEND_SAYS[key.slice(2)], x = EV.e; return s ? `<p class="wd-h"><b>${x(s[0])}</b><span class="wd-kind">${x(s[1])}</span></p><p class="wd-lead">${x(s[2])}</p>${s[3] ? `<dl class="wd-kv"><dt>Seen as</dt><dd data-lg="where">${x(s[3])}</dd></dl>` : ''}` : ''; }
     // A box reads from top to bottom, and each kind of thing in it has a look of its own: the name, with its kind on a chip; one or two plain sentences that
     // say what it is (the page's words, the largest text under the name); the facts as small grey labels with their values; then, smaller and behind a bar, the

@@ -41,8 +41,14 @@
 .ev table.sf-t tr.sf-fx td, .ev table.sf-t tr.sf-fx .sf-v { color: var(--text-secondary); font-weight: 400; }
 .ev .s-lane .sl { cursor: pointer; outline: none; } .ev .s-lane .sl-frame { stroke: color-mix(in srgb, var(--text-primary) 35%, transparent); stroke-width: 1; }
 .ev .s-lane .sl-t { font-size: var(--f-note); font-weight: 600; fill: var(--text-primary); pointer-events: none; } .ev .s-lane .sl-t.sl-on { fill: #fff; }
-.ev .s-lane .sl-ret .sl-frame { stroke: var(--text-secondary); stroke-dasharray: 3 2; } .ev .s-lane .sl-ret .sl-t { font-weight: 400; } .ev .s-lane .sl-not { stroke: var(--text-primary); stroke-width: 2; fill: none; }
-.ev .s-lane .sl:hover .sl-frame, .ev .s-lane .sl:focus .sl-frame, .ev .s-lane .sl.f-me .sl-frame, .ev .s-lane .sl.f-rel .sl-frame { stroke: var(--text-primary); stroke-width: 2.5; stroke-dasharray: none; }
+.ev .s-lane .sl-ret .sl-frame { stroke: var(--text-secondary); stroke-dasharray: 3 2; } .ev .s-lane .sl-ret .sl-t { font-weight: 400; } .ev .s-lane .sl-not { stroke: var(--text-primary); stroke-width: 2; fill: none; } .ev .sl-grad { display: inline-block; width: 72px; height: 12px; margin: 0 6px; border-radius: 4px; vertical-align: -1px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-secondary) 35%, transparent); } .ev .sl-name { color: var(--text-secondary); } .ev .sl-scale { white-space: nowrap; display: inline-block; } .ev .sl-end { font-variant-numeric: tabular-nums; } .ev .map-key .mk[data-wrap] { white-space: normal; }
+.ev .s-lane .sl:hover .sl-frame, .ev .s-lane .sl:focus .sl-frame, .ev .s-lane .sl.f-me .sl-frame, .ev .s-lane .sl.f-rel .sl-frame { stroke: var(--live); stroke-width: 2; stroke-dasharray: none; }
+.ev .ev-map g[data-node], .ev .ev-map g.fb, .ev .ev-map g.sl, .ev .ev-map path.edge, .ev .ev-map g[data-late-test], .ev .ev-map g[data-explore] { transition: opacity .12s; }
+.ev .ev-map.f-on g[data-node]:not(.f-me):not(.f-rel), .ev .ev-map.f-on g.fb:not(.f-me):not(.f-rel), .ev .ev-map.f-on g.sl:not(.f-me):not(.f-rel) { opacity: .25; }
+.ev .ev-map.f-on path.edge, .ev .ev-map.f-on g[data-late-test], .ev .ev-map.f-on g[data-explore], .ev .ev-map.f-on g[data-to-answer] { opacity: .2; }
+.ev .ev-map.f-on g[data-node].f-rel .bx, .ev .ev-map.f-on g[data-node].f-me .bx { stroke: var(--live); stroke-width: 2; }
+.ev .ev-map.f-on .f-lane g.fb.f-rel .fbar, .ev .ev-map.f-on .f-lane g.fb.f-me .fbar { stroke: var(--live); stroke-width: 1.5; }
+.ev .ev-map.f-on g.f-me .bx, .ev .ev-map.f-on .f-lane g.fb.f-me .fbar, .ev .ev-map.f-on g.sl.f-me .sl-frame { stroke-width: 2.5; }
 .ev details.h-fold { margin: 10px 0 0; } .ev details.h-fold > summary { cursor: pointer; font-size: var(--f-note); font-weight: 700; color: var(--text-secondary); padding: 3px 0; }
 .ev .sh { margin: 6px 0 10px; border: 1px solid var(--border); border-radius: 10px; padding: 2px 12px; }
 .ev .sh p { margin: 0 0 3px; } .ev .sh ul { margin: 0; padding: 0; list-style: none; } .ev .sh li { margin: 0 0 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 3px 7px; }
@@ -53,7 +59,7 @@
 .ev table.sf-t { border-collapse: separate; border-spacing: 0; } .ev table.sf-t th, .ev table.sf-t td { padding: 4px 10px; border-bottom: 1px solid var(--grid, var(--border)); }
 .ev table.sf-t thead th { color: var(--text-muted); font-weight: 600; }
 .ev table.sf-t tr.sf-g td { padding: 7px 10px 6px; border-top: 8px solid var(--surface-1, #fff); border-bottom: 0; background: color-mix(in srgb, var(--text-primary) 7%, var(--surface-1, #fff)); border-radius: 7px; }
-.ev table.sf-t .sf-kind { text-transform: uppercase; letter-spacing: .05em; font-size: var(--f-note); color: var(--text-secondary); font-weight: 600; } .ev table.sf-t .sf-kind .sw { margin-right: 5px; }
+.ev table.sf-t .sf-kind { font-size: var(--f-note); color: var(--text-secondary); font-weight: 600; } .ev table.sf-t .sf-kind .sw { margin-right: 5px; }
 .ev table.sf-t .sf-id { font-size: var(--f-body, 14px); font-weight: 700; color: var(--text-primary); } .ev table.sf-t .sf-desc { display: block; font-size: var(--f-note); color: var(--text-secondary); font-weight: 400; margin-top: 1px; } .ev table.sf-t .sf-band { text-decoration: none; cursor: help; } .ev table.sf-t .sf-band .sf-id, .ev table.sf-t .sf-band:not(:has(.sf-id)) .sf-kind { text-decoration: underline dotted color-mix(in srgb, currentColor 55%, transparent); text-underline-offset: 3px; }
 .ev table.sf-t .sf-chip { display: inline-block; margin-left: 8px; padding: 0 7px; border-radius: 999px; border: 1px solid var(--warning); color: var(--text-primary); font-size: var(--f-note); }
 .ev table.sf-t td:first-child { padding-left: 18px; width: 36%; } .ev table.sf-t tr.sf-g td:first-child { padding-left: 10px; } .ev table.sf-t .sf-name { color: var(--text-secondary); }
@@ -162,7 +168,9 @@ Object.assign(EV, {
   simFull(s) {
     const M = EV.M, e = EV.e, b = M.brief || {}, t0 = b.topology; if (!t0 || !EV.netSettings || !EV.netWith) return '';
     const kn = b.knobs || {}, dflt = Object.fromEntries(Object.entries(kn).map(([k, q]) => [k, q.default]));
-    const base = EV.netSettings(EV.netWith(t0, dflt)), t = EV.netWith(s.topology || t0, { ...dflt, ...(s.params || {}) }), mine = EV.netSettings(t);
+    // a setting of an object the simulation's own network no longer has (the queue it removed) is not set there: the harness leaves it out too
+    const net0 = s.topology || t0, has = EV.netSettings(net0), vals = Object.fromEntries(Object.entries({ ...dflt, ...(s.params || {}) }).filter(([k]) => k in has));
+    const base = EV.netSettings(EV.netWith(t0, dflt)), t = EV.netWith(net0, vals), mine = EV.netSettings(t);
     const val = (k, v) => (v == null ? '–' : EV.setVal ? EV.setVal(k, v) : String(v)), ids0 = new Set([...(t0.links || []), ...(t0.flows || []), ...(t0.hosts || [])].map(x => x.id));
     let n = 0, changed = 0;
     // a value as it is read: the number (or the word) strong, its unit or its note light
@@ -186,7 +194,7 @@ Object.assign(EV, {
     const flows = (t.flows || []).map(f => { const bulk = (f.app || (f.kind === 'udp' ? 'onoff' : 'bulk')) === 'bulk';
       return group('flow', e(f.id), { what: `${f.kind.toUpperCase()} · ns-3 ${bulk ? 'BulkSendApplication' : 'OnOffApplication'}`, facts: [['From, to', `${f.from} → ${f.to}`], ['Its way', path(f).replace(/^by /, '') || 'not found'], ['Sends', bulk ? 'always has data: as fast as TCP accepts' : 'packets at a constant rate'], ...(ids0.has(f.id) ? [] : [['In the brief', 'no: this simulation added it']])] },
         of(f.id), EV.netColor ? EV.netColor(t, f.id) : '', !ids0.has(f.id)); }).join('');
-    const sys = b.system || {}, runKeys = Object.keys(s.params || {}).filter(k => !(k in mine)), RUN = { seed: 'seed', duration: 'measured time', tcpInitCwnd: 'TCP’s first window', tcpBufBytes: 'TCP’s buffers', tcpSack: 'TCP selective acknowledgement', tcpTimestamps: 'TCP timestamps', tcpDelAck: 'segments per acknowledgement' };
+    const sys = b.system || {}, runKeys = Object.keys(s.params || {}).filter(k => !(k in mine) && !(k in base)), RUN = { seed: 'seed', duration: 'measured time', tcpInitCwnd: 'TCP’s first window', tcpBufBytes: 'TCP’s buffers', tcpSack: 'TCP selective acknowledgement', tcpTimestamps: 'TCP timestamps', tcpDelAck: 'segments per acknowledgement' };
     const run = group('the run', '', { what: 'settings of the simulation', lead: 'What belongs to no object of the network: how long is measured, and the seed of the random numbers.' }, runKeys.map(k => row(k, RUN[k] || EV.chName(k), s.params[k], k in kn ? kn[k].default : sys[k], false)));
     const gone = [...(t0.links || []).map(x => ['link', x.id]), ...(t0.flows || []).map(x => ['flow', x.id]), ...(t0.hosts || []).map(x => ['host', x.id])].filter(([kind, id]) => ![...(t.links || []), ...(t.flows || []), ...(t.hosts || [])].some(x => x.id === id));
     const p = s.params || {}, fx = (name, v) => `<tr class="sf-fx"><td><span class="sf-name">${e(name)}</span></td><td colspan="2">${fig(v)}</td></tr>`;
@@ -285,7 +293,7 @@ Object.assign(EV, {
             ...(s.error ? [['Result', 'it failed: no measurement']] : G.target && v != null ? [[EV.chMeasure(G.target), num(G.target, v) + (top && v === top ? ' (the largest so far)' : '')]] : []),
             ...G.conds.filter(c => typeof (s.metrics || {})[c.k] === 'number').map(c => [EV.chMeasure(c.k), `${num(c.k, s.metrics[c.k])} · the aim asks ${opSay[c.op]} ${num(c.k, c.v)}: ${EV.simMeets(s, { conds: [c] }) ? 'met' : 'not met'}`]),
             ['Read by', rel.hyps.length ? rel.hyps.map(h => `${h} (${(M.hypById[h] || {}).state || 'open'})`).join(', ') : 'no decision rule'], ...(rel.fnds.length ? [['Findings on it', rel.fnds.join(', ')]] : [])] };
-        return `<g class="sl${s.same_as ? ' sl-ret' : ''}${s.error ? ' sl-err' : ''}" data-sim="${e(s.id)}" data-turn="${t}" data-step="${M.recStep[s.id] ?? 0}" data-hyps="${e(rel.hyps.join(' '))}" data-fnds="${e(rel.fnds.join(' '))}" data-val="${v == null ? '' : v}" data-lvl="${lvl}" data-meets="${ok ? 1 : 0}" data-act="open" data-t="sim" data-id="${e(s.id)}" data-wd="o:${e(key)}" tabindex="0">`
+        return `<g class="sl${s.same_as ? ' sl-ret' : ''}${s.error ? ' sl-err' : ''}" data-sim="${e(s.id)}" data-turn="${t}" data-step="${M.recStep[s.id] ?? 0}" data-hyps="${e(rel.hyps.join(' '))}" data-fnds="${e(rel.fnds.join(' '))}" data-val="${v == null ? '' : v}" data-lvl="${lvl}" data-meets="${ok ? 1 : 0}" data-act="open" data-t="sim" data-id="${e(s.id)}" data-wd="g:${e(key)}" tabindex="0">`
           + `<rect class="sl-frame" x="${x.toFixed(1)}" y="${y}" width="${BW.toFixed(1)}" height="${BH}" rx="4" style="fill:color-mix(in srgb, ${color} ${lvl}%, var(--surface-1, #fff))"/><text class="sl-t${lvl > 52 ? ' sl-on' : ''}" x="${(x + BW / 2).toFixed(1)}" y="${y + 13}" text-anchor="middle">${e(s.id)}</text>${ok ? '' : `<path class="sl-not" d="M${(x + 1).toFixed(1)},${y - 3.5} h${(BW - 2).toFixed(1)}"/>`}</g>`; }); }).join('');
     return { h: 12 + rows * ROW, svg: `<g class="s-lane" id="s-lane" data-color="${e(color)}">${marks}</g>` };
   },
@@ -296,21 +304,26 @@ Object.assign(EV, {
     EV.LEGEND_SAYS['key-simret'] = ['A returned simulation', 'the board', 'The same settings, seed and network as an earlier simulation: its result was returned and nothing was run again.', 'a dashed edge'];
     EV.LEGEND_SAYS['key-simnot'] = ['Not within the aim’s conditions', 'the board', `The simulation does not meet ${G.conds.length ? 'the condition the aim states (' + G.conds.map(c => `${EV.chMeasure(c.k)} ${c.op} ${c.v}`).join(', ') + ')' : 'a condition of the aim'}.`, 'a stroke above the box'];
     const col = EV.simColor(G.target), chip = (cls, lvl, extra) => `<svg class="s-lane" width="30" height="20" viewBox="0 0 30 20" style="display:inline;vertical-align:-5px"><g class="sl ${cls}"><rect class="sl-frame" x="2" y="5" width="26" height="14" rx="4" style="fill:color-mix(in srgb, ${col} ${lvl}%, var(--surface-1, #fff))"/>${extra || ''}</g></svg>`;
-    EV.LEGEND_SAYS['key-simlow'] = ['A pale simulation', 'the board', `${G.target ? EV.chMeasure(G.target) + ' is small in it, against the largest of the session so far' : 'The aim names no measure, so every simulation has the same colour'}.`, 'a pale box'];
-    EV.LEGEND_SAYS['key-simhigh'] = ['A deep simulation', 'the board', `${G.target ? EV.chMeasure(G.target) + ' is large in it: the deepest colour is the largest value of the session so far' : 'The aim names no measure, so every simulation has the same colour'}.`, 'a box of a deep colour'];
-    return row('sim', 'A numbered box', `is a simulation, by its id${G.target ? ': the deeper its colour, the larger ' + EV.e(EV.chMeasure(G.target)) : ''}`,
-      (G.target ? it('simlow', chip('', 14), 'small', '') + it('simhigh', chip('', 85), 'large', '') : '')
+    // the colour's depth as one strip from the palest to the deepest (2026-11-24, the operator: "show it using gradation instead" of a pale and a deep box),
+    // with the value at each end: nothing arrived, and the largest of the session so far. Both mixes are in sRGB, as the strip's own blend: a box of a value
+    // has the colour the strip has at that value.
+    const top = Math.max(0, ...M.sims.filter(s => EV.seen(s.id)).map(s => (G.target && s.metrics && typeof s.metrics[G.target] === 'number' ? s.metrics[G.target] : 0)));
+    const num = x => { const [u, f] = EV.unit(G.target); return (+f(x).toPrecision(4)).toLocaleString('en-US') + (u ? ' ' + u : ''); }, mix = lvl => `color-mix(in srgb, ${col} ${lvl}%, var(--surface-1, #fff))`;
+    const strip = `<span class="sl-grad" data-top="${top}" style="background:linear-gradient(to right, ${mix(12)}, ${mix(85)})"></span>`;
+    EV.LEGEND_SAYS['key-simscale'] = ['The colour of a simulation', 'the board', G.target ? `The deeper the colour of a simulation’s box, the larger ${EV.chMeasure(G.target)} was in it${top ? `: the palest is ${num(0)}, the deepest is ${num(top)}, the largest of the session so far` : ''}. The colour itself is that of the flow the aim is about.` : 'The aim names no measure, so every simulation has the same colour.', 'the depth of a box’s colour'];
+    return row('sim', 'A numbered box', 'is a simulation, by its id',
+      (G.target ? it('simscale', `<span class="sl-name" data-nowd="1">${EV.e(EV.chMeasure(G.target))}</span>`, `<span class="sl-scale"><span class="sl-end">${top ? '0' : 'small'}</span>${strip}<span class="sl-end">${top ? EV.e(num(top)) : 'large'}</span></span>`, 'data-wrap="1"') : '')
       + it('simret', chip('sl-ret', 40), 'returned, not run again', '')
       + (G.conds.length ? it('simnot', chip('', 40, '<path class="sl-not" d="M3,1.5 h24"/>'), 'not within the aim’s conditions', '') : ''));
   },
 
-  // The band that heads an object's rows: its kind and its name. What the object is opens in a box on hover or Tab (the page's own box, data-wd "o:<key>"):
+  // The band that heads an object's rows: its kind and its name. What the object is opens in a box on hover or Tab (the page's own box, data-wd "g:<key>"; "o:" is taken by the parts of the two-host network):
   // pop = { what: the chip beside the name, lead: a sentence, facts: [[label, value], ...] }, kept by key until the pane is drawn again.
   OBJ_SAYS: {},
   objBand(key, kind, id, pop, color) {
     const e = EV.e; if (pop) EV.OBJ_SAYS[key] = { title: `${kind}${id ? ' ' + id : ''}`, ...pop };
     const name = `<span class="sf-kind">${color ? `<i class="sw" style="background:${color}"></i>` : ''}${kind}</span>${id ? ` <b class="sf-id">${id}</b>` : ''}`;
-    return pop ? `<span class="wd sf-band" data-wd="o:${e(key)}" tabindex="0">${name}</span>` : name;
+    return pop ? `<span class="wd sf-band" data-wd="g:${e(key)}" tabindex="0">${name}</span>` : name;
   },
   objPop(key) {
     const e = EV.e, p = EV.OBJ_SAYS[key]; if (!p) return '';
@@ -359,6 +372,10 @@ EV.simPoint = g => { const map = g && g.closest('.ev-map'); if (!map) return;
   if (g.matches('g.sl')) { g.classList.add('f-me');
     (g.dataset.hyps || '').split(' ').filter(Boolean).forEach(h => map.querySelectorAll(`g[data-node="${CSS.escape(h)}"]`).forEach(x => x.classList.add('f-rel')));
     (g.dataset.fnds || '').split(' ').filter(Boolean).forEach(f => map.querySelectorAll(`g.fb[data-f="${CSS.escape(f)}"]`).forEach(x => x.classList.add('f-rel'))); }
-  else { const mine = [...map.querySelectorAll('g.sl')].filter(x => (g.matches('g.fb') ? has(x, 'fnds', g.dataset.f) : has(x, 'hyps', g.dataset.node))); mine.forEach(x => x.classList.add('f-rel')); if (mine.length) g.classList.add('f-me'); } };
-document.addEventListener('mouseover', ev => { const g = ev.target.closest && ev.target.closest('.ev-map g.sl, .ev-map g.fb, .ev-map g[data-node]'); if (g) EV.simPoint(g); });
+  else { const mine = [...map.querySelectorAll('g.sl')].filter(x => (g.matches('g.fb') ? has(x, 'fnds', g.dataset.f) : has(x, 'hyps', g.dataset.node))); mine.forEach(x => x.classList.add('f-rel')); if (mine.length) g.classList.add('f-me'); }
+  // the board fades everything but what is pointed at and what belongs to it, where something belongs to it (f-on)
+  map.classList.toggle('f-on', !!map.querySelector('.f-rel')); };
+EV.simUnpoint = () => document.querySelectorAll('.ev-map.f-on').forEach(m => m.classList.remove('f-on'));
+document.addEventListener('mouseover', ev => { const g = ev.target.closest && ev.target.closest('.ev-map g.sl, .ev-map g.fb, .ev-map g[data-node]'); if (g) EV.simPoint(g); else EV.simUnpoint(); });
 document.addEventListener('focusin', ev => { const g = ev.target.closest && ev.target.closest('.ev-map g.sl'); if (g) { if (EV.fndUnpoint) EV.fndUnpoint(); EV.simPoint(g); } });
+document.addEventListener('focusout', ev => { if (ev.target.closest && ev.target.closest('.ev-map g.sl, .ev-map g.fb')) { if (EV.fndUnpoint) EV.fndUnpoint(); EV.simUnpoint(); } });
