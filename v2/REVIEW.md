@@ -4,7 +4,7 @@ Branch `v2`, from main (05cb959). Nothing here is deployed. Base: `plans/2026-11
 with the seven corrections and three proposals the operator accepted. Each stage is one patch script in this folder (`s*.py`, run once from the
 tree's root); every text a stage changed stands, before and after, in `texts_<stage>.md`.
 
-## Where it stands (2026-11-25, 16:00): every stage is built; ready to deploy when the operator says
+## Where it stands (2026-11-25, 16:20): every stage is built; ready to deploy when the operator says
 
 **The state of the checks**, all on one copy of this branch's files (harness, page, briefs as committed):
 
@@ -15,16 +15,23 @@ tree's root); every text a stage changed stands, before and after, in `texts_<st
 - the page's own check of v2 (`evidence_checks/ev_v2.py`): 139 points pass. On every supervised session the guesses the page shows as refuted
   are those `loop.guess_refutations` gives; 20 sessions recorded before v2 (one AI and supervised, s006 to s062) read word for word the same
   on v2's page as on main's, on the full and on the lean page, hover texts included.
-- the page checks of what v2 touches (the set-up page and the builder, a session's page, the lean page, the words, the board, the layout): see
-  the report given in the session of 2026-11-25. The whole page suite (about 90 minutes, mostly parts v2 does not touch) runs after the report,
-  as a follow-up that does not hold the deploy back (the operator, 2026-11-25: the long runs are not all necessary).
+- the page checks of what v2 touches, on a scratch copy of these files: the set-up page and the builder (`ev_readable`, `ev_usable`,
+  `ev_settings`, `ev_run`, `ev_build`, `ev_net`), a session's page (`ev_page`, `ev_test` on s006, `ev_bar`, `ev_home`), the lean page, the
+  words, the board, the layout (`ev_lean`, `ev_words`, `ev_board`, `ev_polish`): all pass. Four of them first failed: three expected main's
+  wording or the form's old first choice (the task sentence with "while", a session of one AI started from the form) and were brought in line;
+  the fourth found stage 10 below. The whole page suite (about 90 minutes, mostly parts v2 does not touch) runs after this report, as a
+  follow-up that does not hold the deploy back (the operator, 2026-11-25: the long runs are not all necessary).
+- Stage 10 (`s10_page_tolerance.py`), found by `ev_usable checked`: the page worked out for itself which checks were decided by less than
+  the tolerance, by the rule the harness had before v2. On a session of v2 it would have marked checks the harness did not mark. It now shows
+  the harness's own mark from the check's record (kept there since 2026-11-15) and works it out only for sessions recorded before that. The 20
+  sessions compared word for word read as before.
 
 **The size of the instructions** (characters; main -> v2): the supervised researcher with competing guesses 9,782 -> 9,978 of the limit of
 10,000; the paragraph on changes of the network 2,373 -> 3,347 (every change at the same depth, every kind of queue described); `prompt.txt`
 (one AI) 19,258 -> 19,336; the arm "plain" 10,524 -> 10,598; the supervisor's instructions 1,530 -> 1,606.
 
 **Every text changed**, before and after: `v2/texts_stage1.md` (17), `1b` (3), `2` (32), `2b` (3), `2c` (1), `2d` (4), `2e` (3), `3` (53),
-`6` (17, the page), `7` (2, no text changed), `7b` (5), `7c` (4), `8` (1), `8b` (6), `9` (7).
+`6` (17, the page), `7` (2, no text changed), `7b` (5), `7c` (4), `8` (1), `8b` (6), `9` (7), `10` (1, the page).
 
 **To deploy** (only at the operator's word; no session running): merge this branch into main; copy this branch's `HARNESS_SPEC.md` to
 `~/ADRS/openevolve/HARNESS_SPEC.md` before `snapshot.sh` (it copies from there); restart the control server (tmux `control`); look at

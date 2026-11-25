@@ -155,6 +155,10 @@ Object.assign(EV, {
     // "earlier": every simulation recorded before this check, as the harness has it (the experiment's own simulations are recorded before its checks)
     const at = id => M.recs.findIndex(r => r.id === id), k0 = at(c.id), earlier = new Set(); M.sims.forEach(s => { const i = at(s.id); if (s.metrics && i >= 0 && i < k0) Object.values(s.metrics).forEach(v => { if (typeof v === 'number' && v) earlier.add(v); }); });
     const tol = EV.tolerance();
+    // v2: the harness's own mark. Since 2026-11-15 a check's record says which of its comparisons were decided by less than the tolerance, by the rule
+    // of the harness that ran the session; the page shows that and works nothing out. A session recorded before has no such field: worked out below.
+    const own = (((M.byId || {})[c.id] || {}).body || {}).within_tolerance, since = String((M.meta && M.meta.started) || (M.recs[0] || {}).ts || '') >= '2026-11-16';
+    if (since) return (Array.isArray(own) ? own : []).filter(q => typeof q.percent === 'number').map(q => { const n = cmps.find(x => x[2] === q.op) || cmps[0]; return { a: q.left, b: q.right, op: q.op, pct: q.percent, unit: n ? EV.readUnit(n[1]) || EV.readUnit(n[3]) : '' }; });
     return cmps.map(n => { if (n[2] === '==') return null; const a = EV.readValue(n[1], val), b = EV.readValue(n[3], val), ka = kind(n[1]), kb = kind(n[3]); if (typeof a !== 'number' || typeof b !== 'number') return null;
       const results = (ka === 'measured' && kb === 'measured') || (ka === 'measured' && kb === 'number' && earlier.has(b)) || (ka === 'number' && kb === 'measured' && earlier.has(a)), m = Math.max(Math.abs(a), Math.abs(b)); if (!results || !m) return null;
       const pct = 100 * Math.abs(a - b) / m; return pct < tol ? { a, b, op: n[2], pct, unit: EV.readUnit(n[1]) || EV.readUnit(n[3]) } : null; }).filter(Boolean);
