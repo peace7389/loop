@@ -21,7 +21,7 @@ first, with fairness audits, before the rest.
 | 1 | Neutral texts in both arms (A1, A2, A7, A10, A11, C29): `s1_neutral.py` | built |
 | 1b | Briefs three-hosts-2, three-hosts-link-2; the chain rule's refusal says the open way (A8): `s1b_briefs.py` | built |
 | 2, 2b | The supervisor: the competing guess at the ruling, every round shown, only the rule's simulations, "cannot tell", the box "Follows", no forced choice, no earlier answers quoted (B1 to B14, item 4, A9, B6): `s2_supervisor.py`, `s2b_lines.py`, `s2c_record.py`, `s2d_marks.py`, `s2e_figures.py` | built; every harness check passes on it (2026-11-24) |
-| 3 | One purpose (A4), parking a finding inside the tolerance (A5), true statements from the code's constants (C1 to C13), what the other arms are told | not started |
+| 3 | One purpose (A4), parking a finding inside the tolerance (A5), true statements from the code's constants (C1 to C13), what the other arms are told: `s3_true.py` (48 changes, `texts_stage3.md`) | built; every harness check passes on it and on main (2026-11-25: 33 pass, 3 skip parts that are in neither harness). The three viewer files it touches (the page's copy of the task sentence, the writer of a network's description) have had no page check yet: stage 6 |
 | 4 | A brief with several moves, with reference runs | not started |
 | 5 | The confirmation tool | not started |
 | 6 | The page: the fourth box, "cannot tell", the confirmation result | not started |
@@ -57,3 +57,18 @@ first, with fairness audits, before the rest.
   "foreseeable", no second question on the fits; two scripted sessions were added for the rule of item 4 (a refuted hypothesis the review did
   not find to follow from its guess leaves the guess standing, and the same test with Follows passed refutes it) and one for "cannot tell" (it
   sends a test back at the review, makes a ruling inconclusive, and is counted). The same files still pass on the live harness.
+- Stage 3: the supervised researcher's instructions with competitors are 9,978 characters of the limit of 10,000 (they were 10,555 after the first
+  version of the stage; room was made by saying nothing twice, see "room:" in `texts_stage3.md`). Any further sentence needs a cut.
+- Stage 3 (C5, the operator's decision): the note "decided by less than the tolerance" stands only between two measured results. On a real session:
+  in s031 the check of H11 (a measured result against a number its rule copied from an earlier result) was marked on main and is not on v2; H12 and
+  H16 (two measured results each) are marked as before.
+- Stage 3 (C11): the texts said a finding's name has at most five words and the code cut at six; the code now cuts at the constant the texts are
+  written from (`NAME_WORDS` = 5).
+- Stage 3 (A5): a finding parked with a reason does not hold the report back (it comes back after `PARK_TURNS` turns as before); whether the reason
+  was a fair one is read in the fairness audit, not judged by the code.
+- The text an old session's researcher would read (`loop.render`) is, on all 60 recorded sessions, the same on v2 as on main but for two notes at the
+  end of a check's line, both reworded on purpose: what the rule was declared to give under the competing explanation (stage 2, A9) and the note on a
+  difference inside the tolerance (stage 3, C4). The records are not touched; it shows only if an old session is continued on v2. The three harness
+  checks that compare old sessions allow these two notes on v2 and nothing else.
+- The harness checks brought in line for stage 3 (each reads which harness it runs on; the same files pass on main): test_arms, test_continue,
+  test_design_rounds, test_findings, test_guess_restate, test_network, test_now_steps, test_supervised, test_task_text, test_tolerance.

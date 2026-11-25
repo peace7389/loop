@@ -175,14 +175,16 @@ def pairs(text, measures, labels):
 
 def comparisons(text, measures, labels, values):
     """Each comparison of a decision rule with the numbers its two sides come to, in the order they stand in it:
-    [(left, op, right, (left_kind, right_kind))]. A side's kind: "measured" (it holds a measured value), "number" (one number, as written),
-    or "stated" (worked out from numbers the rule states)."""
+    [(left, op, right, (left_kind, right_kind))]. A side's kind: "measured" (measured values and nothing else), "margin" (a measured value with a
+    number the rule states: 1.01 * x@a), "number" (one number, as written), or "stated" (worked out from numbers the rule states)."""
     out = []
     def measured(node):
         return node[0] == "val" or any(measured(m) for n in node[1:] for m in (n if isinstance(n, list) else [n]) if isinstance(m, tuple))
+    def states(node):   # v2 (C5): the side holds a number of the rule's own
+        return node[0] == "num" or any(states(m) for n in node[1:] for m in (n if isinstance(n, list) else [n]) if isinstance(m, tuple))
     def walk(node):
         if node[0] == "cmp":
-            kind = lambda n: "measured" if measured(n) else "number" if n[0] == "num" else "stated"
+            kind = lambda n: ("margin" if states(n) else "measured") if measured(n) else "number" if n[0] == "num" else "stated"
             out.append((_value(node[1], values), node[2], _value(node[3], values), (kind(node[1]), kind(node[3]))))
         else:
             for n in node[1]:

@@ -27,6 +27,8 @@ LEDGER = SID = None  # the current session's ledger and id, set in main()
 CAP = 6000  # characters of any tool result or ledger body shown to the model
 TOLERANCE = 1.0  # per cent: two results closer than this count as equal. The brief's goal may state its own (goal.tolerance); main() puts that here.
 DEFAULT_TOLERANCE = 1.0  # what a brief that states none gets
+# v2 (C4): what the tolerance means in a decision rule, as decision_rules.py and decided_by_little apply it; said with each turn's tolerance
+TOLERANCE_IN_A_RULE = "in a decision rule == holds for two values closer than that; <, <=, > and >= compare the numbers as measured, and a check that two measured results decide by less is marked"
 LEDGER_TOKENS = 100_000  # the loop stops when the rendered ledger is larger than this
 WAIT = "the report cannot be accepted yet: "   # said once per session; the answer after it is taken as it comes
 NEED = WAIT + "a hypothesis that has a checked decision rule needs a verdict. Still without one: "
@@ -507,7 +509,7 @@ def decided_by_little(rule, labels, values, ledger):
     Two results: both sides measured, or one side measured and the other a number that is an earlier result of this session written out (the
     model often copies a result into a later rule as a number). A number the rule states of its own (a limit, a margin) is not a result."""
     earlier = {v for q in ledger if q["type"] == "simulation" for v in (q["body"].get("metrics") or {}).values() if type(v) in (int, float) and v}
-    results = lambda kinds, a, b: kinds == ("measured", "measured") or (kinds == ("measured", "number") and b in earlier) or (kinds == ("number", "measured") and a in earlier)
+    results = lambda kinds, a, b: kinds == ("measured", "measured")   # v2 (C5): two measured results, and nothing the rule states (a margin, a threshold; s061 C3: "10.0 against 10.0")
     return [{"left": a, "op": op, "right": b, "percent": round(100 * abs(a - b) / max(abs(a), abs(b)), 6)}
             for a, op, b, kinds in decision_rules.comparisons(rule, {**tools.outputs(), **{k: "" for v in values.values() for k in v}}, labels, values)
             if results(kinds, a, b) and op != "==" and max(abs(a), abs(b)) > 0 and 100 * abs(a - b) / max(abs(a), abs(b)) < TOLERANCE]
@@ -637,8 +639,8 @@ def shown(r, st):
             b = {**b, "rival": f"the guess {b['competes_with']}"}
         rival = "" if not b.get("rival") or b.get("rival_predicts") not in ("held", "failed") or b["result"] not in ("held", "failed") else (
             f"  [the rule was declared to give {b['rival_predicts'].upper()} under {flat(b['rival'])}, and gave {b['result'].upper()}]")
-        close = "".join(f"  [NOTE: {q['left']} against {q['right']}: the two sides differ by {q['percent']:.3g} %, less than the tolerance of {b['tolerance']:g} %. They count as equal: "
-                        "this comparison is decided by a difference that does not matter, so it is no evidence of a difference.]" for q in b.get("within_tolerance") or [])
+        close = "".join(f"  [NOTE: {q['left']} against {q['right']}: the two sides differ by {q['percent']:.3g} %, less than the tolerance of {b['tolerance']:g} %. The result stands as the numbers give it, "
+                        "but a difference this small is no evidence of a difference.]" for q in b.get("within_tolerance") or [])
         return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}{rival}{close}"
     if t == "verdict" and r.get("by") == "supervisor" and b.get("questions"):   # the three questions (stage 5): which failed, and which guess fits the result
         qs = b["questions"]
@@ -1045,6 +1047,9 @@ RULE_IN_TEXT = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*@[A-Za-z0-9_]+")   # a decisi
 REPAIR_SYSTEM = ("You are the researcher. The supervisor, or the harness, sent back one of your tests before any of its simulations was run. Repair that test only, from the "
                  "feedback: a decision rule that can tell your guess from a competing explanation, the strongest rival you can think of, what the rule would give if that rival were "
                  "true, and the simulations only if they must change. Answer with one JSON object in the format you are given.")
+REPAIR_SYSTEM_COMP = ("You are the researcher. The supervisor, or the harness, sent back one of your tests before any of its simulations was run. Repair that test only, from the "   # v2 (C8)
+                      "feedback: a decision rule that can tell your guess from the guess it competes with (a guess already written: a cause no guess states yet cannot be named "
+                      "here), what the rule would give if that guess were true, and the simulations only if they must change. Answer with one JSON object in the format you are given.")
 SHORT_CALL_TOKENS = 12000   # a repair and a restatement (2026-11-22, the operator chose it after the review of s050 to s053): 6,000 of them reasoning; a whole reply keeps its own
 CONTINUES = 2   # (2026-11-22, the operator: "Turn 1 and 2 passed without any hypothesis are not what I intended. Fix it") a reply that states no hypothesis, test, drop, verdict, objection or report is followed by another call in the same turn, at most this many times: what it asked for is answered at once
 LABEL_MOST = 20   # a simulation's label: letters, digits and _, at most this many (the refusal, the answer format's maxLength, prompt.txt and LEAN_PROMPT say it)
@@ -1129,7 +1134,7 @@ def _system_for_supervisor(brief):
                + (f"; never removed: {', '.join(st['locked'])}" if st.get("locked") else "")
                + (f"; a new link carries at most {nl['rate_max']} and has a one-way delay of {nl['delay']}" if nl else "") + ". A planned simulation's change is shown with it (network changed: ...).\n")
     return (f"THE SYSTEM, in the brief's words: {' '.join(str(brief.get('description') or '').split())[:3000]}\nTHE SETTINGS THE RESEARCHER MAY CHANGE: {knobs}\n" + net
-            + f"TOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal.\n")
+            + f"TOLERANCE: {TOLERANCE:g} %: {TOLERANCE_IN_A_RULE}.\n")
 
 
 def _measured(ledger, only=None, labels=None, others=False):
@@ -2252,31 +2257,31 @@ def plain_format(schema):
 # breaks_when, a claim's role and open_questions.
 LEAN_PROMPT = """You are a researcher working on a system you cannot see inside. You reach it only through the tools listed in the brief and through experiments the harness runs for you.
 
-The purpose of the work is to understand why the system behaves as it does. You are not an optimiser: do not try many settings and keep whichever comes out slightly ahead. Look at the system, ask why each result came out so, guess what in the system (not directly visible in the outputs) makes it so, and test that guess. An explanation of what limits the result is worth more than one more setting. Stop when you can say what makes the system behave as it does and what that means for the goal.
+The purpose of the work is the task's: to explain what decides the measure it names, and to say which settings give its best value. Look at the system, ask why each result came out so, guess what in the system (not directly visible in the outputs) makes it so, and test that guess. Stop when you can say both.
 
-You do not work alone. A supervisor works apart from you. It proposes nothing and never sees your notes or your reasons; it is shown your guess, your hypothesis, your decision rule and its rival, the planned simulations, the measured numbers and what the tools returned. It checks each step:
+A supervisor works apart from you. It proposes nothing and never sees your notes or your reasons; it is shown your guess, your hypothesis, your decision rule and its rival, the planned simulations, the measured numbers and what the tools returned. It checks each step:
 - a new guess: does it start from what the records show, and is it more than an earlier guess said again? A guess it does not accept comes back to you once, in the same turn, to restate;
-- a test, before it runs: can it tell your guess from your rival? If not, it says what is wrong and you repair that test at once, up to three rounds; the other tests run meanwhile;
+- a test, before it runs: can it tell your guess from your rival? If not, it says what is wrong and you repair that test at once (<<REVIEW_ROUNDS>> rounds at most, the first proposal counted); the other tests run afterwards;
 - after the harness has checked your rule: what the check means. Its ruling (supported, refuted, or inconclusive because the test was not a fair one) closes the hypothesis. You do not give verdicts.
 
 The ledger is the complete record of the session. You have no other memory. Each turn you read it and answer with ONE JSON object. Keep every text short: one or two sentences. Its parts:
 
-1. observations: one or two sentences: what you read this turn; an unexplained result goes in findings (below), once. They stay in the ledger (turn N your observations).
-2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded; probe makes a finer record of such a simulation (the brief's text of the tool probe lists every column it records) by running it again with taps that only listen. Up to six requests in a reply; the results come back at once, in the same turn, and stay in the ledger with their ids (T1, T2, ...): a reply that states no hypothesis, test, drop or report is answered and you are asked again in the same turn, at most twice. A turn ends with a step.
+1. observations: what you read this turn; an unexplained result goes in findings (below), once. They stay in the ledger.
+2. requests: look before you simulate. Looking costs no simulation. metrics, series and measure read what a simulation you already ran recorded; probe makes a finer record of such a simulation (the brief's text of the tool probe lists every column it records) by running it again with taps that only listen. Up to <<LOOKS>> requests in a reply; the results stay in the ledger with their ids (T1, T2, ...). Sent alone (no hypothesis, test, drop or report), they are answered and you are asked again in the same turn, at most <<CONTINUES>>; sent with a step, they are answered in the next turn. A turn ends with a step.
 3. whys: your guesses of why a result came out so. Each has about (the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet), result (that result in one sentence, with its numbers), guess (what in the system would make it so), and revises (the id of an earlier guess this one replaces, or states more exactly with new numbers or a narrower cause; or null). The harness numbers them Y1, Y2, ... The work is a chain: your first guesses start from the baseline, and every later guess is the fruit of what you learned since: its about must name at least one record made since your last guesses (a ruling, a check, a new result table, a reading, an objection of the supervisor), and its result says what that record showed. A later guess that starts from the baseline alone is refused, and the supervisor reads whether the guess really comes from the newer record or only names it. Make your several first guesses in one answer.
-4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most three in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.
+4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most <<OPEN_MOST>> in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.
 5. drop: open hypotheses you give up before they were tested (id, and why in one sentence).
 6. experiment: at most one per turn, or null.
    - kind "test": tests lists the open hypotheses it tests; decision_rules has at least one rule for each. kind "explore": question says what you want to find out; tests and decision_rules stay empty.
-   - runs: the simulations, each with a label of its own (letters, digits and _, at most 20 characters) and params: a value for EVERY knob of the brief (a knob left as it was is stated with the value it has). A simulation with the same settings as an earlier one is not run again: its result is returned and costs nothing. The simulations one rule compares must differ in one setting only, so that a difference has one possible cause.
+   - runs: the simulations, each with a label of its own (letters, digits and _, at most <<LABEL_MOST>> characters) and params: a value for EVERY knob of the brief (also one left as it was; a value outside its range is moved into it, as the record then says). A simulation with the same settings as an earlier one is not run again: its result is returned and costs nothing. The simulations one rule compares must differ in one setting only, so that a difference has one possible cause.
    - measurements: measurements of your own that this experiment takes of each of its simulations, beside the outputs; an empty list when the outputs are enough. Each has name (lower-case, for example <column>_max), of (a column a simulation records over time, or arithmetic over columns of one record: the columns the tools series and probe name in the brief), stat (one of the statistics the format lists), t_from and t_to (seconds; null: the measured seconds) and level (the number time_above and the like compare with; null otherwise). The harness computes them with taps that only listen: a measurement cannot change a result.
-   - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis), decision_rule, rival (the strongest competing explanation, one sentence) and rival_predicts (held or failed: what the rule gives if the rival is true; held is refused). Write it exactly in this form: numbers; measure@label (an output, or a measurement of your own, in the simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; at most 3 comparisons, joined by AND and OR. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.
+   - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis), decision_rule, rival (the strongest competing explanation, one sentence) and rival_predicts (held or failed: what the rule gives if the rival is true; held is refused). Write it exactly in this form: numbers; measure@label (an output, or a measurement this experiment defines, in the simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; at most <<COMPARISONS_MOST>> comparisons, joined by AND and OR. A rule the harness cannot read comes back to you as a round of that test. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.
 7. objections: if the records show that a ruling of the supervisor is wrong, object once: to (the ruling's id, for example V2) and because (the numbers it overlooked).
 8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings, evidence tables and readings that support it, for example C2, V1, E3, T7).
 
-The budget counts simulations. Every turn says how many are left; one experiment may run at most half of them. When they run out you get two more turns to look and to test on simulations already run, then one last turn for the report.
+The budget counts simulations. Every turn says how many are left and how many new ones its experiment may run. When they run out you get <<FREE_TURNS>> more turns to look and to test on simulations already run, then one last turn for the report.
 
-If a part of your answer cannot be used, the harness leaves that part out, accepts the rest, and says in a note which part and why: read the note and repair that part. Two results closer than the tolerance count as equal: a difference inside it is not a finding."""
+If a part of your answer cannot be used, the harness leaves that part out, accepts the rest, and says in a note which part and why: read the note and repair that part. A difference inside the tolerance is not a finding (every turn says how a rule treats it)."""
 
 
 def supervised_format(schema, competitors=False):
@@ -2509,6 +2514,7 @@ def short_prompt(text):
 # Nothing about findings refuses any other part of the answer (s049, turn 2: one refused citation cascaded until the whole turn was lost): a
 # finding or a decision the harness cannot use is left out with a note.
 # ======================================================================================================
+NAME_WORDS, NAME_CHARS = 5, 48   # a finding's name: a longer one is cut to this (v2, C11: the texts said 5 words and the cut was at 6; both are this constant now)
 PARK_TURNS = 2        # a parked finding, and a working one with nothing new linked to it, comes back for a decision after this many turns
 FINDING_HOLDS = 2     # the most times in a session a report is held back for findings never looked at
 SUP_FINDINGS = 2      # the most findings of the supervisor in one call
@@ -2519,8 +2525,7 @@ CLOSES = ("evidence", "check", "verdict", "result", "simulation", "review")     
 FINDING_ITEM = {"type": "object", "additionalProperties": False, "required": ["about", "text", "name"], "properties": {
     "about": {"type": "array", "items": {"type": "string"}, "description": "the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings (for example E2, C3, T7)"},
     "text": {"type": "string", "description": "one sentence: what the results do not explain, with its numbers"},
-    "name": {"type": "string", "description": "at most 5 words, to show it by"}}}   # the name (2026-11-22, the operator: the page shows it on the finding's bar)
-NAME_WORDS, NAME_CHARS = 6, 48   # a longer name is cut to this
+    "name": {"type": "string", "description": f"at most {NAME_WORDS} words, to show it by"}}}   # the name (2026-11-22, the operator: the page shows it on the finding's bar)
 RULING_SCHEMA["properties"]["findings"]["items"] = FINDING_ITEM
 RULING3_SCHEMA["properties"]["findings"]["items"] = FINDING_ITEM   # the ruling's findings in the finding's format, name included (the coherence audit, 2026-11-22: the ruling asked for a name its schema forbade)
 
@@ -2590,7 +2595,7 @@ def findings_block(ledger, turn, mode):
     live = [f for f in fs.values() if f["status"] in ("open", "working", "parked")]
     done = [f for f in fs.values() if f["status"] in ("closed", "same_as")]
     due = [f["id"] for f in live if finding_due(f, ledger, turn)]
-    never = [f["id"] for f in live if not finding_looked(f, ledger)]
+    never = [f["id"] for f in live if f["status"] != "parked" and not finding_looked(f, ledger)]
     state = lambda f: {"open": "open", "working": f"working on it since turn {f['since']} ({', '.join(f['refs'])})", "parked": f"parked in turn {f['since']} ({_flat(f['reason'])[:200]})"}[f["status"]]
     lines = [f"[{f['id']}] raised by {who(f)} in turn {f['turn']}; {state(f)}{'; DUE' if f['id'] in due else ''}: {_flat(f['text'])[:400]} (about {', '.join(f['about'])})" for f in live]
     if done:
@@ -2600,7 +2605,7 @@ def findings_block(ledger, turn, mode):
     else:
         ask = ((f"Give one decision (decisions) for each finding marked DUE: {', '.join(due)}. " if due else "No finding needs a decision this turn. ")
                + (f"Never looked at yet (no reading or test reaches it): {', '.join(never)}. " + ("Look at them in these turns: a reading or a measurement on simulations already run costs no simulation. " if mode == "free" else "")
-                  + "A final report is held back while a finding was never looked at." if never else ""))
+                  + "A final report is held back while one of these was never looked at." if never else ""))
     return "FINDINGS (what the results do not yet explain; each stays on this list until you close it):\n" + "\n".join(lines) + "\n" + ask.strip() + "\n\n"
 
 def findings_in_whys(t, ledger):
@@ -2729,7 +2734,7 @@ def settle_findings(t, ledger, turn, due_before, made, whys_made, goes_on=False)
 
 def findings_unseen(ledger):
     """The findings not closed that nothing has looked at yet (no reading, check or evidence reaches them)."""
-    return [f["id"] for f in finding_states(ledger).values() if f["status"] in ("open", "working", "parked") and not finding_looked(f, ledger)]
+    return [f["id"] for f in finding_states(ledger).values() if f["status"] in ("open", "working") and not finding_looked(f, ledger)]   # v2 (A5): a parked finding holds no report back
 
 def findings_in_report(report, ledger):
     """The report accounts for every finding: each one not closed stands in open_questions by its id. One it leaves out is added there by the
@@ -2757,7 +2762,7 @@ def findings_end(ledger, turn):
 # The supervisor's findings (the arm "supervised"): when it rules on a test, and after the baseline and each explore experiment, where results come in
 # without a ruling. What is unexplained, never why. One is kept only if every id it cites is in the ledger and its text holds a measured number.
 SUP_FINDINGS_ASK = ("FINDINGS (findings, at most 2, or none): a measured result in what you are shown that nothing on record explains yet. State WHAT is "
-                    "unexplained, never why: no cause, no guess, no test to run. Each with its numbers (text), a name of at most 5 words to show it by (name) and the ids of the records it rests on (about). "
+                    "unexplained, never why: no cause, no guess, no test to run. Each with its numbers (text), a name of at most " + str(NAME_WORDS) + " words to show it by (name) and the ids of the records it rests on (about). "
                     "Do not raise again one of the findings so far.")
 SUP_FINDINGS_ITEMS = {"type": "array", "maxItems": SUP_FINDINGS, "items": FINDING_ITEM, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}
 FINDINGS_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["findings"], "properties": {"findings": SUP_FINDINGS_ITEMS}}
@@ -2795,34 +2800,34 @@ def take_sup_findings(ledger, turn, items, parent):
 FINDINGS_TEXT = {
     "hypotheses": """
 
-FINDINGS. A finding is one thing the results do not yet explain. Each stays on the list at the top of every turn until you close it, so that nothing unexplained is lost.
-- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings, for example E2, C3, T7) text (one sentence: what is unexplained, with its numbers) and name (at most 5 words, to show it by). The harness numbers them F1, F2, ...{sup}
-- decisions: one for each finding the list marks DUE, and for any other you act on: id (F1), action, and refs or reason. work: refs names the guess, hypothesis, experiment or reading that works on it (one of this answer by the id it will get; left empty, it counts as worked on but not as looked at). close: refs names the evidence, checks, verdicts or readings that explain it. same_as: refs names the finding it repeats. park: reason says why not now. A parked finding, and one you work on with nothing new about it for 2 turns, comes back as DUE.
+FINDINGS. A finding is one thing the results do not yet explain. Each stays on the list at the top of every turn until you close it.
+- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings, for example E2, C3, T7) text (one sentence: what is unexplained, with its numbers) and name (at most <<NAME_WORDS>> words, to show it by). The harness numbers them F1, F2, ...{sup}
+- decisions: one for each finding the list marks DUE, and for any other you act on: id (F1), action, and refs or reason. work: refs names the guess, hypothesis, experiment or reading that works on it (one of this answer by the id it will get; left empty, it counts as worked on but not as looked at). close: refs names the evidence, checks, verdicts or readings that explain it. same_as: refs names the finding it repeats. park: reason says why not now. A parked finding, and one you work on with nothing new about it for <<PARK_TURNS>> turns, comes back as DUE.
 - A guess of why whose about names a finding (for example F2) works on it.
-- "It does not change the recommendation" is not a reason to park a finding: the task asks why the settings you recommend are best, so explaining a measured result is part of the goal.
-- A final report is held back while a finding was never looked at (no reading or test about it) and you can still work: look at each one first. In the report, name each finding that is not closed in open_questions, with its id (F3: ...).
+- A finding about a difference inside the tolerance, or about no measure the task names, may be parked with that reason; "it does not change the recommendation" alone is no reason.
+- A final report is held back while a finding that is not parked was never looked at (no reading or test about it) and you can still work: look at each one first. In the report, name each finding that is not closed in open_questions, with its id (F3: ...).
 """,
     "plain": """
 
-FINDINGS. A finding is one thing the results do not yet explain. Each stays on the list at the top of every turn until you close it, so that nothing unexplained is lost.
-- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations or readings, for example E2, T7) text (one sentence: what is unexplained, with its numbers) and name (at most 5 words, to show it by). The harness numbers them F1, F2, ...
-- decisions: one for each finding the list marks DUE, and for any other you act on: id (F1), action, and refs or reason. work: refs names the experiment or reading that works on it (left empty, it counts as worked on but not as looked at). close: refs names the evidence tables or readings that explain it. same_as: refs names the finding it repeats. park: reason says why not now. A parked finding, and one you work on with nothing new about it for 2 turns, comes back as DUE.
-- "It does not change the recommendation" is not a reason to park a finding: the task asks why the settings you recommend are best, so explaining a measured result is part of the goal.
-- A final report is held back while a finding was never looked at (no reading or experiment about it) and you can still work: look at each one first. In the report, name each finding that is not closed in open_questions, with its id (F3: ...).
+FINDINGS. A finding is one thing the results do not yet explain. Each stays on the list at the top of every turn until you close it.
+- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations or readings, for example E2, T7) text (one sentence: what is unexplained, with its numbers) and name (at most <<NAME_WORDS>> words, to show it by). The harness numbers them F1, F2, ...
+- decisions: one for each finding the list marks DUE, and for any other you act on: id (F1), action, and refs or reason. work: refs names the experiment or reading that works on it (left empty, it counts as worked on but not as looked at). close: refs names the evidence tables or readings that explain it. same_as: refs names the finding it repeats. park: reason says why not now. A parked finding, and one you work on with nothing new about it for <<PARK_TURNS>> turns, comes back as DUE.
+- A finding about a difference inside the tolerance, or about no measure the task names, may be parked with that reason; "it does not change the recommendation" alone is no reason.
+- A final report is held back while a finding that is not parked was never looked at (no reading or experiment about it) and you can still work: look at each one first. In the report, name each finding that is not closed in open_questions, with its id (F3: ...).
 """,
 }
-FINDINGS_TEXT["supervised"] = FINDINGS_TEXT["hypotheses"].replace("checks, verdicts or readings", "checks, rulings or readings").replace("{sup}", " The supervisor raises findings too: they stand on the same list and need your decisions like yours.")
+FINDINGS_TEXT["supervised"] = FINDINGS_TEXT["hypotheses"].replace("checks, verdicts or readings", "checks, rulings or readings").replace("(for example F2) works on it.", "(for example F2) works on it (the chain's rule still holds for the records it rests on).").replace("{sup}", " The supervisor raises findings too: they stand on the same list and need your decisions like yours.")
 FINDINGS_TEXT["hypotheses"] = FINDINGS_TEXT["hypotheses"].replace("{sup}", "")
 
 
 COMP_LEAN = (   # LEAN_PROMPT -> the instructions of a session with competitors (stage 5): (as it stands, what replaces it), each found once
     ("it is shown your guess, your hypothesis, your decision rule and its rival, the planned simulations", "it is shown your guess, your hypothesis, your decision rule and the guess it competes with, the planned simulations"),
-    ("- a test, before it runs: can it tell your guess from your rival? If not, it says what is wrong and you repair that test at once, up to three rounds; the other tests run meanwhile;",
+    ("- a test, before it runs: can it tell your guess from your rival? If not, it says what is wrong and you repair that test at once (<<REVIEW_ROUNDS>> rounds at most, the first proposal counted); the other tests run afterwards;",
      "- a test, before it runs, by four questions: does your hypothesis follow from your guess (Follows), can the test fail (Honest), does it test your claim and only it (Consistent), does its rule give HELD under your guess and FAILED under the guess it competes with (Correct)? "
-     "If one fails, it says what is wrong and you repair that test at once, up to three rounds; the other tests run meanwhile;"),
+     "If one does not pass, it says what is wrong and you repair that test at once (<<REVIEW_ROUNDS>> rounds at most, the first proposal counted); the other tests run afterwards;"),
     ("closes the hypothesis. You do not give verdicts.", "closes the hypothesis; a guess is refuted when a fair test of a hypothesis that follows from it fails, or when the supervisor finds that it does not fit a fair test's result: no new hypothesis comes from it, a new guess may revise it. A failed hypothesis that did not follow from its guess refutes only itself. You do not give verdicts."),
-    ("The purpose of the work is to understand why the system behaves as it does. You are not an optimiser: do not try many settings and keep whichever comes out slightly ahead. Look at the system, ask why each result came out so, guess what in the system (not directly visible in the outputs) makes it so, and test that guess.",
-     "The purpose is to understand why the system behaves as it does, not to optimise: look at it, ask why each result came out so, guess what in the system (not directly visible) makes it so, and test that guess."),
+    ("The purpose of the work is the task's: to explain what decides the measure it names, and to say which settings give its best value. Look at the system, ask why each result came out so, guess what in the system (not directly visible in the outputs) makes it so, and test that guess.",
+     "The purpose is the task's: to explain what decides the measure it names, and to say which settings give its best value. Look at the system, ask why each result came out so, guess what in it (not directly visible) makes it so, and test that guess."),
     ("(the ids of the records it starts from: evidence tables, simulations, checks or rulings, for example E0, S2, C1; a reading a tool returned, by its id, for example T7; a review in which the supervisor objected, for example G4; the word brief only when nothing is measured yet)",
      "(the ids of the records it starts from, for example E0, S2, C1, V1, a reading T7, an objection of the supervisor G4; the word brief only when nothing is measured yet)"),
     ("and revises (the id of an earlier guess this one replaces, or states more exactly with new numbers or a narrower cause; or null).",
@@ -2831,6 +2836,23 @@ COMP_LEAN = (   # LEAN_PROMPT -> the instructions of a session with competitors 
      "The work is a chain: your first guesses start from the baseline; every later guess names in about a record made since your last guesses (a ruling, a check, a result table, a reading, an objection) and says in result what it showed, or competes with an earlier guess."),
     ("rival (the strongest competing explanation, one sentence) and rival_predicts (held or failed: what the rule gives if the rival is true; held is refused)",
      "competes_with (another live guess, not the hypothesis's own nor one linked to it by revises: write the competing explanation as a guess first) and rival_predicts (what the rule gives if that guess is true and yours false: failed; held is refused)"))
+
+
+# v2 (item 5): the limits the instructions state are written from the constants the code applies. A text above names one as <<NAME>>.
+_SAID = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+def limits_filled(text):
+    """A text of the instructions with every <<NAME>> replaced by the constant of that name, as a sentence says it."""
+    said = {"LOOKS": _SAID.get(LOOKS, str(LOOKS)), "CONTINUES": {1: "once", 2: "twice"}.get(CONTINUES, f"{CONTINUES} times"), "REVIEW_ROUNDS": _SAID.get(REVIEW_ROUNDS, str(REVIEW_ROUNDS)),
+            "OPEN_MOST": _SAID.get(OPEN_MOST, str(OPEN_MOST)), "FREE_TURNS": _SAID.get(FREE_TURNS, str(FREE_TURNS)), "LABEL_MOST": str(LABEL_MOST), "COMPARISONS_MOST": str(COMPARISONS_MOST),
+            "PARK_TURNS": str(PARK_TURNS), "NAME_WORDS": str(NAME_WORDS)}
+    for k, v in said.items():
+        text = text.replace(f"<<{k}>>", v)
+    if "<<" in text:
+        raise ValueError(f"the instructions name a limit the code does not have: {text[text.find('<<'):][:40]!r}")
+    return text
+LEAN_PROMPT = limits_filled(LEAN_PROMPT)
+FINDINGS_TEXT = {k: limits_filled(v) for k, v in FINDINGS_TEXT.items()}
+COMP_LEAN = tuple((limits_filled(a_), limits_filled(b_)) for a_, b_ in COMP_LEAN)
 
 
 def supervised_prompt(text, competitors=False):
@@ -3280,7 +3302,7 @@ def main():
             user = repair_user(hid, test, n + 1, who, feedback, reserved, refused)
             try:
                 stage("repair", hid, n + 1)
-                content, _d, _f, _u = called("researcher", model, REPAIR_SYSTEM + (structure_text(brief) if may_change(brief) else ""), user, repair_schema, a.draft == "on", a.temperature, min(a.max_tokens, SHORT_CALL_TOKENS))
+                content, _d, _f, _u = called("researcher", model, (REPAIR_SYSTEM_COMP if COMP["on"] else REPAIR_SYSTEM) + (structure_text(brief) if may_change(brief) else ""), user, repair_schema, a.draft == "on", a.temperature, min(a.max_tokens, SHORT_CALL_TOKENS))
                 count["calls"] += 1
                 rp = json.loads(content)
                 if not isinstance(rp, dict):
@@ -3423,6 +3445,8 @@ def main():
                 "A hypothesis that already has a verdict is closed: do not judge it again (a second verdict for it is refused).")
             due_before = [f["id"] for f in finding_states(ledger).values() if finding_due(f, ledger, turn)]   # the findings that need a decision in this turn
             shown = {**brief, "how_to_run": HOW_TO_RUN["plain" if arm == "plain" else "other"]} if "how_to_run" in brief else brief
+            if not asks_budget and shown["limits"].get("simulations") != budget:   # v2 (C9; s059: "limits": {"simulations": 20} beside "12 granted so far", in an arm that cannot ask for more)
+                shown = {**shown, "limits": {**shown["limits"], "simulations": budget}}
             user = findings_block(ledger, turn, mode) + (f"BRIEF:\n{json.dumps(shown, indent=1)}\n\nSIMULATION BUDGET: " + (f"used up. THIS IS THE LAST TURN: no experiment is accepted{' and budget_request is no longer possible' if asks_budget else ''}. "
                     + last_ask if mode == "budget" else
                     f"closed. THIS IS THE LAST TURN: the last {UNUSABLE} turns gave no usable answer, so the session ends now. Only the final report (report) is accepted in this turn; "
@@ -3434,16 +3458,16 @@ def main():
                     + ("" if arm == "plain" else "What those simulations gave is known, so a test on them is decided by a measurement you define for it (computed from what they recorded): a rule on their outputs alone cannot fail and is refused. ")
                     + "An experiment that needs a new "
                     f"simulation is not accepted{', and budget_request is no longer possible' if asks_budget else ''}. You may also give the final report now." if mode == "free" else
-                    f"{budget - sims} simulations left ({budget} granted so far{f"; budget_request can raise that to at most {limit}, the brief's limit" if asks_budget else ""}). This turn's experiment may run at most {spend_cap(budget - sims, per)} new simulations: never more than half of what is left, so that something remains for what its results raise.")
+                    f"{budget - sims} simulations left ({budget} granted so far{f"; budget_request can raise that to at most {limit}, the brief's limit" if asks_budget else ""}). This turn's experiment may run at most {spend_cap(budget - sims, per)} new simulations (half of what is left, rounded up, and never more than the brief's {per} for one experiment; it may list at most {per}, repeats included), so that something remains for what its results raise.")
                     + (f"\n\nLOOK AGAIN FIRST: results have come in for hypotheses of these guesses since you last settled them: {look_again(tested_whys(ledger))}. Before anything new, give a rethink "
                        "for each in this answer (id: the why's own id; now: supported, refuted, verify or set_aside; because of what in those results). No new hypothesis and no experiment "
                        "is accepted until each has its rethink." if arm == "hypotheses" and mode != "report" and tested_whys(ledger) else "")
-                    + f"\n\nTOLERANCE: two results that differ by less than {TOLERANCE:g} % count as equal ({'stated by the brief' if tol_given else 'the default of the harness: the brief states none'}). "
+                    + f"\n\nTOLERANCE: {TOLERANCE:g} % ({'stated by the brief' if tol_given else 'the default of the harness: the brief states none'}){'' if arm == 'plain' else ': ' + TOLERANCE_IN_A_RULE}. "
                       "A difference inside it is not a finding, and a setting is not better for it."
                     + f"\n\nLEDGER:\n{text}")
             if pending:
                 ids = [p for p in pending if p != "limit"]
-                user += ("\n\nTOOL RESULTS: your last requests were answered" + (f": {', '.join(ids)}, in the LEDGER above" if ids else "") + ". Every reading stays in the ledger for the rest of the session."
+                user += ("\n\nTOOL RESULTS: your last requests were answered" + (f": {', '.join(ids)}, in the LEDGER above" if ids else "") + f". Every reading stays in the ledger for the rest of the session (one longer than {CAP:,} characters is cut to that, and once the readings pass {READINGS_ROOM:,} characters in all the older long ones are shortened)."
                          + (" The limit of turns with requests only is reached: decide now." if "limit" in pending else ""))
                 pending = []
             if staying:   # the same turn goes on (CONTINUES): why, and what ends it

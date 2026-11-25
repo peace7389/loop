@@ -101,9 +101,13 @@ Object.assign(EV, {
   // The task as the AI reads it, written from a brief's aim and the settings it leaves open. The harness writes the same sentence (tools.task_text in
   // harness/tools.py) into every brief that states no task of its own; the set-up page shows it as the form changes. Keep the two alike, word for word.
   // before: the sentence as it was written until 2026-11-23, without the network's structure (the sessions before keep it, and it is the harness's too)
-  taskText(b, before) { const kn = Object.keys((b && b.knobs) || {}), g = (b && b.goal) || {}, net = !before && !!(b && b.topology && b.structure && b.structure.may_change), may = `You may change ${kn.length} setting${kn.length === 1 ? '' : 's'} (${kn.join(', ')})${net ? " and the structure of the network (its hosts, links, flows and queues, within the brief's limits)" : ''}; every other setting is fixed.`;
-    if (g.kind === 'given') { const t = g.target || {}, c = (g.conditions || []).map(x => String(x).trim()); return `Find the settings that give the ${t.direction === 'max' ? 'largest' : 'smallest'} ${t.measure}${c.length ? ', while ' + c.join(' and ') : ''}. ${may} Explain why they are best.`; }
-    return `No aim is given. Choose what 'performance' should mean for this system and say why; then find the settings that are best for it. ${may} Explain why they are best.`; },
+  // 'v1': the sentence from 2026-11-23 until v2 ("Find the settings that give ... Explain why they are best."), which the sessions of those days keep
+  taskText(b, before) { const kn = Object.keys((b && b.knobs) || {}), g = (b && b.goal) || {}, net = before !== true && !!(b && b.topology && b.structure && b.structure.may_change), what = net ? 'settings and network' : 'settings', may = `You may change ${kn.length} setting${kn.length === 1 ? '' : 's'} (${kn.join(', ')})${net ? " and the structure of the network (its hosts, links, flows and queues, within the brief's limits)" : ''}; every other setting is fixed.`;
+    if (g.kind === 'given') { const t = g.target || {}, c = (g.conditions || []).map(x => String(x).trim()), best = t.direction === 'max' ? 'largest' : 'smallest';
+      return before ? `Find the settings that give the ${best} ${t.measure}${c.length ? ', while ' + c.join(' and ') : ''}. ${may} Explain why they are best.`
+        : `Explain what decides ${t.measure}, and say which ${what} give the ${best} ${t.measure}${c.length ? ` within the brief's conditions (${c.join(' and ')})` : ''}. ${may}`; }
+    return before ? `No aim is given. Choose what 'performance' should mean for this system and say why; then find the settings that are best for it. ${may} Explain why they are best.`
+      : `No aim is given. Choose what 'performance' should mean for this system and say why; then explain what decides it, and say which ${what} are best for it. ${may}`; },
   setLists(c) {
     const b = c.b, e = EV.e, sys = { ...EV.netFixed(b), ...(b.system || {}) }, kn = b.knobs || {}, man = c.man || {}, lim = b.limits || {}, order = k => EV.SET_ORDER.filter(q => q in k).concat(Object.keys(k).filter(q => !EV.SET_ORDER.includes(q))), outs = Object.keys(man.outputs || {}), tools = Object.keys(man.tools || {});
     const it = (key, html, title) => `<li data-it="${key}"${title ? ` title="${e(title)}"` : ''}>${html}</li>`;

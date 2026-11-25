@@ -101,11 +101,13 @@ def task_text(b):
     net = bool(b.get("topology") and (b.get("structure") or {}).get("may_change"))   # a network the AI may change (part 10: three sessions on after_fix kept to the two settings)
     may = (f"You may change {len(knobs)} setting{'' if len(knobs) == 1 else 's'} ({', '.join(knobs)})"
            + (" and the structure of the network (its hosts, links, flows and queues, within the brief's limits)" if net else "") + "; every other setting is fixed.")
+    what = "settings and network" if net else "settings"
     if goal.get("kind") == "given":
         t, conds = goal["target"], goal.get("conditions") or []
-        aim = f"Find the settings that give the {'largest' if t['direction'] == 'max' else 'smallest'} {t['measure']}"
-        return f"{aim}{', while ' + ' and '.join(c.strip() for c in conds) if conds else ''}. {may} Explain why they are best."
-    return f"No aim is given. Choose what 'performance' should mean for this system and say why; then find the settings that are best for it. {may} Explain why they are best."
+        # v2 (A4, the operator's sentence, 2026-11-24): one purpose, the same as the first lines of the instructions
+        return (f"Explain what decides {t['measure']}, and say which {what} give the {'largest' if t['direction'] == 'max' else 'smallest'} {t['measure']}"
+                + (f" within the brief's conditions ({' and '.join(c.strip() for c in conds)})" if conds else "") + f". {may}")
+    return f"No aim is given. Choose what 'performance' should mean for this system and say why; then explain what decides it, and say which {what} are best for it. {may}"
 
 def check_brief(b, brief_id):
     """Every reason a brief cannot be used, or none; returns it with the {placeholders} of its description filled
