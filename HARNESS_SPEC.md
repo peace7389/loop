@@ -1761,7 +1761,7 @@ is one patch script `v2/s*.py`). What it changes, by the sections above:
   a refusal describes what is wrong and suggests no change; the lists of choices of v2's briefs are alphabetical.
 - **The rule of the chain says its open way** (8.3): a guess that starts only from old records is refused as before, and the refusal now says
   that an explanation not yet tried may be stated as the competitor of an earlier guess (`competes_with`), citing a record that guess cites.
-- **The review has four boxes** (8.3, competitors): Follows (would someone who held the guess have to expect what the hypothesis says), Honest,
+- **The review has four boxes** (8.3, competitors): Follows (would someone who held the guess expect this result, in its direction and rough size; a stated threshold follows if the guess expects the result beyond it: the wording of v2.1), Honest (it fails only if every value the rule compares already stands in the records, or its threshold is one almost any result passes: v2.1),
   Consistent, Correct (`REVIEW_QS`). A guess is refuted through its own hypothesis only where Follows passed (`loop.guess_refutations`; a ruling
   made before the box existed counts as before).
 - **"Cannot tell"** is a third answer of every box and of each fit: at a review the test is sent back as if the box had failed, with the reason
@@ -3854,6 +3854,11 @@ untracked until they say otherwise.
     says what prio does with the parts. In the builder: the segment size by the flow's own way (the program
     takes the smallest MTU of the whole network), fixed texts for TCP's options, "turn size 3000 bytes x part".
 
+14a. **The supervisor does not repeat itself** (found with v2.1, 2026-11-25): the 15 reviews of s063, each asked again three times exactly as it
+    was sent, came out with the same four boxes all three times in 7 of 15; a test that the session approved (H7) passed in none of three
+    askings. Most of the difference is in Correct, which a hedged guess ("can exceed", "can raise") leaves open: it cannot be told to make a
+    rule fail, so it is rarely refuted. Whether a test runs is in part chance. Ways out, none taken: ask each review more than once and take
+    the majority; require a guess to state what it expects; lower the supervisor's budget for reasoning. The figures are in `v2/REVIEW.md`.
 14. **v2, left open** (2026-11-25; the operator decided three questions the same day: `three-hosts-moves` stays as built, the brief
     `after_fix-2`, and the rule for a review that cannot be read, 8.10): (a) the format requires a reason with every box, not that it be
     filled: an empty one is said to be empty, not refused; (b) `after_fix-2` keeps after_fix's limits (2 hosts, 1 link, 2 flows): only the queue
@@ -3915,6 +3920,7 @@ untracked until they say otherwise.
 | 2026-11-24, 15:02 | The simulations of each turn on the board, between the hypotheses and the findings, with pointing that lights a simulation's hypotheses and findings and the other way round (12.1). |
 | 2026-11-25, 13:04 | The set-up page starts with a researcher and a supervisor (12.1, the arm "supervised"); a set-up copied from a session keeps who ruled in that session. |
 | 2026-11-25 | v2, sessions that are fair to measure (8.10): one purpose, neutral texts in every arm, the box Follows and "cannot tell", the competing guess at the ruling, parking, statements true of the code, the briefs three-hosts-2, three-hosts-link-2 and three-hosts-moves; the answer measured again (`confirm.py`, 10.10); fairness audits (`fairness.py`, `text_audit.py`, 10.11); the page's part (12.1). Deployed on 2026-11-25 at 16:30 and tagged `v2`: from the tag on, the texts the agents are sent and the harness's rules are not changed. |
+| 2026-11-25 | v2.1, at the operator's word after s063, the first session of v2: the supervisor's questions Honest and Follows reworded (8.10); of 45 askings of s063's 15 reviews Follows passes 13 as it was and 26 with v2.1. Found on the way: the supervisor does not repeat itself (15, item 14a). Tagged `v2.1`. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

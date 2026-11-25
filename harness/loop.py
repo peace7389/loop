@@ -940,7 +940,7 @@ SUPERVISOR = ("You are the supervisor of a researcher who studies a simulated ne
               "reasoning and you owe it no agreement: a test that cannot tell whether the guess is true wastes simulations and puts a false certainty on record, and a sound test sent back wastes a round. Words: a guess is the "
               "researcher's idea of a cause; a hypothesis is a measurable consequence of it; a decision rule is the comparison, fixed before the simulations, that the harness checks "
               "from the measured values; HELD or FAILED is the harness's finding and is a fact. A test need not run a new simulation: its rule may be about a measurement of the researcher's own, taken now "
-              "from the record of a simulation that already ran. That costs nothing and is a proper test as long as the value its rule compares, and the series it is computed from, are not already "
+              "from the record of a simulation that already ran. That costs nothing and is a proper test as long as not every value its rule compares, with the series it is computed from, is already "
               "in the records you are shown. Judge by the description of the system and by the numbers, name the numbers and record "
               "ids you rest on, and say plainly when something cannot be told. Answer in the JSON format you are given, each text in one or two plain sentences.")
 DEFECTS = {"none": "no defect",
@@ -975,12 +975,12 @@ RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["
     "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"], "description": "supported: every check held and the test was fair; refuted: a check failed and the test was fair; inconclusive: otherwise"},
     "retest": {"type": "string", "description": "when the result is inconclusive: what a fair test would have to compare; else empty"},
     "findings": {"type": "array", "maxItems": 2, "items": None, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}}}   # items: FINDING_ITEM, set where it is defined
-QUESTIONS = {"follows": "does the hypothesis follow from the tested guess? Pass only if someone who held the guess to be true would have to expect what the hypothesis says; fail if the guess leaves it open, or would expect otherwise",
-             "honest": "can the test fail? Pass only if no value its rule compares, and no series such a value is computed from, already stands in the records you are shown, and its threshold is not one that almost any result passes; otherwise fail",
+QUESTIONS = {"follows": "does the hypothesis follow from the tested guess? Pass if someone who held the guess to be true would expect this result, in its direction and rough size; a threshold the hypothesis states follows if the guess expects the result beyond it. Fail if the guess leaves the direction open, or would expect otherwise",
+             "honest": "can the test fail? Fail only if every value its rule compares already stands in the records you are shown (or is computed from a series that stands there), or if its threshold is one that almost any result passes; a rule that compares a new result with one already measured can fail. Otherwise pass",
              "consistent": "does the rule test what the hypothesis claims, and only that? Pass only if the simulations it compares differ only in what the claim is about, its measure can see it, and the competing guess is about the same result; otherwise fail",
              "correct": "does the rule come out differently under the two guesses: HELD if the tested guess is true, FAILED if the competing guess is true?"}
 # the same questions once the result is there (v2): Honest is about the time before the run, when its result was not known
-QUESTIONS_AFTER = {"honest": "could the test have failed? Pass only if, before it ran, no value its rule compares stood in the records, and its threshold is not one that almost any result passes; otherwise fail",
+QUESTIONS_AFTER = {"honest": "could the test have failed? Fail only if, before it ran, every value its rule compares stood in the records, or if its threshold is one that almost any result passes; otherwise pass",
                    "consistent": QUESTIONS["consistent"], "correct": QUESTIONS["correct"]}
 REVIEW_QS, RULING_QS = ("follows", "honest", "consistent", "correct"), ("honest", "consistent", "correct")
 CANNOT = "cannot tell"   # v2: an answer of every box; at the review it counts as a fail (its sentence says what is missing to tell), at the ruling it makes the result inconclusive
@@ -988,9 +988,9 @@ BOX = {"type": "string", "enum": ["pass", "fail", CANNOT]}
 GIVES = {"type": "string", "enum": ["held", "failed", "cannot tell"]}
 REVIEW3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["reads", "follows_why", "follows", "honest_why", "honest", "consistent_why", "consistent", "if_tested", "if_competitor", "correct_why", "correct", "missing", "feedback"], "properties": {
     "reads": {"type": "string", "description": "what the decision rule compares, in which simulations"},
-    "follows_why": {"type": "string", "description": "one sentence: would someone who held the tested guess to be true have to expect what the hypothesis says, and why (or what is missing to tell)"},
+    "follows_why": {"type": "string", "description": "one sentence: would someone who held the tested guess to be true expect this result, in its direction and rough size (a stated threshold: beyond it), and why (or what is missing to tell)"},
     "follows": {**BOX, "description": "pass: the hypothesis follows from the guess; fail: the guess leaves it open or would expect otherwise; cannot tell: the sentence says what is missing"},
-    "honest_why": {"type": "string", "description": "one sentence, with record ids: can the test fail? (no value its rule compares, and no series it is computed from, already in the records shown; a threshold that not almost any result passes)"},
+    "honest_why": {"type": "string", "description": "one sentence, with record ids: can the test fail? (it cannot only if every value its rule compares, or the series each is computed from, is already in the records shown, or if its threshold is one almost any result passes)"},
     "honest": {**BOX, "description": "pass: it can fail; fail: it cannot; cannot tell: the sentence says what is missing"},
     "consistent_why": {"type": "string", "description": "one sentence, with record ids: does the rule test what the hypothesis claims and only that (its simulations differ only in what the claim is about, its measure can see it), and is the competing guess about the same result?"},
     "consistent": {**BOX, "description": "pass: it tests the claim and only it, against a guess about the same result; fail: it does not; cannot tell: the sentence says what is missing"},

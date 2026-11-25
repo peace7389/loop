@@ -39,6 +39,45 @@ tree's root); every text a stage changed stands, before and after, in `texts_<st
 (a repair of the page would change neither). Then the run plan: one session for each of `after_fix-2`, `three-hosts-2`, `three-hosts-link-2`,
 `three-hosts-moves`, each with `harness/fairness.py` and `harness/confirm.py`, before the rest.
 
+## v2.1 (2026-11-25): Honest and Follows reworded, at the operator's word after s063
+
+`s11_v21.py`, `texts_stage11_v21.md` (6 changes; only the supervisor's questions). **Honest** failed every test that compares a new run with an
+earlier one ("Pass only if no value its rule compares ... already stands in the records"): now it fails only if every value the rule compares
+already stands there. **Follows** failed any hypothesis with a number or from a hedged guess ("would have to expect what the hypothesis says"):
+now someone who held the guess would expect this result, in its direction and rough size, and a stated threshold follows if the guess expects
+the result beyond it.
+
+How the 15 reviews of s063 come out (`replay_s063.py`: each request as the supervisor was sent it, asked again three times with the questions
+as they were and three times with v2.1's; only answers are kept). The boxes are Follows, Honest, Consistent, Correct; P pass, F fail, C cannot
+tell; "would run" = all four pass:
+
+| Turn | Test | Recorded in s063 | As it was, three askings | would run | v2.1, three askings | would run |
+|---|---|---|---|---|---|---|
+| 2 | H1, round 1 | FPPC | FPPC FPPC FPPC | 0 of 3 | CPPC PPPC FPPC | 0 of 3 |
+| 2 | H1, round 2 | FPFP | FPFP FPFP FPFP | 0 of 3 | FPFP FPFP FPFP | 0 of 3 |
+| 2 | H1, round 3 | FPFP | FPFP FPFP FPFP | 0 of 3 | FPFP FPFP FPFP | 0 of 3 |
+| 2 | H2, round 1 | PPPP | PPPP PPPP PPPP | 3 of 3 | PPPP PPPP PPPP | 3 of 3 |
+| 2 | H3, round 1 | PPPP | PPPP PPPP PPPP | 3 of 3 | PPPP PPPP PPPP | 3 of 3 |
+| 4 | H4, round 1 | FPFC | FPFF FPFF FPFF | 0 of 3 | PPFC PPFF PPFC | 0 of 3 |
+| 4 | H4, round 3 | FPFF | FFFF FPFC FPFP | 0 of 3 | FPFC PPPP FPFC | 1 of 3 |
+| 4 | H5, round 1 | FPFC | FPFF FPFF FPFF | 0 of 3 | FPFC FPFF FPFC | 0 of 3 |
+| 4 | H5, round 2 | FPFC | FPFF FPFC FPFC | 0 of 3 | FPFF CPFC FPFF | 0 of 3 |
+| 5 | H6, round 1 | FPPC | FPPC PPPP FPPC | 1 of 3 | PPPP PPPC PPPC | 1 of 3 |
+| 5 | H6, round 2 | FPPC | FPPF FPPC FPPC | 0 of 3 | FPPC FPFC PPPC | 0 of 3 |
+| 5 | H7, round 1 | PPPP | FPPC FPPF FPPF | 0 of 3 | FPPC PPPP PPPP | 2 of 3 |
+| 5 | H8, round 1 | FFPP | FPPP FPPP FPPC | 0 of 3 | PPPP PPPP PPPP | 3 of 3 |
+| 6 | H10, round 1 | PPPP | PPPC PPPP PPPP | 2 of 3 | PPPP PPPP PPPC | 2 of 3 |
+| 6 | H9, round 1 | PPPP | PPPC PPPP PPPP | 2 of 3 | PPPP PPPP PPPC | 2 of 3 |
+
+Of 45 askings each: Follows passes 13 as it was and 26 with v2.1; Honest 44 and 45; Consistent 27 and 27; Correct 20 and 23; a test would run
+in 11 and in 17. H8 (a new run against an earlier one) would run in 0 of 3 as it was and in 3 of 3 with v2.1; H6 passes Follows in 3 of 3
+(1 of 3 as it was) and still stops at Correct twice; H5 fails Follows under both, rightly (its guess says nothing of the kind of queue it
+compares with). No review comes out worse under v2.1.
+
+**The supervisor does not repeat itself.** Asked the same request three times with nothing changed, it gave the same four boxes each time in 7
+of the 15 reviews (v2.1: 5 of 15). Most of the difference is in Correct ("cannot tell" against fail or pass). H7 was approved in the session
+and passes in 0 of 3 askings as it was. Whether a test runs is in part chance; this is left with the operator (spec 15, item 14a).
+
 ## Decisions of the operator (2026-11-24)
 
 New branch from main. One purpose: "Explain what decides <measure>, and say which settings (and network, where it may change) give the largest
