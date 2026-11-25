@@ -26,7 +26,7 @@ first, with fairness audits, before the rest.
 | 5 | The confirmation tool: `harness/confirm.py SESSION` | built; its check (`harness_checks/test_confirm.py`, copies of s059, s062, s006, s024, s007) passes |
 | 6 | The page: the fourth box, "cannot tell", the confirmation result: `s6_page.py` (17 changes, `texts_stage6.md`) | built; its check `evidence_checks/ev_v2.py` passes on a scratch copy (2026-11-25); the full page suite on the whole tree: see stage 8 |
 | 7 | The text-audit script and the fairness checklist; figures in session_figures: `harness/text_audit.py`, `harness/fairness.py`, `checks/fairness/CHECKLIST.md`, `session_figures.fairness_figures`; `s7_figures.py`, `s7b_found.py`, `s7c_found.py` | built; its check (`harness_checks/test_fairness.py`) passes; the report of the texts: `plans/2026-11-25-v2-text-audit.md` |
-| 8 | Checks of bad input; all harness checks; s047 to s061 rendered unchanged | not started |
+| 8 | Checks of bad input; all harness checks; s047 to s061 rendered unchanged: `s8_found.py`, `s8b_found.py`, `spec_v2.py`; `harness_checks/test_bad_input.py`, section T of `test_stage5.py` | see "The state of the checks" below |
 
 ## Found while building (for the operator)
 
@@ -102,6 +102,17 @@ first, with fairness audits, before the rest.
   scheduler named before the list of the kinds of queue and apart from it; "checks, verdicts" in the answer format of the arms that have neither;
   the TCP types of the three briefs of v2 with the default first (now alphabetical). After the fixes nothing in v2's own texts is marked; the
   list of TCP types of `after_fix` is (the brief is left as its sessions read it: the operator's to decide).
+- Stage 8, wrong input from the researcher on a network that may change (`test_bad_input.py`, twelve wrongly written changes): each is refused
+  with its reason and nothing raises. Found: a network whose scheduler no flow passes (two new links took both flows off its link) was refused
+  with "put it on the side that sends, or use a plain queue", a suggested change; it now says what is wrong and no more. The change a refusal
+  ends with, to show the form, takes a queue out and puts the same kind back (after_fix: a plain queue; three-hosts-moves: its own scheduler).
+- Stage 8, wrong answers of the supervisor (section T of `test_stage5.py`): a box answered with a word that is no answer is a fail; a box left
+  out is asked about once more; a fit answered with a word that is no answer is not recorded and refutes nothing. Found and fixed: "cannot tell"
+  with an empty reason reached the researcher as "Honest could not be told: " and nothing after it (now: "(the supervisor gave no reason)"); a
+  missing reason was recorded as the word "None"; an answer that is JSON but no object stopped the session with an error of the harness's own
+  (now read as an answer that cannot be read: a review's test is run unreviewed with a note, a ruling is asked for again, as before).
+- The build specification on this branch (`HARNESS_SPEC.md`) describes v2: 8.10, 10.10, 10.11, 12.1, 15 item 14, 16. At the deploy it is copied
+  to `~/ADRS/openevolve/HARNESS_SPEC.md` before `snapshot.sh` runs (which copies from there).
 
 ## Stage 4: the candidate brief `three-hosts-moves` and its reference runs (2026-11-25)
 

@@ -299,7 +299,7 @@ def problems(t, limits=None):
         if twice:
             bad.append(f"{sch}: {', '.join(twice)} would wait in two of its queues")
         if not flows:
-            bad.append(f"no flow passes {sch}: put it on the side that sends, or use a plain queue")
+            bad.append(f"no flow passes {sch}: a scheduler divides its link between the flows that pass it on that side")
         if not isinstance(largest, dict) or set(largest) - set(parts) or not all(ok(f"{a}.largest_rate.{f}", v) for f, v in largest.items()):
             bad.append(f"{sch}: largest_rate gives a rate above 0 for some of the parts")
         again = sorted(set(parts) & named.setdefault(l["id"], set()))   # the measures of a link are named by its parts: a name stands once on a link

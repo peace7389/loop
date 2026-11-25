@@ -512,8 +512,11 @@ and "say what 'performance' you chose to mean" while its aim was given; session 
 `tools.task_text(brief)` writes the task from the brief's aim and the settings it leaves open, and `check_brief` puts
 it into every brief that states none:
 
-- given aim: "Find the settings that give the largest tcp_goodput_bps, while udp_loss_frac <= 0.01. You may change 4
-  settings (weightUdp, queuePkts, tcpVariant, duration); every other setting is fixed. Explain why they are best."
+- given aim (v2, the operator's sentence of 2026-11-24: one purpose, the same as the first lines of the instructions): "Explain what decides
+  tcp_goodput_bps, and say which settings give the largest tcp_goodput_bps within the brief's conditions (udp_loss_frac <= 0.01). You may
+  change 4 settings (weightUdp, queuePkts, tcpVariant, duration); every other setting is fixed." Where the network may change it says
+  "which settings and network". Until v2: "Find the settings that give the largest ..., while .... ... Explain why they are best."; a session
+  keeps the sentence it was given, and the page still recognises the older forms as the harness's.
 - open aim: "No aim is given. Choose what 'performance' should mean for this system and say why; then find the
   settings that are best for it. You may change ... Explain why they are best."
 
@@ -560,7 +563,8 @@ sweeps were made with seed 1): `checks/keys/two-hosts-udp-demand-2.json`.
 - a given goal needs a target that is one of the outputs and a list of
   conditions (it may be empty);
 - **a tolerance** (optional, in a given goal: a number of per cent above 0
-  and below 100): two results closer than this count as equal. The model
+  and below 100): two results closer than this do not differ meaningfully (v2: in a decision rule `==` holds within it; `<`, `<=`, `>` and `>=`
+  compare the numbers as measured, and a check that two measured results decide by less is marked). The model
   reads it in the brief; `score.py` uses it (10.4); the page states it beside
   the goal;
 - a `{name}` in the description must be one of the brief's fixed settings;
@@ -918,6 +922,13 @@ what one did on what ground and what the other said to it.
   since 2026-11-25 a researcher and a supervisor is what a new set-up starts with, the first of the two choices; one AI can
   be chosen, the field is then marked as changed; a set-up copied from a session keeps that session's own) or with
   `POST /api/session {"arm": "supervised"}` (a request that names no arm still starts one AI: the default is the page's).
+- **What v2's records need** (stage 6; nothing else of the page changed): the box Follows stands first on the line of a review's questions where
+  the record has it (`EV.QS`, `EV.threeQ`); "cannot tell" is a third answer with a look of its own (`.ctc`, not the colour of a fail) and a
+  sentence on hover saying what it means at a review and at a ruling; a guess the supervisor could not tell to fit is said so and is not shown as
+  refuted; a guess is shown as refuted by the harness's own rule (`EV.fitSpared`, `EV.guessRefutedBy`: not through a hypothesis the review did
+  not find to follow from it) and its sentence says how; the confirmation of the answer (10.10) stands under "Recommended configuration" as the
+  operator's (`EV.confirmBlock`, `#rp-confirm`), not printed, and absent in the replay before its last step. Check: `ev_v2.py` (on every
+  supervised session the refuted guesses of the page are those of `loop.guess_refutations`; s047 to s061 read word for word as on main).
 - **"Two agents"** (`EV.agentsCard`, the operator: show that there are two independent agents and what they do
   differently; not drawn since 2026-11-22, its code kept): on a supervised session's page, before the work itself, three lanes side by side (the researcher
   proposes; the harness measures: the facts; the supervisor checks each step), each with what it is shown, what
@@ -1246,7 +1257,7 @@ review/harness-2026-11-22, whose REVIEW.md has a section for each with its check
 - **Competitors are guesses** (stage 5; COMPETITORS, the arm "supervised", kept by each session as flags.competitors): a decision rule names
   competes_with, another live guess, checked before any review; the supervisor reviews and rules with three questions, Honest, Consistent and
   Correct; a missing competitor holds the test; a guess that does not fit the result of a fair test is refuted by that ruling. Sessions before keep
-  their rival sentences, and draw and read as before.
+  their rival sentences, and draw and read as before. v2 adds a fourth box at the review, a third answer, and the rule that follows from them: 8.10.
 - **00:46**: the ids the model gives back in the batched review are constrained to the exact values (a real call wrote "H1 UDP goodput rises with
   its part" for "H1"), and a rule's competes_with to a guess id.
 - **02:19**, what the first real session on it (s055) found: a repair's record keeps the guess it competes with; the supervisor's test review lists
@@ -1281,7 +1292,7 @@ review/harness-2026-11-22, whose REVIEW.md has a section for each with its check
 - **now.json** beside the ledger (`stage()`, every arm): the step the session is at, written as it begins (reply, judge, ground, restate,
   design with its round, repair, sims, checks, ruling, look), with the turn, what it is about and the time; the page's track of a turn's steps
   reads it, since a supervisor's reading is recorded only when its step is done.
-- **A finding's name** (every arm): `name`, at most 5 words, given by the researcher or the supervisor with the finding, kept cut to 6 words
+- **A finding's name** (every arm): `name`, at most 5 words, given by the researcher or the supervisor with the finding, kept cut to 5 words (v2: `NAME_WORDS`, the number the texts state; it was 6)
   and 48 characters; a finding without one is taken. The page shows the name on the finding's bar. The supervised arm's whole instructions:
   9,521 characters (one limit of 10,000).
 - **An exported session opens** (export_session.py): it copies every script of the page's own list, brief_canvas.js (the network's schema)
@@ -1506,7 +1517,7 @@ model's answer.
 | experiment | X | model (X0: harness) | kind, tests, question, varied, control, runs [{label, params, clamped}], decision_rules: what is left after `loop.trim`; `params` holds every knob of the brief (X0's is empty) | yes |
 | simulation | S | simulator | label, run_id, params, metrics or error, same_as | no (the evidence has its line) |
 | evidence | E | harness | experiment, lines | yes |
-| check | C | harness | for, experiment, decision_rule, rival, rival_predicts, with_numbers, result; since 2026-11-15, when a comparison of the rule was decided by less than the tolerance: tolerance (per cent) and within_tolerance [{left, op, right, percent}] | yes |
+| check | C | harness | for, experiment, decision_rule, rival, rival_predicts, with_numbers, result; since 2026-11-15, when a comparison of the rule was decided by less than the tolerance (v2: only between two measured results): tolerance (per cent) and within_tolerance [{left, op, right, percent}] | yes |
 | verdict | V | model | for, result, because, next | yes |
 | report | R | model | the report | yes |
 | note | N | harness (tool-only turn: model) | text, and fields of its kind | yes |
@@ -1670,16 +1681,18 @@ things were changed, all general (nothing names this system):
 
 1. **A tolerance always holds** (`loop.TOLERANCE`): the brief's
    `goal.tolerance`, or 1 % when the brief states none (`DEFAULT_TOLERANCE`).
-   Every turn's message states it ("TOLERANCE: two results that differ by less
-   than 1 % count as equal …").
+   Every turn's message states it (v2: "TOLERANCE: 1 % (the default of the harness: the brief states none): in a decision rule == holds for two
+   values closer than that; <, <=, > and >= compare the numbers as measured, and a check that two measured results decide by less is marked";
+   until v2: "TOLERANCE: two results that differ by less than 1 % count as equal …").
 2. **The harness marks a check that was decided by less than the tolerance**
    (`loop.decided_by_little`, `decision_rules.comparisons`). For every
-   comparison of the rule whose two sides are results (both measured, or one
-   measured and the other a number that is an earlier result of the session
-   written out, which the model often does) and differ by less than the
+   comparison of the rule whose two sides are results (v2: both measured; until v2 also one measured and the other a number that is an
+   earlier result of the session written out: a number the rule states, a margin or a threshold is no result, the operator's decision of
+   2026-11-24; on s031 the check of H11 is no longer marked, H12 and H16 are) and differ by less than the
    tolerance, the check's record says so (`tolerance`, `within_tolerance`),
    and the line the model reads ends "[NOTE: … the two sides differ by 0.0196
-   %, less than the tolerance of 1 %. They count as equal: this comparison is
+   %, less than the tolerance of 1 %. The result stands as the numbers give it, but a difference this small is no evidence of a difference." (v2;
+   until v2: "They count as equal: this comparison is
    decided by a difference that does not matter, so it is no evidence of a
    difference.]". The result the rule gives (held, failed) is kept. A number
    the rule states of its own (a limit of the brief, a margin) is not a
@@ -1732,6 +1745,48 @@ backoff, or any expected result. For that reason the prompt and the format
 give no example of a question about this system: the example of the
 operator's sheet ("Does the scheduler pass UDP's unused part of the link to
 TCP?") names the very behaviour the model is to find out (section 1).
+
+### 8.10 v2: sessions that are fair to measure (2026-11-25)
+
+The audit of the texts the agents are sent (`plans/2026-11-24-prompt-audit.md`) found that the texts named answers (the scheduler before the
+other kinds of queue and in a sentence of its own, example values, limits that left one move open) and that some statements were not true of
+the code. v2 is the operator's plan against that (the decisions: `v2/REVIEW.md`; every text before and after: `v2/texts_stage*.md`; each stage
+is one patch script `v2/s*.py`). What it changes, by the sections above:
+
+- **One purpose** (7, 8.9): the task and the first lines of every arm's instructions say the same thing, "explain what decides the measure it
+  names, and say which settings give its best value".
+- **Neutral texts in every arm** (8.9, 8.5): the paragraph on changes of the network lists every change at the same depth; the kinds of queue
+  stand in alphabetical order, each described in 10 to 16 words, none named before the list; a new link states its rate and a new queue its kind
+  (left empty they had become the brief's cap and a scheduler); no example names a value (`rate (state it, written as the brief writes rates)`);
+  a refusal describes what is wrong and suggests no change; the lists of choices of v2's briefs are alphabetical.
+- **The rule of the chain says its open way** (8.3): a guess that starts only from old records is refused as before, and the refusal now says
+  that an explanation not yet tried may be stated as the competitor of an earlier guess (`competes_with`), citing a record that guess cites.
+- **The review has four boxes** (8.3, competitors): Follows (would someone who held the guess have to expect what the hypothesis says), Honest,
+  Consistent, Correct (`REVIEW_QS`). A guess is refuted through its own hypothesis only where Follows passed (`loop.guess_refutations`; a ruling
+  made before the box existed counts as before).
+- **"Cannot tell"** is a third answer of every box and of each fit: at a review the test is sent back as if the box had failed, with the reason
+  (an empty reason is said to be empty: `NO_REASON`); at a ruling the result is inconclusive and nothing is refuted. The record keeps
+  `cannot_tell`; the figures count them.
+- **The ruling** is shown the guess the rule competes with and only the simulations its rule names; every round of the review is shown; the
+  second question that made the supervisor choose between the two guesses is gone (each is said to fit, not to fit, or "cannot tell" by
+  itself); its earlier answers are not quoted to it: the harness compares the review's boxes with the ruling's and records `changed` (it replaces
+  "foreseeable").
+- **Findings** (8.3): a finding about a difference inside the tolerance, or about no measure the task names, may be parked with that reason, and
+  a parked finding does not hold the report back (it is due again after `PARK_TURNS` turns as before).
+- **Statements true of the code** (8.9): requests sent alone are answered in the same turn and those sent with a step in the next; an
+  experiment runs at most half of the simulations left and never more than the brief's number for one experiment; what the tolerance means in a
+  rule (above); the numbers in the texts are written from the code's constants when the program starts; the rounds of a review count the first
+  proposal, and the other tests run afterwards.
+- **One function builds the instructions and the format** (`loop.built_texts`; 8.1): `main` calls it, and the text audit (10.11) calls it to
+  write the texts out without a session.
+- **Briefs** (7): `three-hosts-2` (the description without the sentence that named the hidden behaviour), `three-hosts-link-2` (6 hosts, 6
+  links, 4 flows allowed), `three-hosts-moves` (the network of three-hosts-2, the network may change, a new link carries at most 90 Mbit/s:
+  four kinds of move meet the condition and give 18 to 96 Mbit/s; its reference runs are in `v2/REVIEW.md` and `v2/ref/`).
+- **A session recorded before v2** reads as before: the page word for word (`ev_v2.py old`), the ledger's text but for two notes at the end of a
+  check's line that v2 rewords (what the rule was declared to give under the competing guess; the note on a difference inside the tolerance).
+
+The supervised researcher's instructions with competitors are 9,978 characters of the limit of 10,000 (without the paragraph on changes of the
+network, which is about 3,400).
 
 ## 9. What the model can reach: `tools.py`
 
@@ -1996,6 +2051,33 @@ rows where every condition holds, stands for the "recommendation". The draw depe
 `checks/random/<name>/`: `table.csv` and `result.json`. The brief's goal must be given. It answers what a session's
 budget buys without any thinking, drawn from the brief's whole ranges and not from a sweep's grid (the sweeps of
 `two-hosts-udp-demand` are dense near the optimum, so a draw from their rows is not a fair baseline: `HISTORY.md` B2).
+
+### 10.10 The answer measured again: `confirm.py` (v2)
+
+`python3 harness/confirm.py SESSION [--target M --direction max|min --condition "..."]`: no model. The settings the report recommends (and, where
+the network may change, the report's changes) are simulated with 3 seeds (the session's and the next two) at 5 times the measured seconds, each
+into `checks/confirm/<session>/seed<k>/` (run again only when the settings, the network, the scheduling policy or the built program changed).
+`checks/confirm/<session>.json` holds for each simulation the target and every condition with its numbers, whether the conditions hold in all,
+the smallest, largest and mean of the target, what the session itself measured at that answer and what the report expects. An open goal is
+entered by the operator, as for `score.py`. `control.py` gives a session's row `confirm` (the file exists), and the page shows the result under
+"Recommended configuration" (12.1). On the sessions so far: s059's answer met "fb_loss_frac <= 0.1" over 5 s and does not over 25 s (10.5 % in
+each seed: 15, item 13 a); s062 and s006 hold.
+
+### 10.11 Fairness audits: `fairness.py`, `text_audit.py`, `checks/fairness/` (v2)
+
+A session is fair to measure when its answer is the researcher's and not the texts'. `session_figures.fairness_figures(records, given)` gives a
+session with a supervisor: the guesses refused by the rule of the chain, the boxes answered "cannot tell", in which round each test was approved,
+and whether the answer stands in turn 1 (turn 1 depends on the texts alone: each move of the report, whether a simulation designed in turn 1 has
+it, whether the words of turn 1's guesses and hypotheses name it, and the turn that first simulated it). `python3 harness/fairness.py SESSION`
+writes these and the session's other figures to `checks/fairness/<session>.figures.json` and makes, once, `checks/fairness/<session>.md`: the
+figures in sentences and the 14 items of `checks/fairness/CHECKLIST.md`, each "not judged yet"; the judgements are the auditor's, and a form
+that exists is never touched. `python3 harness/text_audit.py BRIEF ...` writes out the texts as built for a new session on each brief in each
+arm (`loop.built_texts`), `--session S` the texts a session's agents were in fact sent (its `calls.jsonl`: what was given, never what the model
+wrote), and marks candidates for pointers: an example that names a rate, a value of a setting, a kind of queue or an object of the network; a
+list of choices out of alphabetical order; a kind of queue described at more than twice the middle length or in a sentence of its own; a
+placeholder left unfilled; it lists every sentence with a word of preference. The report of v2's texts: `plans/2026-11-25-v2-text-audit.md`
+(nothing marked in the harness's own texts; the list of TCP types of `after_fix`, which is left as its sessions read it). All of it is
+operator-only: under `checks/`, named by no tool and no text of the agents.
 
 ## 11. Results so far
 
@@ -3746,8 +3828,8 @@ untracked until they say otherwise.
     count as arrived. With 5 measured seconds and a queue of 1000 packets this decides a result: the answer s059
     reported (three-hosts, part 0.185, queue 1000) loses 9.990 % at 5 s, 10.511 % at 20 s and 10.640 % at 80 s
     (queue 100: 10.674 % at each), so it meets "at most 10 %" only inside the window; part 0.179 loses 9.86 % at
-    5, 20 and 80 s. Ways out: longer measured seconds in such briefs, the harness measuring a recommendation
-    again at several times the duration, or a loss counted from the drops.
+    5, 20 and 80 s. Ways out: longer measured seconds in such briefs, or a loss counted from the drops; since v2 the operator's
+    `confirm.py` (10.10) measures a recommendation again at five times the duration with three seeds, apart from the session.
     (b) *One seed.* The seed moves a result by about 0.2 % (fa's goodput 17.85 to 17.90 Mbit/s over seeds 1 to 5
     on the baseline of three-hosts-link). The tolerance (1 %) guards a comparison of two results, not a result
     against a limit the aim states: 9.99 % against "at most 10 %" passes as met.
@@ -3767,6 +3849,15 @@ untracked until they say otherwise.
     (it is this project's); no policy line under the picture of a simulation that added a scheduler; nothing
     says what prio does with the parts. In the builder: the segment size by the flow's own way (the program
     takes the smallest MTU of the whole network), fixed texts for TCP's options, "turn size 3000 bytes x part".
+
+14. **v2, left open** (2026-11-25): (a) the brief `three-hosts-moves` is a candidate: whether a new link's cap of 90 Mbit/s and its limits are
+    the ones to run, and whether its network should break the condition at the defaults (as three-hosts-2 does) or meet it, is the operator's;
+    (b) a review of the supervisor that cannot be read lets its test run unreviewed, with a note (a ruling that cannot be read is asked for
+    again), as before v2: whether such a test should rather be sent back, as "cannot tell" is, would be a new rule; (c) the brief `after_fix` lists its TCP
+    types with the default first and does not lock its TCP flow (it may be replaced by a TCP flow at a constant rate): a new brief would be
+    needed, since its sessions read it so; (d) the format requires a reason with every box, not that it be filled: an empty one is said to be
+    empty, not refused; (e) no session has run on v2 yet: the run plan is one session for each brief first, each with a fairness audit
+    (`checks/fairness/`), before the rest.
 
 ## 16. History in short
 
@@ -3821,6 +3912,7 @@ untracked until they say otherwise.
 | 2026-11-24, 14:53 | A simulation's pane in four parts (setting, outcome, over time, records), the full setting open with names, values and objects told apart, an object's description in a box on its band (12.1). The texts the two agents are sent, read as sent in s056 to s061 (`plans/2026-11-24-prompt-audit.md`): nothing changed in them; two faults of the program found on the way repaired: a locked object could be replaced under its id (7), and the supervisor's request on an objection held unfilled placeholders. |
 | 2026-11-24, 15:02 | The simulations of each turn on the board, between the hypotheses and the findings, with pointing that lights a simulation's hypotheses and findings and the other way round (12.1). |
 | 2026-11-25, 13:04 | The set-up page starts with a researcher and a supervisor (12.1, the arm "supervised"); a set-up copied from a session keeps who ruled in that session. |
+| 2026-11-25 | v2, sessions that are fair to measure (8.10): one purpose, neutral texts in every arm, the box Follows and "cannot tell", the competing guess at the ruling, parking, statements true of the code, the briefs three-hosts-2, three-hosts-link-2 and three-hosts-moves; the answer measured again (`confirm.py`, 10.10); fairness audits (`fairness.py`, `text_audit.py`, 10.11); the page's part (12.1). |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

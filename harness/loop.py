@@ -644,7 +644,7 @@ def shown(r, st):
         return f"of the decision rule for {b['for']} in {b['experiment']}: {flat(b.get('decision_rule', b.get('rule')))}  ->  {b['with_numbers']}  :  {b['result'].upper()}{rival}{close}"
     if t == "verdict" and r.get("by") == "supervisor" and b.get("questions"):   # the three questions (stage 5): which failed, and which guess fits the result
         qs = b["questions"]
-        return (f"by the supervisor on {b['for']}: {b['result']}. {flat(b['because'])}" + ("" if b.get("fair") else " Not a fair test: " + "; ".join(f"{q.capitalize()} {'could not be told' if qs[q]['box'] == CANNOT else 'failed'}: {flat(qs[q]['why'])}" for q in qs if qs[q]["box"] != "pass") + ".")
+        return (f"by the supervisor on {b['for']}: {b['result']}. {flat(b['because'])}" + ("" if b.get("fair") else " Not a fair test: " + "; ".join(f"{q.capitalize()} {'could not be told' if qs[q]['box'] == CANNOT else 'failed'}: {flat(qs[q]['why']) or NO_REASON}" for q in qs if qs[q]["box"] != "pass") + ".")
                 + (" " + "; ".join(f"the guess {y} {f} this result" for y, f in (b.get("fits") or {}).items()) + ("." if b.get("fair") and not b.get("fits_contradicted") else " (not applied: " + ("its boxes contradicted each other" if b.get("fits_contradicted") else "the test was not fair") + ").") if b.get("fits") else "")
                 + (" The review had not found that the hypothesis follows from its guess: this ruling is about the hypothesis, and the guess is not refuted by it." if b.get("follows") not in (None, "pass") and b.get("result") == "refuted" else "")
                 + (f" A fair test: {flat(b['next'])}" if b.get("next") else "") + (f" [after your objection {b['after']}: {'the ruling stands' if b.get('stands') else 'the ruling is changed'}]" if b.get("after") else "")
@@ -1095,13 +1095,19 @@ def fields_text(schema, indent="  "):
     return "\n".join(out)
 
 
+NO_REASON = "(the supervisor gave no reason)"   # a box that failed or could not be told, with its reason left empty
+
+
 def supervise(model, user, schema, max_tokens=9000):
     """One request to the supervisor: its own instructions, a request of its own (nothing of the researcher's conversation), temperature 0. The model
     reasons before it answers, as the researcher does; that reasoning is not kept (its answer says its ground)."""
     user += "\n\nYOUR ANSWER: one JSON object with these fields, in this order:\n" + fields_text(schema)   # what each field holds (the coherence audit, 2026-11-22)
     content = called("supervisor", model, SUPERVISOR, user, schema, True, 0, max_tokens)[0]
     try:
-        return json.loads(content)
+        d = json.loads(content)
+        if not isinstance(d, dict):
+            raise ValueError("the supervisor's answer is not a JSON object")
+        return d
     except ValueError:
         d = findings_cut(content) if "findings" in (schema.get("properties") or {}) else None
         if d is None:
@@ -1314,7 +1320,7 @@ def _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw):
     flat = lambda v: " ".join(str(v).split())
     box = lambda v: v if v in ("pass", "fail", CANNOT) else "fail"
     gives = lambda v: v if v in ("held", "failed", "cannot tell") else "cannot tell"
-    rev = {"reads": flat(d.get("reads")), **{q + "_why": flat(d.get(q + "_why")) for q in REVIEW_QS}, **{q: box(d.get(q)) for q in REVIEW_QS},
+    rev = {"reads": flat(d.get("reads")), **{q + "_why": flat(d.get(q + "_why") or "") for q in REVIEW_QS}, **{q: box(d.get(q)) for q in REVIEW_QS},
            "if_tested": gives(d.get("if_tested")), "if_competitor": gives(d.get("if_competitor")), "missing": flat(d.get("missing") or ""), "feedback": flat(d.get("feedback") or ""),
            "competes_with": next((x.get("competes_with") for x in rules if x.get("competes_with")), None), "defect": "none"}
     def clash_of(r):   # what contradicts what, or None
@@ -1353,7 +1359,7 @@ def _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw):
         rev["cannot_tell"] = cannot
     rev["defect"] = failed[0] if failed else ("contradiction" if not ok else "none")   # which question did not pass (the figures and the page read the boxes)
     if not ok and not rev["feedback"]:   # a refusal always says what is wrong
-        rev["feedback"] = ("; ".join(f"{q.capitalize()} {'could not be told' if rev[q] == CANNOT else 'failed'}: {rev[q + '_why']}" for q in failed) if failed else
+        rev["feedback"] = ("; ".join(f"{q.capitalize()} {'could not be told' if rev[q] == CANNOT else 'failed'}: {rev[q + '_why'] or NO_REASON}" for q in failed) if failed else
                            "the supervisor's review contradicted itself: " + (rev.get("again", {}).get("still") or clash or "").replace("you passed", "it passed").replace("you failed", "it failed").replace("you said", "it said"))
     if RULE_IN_TEXT.search(rev["feedback"]):
         bits = re.split(r"(?<=[.;!?])\s+", rev["feedback"])
@@ -1532,7 +1538,7 @@ def _rule3(model, ledger, user, hid, checks, review, ask_fn):
         user = user[:i] + RULING3_ASK + user[j:]
     d = (ask_fn or supervise)(model, user, RULING3_SCHEMA)
     box = lambda v: v if v in ("pass", "fail", CANNOT) else "fail"
-    qs = {q: {"why": flat(d.get(q + "_why")), "box": box(d.get(q))} for q in RULING_QS}
+    qs = {q: {"why": flat(d.get(q + "_why") or ""), "box": box(d.get(q))} for q in RULING_QS}
     fair = all(v["box"] == "pass" for v in qs.values())   # a question that failed or could not be told: not a fair test, and the result is inconclusive
     res = [c["body"]["result"] for c in checks]
     fits = {"supported": all(x == "held" for x in res) and fair, "refuted": any(x == "failed" for x in res) and fair, "inconclusive": True}.get(d.get("result"), False)
