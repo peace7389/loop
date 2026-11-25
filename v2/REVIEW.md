@@ -39,6 +39,19 @@ tree's root); every text a stage changed stands, before and after, in `texts_<st
 (a repair of the page would change neither). Then the run plan: one session for each of `after_fix-2`, `three-hosts-2`, `three-hosts-link-2`,
 `three-hosts-moves`, each with `harness/fairness.py` and `harness/confirm.py`, before the rest.
 
+## After v2.1 (2026-11-25, evening): Follows in two parts, and the crash of s064
+
+`s12_follows.py`, `texts_stage12_follows.md` (5 changes), from the operator's sheet: Follows has two parts. (1) Strictly: the hypothesis is
+about a measure the guess speaks about, in the direction the guess requires; fail if not. (2) The number is the researcher's choice: fail only
+if it lies clearly outside what the guess could give, and say why. The review's answer has a field for the part that failed, and the review's
+record keeps it (`follows_part`: "measure or direction", "number", or "not said"). Honest is as the sheet asks since the wording of 18:46 (it
+fails only if every value the rule compares already stands in the records; the same in the question asked after the run).
+
+s064 (the operator's, brief `three_hosts_neutralprompts`, 18:50) ended in turn 1 with "harness error: KeyError: 'no_cause'": the supervisor
+refused a guess for saying that something makes no difference without naming a cause, and the refusal looked the reason up in the list of a
+session without competing guesses, which has no such reason. In the harness since 2026-11-23; no session had met it. The refusal now finds the
+sentence of every reason; the check `test_stage5`, section U, plays the case.
+
 ## v2.1 (2026-11-25): Honest and Follows reworded, at the operator's word after s063
 
 `s11_v21.py`, `texts_stage11_v21.md` (6 changes; only the supervisor's questions). **Honest** failed every test that compares a new run with an

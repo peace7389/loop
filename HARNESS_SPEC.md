@@ -1761,7 +1761,7 @@ is one patch script `v2/s*.py`). What it changes, by the sections above:
   a refusal describes what is wrong and suggests no change; the lists of choices of v2's briefs are alphabetical.
 - **The rule of the chain says its open way** (8.3): a guess that starts only from old records is refused as before, and the refusal now says
   that an explanation not yet tried may be stated as the competitor of an earlier guess (`competes_with`), citing a record that guess cites.
-- **The review has four boxes** (8.3, competitors): Follows (would someone who held the guess expect this result, in its direction and rough size; a stated threshold follows if the guess expects the result beyond it: the wording of v2.1), Honest (it fails only if every value the rule compares already stands in the records, or its threshold is one almost any result passes: v2.1),
+- **The review has four boxes** (8.3, competitors): Follows (in two parts since the evening of 2026-11-25: strictly, the hypothesis is about a measure the guess speaks about, in the direction the guess requires; and its number is the researcher's choice, failing only where it lies clearly outside what the guess could give. The review's record keeps the part that failed, `follows_part`), Honest (it fails only if every value the rule compares already stands in the records, or its threshold is one almost any result passes: v2.1),
   Consistent, Correct (`REVIEW_QS`). A guess is refuted through its own hypothesis only where Follows passed (`loop.guess_refutations`; a ruling
   made before the box existed counts as before).
 - **"Cannot tell"** is a third answer of every box and of each fit: at a review the test is sent back as if the box had failed, with the reason

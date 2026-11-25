@@ -975,7 +975,7 @@ RULING_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["
     "result": {"type": "string", "enum": ["supported", "refuted", "inconclusive"], "description": "supported: every check held and the test was fair; refuted: a check failed and the test was fair; inconclusive: otherwise"},
     "retest": {"type": "string", "description": "when the result is inconclusive: what a fair test would have to compare; else empty"},
     "findings": {"type": "array", "maxItems": 2, "items": None, "description": "what the measured results leave unexplained (what, never why), at most 2; empty when nothing"}}}   # items: FINDING_ITEM, set where it is defined
-QUESTIONS = {"follows": "does the hypothesis follow from the tested guess? Pass if someone who held the guess to be true would expect this result, in its direction and rough size; a threshold the hypothesis states follows if the guess expects the result beyond it. Fail if the guess leaves the direction open, or would expect otherwise",
+QUESTIONS = {"follows": "does the hypothesis follow from the tested guess? It has two parts. First, strictly: the hypothesis is about a measure the guess speaks about, and in the direction the guess requires; if not, fail. Second, the number: a threshold or a size the hypothesis states is the researcher's choice; fail for it only if it lies clearly outside what the guess could give, and say why",
              "honest": "can the test fail? Fail only if every value its rule compares already stands in the records you are shown (or is computed from a series that stands there), or if its threshold is one that almost any result passes; a rule that compares a new result with one already measured can fail. Otherwise pass",
              "consistent": "does the rule test what the hypothesis claims, and only that? Pass only if the simulations it compares differ only in what the claim is about, its measure can see it, and the competing guess is about the same result; otherwise fail",
              "correct": "does the rule come out differently under the two guesses: HELD if the tested guess is true, FAILED if the competing guess is true?"}
@@ -986,10 +986,12 @@ REVIEW_QS, RULING_QS = ("follows", "honest", "consistent", "correct"), ("honest"
 CANNOT = "cannot tell"   # v2: an answer of every box; at the review it counts as a fail (its sentence says what is missing to tell), at the ruling it makes the result inconclusive
 BOX = {"type": "string", "enum": ["pass", "fail", CANNOT]}
 GIVES = {"type": "string", "enum": ["held", "failed", "cannot tell"]}
-REVIEW3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["reads", "follows_why", "follows", "honest_why", "honest", "consistent_why", "consistent", "if_tested", "if_competitor", "correct_why", "correct", "missing", "feedback"], "properties": {
+FOLLOWS_PARTS = ("measure or direction", "number")   # the two parts of Follows; a review's record keeps which one failed (follows_part)
+REVIEW3_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["reads", "follows_why", "follows", "follows_part", "honest_why", "honest", "consistent_why", "consistent", "if_tested", "if_competitor", "correct_why", "correct", "missing", "feedback"], "properties": {
     "reads": {"type": "string", "description": "what the decision rule compares, in which simulations"},
-    "follows_why": {"type": "string", "description": "one sentence: would someone who held the tested guess to be true expect this result, in its direction and rough size (a stated threshold: beyond it), and why (or what is missing to tell)"},
-    "follows": {**BOX, "description": "pass: the hypothesis follows from the guess; fail: the guess leaves it open or would expect otherwise; cannot tell: the sentence says what is missing"},
+    "follows_why": {"type": "string", "description": "one sentence: is the hypothesis about a measure the guess speaks about, in the direction the guess requires; and, if it states a number, does that number lie clearly outside what the guess could give (then say why)? Or what is missing to tell"},
+    "follows": {**BOX, "description": "pass: both parts hold; fail: one of them does not; cannot tell: the sentence says what is missing"},
+    "follows_part": {"type": "string", "enum": ["none"] + list(FOLLOWS_PARTS), "description": "the part of Follows that did not hold: measure or direction (the hypothesis is not about a measure the guess speaks about, or not in the direction the guess requires), or number (its number lies clearly outside what the guess could give); none when Follows passes or cannot be told"},
     "honest_why": {"type": "string", "description": "one sentence, with record ids: can the test fail? (it cannot only if every value its rule compares, or the series each is computed from, is already in the records shown, or if its threshold is one almost any result passes)"},
     "honest": {**BOX, "description": "pass: it can fail; fail: it cannot; cannot tell: the sentence says what is missing"},
     "consistent_why": {"type": "string", "description": "one sentence, with record ids: does the rule test what the hypothesis claims and only that (its simulations differ only in what the claim is about, its measure can see it), and is the competing guess about the same result?"},
@@ -1349,6 +1351,8 @@ def _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw):
     rev = {"reads": flat(d.get("reads")), **{q + "_why": flat(d.get(q + "_why") or "") for q in REVIEW_QS}, **{q: box(d.get(q)) for q in REVIEW_QS},
            "if_tested": gives(d.get("if_tested")), "if_competitor": gives(d.get("if_competitor")), "missing": flat(d.get("missing") or ""), "feedback": flat(d.get("feedback") or ""),
            "competes_with": next((x.get("competes_with") for x in rules if x.get("competes_with")), None), "defect": "none"}
+    if rev["follows"] == "fail":   # which of the two parts of Follows failed, as the supervisor said it (the operator, 2026-11-25: "Record which part failed")
+        rev["follows_part"] = d.get("follows_part") if d.get("follows_part") in FOLLOWS_PARTS else "not said"
     def clash_of(r):   # what contradicts what, or None
         differs = r["if_tested"] == "held" and r["if_competitor"] == "failed"
         if r["correct"] == "pass" and not differs:
@@ -1985,7 +1989,7 @@ def sort_out(t, brief, ledger, left, mode=None, insist=True, judge=None, supervi
             if g["refuse"]:
                 # gate 0 (the arm "supervised"): the supervisor read the records the guess cites. A guess that does not start from what they show, or that only
                 # says an earlier one again, is refused once; stated again it is accepted, and its review says that the supervisor still objects
-                return (f"the supervisor does not accept this guess as it stands: {GROUNDS[g['defect']]}. The records show: {g['records_show']} {g['because']} "
+                return (f"the supervisor does not accept this guess as it stands: {GROUNDS_COMP.get(g['defect']) or g['defect']}. The records show: {g['records_show']} {g['because']} "
                         "State what the cited records show, and what in them is new, or leave the guess. No hypothesis can come from a guess that was not accepted"), "supervisor", g
             return None, None, g
         return None, None, None
