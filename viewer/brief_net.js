@@ -482,7 +482,7 @@ const BRIEF_NET = {
     // no "simulations allowed at the start" here any more (2026-11-22, the operator: it repeated block 5's "Simulations in all"): a session starts with the brief's limit
     const b7 = `<div class="kv" id="bn-flags">${fl('draft before the answer', `<select data-ch="nw" data-k="draft"><option${nw.draft === 'on' ? ' selected' : ''}>on</option><option${nw.draft === 'off' ? ' selected' : ''}>off</option></select>`, 'default: on')}
         ${fl('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on')}
-        ${fl('who rules on the tests', EV.armField(), 'default: one AI')}</div>`;
+        ${fl('who rules on the tests', EV.armField(), 'default: a researcher and a supervisor')}</div>`;
     const nets = (N.ctx.st || {}).network_briefs || [];
     const top = `<div class="be-top"><div><label>Start from <span class="sm" style="font-weight:400">(optional)</span><small>the network below is ready to build on and to start. Or load another to change: a saved brief that has a network, or one of two examples</small><select id="bn-open"><option value="">the network below, as it is</option><option value="~default">example: two hosts, one link (UDP and TCP)</option><option value="~dumbbell">example: two senders through a third host</option>${nets.map(b => `<option value="${e(b)}"${b === s.base ? ' selected' : ''}>${e(b)}</option>`).join('')}</select></label></div>
         <label>Name of the new brief<small>lower-case letters, digits, - and _ · a saved brief is never overwritten</small>${N.field('id', s.id, 'e.g. three-hosts')}</label></div>`;

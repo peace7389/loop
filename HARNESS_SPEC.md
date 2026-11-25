@@ -914,8 +914,10 @@ what one did on what ground and what the other said to it.
   although it still objects; its rival; what would make it doubt the test), "Ruling" (with a researcher's objection
   and the second look) and "So next"; in the turn's record a part "What the supervisor said, and on what ground"
   with, for each of its records, what it was shown; a lane of its own in the session flow; in "From one hypothesis
-  to the next" the column of the judge is the supervisor's. Started from the set-up page ("who rules on the tests")
-  or with `POST /api/session {"arm": "supervised"}`.
+  to the next" the column of the judge is the supervisor's. Started from the set-up page ("who rules on the tests":
+  since 2026-11-25 a researcher and a supervisor is what a new set-up starts with, the first of the two choices; one AI can
+  be chosen, the field is then marked as changed; a set-up copied from a session keeps that session's own) or with
+  `POST /api/session {"arm": "supervised"}` (a request that names no arm still starts one AI: the default is the page's).
 - **"Two agents"** (`EV.agentsCard`, the operator: show that there are two independent agents and what they do
   differently; not drawn since 2026-11-22, its code kept): on a supervised session's page, before the work itself, three lanes side by side (the researcher
   proposes; the harness measures: the facts; the supervisor checks each step), each with what it is shown, what
@@ -3818,6 +3820,7 @@ untracked until they say otherwise.
 | 2026-11-24, 13:14 | From a hypothesis to its result (`evidence_chain.js`, 12.1): a hypothesis's pane shows each test as what was set, what came out, what the rule required and how it was ruled; a simulation's pane begins with its setting, the hypotheses that used it and its records; a simulation is told apart by its network too. Check `ev_evidence.py`. |
 | 2026-11-24, 14:53 | A simulation's pane in four parts (setting, outcome, over time, records), the full setting open with names, values and objects told apart, an object's description in a box on its band (12.1). The texts the two agents are sent, read as sent in s056 to s061 (`plans/2026-11-24-prompt-audit.md`): nothing changed in them; two faults of the program found on the way repaired: a locked object could be replaced under its id (7), and the supervisor's request on an objection held unfilled placeholders. |
 | 2026-11-24, 15:02 | The simulations of each turn on the board, between the hypotheses and the findings, with pointing that lights a simulation's hypotheses and findings and the other way round (12.1). |
+| 2026-11-25, 13:04 | The set-up page starts with a researcher and a supervisor (12.1, the arm "supervised"); a set-up copied from a session keeps who ruled in that session. |
 
 The operator's plans, in the order they were followed: `~/RESTRUCTURE_PLAN.md`,
 `~/CHECKS_AND_REPAIRS.md`, `EVIDENCE_VIEW.md`, `PAGE_REDESIGN.md` (these two

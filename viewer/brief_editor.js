@@ -155,7 +155,7 @@ const BRIEF_EDITOR = {
     const B = BRIEF_EDITOR, t = B.blankOf || {}, view = B.s ? [B.s.list, B.s.obj] : [];
     if (B.s && B.s.baseId) B.prev = B.s.baseId;   // the brief to go back to when the box is unticked
     B.s = { ...B.fromBrief({ task: '', description: '', system: { ...(t.system || {}) }, knobs: {}, goal: { kind: 'open' }, limits: { ...(t.limits || {}) } }), id: B.s ? B.s.id : '', baseId: '', none: true, from: null, msg: null, busy: '', list: view[0], obj: view[1] };
-    B.s.base = ''; B.s.orig = B.fields(); B.s.origRun = { policy: 'share', budget: '', draft: 'on', tokens: '', temp: '', baseline: true };
+    B.s.base = ''; B.s.orig = B.fields(); B.s.origRun = { policy: 'share', budget: '', draft: 'on', tokens: '', temp: '', baseline: true, arm: 'supervised' };
     B.draw();
   },
   async open(id) {
@@ -163,7 +163,7 @@ const BRIEF_EDITOR = {
     if (!b) { B.s.msg = { bad: true, lines: [`Cannot read briefs/${id}.json.`] }; return B.draw(); }
     const keep = B.s ? B.s.id : '', view = B.s ? [B.s.list, B.s.obj] : [];
     B.s = { ...B.fromBrief(b), id: keep, baseId: id, from: null, msg: null, busy: '', list: view[0], obj: view[1] };
-    B.s.base = B.body(); B.s.orig = B.fields(); B.s.origRun = { policy: 'share', budget: '', draft: 'on', tokens: '', temp: '', baseline: true };  // blocks 6 and 7 are measured against the defaults
+    B.s.base = B.body(); B.s.orig = B.fields(); B.s.origRun = { policy: 'share', budget: '', draft: 'on', tokens: '', temp: '', baseline: true, arm: 'supervised' };  // blocks 6 and 7 are measured against the defaults
     B.draw();
   },
   // "Start a new session from this setup": every value of a session (what it was given, its flags, its policy)
@@ -173,8 +173,8 @@ const BRIEF_EDITOR = {
     const g = m.given, briefs = (B.ctx.st || {}).briefs || []; let id = `${g.id}-again`.slice(0, 56), n = 1; while (briefs.includes(id)) id = `${g.id}-again`.slice(0, 54) + '-' + (++n);
     B.s = { ...B.fromBrief(g), id, baseId: '', from: sid, fromBrief: g.id, msg: null, busy: '', list: false, obj: null };
     B.s.base = ''; B.s.orig = B.fields();
-    const f = m.flags || {}, nw = EV.nw; nw.policy = row.policy_hidden ? 'random' : row.policy || nw.policy; nw.budget = ''; nw.draft = f.draft || 'on'; nw.tokens = f.max_tokens == null ? '' : String(f.max_tokens); nw.temp = f.temperature == null ? '' : String(f.temperature); nw.baseline = f.baseline !== false && f.baseline !== 'off';
-    B.s.origRun = { policy: nw.policy, budget: nw.budget, draft: nw.draft, tokens: nw.tokens, temp: nw.temp, baseline: nw.baseline };
+    const f = m.flags || {}, nw = EV.nw; nw.policy = row.policy_hidden ? 'random' : row.policy || nw.policy; nw.budget = ''; nw.draft = f.draft || 'on'; nw.tokens = f.max_tokens == null ? '' : String(f.max_tokens); nw.temp = f.temperature == null ? '' : String(f.temperature); nw.baseline = f.baseline !== false && f.baseline !== 'off'; nw.arm = f.arm === 'supervised' ? 'supervised' : 'hypotheses';
+    B.s.origRun = { policy: nw.policy, budget: nw.budget, draft: nw.draft, tokens: nw.tokens, temp: nw.temp, baseline: nw.baseline, arm: nw.arm };
     B.draw();
   },
 
@@ -461,7 +461,7 @@ const BRIEF_EDITOR = {
         ${field('most tokens of one answer', `<input type="number" min="256" data-ch="nw" data-k="tokens" value="${e(nw.tokens)}" placeholder="${nw.draft === 'on' ? 32000 : 3000}">`, 'default: 32000 with a draft, 3000 without', 'tokens')}
         ${field('temperature', `<input type="number" min="0" max="2" step="0.1" data-ch="nw" data-k="temp" value="${e(nw.temp)}" placeholder="0.3">`, 'default: 0.3', 'temp')}
         ${field('baseline simulation first', `<label style="font-weight:400"><input type="checkbox" data-ch="nw" data-k="baseline"${nw.baseline ? ' checked' : ''}> run it</label>`, 'default: on · every knob at its default, by the harness')}
-        ${field('who rules on the tests', EV.armField(), 'default: one AI · a supervisor is a second AI, asked apart from the researcher')}</div>`;
+        ${field('who rules on the tests', EV.armField(), 'default: a researcher and a supervisor · the supervisor is a second AI, asked apart from the researcher')}</div>`;
     const blk = (i, body, cls) => EV.setBlock(i, body, { says: true, cls });
     const top = `<div class="be-top"><div><label>Start from a saved brief<small>its content fills the seven blocks</small><select id="be-open"${s.none ? ' disabled' : ''}>${B.openOpts(briefs)}</select></label>
         <label class="be-none"><input type="checkbox" id="be-none"${s.none ? ' checked' : ''}><span>or start from an empty set-up<small>no saved brief: you write the description, every setting starts fixed</small></span></label></div>
