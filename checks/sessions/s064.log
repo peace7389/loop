@@ -1,0 +1,16 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s064 --brief three_hosts_neutralprompts --draft on --policy share --baseline on --arm supervised
+session s064 (brief three_hosts_neutralprompts): /home/chunguck.kim/project/sessions/s064
+Traceback (most recent call last):
+  File "/home/chunguck.kim/project/harness/loop.py", line 3734, in <module>
+    main()
+    ~~~~^^
+  File "/home/chunguck.kim/project/harness/loop.py", line 3559, in main
+    ok, no = sort_out(parsed, brief, ledger, max(0, budget - sims), mode, insist=not asked, judge=judge, supervised=arm == "supervised", ground=ground_fn if arm == "supervised" else None, short=short, restate=restate_fn if arm == "supervised" and RESTATE_GUESSES else None)
+             ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/chunguck.kim/project/harness/loop.py", line 2021, in sort_out
+    why, by, g = why_problem(w)
+                 ~~~~~~~~~~~^^^
+  File "/home/chunguck.kim/project/harness/loop.py", line 1988, in why_problem
+    return (f"the supervisor does not accept this guess as it stands: {GROUNDS[g['defect']]}. The records show: {g['records_show']} {g['because']} "
+                                                                       ~~~~~~~^^^^^^^^^^^^^
+KeyError: 'no_cause'
