@@ -1,0 +1,127 @@
+{
+ "goal": "max tcp_goodput_bps",
+ "recommendation": {
+  "l1.queue.length": 100,
+  "tcp.type": "TcpCubic"
+ },
+ "structure": [
+  {
+   "do": "remove",
+   "id": "l1",
+   "kind": "queue",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  },
+  {
+   "do": "add_queue",
+   "id": "l1",
+   "kind": "scheduler",
+   "from": "",
+   "to": "",
+   "on": "sender",
+   "rate": "",
+   "type": "",
+   "app": ""
+  }
+ ],
+ "limit": "At this recommendation the 1Gbps link is saturated and the locked UDP flow offers 2Gbps; the sender-side scheduler gives each flow a part of the link, so TCP is capped near half the link at 482007923 bps, and the tested queue lengths and TCP types stay at or below that share (E1,E2,E3,E4,E6,E7,C1,C4,C5,C6,C7,C8,V1,V4,V5,V6,V7,V8).",
+ "explanation": "With the default FIFO or plain CoDel, UDP fills the sender queue and TCP never gets sustained ACKs, giving 0 bps (E0,E4,E5). Replacing the sender queue with a scheduler or FQ-CoDel isolates flows, lets TCP establish, and yields about 482 Mbps (E1,E4). The scheduler/FQ-CoDel service then caps TCP near its fair share: q250 and TcpBic match q100 Cubic within tolerance, q4 and q1000 are lower, and BBR is much lower (E2,E3). FQ-CoDel reaches the same goodput with lower RTT and inflight, and its extra retransmissions match the extra total drops, while CoDel q1000 only lets a few TCP probes survive (E4,E5,E6,E7,T20,T21,T22,T25,T26,T29,T30,C11,V11). Scheduler q100 Cubic is preferred because it ties the maximum observed TCP goodput with fewer retransmissions than FQ-CoDel or Bic and a shorter queue than q250; expected values are tcp_goodput_bps=482007923, udp_goodput_bps=489526240, and tcp_retrans=71.",
+ "claims": [
+  {
+   "text": "Per-flow isolation is required for TCP to deliver data under the locked 2Gbps UDP flow.",
+   "evidence": [
+    "E0",
+    "E1",
+    "E4",
+    "E5",
+    "C1",
+    "C2",
+    "C3",
+    "C8",
+    "C9",
+    "V1",
+    "V2",
+    "V3",
+    "V8",
+    "V9"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The best TCP goodput observed is 482007923 bps with scheduler or FQ-CoDel at l1.queue.length=100 and TcpCubic.",
+   "evidence": [
+    "E1",
+    "E4",
+    "E6",
+    "E7",
+    "C1",
+    "C8",
+    "V1",
+    "V8"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "Queue length and loss-based TCP type do not raise scheduler TCP goodput beyond 1%: q250 and TcpBic match q100 Cubic, while q4, q1000, and BBR do not exceed it.",
+   "evidence": [
+    "E2",
+    "E3",
+    "C4",
+    "C5",
+    "C6",
+    "C7",
+    "V4",
+    "V5",
+    "V6",
+    "V7"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The cap is fair service on the saturated link: UDP and TCP each receive about half the 1Gbps link, and FQ-CoDel's lower inflight tracks its lower RTT at identical TCP goodput.",
+   "evidence": [
+    "E1",
+    "E4",
+    "E6",
+    "E7",
+    "T8",
+    "T9",
+    "T21",
+    "T22",
+    "T25",
+    "T26",
+    "C11",
+    "V11"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "FQ-CoDel's 6100 retransmissions versus scheduler's 71 at identical goodput are explained by extra TCP drops, not a larger TCP share; CoDel q1000's small 1158 bps is only occasional probe survival.",
+   "evidence": [
+    "E4",
+    "E5",
+    "E6",
+    "T20",
+    "T29",
+    "T30",
+    "C9",
+    "V9",
+    "C11",
+    "V11"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [
+  "F12: r011 fqcodel tcp_inflight_mean=72362.352 is far below r002 sched_base tcp_inflight_mean=136959.08 while both have tcp_goodput_bps=482007923, and the shown records do not explain this large inflight difference. (not resolved; added by the harness: the report did not name it)",
+  "F13: r011 fqcodel tcp_rtt_ms mean=1.049359 is about half r002 sched_base tcp_rtt_ms mean=2.092923, and the shown records do not explain this RTT difference at identical TCP goodput. (not resolved; added by the harness: the report did not name it)"
+ ],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}
