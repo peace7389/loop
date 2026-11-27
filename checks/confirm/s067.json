@@ -1,0 +1,110 @@
+{
+ "session": "s067",
+ "brief": "simple_go",
+ "scheduling_policy": "share",
+ "goal": {
+  "target": "tcp_goodput_bps",
+  "direction": "max",
+  "conditions": [],
+  "source": "the brief"
+ },
+ "answer": {
+  "settings": {
+   "l1.queue.length": 100,
+   "tcp.type": "TcpCubic"
+  },
+  "structure": [
+   {
+    "do": "remove",
+    "id": "l1",
+    "kind": "queue",
+    "from": "",
+    "to": "",
+    "on": "sender",
+    "rate": "",
+    "type": "",
+    "app": ""
+   },
+   {
+    "do": "add_queue",
+    "id": "l1",
+    "kind": "scheduler",
+    "from": "",
+    "to": "",
+    "on": "sender",
+    "rate": "",
+    "type": "",
+    "app": ""
+   }
+  ]
+ },
+ "how": {
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "seconds": 50,
+  "the_session_measured_over": 10.0,
+  "times": 5
+ },
+ "runs": [
+  {
+   "seed": 1,
+   "seconds": 50,
+   "target": 482007692,
+   "conditions": [],
+   "holds": true
+  },
+  {
+   "seed": 2,
+   "seconds": 50,
+   "target": 482007923,
+   "conditions": [],
+   "holds": true
+  },
+  {
+   "seed": 3,
+   "seconds": 50,
+   "target": 482007692,
+   "conditions": [],
+   "holds": true
+  }
+ ],
+ "all_run": true,
+ "conditions_hold_in_all": true,
+ "conditions_hold_in": 3,
+ "target": {
+  "smallest": 482007692,
+  "largest": 482007923,
+  "mean": 482007769.0
+ },
+ "the_session_measured": [
+  {
+   "id": "S4",
+   "target": 482007923,
+   "returned": false
+  },
+  {
+   "id": "S7",
+   "target": 482007923,
+   "returned": true
+  },
+  {
+   "id": "S10",
+   "target": 482007923,
+   "returned": true
+  },
+  {
+   "id": "S14",
+   "target": 482007923,
+   "returned": true
+  },
+  {
+   "id": "S17",
+   "target": 482007923,
+   "returned": true
+  }
+ ],
+ "the_report_expects": null
+}

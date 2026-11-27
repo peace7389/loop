@@ -1,0 +1,123 @@
+{
+ "session": "s067",
+ "brief": "simple_go",
+ "arm": "supervised",
+ "how": "done by the model",
+ "turns": 9,
+ "simulations": 11,
+ "allowed": 12,
+ "fairness": {
+  "chain_refusals": 3,
+  "cannot_tell": 4,
+  "unread_reviews": 0,
+  "approved_by_round": {
+   "1": 10
+  },
+  "not_approved": 1,
+  "turn_1": {
+   "answer": [
+    "the queue l1 on sender's side removed",
+    "a queue of kind scheduler on sender's side of l1"
+   ],
+   "simulated_in_turn_1": [
+    "the queue l1 on sender's side removed",
+    "a queue of kind scheduler on sender's side of l1"
+   ],
+   "named_in_turn_1": [
+    "a queue of kind scheduler on sender's side of l1"
+   ],
+   "first_seen": {
+    "the queue l1 on sender's side removed": 1,
+    "a queue of kind scheduler on sender's side of l1": 1
+   }
+  }
+ },
+ "rounds": {
+  "tests": 12,
+  "reviewed": 11,
+  "rounds": {
+   "mean": 1.18,
+   "max": 3
+  },
+  "approved_first": 10,
+  "repaired_approved": 0,
+  "contested": 0,
+  "dropped": 0,
+  "unsettled": 0,
+  "refused_by_harness": 1
+ },
+ "guesses": {
+  "guesses": 21,
+  "warnings": 4,
+  "restated": 5,
+  "contested": 1
+ },
+ "boxes": {
+  "cannot_tell": 4,
+  "changed": {
+   "honest": 0,
+   "consistent": 1,
+   "correct": 1
+  },
+  "questions": {
+   "follows": {
+    "pass": 11,
+    "fail": 0
+   },
+   "honest": {
+    "pass": 11,
+    "fail": 0
+   },
+   "consistent": {
+    "pass": 10,
+    "fail": 1
+   },
+   "correct": {
+    "pass": 10,
+    "fail": 0
+   }
+  },
+  "approved_then_unfair": 1,
+  "misses": {
+   "honest": 0,
+   "consistent": 0,
+   "correct": 0
+  },
+  "found_by_result": {
+   "honest": 0,
+   "consistent": 0,
+   "correct": 0
+  },
+  "from_feedback": 0,
+  "refuted_by_competition": 9,
+  "held": 1
+ },
+ "findings": {
+  "raised": {
+   "researcher": 1,
+   "supervisor": 3
+  },
+  "ended": {
+   "closed": 3,
+   "same_as": 0,
+   "parked": 0,
+   "working": 0,
+   "unresolved": 1
+  },
+  "turns_open": {
+   "mean": 2.2,
+   "max": 4
+  },
+  "never_looked_at": 1,
+  "final": true
+ },
+ "parked": [],
+ "decided_by_less_than_the_tolerance": [],
+ "changed_by_harness": 0,
+ "notes_by_part": {
+  "experiment": 2,
+  "test": 1,
+  "report": 1
+ },
+ "confirmation": null
+}

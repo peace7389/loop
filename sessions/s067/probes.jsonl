@@ -1,3 +1,6 @@
 {"run": "r001", "every": 0.01, "same_result": true, "ts": "2026-11-27T17:56:55"}
 {"run": "r004", "every": 0.01, "same_result": true, "ts": "2026-11-27T17:57:16"}
 {"run": "r002", "every": 0.01, "same_result": true, "ts": "2026-11-27T18:08:08"}
+{"run": "r006", "every": 0.01, "same_result": true, "ts": "2026-11-27T18:25:34"}
+{"run": "r008", "every": 0.01, "same_result": true, "ts": "2026-11-27T18:43:55"}
+{"run": "r010", "every": 0.01, "same_result": true, "ts": "2026-11-27T18:44:16"}
