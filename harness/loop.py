@@ -3800,7 +3800,7 @@ def main():
                         items, saw = sup_findings_of(model, brief, then, due)
                         take_sup_findings(ledger, turn, items, due[-1])
                         sup_log(due[-1], "findings", saw, {"findings": items, "about": due})
-                    except (ValueError, KeyError, TypeError) as e:
+                    except Exception as e:   # its look is not needed to go on: a note, and the session goes on (also at a model server error, as the look at the baseline was)
                         append(ledger, turn, "note", due[-1], {"text": f"the supervisor's look at {', '.join(due)} could not be read ({type(e).__name__}): no finding of its own"})
             if report is not None and (ran_now := [r["id"] for r in ledger if r["turn"] == turn and r["type"] == "experiment" and r.get("by") != "harness"]):   # the coherence audit, 2026-11-22: a report with an experiment was taken before its results
                 _note(ledger, turn, "report", f"the report is held back: this answer's experiment ({', '.join(ran_now)}) ran in this turn, and its results and checks come to you in the next turn. Give the report after you have read them")
