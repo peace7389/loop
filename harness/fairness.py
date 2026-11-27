@@ -24,7 +24,7 @@ def figures(sid):
     meta = json.loads((D / "session.json").read_text())
     recs = [r for r in (json.loads(l) for l in (D / "ledger.jsonl").read_text().splitlines() if l.strip()) if r["type"] not in ("draft", "scratch")]
     body = lambda r: r.get("body") or {}
-    parked = [{"finding": body(r).get("id"), "turn": r.get("turn"), "reason": body(r).get("reason")} for r in recs if r["type"] == "decision" and body(r).get("action") == "park"]
+    parked = [{"finding": body(r).get("for"), "turn": r.get("turn"), "reason": body(r).get("reason")} for r in recs if r["type"] == "decision" and body(r).get("action") == "park"]
     little = [{"check": r.get("id"), "for": body(r).get("for"), "turn": r.get("turn"), "percent": [q.get("percent") for q in body(r).get("within_tolerance") or []]} for r in recs if r["type"] == "check" and body(r).get("within_tolerance")]
     notes = {}
     for r in recs:
