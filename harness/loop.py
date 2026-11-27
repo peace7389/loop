@@ -1066,6 +1066,7 @@ LOOK_TURNS = 3   # the arms "hypotheses" and "plain": the most turns in a row wi
 LOOKS = 6   # the arm "supervised": the most requests in one turn, and the most turns in a row that only look (the operator, 2026-11-18: observe the system whenever it wants, rather than try many simulations)
 COMPETITORS = True   # the arm "supervised": a decision rule names the guess it competes with, and the supervisor reviews and rules with three questions (stage 5 of the coherence audit, 2026-11-22; a session keeps what it started with)
 COMP = {"on": False}   # whether the session at hand works with competitors (set in main)
+LOOK_AFTER_REPLY = True   # the arm "supervised" (2026-11-27, the operator: "Why doesn't the researcher propose findings?"): the supervisor looks for findings after the researcher's reply to a result, never before; the ruling asks for none
 BATCH_FIRST = True   # the arm "supervised": the new guesses and tests of a reply are reviewed in one request (stage 4 of the coherence audit, 2026-11-22; the operator's sheet "Fixes from s052 and s053", 4a)
 AGAIN_TOKENS = 2000   # the supervisor's follow-up question: 1,000 of them reasoning (the operator, 2026-11-22: a thinking budget of 1,000)
 SUPERVISOR_FILE = "supervisor.jsonl"   # beside the ledger: for each record of the supervisor, what it was shown and what it answered
@@ -1204,7 +1205,7 @@ def review_design(model, brief, ledger, ex, hid, ask_fn=None, round_no=1, earlie
     if parts:   # the pieces of this review, for the batched first review
         return {"item": item, "ask": ask}
     user = (_system_for_supervisor(brief) + f"\nWHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\nEVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\n" + (guesses_text(ledger) if COMP["on"] else "") + item + (f"THIS IS ROUND {round_no} of at most {REVIEW_ROUNDS} for this test. The test above is the researcher's answer to these rounds; it may be unchanged, so judge it as it stands and compare it with the "
-                                                                                                                 f"earlier rounds. A test sent back in round {REVIEW_ROUNDS} is run all the same, marked as contested.\n{before}\n" if round_no > 1 else "") + ask)
+                                                                                                                 f"earlier rounds. A test sent back in round {REVIEW_ROUNDS} is run all the same, marked as contested" + (", unless Consistent does not pass or you name a competing cause that is no guess yet: then it is not run and its hypothesis stays open" if COMP["on"] else "") + f".\n{before}\n" if round_no > 1 else "") + ask)
     d = pre if pre is not None else (ask_fn or supervise)(model, user, REVIEW3_SCHEMA if COMP["on"] else REVIEW_SCHEMA)   # pre: its answer in the batched first review
     if COMP["on"]:   # the three questions (stage 5)
         return _review3(model, d, user, hid, rules, round_no, ask_fn, pre, pre_saw)
@@ -1303,6 +1304,14 @@ def guesses_text(ledger, new=None):
              + (f"(refuted by {refuted[r['id']]}) " if r["id"] in refuted else f"(revised as {ws[r['id']]['as']}) " if (ws.get(r["id"]) or {}).get("as") else "")
              + f"{flat(r['body'].get('guess'))}" + (f" | competes with {r['body']['competes_with']}" if r["body"].get("competes_with") else "") for r in ledger if r["type"] == "why"]
     return "THE RESEARCHER'S GUESSES SO FAR (a competing cause may already be one of them):\n" + ("\n".join(lines) or "  (none)") + "\n\n"
+
+
+def live_guesses_text(ledger, hid):
+    """The guesses a repaired rule of this hypothesis may name in competes_with, for the request for a repair (the review of 2026-11-27, B6: the
+    request asked for "an existing live guess" and listed none; s065 P3 named the refuted Y5). Listed: exactly those competitor_problem accepts."""
+    flat = lambda v: " ".join(str(v).split())
+    lines = [f"  [{r['id']}] {flat(r['body'].get('guess'))}" for r in ledger if r["type"] == "why" and competitor_problem({"for": hid, "competes_with": r["id"], "rival_predicts": "failed"}, ledger) is None]
+    return "THE GUESSES A RULE OF THIS TEST MAY COMPETE WITH NOW (live: not refuted, not revised, not your hypothesis's own guess nor one linked to it by revises):\n" + ("\n".join(lines) or "  (none: a competing cause that is no guess yet is written as a guess in your next reply)") + "\n\n"
 
 
 def competitor_text(ledger, rules, ex=None):
@@ -1418,7 +1427,12 @@ def ground_of(model, brief, ledger, why, ask_fn=None, parts=False, pre=None, pre
     cited = [r for r in ledger if r["id"] in why["about"]]
     record = lambda r: record_line(r, ledger)
     new = learned_since(ledger)
-    mark = lambda r: record(r) + ("   <- NEW since the researcher's earlier guesses" if new is not None and r["id"] in new else "")
+    def mark(r):   # the mark at the end of the record's first line: at the end of a result table it read as "only the last simulation is new" (the review of 2026-11-27, C2: s066 G11, G13, G22)
+        text = record(r)
+        if new is None or r["id"] not in new:
+            return text
+        first, _, rest = text.partition("\n")
+        return first + "   <- NEW since the researcher's earlier guesses (the whole record)" + ("\n" + rest if rest else "")
     earlier = "\n".join([f"  [{r['id']}] guess: {flat(r['body']['guess'])}" for r in ledger if r["type"] == "why"]
                         + [f"  [{r['id']}] hypothesis ({st.get(r['id'], 'open')}): {flat(r['body']['text'])}" for r in ledger if r["type"] == "hypothesis"]) or "  (none yet)"
     rulings = "\n".join(f"  [{r['id']}] on {r['body']['for']}: {r['body']['result']}. {flat(r['body']['because'])}" for r in ledger if r["type"] == "verdict") or "  (none yet)"
@@ -1467,12 +1481,12 @@ def batch_schema(ng, nt):
     """The answer of the batched first review: one item for each new guess (gate 0's fields) and one for each test (round 1's fields). ng, nt: the
     names of the guesses (G1, G2, ...) and the hypotheses of the tests, given back exactly (an enum: a real call wrote "H1 UDP goodput rises with
     its part"); a number gives the names G1.. and H1.. (the older form)."""
-    gn = ng if isinstance(ng, list) else [f"G{i + 1}" for i in range(ng)]
+    gn = ng if isinstance(ng, list) else [f"NEW{i + 1}" for i in range(ng)]
     tn = nt if isinstance(nt, list) else [f"H{i + 1}" for i in range(nt)]
     ng, nt = len(gn), len(tn)
     GS = GROUND_SCHEMA_COMP if COMP["on"] else GROUND_SCHEMA
     g_item = {"type": "object", "additionalProperties": False, "required": ["guess"] + GS["required"],
-              "properties": {"guess": {"type": "string", "enum": gn or ["G1"], "description": "the guess's name in this request, exactly as its heading writes it"}, **GS["properties"]}}
+              "properties": {"guess": {"type": "string", "enum": gn or ["NEW1"], "description": "the guess's name in this request, exactly as its heading writes it"}, **GS["properties"]}}
     R = REVIEW3_SCHEMA if COMP["on"] else REVIEW_SCHEMA
     t_item = {"type": "object", "additionalProperties": False, "required": ["for"] + R["required"],
               "properties": {"for": {"type": "string", "enum": tn or ["H1"], "description": "the id of the hypothesis whose test this item reviews, exactly as its heading writes it"}, **R["properties"]}}
@@ -1496,13 +1510,13 @@ def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None
               "Judge each on its own, as if it were asked alone, and answer each in its own item.\n\n"
             + (f"The researcher's guesses listed above already hold this reply's new guesses ({', '.join(f'{g} is {y}' for y, g in new.items())}): the nearest earlier guess of a new guess is "
                "one from before this reply, never the guess itself.\n\n" if new and COMP["on"] and tests else "")
-            + "".join(f"== NEW GUESS G{i + 1} ==\nTHE RECORDS IT CITES:\n{q['cites']}\nTHE GUESS:\n{q['guess']}\n" for i, q in enumerate(gp))
+            + "".join(f"== NEW GUESS NEW{i + 1} ==\nTHE RECORDS IT CITES:\n{q['cites']}\nTHE GUESS:\n{q['guess']}\n" for i, q in enumerate(gp))
             + "".join(f"== TEST OF {hid} ==\n{q['item']}" for (hid, _, _), q in zip(tests, tp))
-            + (f"FOR EACH NEW GUESS (an item of guesses, named G1, G2, ... as above): {gp[0]['ask']}\n\n" if gp else "")
+            + (f"FOR EACH NEW GUESS (an item of guesses, named NEW1, NEW2, ... as above): {gp[0]['ask']}\n\n" if gp else "")
             + (f"FOR EACH TEST (an item of tests, by its hypothesis): {tp[0]['ask']}" if tp else ""))
     n = len(guesses) + len(tests)
-    d = (ask_fn or (lambda m, u, sc: supervise(m, u, sc, 9000 + 2000 * (n - 1))))(model, user, batch_schema([f"G{i + 1}" for i in range(len(guesses))], [hid for hid, _, _ in tests]))   # 4,500 reasoning tokens and 1,000 more for each further item
-    lead = lambda v: (m.group(1) if (m := re.match(r"\s*([GH]\d+)\b", str(v))) else str(v))   # an id with words after it is read by its id
+    d = (ask_fn or (lambda m, u, sc: supervise(m, u, sc, 9000 + 2000 * (n - 1))))(model, user, batch_schema([f"NEW{i + 1}" for i in range(len(guesses))], [hid for hid, _, _ in tests]))   # 4,500 reasoning tokens and 1,000 more for each further item
+    lead = lambda v: (m.group(1) if (m := re.match(r"\s*(NEW\d+|H\d+)\b", str(v))) else str(v))   # an id with words after it is read by its id
     gs, ts = {}, {}
     for x in d.get("guesses") or []:
         if isinstance(x, dict):
@@ -1510,7 +1524,7 @@ def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None
     for x in d.get("tests") or []:
         if isinstance(x, dict):
             ts.setdefault(lead(x.get("for")), x)
-    return [gs.get(f"G{i + 1}") for i in range(len(guesses))], [ts.get(hid) for hid, _, _ in tests], user
+    return [gs.get(f"NEW{i + 1}") for i in range(len(guesses))], [ts.get(hid) for hid, _, _ in tests], user
 
 
 def restated_since(ledger, turn, ex, hid):
@@ -1519,31 +1533,53 @@ def restated_since(ledger, turn, ex, hid):
     flat = lambda v: " ".join(str(v).split())
     h = next((r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid), {})
     named = {h.get("from_why")} | {d.get("competes_with") for d in ex.get("decision_rules") or [] if d.get("for") == hid}
+    was = lambda r, k: flat((r["body"]["restated"].get("was") or {}).get(k))
     return sorted(r["id"] for r in ledger if r["type"] == "why" and r.get("turn") == turn and r["id"] in named and isinstance(r["body"].get("restated"), dict)
-                  and flat((r["body"]["restated"].get("was") or {}).get("guess")) != flat(r["body"].get("guess")))
+                  and (was(r, "guess") != flat(r["body"].get("guess")) or was(r, "result") != flat(r["body"].get("result"))))   # the review shows both (B5: s057 Y24 changed its result only)
 
 
 def values_before(ledger, xid, checks):
     """Which of the values a test's rules compare stood in the records before the test ran, as a fact for the ruling (2026-11-27, s065 H8: the test's
     own table, which carries the run ids of simulations not run again, was taken for earlier records). A value stood before when its simulation
-    was not run again (same_as) and the value is not a measurement this test took of it (own). Returns the line, or "" when nothing can be told."""
-    sims = {r["body"].get("label"): r["body"] for r in ledger if r["type"] == "simulation" and r.get("parent") == xid}
-    new, old = [], []
+    was not run again (same_as) and the value is not a measurement this test took of it (own). Returns the line, or "" when nothing can be told.
+    The review of 2026-11-27 (C3): a rule is fixed before any simulation of its turn runs, so a simulation another test of the same turn ran first
+    was not known to it; and a measurement an earlier experiment took of the same simulation was. Four groups, by the records: (1) of a simulation
+    this test ran; (2) of a simulation run earlier in the same turn; (3) a measurement this test took of a simulation of an earlier turn, which
+    no earlier simulation record holds (a reading may have shown the series: the readings say); (4) held by a simulation record of an earlier turn."""
+    turn = next((r.get("turn") for r in ledger if r["id"] == xid), None)
+    mine = [(i, r) for i, r in enumerate(ledger) if r["type"] == "simulation" and r.get("parent") == xid]
+    sims = {r["body"].get("label"): (i, r["body"]) for i, r in mine}
+    groups = {1: [], 2: [], 3: [], 4: []}
     for c in checks:
         for name, label in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)@([A-Za-z0-9_]+)", str(c["body"].get("decision_rule"))):
-            s = sims.get(label)
-            if s is None:
+            if label not in sims:
                 continue
-            before = bool(s.get("same_as")) and name not in (s.get("own") or [])
-            term = f"{name}@{label}" + (f" (the result of {s['same_as']})" if before else "")
-            if term not in new + old:
-                (old if before else new).append(term)
-    return f"OF THE VALUES THESE RULES COMPARE (a fact): first measured by this test: {', '.join(new) or 'none'}; in the records before it ran: {', '.join(old) or 'none'}.\n\n" if new or old else ""
+            at, s = sims[label]
+            held = [r for r in ledger[:at] if r["type"] == "simulation" and r.get("parent") != xid and r["body"].get("run_id") == s.get("run_id") and name in (r["body"].get("metrics") or {})]
+            first = next((r for r in ledger[:at] if r["id"] == s.get("same_as")), None)
+            if not s.get("same_as"):
+                g = 1
+            elif held:
+                g = 4 if any(r.get("turn") != turn for r in held) else 2
+            elif name in (s.get("own") or []) and first is not None:
+                g = 3 if first.get("turn") != turn else 2
+            else:
+                continue   # nothing the records tell
+            term = f"{name}@{label}" + (f" (in {held[0]['id']})" if held else f" (of {s['same_as']}'s simulation)" if g != 1 else "")
+            if not any(term in v for v in groups.values()):
+                groups[g].append(term)
+    if not any(groups.values()):
+        return ""
+    said = ((1, "of a simulation this test ran"), (2, "of a simulation run earlier in this same turn, after this test's rule was fixed"),
+            (3, "a measurement this test took of a simulation of an earlier turn (computed now; whether a reading had shown that series is in the readings above)"),
+            (4, "in a simulation's record of an earlier turn, so known when the rule was fixed"))
+    return "OF THE VALUES THESE RULES COMPARE (facts of the records): " + "; ".join(f"{text}: {', '.join(groups[g])}" for g, text in said if groups[g]) + ".\n\n"
 
 
 def test_key(ex, hid, h_text):
     """What makes a test the same in the batched first review and in round 1: its hypothesis, its rules and the simulations they name."""
-    rules = [{k: d.get(k) for k in ("decision_rule", "rival", "rival_predicts")} for d in ex.get("decision_rules") or [] if d.get("for") == hid]
+    rules = [{k: d.get(k) for k in ("decision_rule", "rival", "rival_predicts", "competes_with")} for d in ex.get("decision_rules") or [] if d.get("for") == hid]   # competes_with, and the measurements below: B5
+    rules.append({"measurements": [m for m in ex.get("measurements") or [] if isinstance(m, dict) and any(re.search(rf"(?<![A-Za-z0-9_]){re.escape(str(m.get('name')))}@", str(d.get("decision_rule"))) for d in ex.get("decision_rules") or [] if d.get("for") == hid)]})
     need = next((n for n in ex.get("needs") or [] if n.get("for") == hid), {})
     runs = [{k: r.get(k) for k in ("label", "params", "structure")} for r in ex.get("runs") or [] if r.get("label") in (need.get("simulations") or [q.get("label") for q in ex.get("runs") or []])]
     return json.dumps([" ".join(str(h_text).split()), rules, runs], sort_keys=True)
@@ -1569,7 +1605,7 @@ def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None, contested=Non
             + "What does this test show about the hypothesis? supported: every check HELD and the test was a fair one. refuted: a check FAILED and the test was a fair one. inconclusive: the test "
               "was not fair (name the defect and what a fair test would compare), or the checks disagree. A check that failed because another setting limited the result, or one that held "
               "although it would have held under a rival explanation too, is not a fair test. The defects: " + "; ".join(f"{k}: {v}" for k, v in DEFECTS.items()) + "."
-            + f"\n\nTHE FINDINGS SO FAR:\n{findings_for_supervisor(ledger)}\n" + SUP_FINDINGS_ASK)   # findings (2026-11-22)
+            + ("" if LOOK_AFTER_REPLY else f"\n\nTHE FINDINGS SO FAR:\n{findings_for_supervisor(ledger)}\n" + SUP_FINDINGS_ASK))   # findings (2026-11-22); since 2026-11-27 the supervisor's findings come from its look after the researcher's reply
     if COMP["on"]:   # the same three questions with the result in hand (stage 5)
         return _rule3(model, ledger, user, hid, checks, review, ask_fn)
     d = (ask_fn or supervise)(model, user, RULING_SCHEMA)
@@ -2590,8 +2626,12 @@ FINDING_ITEM = {"type": "object", "additionalProperties": False, "required": ["a
     "about": {"type": "array", "items": {"type": "string"}, "description": "the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings (for example E2, C3, T7)"},
     "text": {"type": "string", "description": "one sentence: what the results do not explain, with its numbers"},
     "name": {"type": "string", "description": f"at most {NAME_WORDS} words, to show it by"}}}   # the name (2026-11-22, the operator: the page shows it on the finding's bar)
-RULING_SCHEMA["properties"]["findings"]["items"] = FINDING_ITEM
-RULING3_SCHEMA["properties"]["findings"]["items"] = FINDING_ITEM   # the ruling's findings in the finding's format, name included (the coherence audit, 2026-11-22: the ruling asked for a name its schema forbade)
+RULING_SCHEMA["properties"].get("findings", {})["items"] = FINDING_ITEM
+if LOOK_AFTER_REPLY:   # the ruling's answer has no findings
+    for _s in (RULING_SCHEMA, RULING3_SCHEMA):
+        _s["properties"].pop("findings", None)
+        _s["required"] = [k for k in _s["required"] if k != "findings"]
+RULING3_SCHEMA["properties"].get("findings", {})["items"] = FINDING_ITEM   # the ruling's findings in the finding's format, name included (the coherence audit, 2026-11-22: the ruling asked for a name its schema forbade)
 
 
 def finding_name(f):
@@ -2667,7 +2707,8 @@ def findings_block(ledger, turn, mode):
     if mode in ("budget", "report"):
         ask = ("THIS IS THE LAST TURN: in the report, name each finding that is not closed in open_questions with its id (for example \"F2: ...\"). " if live else "") + "A decision may still close a finding."
     else:
-        ask = ((f"Give one decision (decisions) for each finding marked DUE: {', '.join(due)}. " if due else "No finding needs a decision this turn. ")
+        ask = ("A result that is not explained and not on this list: state it in findings (about, text). "   # 2026-11-27 (A2): it stood only above an empty list
+               + (f"Give one decision (decisions) for each finding marked DUE: {', '.join(due)}. " if due else "No finding needs a decision this turn. ")
                + (f"Never looked at yet (no reading or test reaches it): {', '.join(never)}. " + ("Look at them in these turns: a reading or a measurement on simulations already run costs no simulation. " if mode == "free" else "")
                   + "A final report is held back while one of these was never looked at." if never else ""))
     return "FINDINGS (what the results do not yet explain; each stays on this list until you close it):\n" + "\n".join(lines) + "\n" + ask.strip() + "\n\n"
@@ -2838,6 +2879,15 @@ def findings_for_supervisor(ledger):
 
 def sup_findings_of(model, brief, ledger, xid, ask_fn=None):
     """The supervisor's look at the results of an experiment no ruling covers (the baseline, an explore experiment): (findings, what it was shown)."""
+    xids = list(xid) if isinstance(xid, (list, tuple)) else [xid]
+    if LOOK_AFTER_REPLY:   # the experiments of earlier turns, after the researcher's reply to them; ledger: what stood when that reply was given, and what the reply itself stated
+        user = (_system_for_supervisor(brief) + f"\nTHE RESULTS YOU ARE ASKED ABOUT ({', '.join(xids)}); the researcher has seen them and has replied:\n" + "\n".join(_measured(ledger, x) for x in xids)
+                + f"\n\nWHAT ELSE HAD BEEN MEASURED:\n{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] in xids)])}\n\nEVERY READING OF THE SESSION:\n{_looked(ledger)}\n\n"
+                + guesses_text(ledger).replace(" (a competing cause may already be one of them)", "")
+                + f"THE FINDINGS SO FAR:\n{findings_for_supervisor(ledger)}\n\n" + SUP_FINDINGS_ASK
+                + " Only about the results you are asked about. A result that one of the guesses above is about is not unexplained in this sense, whether or not that guess has been tested.")
+        d = (ask_fn or supervise)(model, user, FINDINGS_SCHEMA)
+        return list(d.get("findings") or [])[:SUP_FINDINGS], user
     user = (_system_for_supervisor(brief) + f"\nWHAT HAS JUST BEEN MEASURED ({xid}):\n{_measured(ledger, xid)}\n\nWHAT WAS MEASURED BEFORE:\n"
             f"{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] == xid)])}\n\nEVERY READING OF THE SESSION:\n{_looked(ledger)}\n\n"
             f"THE FINDINGS SO FAR:\n{findings_for_supervisor(ledger)}\n\n" + SUP_FINDINGS_ASK)
@@ -3096,6 +3146,9 @@ def main():
         """The batched first review of this reply (stage 4 of the coherence audit, 2026-11-22): a dry run of sort_out (no call to anyone) finds the new
         guesses and tests the harness accepts; those not yet read are asked in one request; the answers fill the caches the single reviews use."""
         found = []
+        if prereviewed.get("turn") != turn:   # an answer no round took does not outlive its turn (B5: s055 turn 10, H14)
+            prereviewed.clear()
+            prereviewed["turn"] = turn
         def collect(w):
             k = gkey(w)
             if k not in grounded and k not in [x[0] for x in found]:
@@ -3111,7 +3164,7 @@ def main():
             n_h, n_y = sum(r["type"] == "hypothesis" for r in ledger), sum(r["type"] == "why" for r in ledger)
             hyps, whys = {f"H{n_h + i + 1}": h for i, h in enumerate(ok0["hypotheses"])}, {f"Y{n_y + i + 1}": w for i, w in enumerate(ok0["whys"])}
             ys = {gkey(w): y for y, w in whys.items()}
-            new = {ys[k]: f"G{i + 1}" for i, (k, _) in enumerate(found) if k in ys}   # the id each new guess will have, by its name in the request
+            new = {ys[k]: f"NEW{i + 1}" for i, (k, _) in enumerate(found) if k in ys}   # the id each new guess will have, by its name in the request
             pseudo = ledger + [{"id": y, "type": "why", "turn": turn, "by": "model", "parent": None, "body": w} for y, w in whys.items()] + [{"id": k, "type": "hypothesis", "turn": turn, "by": "model", "parent": None, "body": h} for k, h in hyps.items()]   # the reply's own guesses and hypotheses, as they will be recorded
             for hid in ex0.get("tests") or []:
                 if any((competitor_problem(d, pseudo) if competitors else rival_problem(d)) or rule_size_problem(d) for d in ex0.get("decision_rules") or [] if d.get("for") == hid):
@@ -3134,8 +3187,8 @@ def main():
         own = {g: y for y, g in new.items()}
         for i, ((k, w), x) in enumerate(zip(found, g_ans)):
             m = re.match(r"\s*([YH]\d+)\b", str((x or {}).get("nearest_earlier") or "")) if isinstance(x, dict) else None
-            if m and own.get(f"G{i + 1}") == m.group(1):   # the guess compared with itself (s056): not taken, the guess is read alone
-                append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"the supervisor's batched reading of new guess G{i + 1} named the guess itself ({m.group(1)}) as its nearest earlier guess: that reading is not taken, and the guess is read alone"})
+            if m and own.get(f"NEW{i + 1}") == m.group(1):   # the guess compared with itself (s056): not taken, the guess is read alone
+                append(ledger, turn, "note", ledger[-1]["id"] if ledger else None, {"text": f"the supervisor's batched reading of new guess NEW{i + 1} named the guess itself ({m.group(1)}) as its nearest earlier guess: that reading is not taken, and the guess is read alone"})
                 continue
             if isinstance(x, dict):
                 try:
@@ -3143,9 +3196,10 @@ def main():
                     ground_take(k, w, g, saw)
                 except (ValueError, KeyError, TypeError):
                     pass   # an item that cannot be read: that guess is asked alone
+        ided = lambda v: re.sub(r"\bNEW\d+\b", lambda m: own.get(m.group(0), m.group(0)), v) if isinstance(v, str) else v   # B4: in what is said about a test, a new guess by the id it has in the ledger
         for (hid, ex, case, key), x in zip(tests, t_ans):
             if isinstance(x, dict):
-                prereviewed[key] = (x, saw)
+                prereviewed[key] = ({k: ided(v) for k, v in x.items()}, saw)
     restated_cache = {}
     def restate_fn(w, why, by):
         """One restatement of a guess that was not accepted (the arm "supervised", 2026-11-22): a short call to the researcher with the reason, the guess as
@@ -3308,7 +3362,9 @@ def main():
         given = {r.get("label"): r for r in rp.get("runs") or [] if isinstance(r, dict)} if isinstance(rp.get("runs"), list) else {}
         base = [r for r in test.get("runs") or [] if isinstance(r, dict)]
         base += [r for r in every if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]
-        base += [r for r in refused_runs if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}]   # the refused repair's simulations may be named again (s056 H5)
+        for r in refused_runs:   # the refused repair's simulations may be named again (s056 H5); each label once (the review of 2026-11-27, B1: s063 G30 held q100 twice)
+            if isinstance(r, dict) and r.get("label") not in {q.get("label") for q in base}:
+                base.append(r)
         runs = [dict(given.pop(r.get("label"), r)) for r in base] + [dict(r) for r in given.values()]
         named = set(re.findall(r"@([A-Za-z0-9_]+)", str(rule.get("decision_rule") or "")))
         if named and any(r.get("label") in named for r in runs):   # the simulations the repaired rule no longer names leave before anything is counted (s055 H7)
@@ -3340,7 +3396,7 @@ def main():
         except (ValueError, KeyError, TypeError) as e:   # whatever the harness cannot check in a repair refuses that round, with its reason; it never stops the session
             return t2, f"the repaired test could not be checked: {' '.join(str(e).split())[:300]}"
 
-    def repair_user(hid, test, n, who, feedback, reserved=0, refused=None):
+    def repair_user(hid, test, n, who, feedback, reserved=0, refused=None, stands=None):
         """What the researcher is given to repair one test: the hypothesis and its guess, the test as proposed, the round, the feedback, the records the
         feedback and the guess cite, what was measured, the measurements of the answer, the knobs, and how a network change is written."""
         flat = lambda v: " ".join(str(v).split())
@@ -3359,6 +3415,8 @@ def main():
                 + (f"YOUR LAST REPAIR, WHICH THE HARNESS COULD NOT USE (the test above stands until a repair is accepted):\n" + "".join(f"  decision rule: {flat(d.get('decision_rule'))}\n" for d in refused.get("decision_rules") or [])
                    + "  simulations:\n" + "".join(f"  {r.get('label')} {{{', '.join(f'{k}={v}' for k, v in (r.get('params') or {}).items())}}}" + (f"; network changed: {edits_say(edits_of(r))}" if edits_of(r) else "") + "\n" for r in refused.get("runs") or [] if isinstance(r, dict)) if refused else "")
                 + f"WHY IT WAS SENT BACK ({who}): {flat(feedback)}\n\n"
+                + (f"THE SUPERVISOR'S OBJECTION TO THE TEST ABOVE, WHICH STILL STANDS: {flat(stands)}\n\n" if stands else "")
+                + (live_guesses_text(ledger, hid) if competitors else "")
                 + (f"THE RECORDS THE FEEDBACK AND YOUR GUESS CITE:\n" + "\n".join(record_line(ids[i], ledger) for i in cited) + "\n\n" if cited else "")
                 + f"WHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\n" + (f"THE MEASUREMENTS YOUR ANSWER DEFINES (a rule may name them as name@label):\n{mine}\n" if mine else "") + f"THE KNOBS: {knobs}\n\n"
                 "Repair this test only. The hypothesis's sentence and its guess stay as they are: a repair changes the rule, the guess it competes with and the simulations. If the objection is to the "
@@ -3384,7 +3442,8 @@ def main():
         n, parent, earlier, refused, refused_runs = 1, gid, [(1, "the supervisor", rev["feedback"], say(test))], None, []
         while True:
             who, feedback = earlier[-1][1], earlier[-1][2]
-            user = repair_user(hid, test, n + 1, who, feedback, reserved, refused)
+            stands = next((f for _n, w, f, _t in reversed(earlier) if w == "the supervisor"), None) if who != "the supervisor" else None   # B2: the supervisor's objection still stands after a refusal by the harness
+            user = repair_user(hid, test, n + 1, who, feedback, reserved, refused, stands)
             try:
                 stage("repair", hid, n + 1)
                 content, _d, _f, _u = called("researcher", model, (REPAIR_SYSTEM_COMP if COMP["on"] else REPAIR_SYSTEM) + (structure_text(brief) if may_change(brief) else ""), user, repair_schema, a.draft == "on", a.temperature, min(a.max_tokens, SHORT_CALL_TOKENS))
@@ -3467,7 +3526,8 @@ def main():
             sup_log(vid, "ruling", saw, ruling)
             if ruling.get("findings_cut"):
                 append(ledger, turn, "note", vid, {"text": f"the supervisor's ruling on {hid} ran on in its findings and was cut off at its limit: the ruling stands, its findings are left out"})
-            take_sup_findings(ledger, turn, ruling.get("findings"), vid)   # what it found unexplained in these results (2026-11-22)
+            if not LOOK_AFTER_REPLY:
+                take_sup_findings(ledger, turn, ruling.get("findings"), vid)   # what it found unexplained in these results (2026-11-22)
 
     def finish():
         """session.json: when and how the session ended, the report's ledger id, the hypotheses still open."""
@@ -3486,7 +3546,8 @@ def main():
     try:
         if a.baseline == "on":
             baseline(ledger)
-        if arm == "supervised" and fresh and any(r["id"] == "E0" for r in ledger):   # findings (2026-11-22): the baseline's results come in with no ruling, so the supervisor looks at them
+        looked = set() if fresh else {r["id"] for r in ledger if r["type"] == "experiment"}   # the experiments the supervisor has looked at for findings, or will not (a session taken up again)
+        if arm == "supervised" and fresh and not LOOK_AFTER_REPLY and any(r["id"] == "E0" for r in ledger):   # findings (2026-11-22): the baseline's results come in with no ruling, so the supervisor looks at them
             try:
                 stage("look", "X0")
                 items, saw = sup_findings_of(model, brief, ledger, "X0")
@@ -3714,7 +3775,7 @@ def main():
                 sims += experiment(ledger, turn, ex2["tests"][0], ex2 | obs())
                 rule_tests(ex2)
             if ex is not None:
-                if arm == "supervised" and ex.get("kind") != "test":   # results with no ruling (an explore experiment): the supervisor looks at them for findings (2026-11-22)
+                if arm == "supervised" and ex.get("kind") != "test" and not LOOK_AFTER_REPLY:   # results with no ruling (an explore experiment): the supervisor looks at them for findings (2026-11-22)
                     xid = next(r["id"] for r in reversed(ledger) if r["type"] == "experiment")
                     try:
                         stage("look", xid)
@@ -3727,10 +3788,24 @@ def main():
             made = [r["id"] for r in ledger if r["turn"] == turn and (r["type"] == "result" or (r["type"] == "experiment" and r.get("by") == "model"))]
             whys_made = [(rid, w.get("_findings") or []) for rid, w in zip(made_whys, ok["whys"])]
             settle_findings(remap_refs(parsed), ledger, turn, due_before, made, [x for x in whys_made if x[1]], goes_on=stay_next)
+            if arm == "supervised" and LOOK_AFTER_REPLY and not stay_next:
+                # the supervisor's look (2026-11-27): the experiments of earlier turns, whose results this turn's reply has now answered. It is shown the ledger as
+                # it stood for that reply and what the reply stated (its guesses, findings and decisions), not what this turn's own experiment measured
+                due = [r["id"] for r in ledger if r["type"] == "experiment" and r["turn"] < turn and r["id"] not in looked and any(e["type"] == "evidence" and e["body"]["experiment"] == r["id"] for e in ledger)]
+                if due:
+                    looked.update(due)
+                    then = [r for r in ledger if r["turn"] < turn or r["type"] in ("why", "hypothesis", "finding", "decision", "drop")]
+                    try:
+                        stage("look", due[-1])
+                        items, saw = sup_findings_of(model, brief, then, due)
+                        take_sup_findings(ledger, turn, items, due[-1])
+                        sup_log(due[-1], "findings", saw, {"findings": items, "about": due})
+                    except (ValueError, KeyError, TypeError) as e:
+                        append(ledger, turn, "note", due[-1], {"text": f"the supervisor's look at {', '.join(due)} could not be read ({type(e).__name__}): no finding of its own"})
             if report is not None and (ran_now := [r["id"] for r in ledger if r["turn"] == turn and r["type"] == "experiment" and r.get("by") != "harness"]):   # the coherence audit, 2026-11-22: a report with an experiment was taken before its results
                 _note(ledger, turn, "report", f"the report is held back: this answer's experiment ({', '.join(ran_now)}) ran in this turn, and its results and checks come to you in the next turn. Give the report after you have read them")
                 report = None
-            if report is not None and mode in (None, "free") and len(held_turns - {turn}) < FINDING_HOLDS and (unseen := findings_unseen(ledger)):
+            if report is not None and mode in (None, "free") and len(held_turns - {turn}) < FINDING_HOLDS and (unseen := [f for f in findings_unseen(ledger) if f not in {r["id"] for r in ledger if r["type"] == "finding" and r["turn"] == turn}]):   # 2026-11-27 (A3): not one raised in this turn
                 held_turns.add(turn)   # the researcher can still work: a finding never looked at is worked on, not left (the operator, 2026-11-22)
                 _note(ledger, turn, "report", f"the report is held back: these findings were never looked at (no reading, check or evidence reaches them): {', '.join(unseen)}. "
                       "Look at each first (a reading, a measurement on simulations already run, or a test), or close it with the records that explain it; then give the report")

@@ -39,6 +39,41 @@ tree's root); every text a stage changed stands, before and after, in `texts_<st
 (a repair of the page would change neither). Then the run plan: one session for each of `after_fix-2`, `three-hosts-2`, `three-hosts-link-2`,
 `three-hosts-moves`, each with `harness/fairness.py` and `harness/confirm.py`, before the rest.
 
+## After v2.1 (2026-11-27): the review of the harness, and why the researcher never raised a finding
+
+The operator, while the fixes below were being checked: "Why doesn't the researcher propose findings? Something is off. Review everything
+thoroughly, especially the harness." Five independent read-only reviews of the tree with stage 14; every claim and its state is in
+`plans/2026-11-27-harness-review.md`, the complete table of refusals against the texts (175 rules) in `plans/2026-11-27-refusals-table.md`.
+Changed here is only what I read in the code myself and what has a real session behind it or the operator's word; the rest waits for the operator.
+
+`v2/s15_review_fixes.py` (22 changes, `v2/texts_stage15_review_fixes.md`): the review of a test, its repairs, what the supervisor is shown.
+
+| item | What was wrong | Real instance | The change |
+|---|---|---|---|
+| C3 | Stage 14's line of facts at the ruling was wrong for a simulation shared within a turn and for a measurement taken before | s065 X2; s056 X11 | four groups, each true of the records; a series a reading showed is pointed to, not judged |
+| B1 | After a refusal by the harness, a valid next repair was refused with "every simulation needs its own label" | s063 G30 (H8 not run), s059 G34 | the refused repair's simulations are kept once each |
+| C2 | The mark "NEW" stood after a result table's last simulation | s066 G11, G13, G22 (three false warnings) | on the record's first line, "(the whole record)" |
+| B5 | Stage 14's `restated_since` missed a guess restated in its result only; an unused batched answer outlived its turn; a test's key left out its competitor and measurements | s057 Y24; s055 turn 10 | all three closed |
+| B2 | After a refusal by the harness the request for a repair no longer held the supervisor's objection | 13 requests, 5 repeated round 1's rule | the objection that still stands is shown |
+| B6 | The request for a repair asked for "an existing live guess" and listed none | s065 P3, s063 P8, s058 G42 | the guesses the harness would accept are listed |
+| B3 | The supervisor was told a test sent back in round 3 "is run all the same"; it is held when Consistent did not pass | s065 G16, G28; s063 G11, G20 | the sentence says so |
+| B4 | The batched first review named new guesses G1, G2 (ids of reviews); the names reached the researcher | s063 G17/G18, s058 G40 | named NEW1, NEW2; in what is said about a test, replaced by the guess's id |
+
+`v2/s16_findings.py` (11 changes, `v2/texts_stage16_findings.md`): the findings.
+
+- The fact: in all 99 full replies since findings exist the researcher's answer holds `findings: []`; the supervisor raised 145. The first reply
+  of s063, s065 and s066 asked again on the real model: a finding in 0 of 6 askings with the supervisor's findings on the list, in 4 of 6 with an
+  empty list.
+- A1: the supervisor looks for findings after the researcher's reply to a result, for every experiment alike, once in a turn; the ruling asks for
+  none. The look is shown the researcher's guesses and findings and is told that a result a guess is about is not unexplained (A4).
+- A2: every turn's list invites a finding (the sentence stood only above an empty list, which no reply ever saw).
+- A3: a finding raised in the turn of the report does not hold that report back.
+- What this changes for a session: fewer findings of the supervisor (one look of at most 2 in a turn, where each ruling could give 2), each one
+  turn later; one request more to the supervisor in a turn. Not yet shown by a real session: that the researcher now raises findings in later turns.
+
+Checked on the frozen tree `v2work/tree_s16`: each change on the records it came from (s065 X2, X7; s056 X11; s057 Y24; s065 before P3);
+`test_stage5` sections Y (P15) and Z (P16) with scripted sessions, 10 statements; all harness checks (`v2work/hc_s16`).
+
 ## After v2.1 (2026-11-27): what the fairness audits of s063 and s065 found, repaired at the operator's word ("fix everything now")
 
 `v2/s14_audit_fixes.py`, every text before and after in `v2/texts_stage14_audit_fixes.md` (15 changes). s066 was stopped at the operator's word for it.
