@@ -1,0 +1,133 @@
+{
+ "session": "s065",
+ "brief": "three_hosts_neutral",
+ "arm": "supervised",
+ "how": "all simulations used, report given in the last turn",
+ "turns": 10,
+ "simulations": 12,
+ "allowed": 12,
+ "fairness": {
+  "chain_refusals": 0,
+  "cannot_tell": 7,
+  "unread_reviews": 0,
+  "approved_by_round": {
+   "1": 6
+  },
+  "not_approved": 4,
+  "turn_1": {
+   "answer": [
+    "lc.queue.parts.fa = 0.185",
+    "lc.queue.length = 1000"
+   ],
+   "simulated_in_turn_1": [],
+   "named_in_turn_1": [],
+   "first_seen": {
+    "lc.queue.parts.fa = 0.185": 4,
+    "lc.queue.length = 1000": 2
+   }
+  }
+ },
+ "rounds": {
+  "tests": 13,
+  "reviewed": 10,
+  "rounds": {
+   "mean": 1.6,
+   "max": 3
+  },
+  "approved_first": 6,
+  "repaired_approved": 0,
+  "contested": 1,
+  "dropped": 0,
+  "unsettled": 0,
+  "refused_by_harness": 3
+ },
+ "guesses": {
+  "guesses": 18,
+  "warnings": 0,
+  "restated": 2,
+  "contested": 1
+ },
+ "boxes": {
+  "cannot_tell": 7,
+  "changed": {
+   "honest": 1,
+   "consistent": 1,
+   "correct": 2
+  },
+  "questions": {
+   "follows": {
+    "pass": 9,
+    "fail": 1
+   },
+   "honest": {
+    "pass": 10,
+    "fail": 0
+   },
+   "consistent": {
+    "pass": 7,
+    "fail": 3
+   },
+   "correct": {
+    "pass": 6,
+    "fail": 1
+   }
+  },
+  "approved_then_unfair": 2,
+  "misses": {
+   "honest": 0,
+   "consistent": 0,
+   "correct": 0
+  },
+  "found_by_result": {
+   "honest": 0,
+   "consistent": 0,
+   "correct": 0
+  },
+  "from_feedback": 1,
+  "refuted_by_competition": 4,
+  "held": 3
+ },
+ "findings": {
+  "raised": {
+   "researcher": 0,
+   "supervisor": 13
+  },
+  "ended": {
+   "closed": 10,
+   "same_as": 0,
+   "parked": 3,
+   "working": 0,
+   "unresolved": 0
+  },
+  "turns_open": {
+   "mean": 1.9,
+   "max": 4
+  },
+  "never_looked_at": 2,
+  "final": true
+ },
+ "parked": [
+  {
+   "finding": null,
+   "turn": 10,
+   "reason": "la_util is not the goal measure; the queue-backlog explanation fits but no simulations remain for a fair test."
+  },
+  {
+   "finding": null,
+   "turn": 10,
+   "reason": "The q_fa_first sampling discrepancy does not affect fa_goodput_bps or fb_loss_frac, and no simulations remain."
+  },
+  {
+   "finding": null,
+   "turn": 10,
+   "reason": "Bbr queue occupancy and la_util are not goal measures; no simulations remain to test the cause."
+  }
+ ],
+ "decided_by_less_than_the_tolerance": [],
+ "changed_by_harness": 0,
+ "notes_by_part": {
+  "design": 1,
+  "test": 3
+ },
+ "confirmation": null
+}

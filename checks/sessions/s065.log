@@ -1,0 +1,3 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s065 --brief three_hosts_neutral --draft on --policy share --baseline on --arm supervised
+session s065 (brief three_hosts_neutral): /home/chunguck.kim/project/sessions/s065
+stopped: session s065, all simulations used, report given in the last turn, 12 simulations, 10 turns, ledger /home/chunguck.kim/project/sessions/s065/ledger.jsonl

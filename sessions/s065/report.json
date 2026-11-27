@@ -1,0 +1,75 @@
+{
+ "goal": "max fa_goodput_bps subject to fb_loss_frac <= 0.1",
+ "recommendation": {
+  "lc.queue.parts.fa": 0.185,
+  "lc.queue.length": 1000,
+  "fa.type": "TcpCubic"
+ },
+ "limit": "The feasible point is borderline: fb_loss_frac=0.099905 is only 0.000095 below 0.1, within the 1% tolerance, and p=0.186 L=1000 is infeasible at 0.101361; the interval 0.185<p<0.186 was not tested. The fa gain from p=0.185 to p=0.186 is only 0.374%, inside tolerance, so a finer p is unlikely to change the recommendation, but a safety-margin choice would be p=0.18 L=1000. Evidence: E4, E5, C5, V5.",
+ "explanation": "lc is saturated, and the scheduler gives fa the normalized part p/(p+0.5) and fb 0.5/(p+0.5), using work-conserving unused capacity when fb is not backlogged. fa_goodput_bps rises with p while fb_loss_frac rises once fb's weighted service falls below its 80 Mbps offer. lc.queue.length=1000 does not change steady-state delivered goodputs but lowers measured fb_loss_frac by leaving more packets queued at the measurement boundary. This makes p=0.185 L=1000 feasible, while p=0.186 L=1000 exceeds the loss limit. At this setting fa has enough backlog that fa.type does not change the goal metrics; TcpBbr gives the same measured fa_goodput_bps and fb_loss_frac as TcpCubic.",
+ "claims": [
+  {
+   "text": "fa_goodput_bps is governed by lc scheduler service and work-conserving unused capacity, not by TCP congestion control when fa has backlog.",
+   "evidence": [
+    "E1",
+    "C1",
+    "V1",
+    "E3",
+    "E4",
+    "E6",
+    "C6",
+    "V6"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The fb_loss_frac <=0.1 constraint binds the optimum: p=0.185 L=1000 is feasible at 0.099905, while p=0.186 L=1000 is infeasible at 0.101361.",
+   "evidence": [
+    "E4",
+    "E5",
+    "C5",
+    "V5"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "lc.queue.length=1000 lowers measured fb_loss_frac without changing delivered goodput by increasing end-of-window queue backlog.",
+   "evidence": [
+    "E4",
+    "E5",
+    "C4",
+    "V4"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "At p=0.185 L=1000, TcpCubic and TcpBbr give identical goal metrics: fa_goodput_bps=26036198 and fb_loss_frac=0.099905.",
+   "evidence": [
+    "E4",
+    "E6",
+    "C6",
+    "V6"
+   ],
+   "role": "supports"
+  },
+  {
+   "text": "The best tested feasible fa_goodput_bps is 26036198 at p=0.185 L=1000; p=0.186 L=1000 gives only 26133504, a 0.374% gain inside tolerance, but violates the loss condition.",
+   "evidence": [
+    "E4",
+    "E5",
+    "E6",
+    "C5"
+   ],
+   "role": "supports"
+  }
+ ],
+ "open_questions": [
+  "F11: The la_util difference between TcpCubic and TcpBbr at p=0.185 L=1000 is plausibly due Cubic's growing fa queue, but the queue-growth test was ruled inconclusive.",
+  "F12: q_fa_first=133 in E7 versus lc_q_fa=121 at t=2.000 in T11 remains unresolved; it may be a sampling-boundary convention.",
+  "F13: TcpBbr's q_fa_first=7 and q_fa_last=6 with la_util=0.027007 is not explained by a fair test."
+ ],
+ "expected": {},
+ "no_difference": [],
+ "holds_when": "",
+ "breaks_when": ""
+}
