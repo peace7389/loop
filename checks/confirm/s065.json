@@ -1,0 +1,93 @@
+{
+ "session": "s065",
+ "brief": "three_hosts_neutral",
+ "scheduling_policy": "share",
+ "goal": {
+  "target": "fa_goodput_bps",
+  "direction": "max",
+  "conditions": [
+   "fb_loss_frac <= 0.1"
+  ],
+  "source": "the brief"
+ },
+ "answer": {
+  "settings": {
+   "lc.queue.parts.fa": 0.185,
+   "lc.queue.length": 1000,
+   "fa.type": "TcpCubic"
+  },
+  "structure": []
+ },
+ "how": {
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "seconds": 25,
+  "the_session_measured_over": 5.0,
+  "times": 5
+ },
+ "runs": [
+  {
+   "seed": 1,
+   "seconds": 25,
+   "target": 25806897,
+   "conditions": [
+    {
+     "condition": "fb_loss_frac <= 0.1",
+     "with_numbers": "0.105448 <= 0.1",
+     "holds": false
+    }
+   ],
+   "holds": false
+  },
+  {
+   "seed": 2,
+   "seconds": 25,
+   "target": 25807270,
+   "conditions": [
+    {
+     "condition": "fb_loss_frac <= 0.1",
+     "with_numbers": "0.105431 <= 0.1",
+     "holds": false
+    }
+   ],
+   "holds": false
+  },
+  {
+   "seed": 3,
+   "seconds": 25,
+   "target": 25806817,
+   "conditions": [
+    {
+     "condition": "fb_loss_frac <= 0.1",
+     "with_numbers": "0.105454 <= 0.1",
+     "holds": false
+    }
+   ],
+   "holds": false
+  }
+ ],
+ "all_run": true,
+ "conditions_hold_in_all": false,
+ "conditions_hold_in": 0,
+ "target": {
+  "smallest": 25806817,
+  "largest": 25807270,
+  "mean": 25806994.666666668
+ },
+ "the_session_measured": [
+  {
+   "id": "S10",
+   "target": 26036198,
+   "returned": false
+  },
+  {
+   "id": "S14",
+   "target": 26036198,
+   "returned": true
+  }
+ ],
+ "the_report_expects": null
+}

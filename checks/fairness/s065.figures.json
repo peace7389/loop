@@ -129,5 +129,23 @@
   "design": 1,
   "test": 3
  },
- "confirmation": null
+ "confirmation": {
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "seconds": 25,
+  "conditions_hold_in": 0,
+  "of": 3,
+  "target": {
+   "smallest": 25806817,
+   "largest": 25807270,
+   "mean": 25806994.666666668
+  },
+  "the_session_measured": [
+   26036198
+  ],
+  "the_report_expects": null
+ }
 }
