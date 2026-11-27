@@ -227,7 +227,7 @@ In this session you may also change the structure of the network. A simulation o
    - do add_host: id, a new name (at most 12 lower-case letters and digits, beginning with a letter). A new host has no link and no flow until a change adds them; a host with more than one link forwards packets.
    - do add_link: id, from and to (the two hosts it joins) and rate (state it, written as the brief writes rates). One link for each two hosts. A new link has a one-way delay of 50us, packets of at most 1500 bytes, a device queue of 10 packets and, on each of its two sides, a plain queue of 100 packets, first in, first out.
    - do add_flow: id, kind (udp or tcp: the socket), from, to, and rate for udp (left empty: 100Mbps) or type for tcp (left empty: TcpCubic). app is the application that sends: "" for the usual one (udp: packets of 1400 bytes at a constant rate; tcp: always has data, as fast as TCP accepts), or onoff with kind tcp for a TCP flow that sends at the constant rate you state in rate.
-   - do add_queue: id (the link), on (the host whose sending side of the link it is) and kind (state it). A new queue holds 100 packets, and a link may have a queue on each of its two sides. The kinds: codel: one queue, it drops packets that have waited longer than a target time; fifo: one queue, first in, first out, it drops a packet that arrives when it is full; fqcodel: a queue for each flow, served in turn, each dropping as codel does; pfifofast: three queues by a packet's priority, the higher served first; pie: one queue, it drops arriving packets at random, more often the longer packets wait; red: one queue, it drops arriving packets at random, more often the fuller it is; scheduler: a queue for each flow that passes it, each with an equal part of the link.
+   - do add_queue: id (the link), on (the host whose sending side of the link it is) and kind (state it). A queue is added only on a side that has none: to put another kind where one stands, remove that one first, in the same list. A new queue holds 100 packets, and a link may have a queue on each of its two sides. The kinds: codel: one queue, it drops packets that have waited longer than a target time; fifo: one queue, first in, first out, it drops a packet that arrives when it is full; fqcodel: a queue for each flow, served in turn, each dropping as codel does; pfifofast: three queues by a packet's priority, the higher served first; pie: one queue, it drops arriving packets at random, more often the longer packets wait; red: one queue, it drops arriving packets at random, more often the fuller it is; scheduler: a queue for each flow that passes it, each with an equal part of the link.
    - do remove: kind (host, link, flow or queue) and id (a queue's id is its link's; where the link has a queue on each side, on says which). A host goes with its links and with the flows that start or end at it. Where a queue is removed, a plain queue of 100 packets, first in, first out, stands in its place.
 Packets take the way with the fewest links from their sender to their receiver; the ways are worked out once, before traffic starts, and a flow needs exactly one such way.
 The brief's structure says how many hosts, links and flows a network may have at most, and which objects you may not remove; what the goal measures cannot be removed either. A simulation whose network cannot be built is refused with the reason, and the rest of the experiment is not run. A changed network has measures of its own (a new flow f has f_goodput_bps, and so on, as the brief's outputs are named); a decision rule may only name a measure that exists in every simulation it names. A change of structure is a hypothesis like any other: say what it should change and why, before you run it. In the final report, structure is the list of changes you recommend (an empty list: the network as given), and the settings and expected values are read on that network."""
@@ -1513,6 +1513,34 @@ def first_review(model, brief, ledger, guesses, tests, ask_fn=None, tledger=None
     return [gs.get(f"G{i + 1}") for i in range(len(guesses))], [ts.get(hid) for hid, _, _ in tests], user
 
 
+def restated_since(ledger, turn, ex, hid):
+    """The guesses a test names (its hypothesis's own, and those its rules compete with) that were restated in this turn with other words: the
+    batched first review read them as first stated (2026-11-27, s065 H3: the approval stood against a competitor that had changed)."""
+    flat = lambda v: " ".join(str(v).split())
+    h = next((r["body"] for r in ledger if r["type"] == "hypothesis" and r["id"] == hid), {})
+    named = {h.get("from_why")} | {d.get("competes_with") for d in ex.get("decision_rules") or [] if d.get("for") == hid}
+    return sorted(r["id"] for r in ledger if r["type"] == "why" and r.get("turn") == turn and r["id"] in named and isinstance(r["body"].get("restated"), dict)
+                  and flat((r["body"]["restated"].get("was") or {}).get("guess")) != flat(r["body"].get("guess")))
+
+
+def values_before(ledger, xid, checks):
+    """Which of the values a test's rules compare stood in the records before the test ran, as a fact for the ruling (2026-11-27, s065 H8: the test's
+    own table, which carries the run ids of simulations not run again, was taken for earlier records). A value stood before when its simulation
+    was not run again (same_as) and the value is not a measurement this test took of it (own). Returns the line, or "" when nothing can be told."""
+    sims = {r["body"].get("label"): r["body"] for r in ledger if r["type"] == "simulation" and r.get("parent") == xid}
+    new, old = [], []
+    for c in checks:
+        for name, label in re.findall(r"([A-Za-z_][A-Za-z0-9_]*)@([A-Za-z0-9_]+)", str(c["body"].get("decision_rule"))):
+            s = sims.get(label)
+            if s is None:
+                continue
+            before = bool(s.get("same_as")) and name not in (s.get("own") or [])
+            term = f"{name}@{label}" + (f" (the result of {s['same_as']})" if before else "")
+            if term not in new + old:
+                (old if before else new).append(term)
+    return f"OF THE VALUES THESE RULES COMPARE (a fact): first measured by this test: {', '.join(new) or 'none'}; in the records before it ran: {', '.join(old) or 'none'}.\n\n" if new or old else ""
+
+
 def test_key(ex, hid, h_text):
     """What makes a test the same in the batched first review and in round 1: its hypothesis, its rules and the simulations they name."""
     rules = [{k: d.get(k) for k in ("decision_rule", "rival", "rival_predicts")} for d in ex.get("decision_rules") or [] if d.get("for") == hid]
@@ -1536,7 +1564,7 @@ def rule_on(model, brief, ledger, xid, hid, doubt_if, ask_fn=None, contested=Non
     user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, rules) + comp + f"\nTHE SIMULATIONS THIS TEST'S RULES NAME, as measured:\n{_measured(ledger, xid, named)}\n\n"
             + (f"OTHER SIMULATIONS OF THE SAME EXPERIMENT (they belong to other tests of it, not to this one):\n{rest}\n\n" if rest != "  (nothing yet)" else "")
             + f"THE BASELINE and what was measured before:\n{_measured([r for r in ledger if not (r['type'] == 'evidence' and r['body']['experiment'] == xid)])}\n\n"
-            f"EVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\nTHE HARNESS'S CHECKS (facts):\n{lines}\n\n" + _test_terms(ledger, xid, hid) + "\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
+            f"EVERY READING OF THE SESSION, as the researcher's ledger holds them (what the tools returned when the researcher looked: measurements too):\n{_looked(ledger)}\n\nTHE HARNESS'S CHECKS (facts):\n{lines}\n\n" + values_before(ledger, xid, checks) + _test_terms(ledger, xid, hid) + "\n" + (f"Before the simulations you wrote what would make you doubt this test: {doubt_if}\n\n" if doubt_if else "")
             + (f"BEFORE IT RAN, the review of this test ended with you still objecting, after the last round: {flat(contested)}\n\n" if contested else "")   # contested (2026-11-22)
             + "What does this test show about the hypothesis? supported: every check HELD and the test was a fair one. refuted: a check FAILED and the test was a fair one. inconclusive: the test "
               "was not fair (name the defect and what a fair test would compare), or the checks disagree. A check that failed because another setting limited the result, or one that held "
@@ -1599,7 +1627,7 @@ def answer_objection(model, brief, ledger, verdict, objection, ask_fn=None):
     lines = "\n".join(f"  [{c['id']}] {flat(c['body']['decision_rule'])}  ->  {c['body']['with_numbers']}  :  {c['body']['result'].upper()}" for c in checks)
     user = (_system_for_supervisor(brief) + "\n" + _case(ledger, hid, [{"decision_rule": c["body"]["decision_rule"]} for c in checks]) + f"\nTHE SIMULATIONS OF THE TEST, as measured:\n{_measured(ledger, xid)}\n\nEVERYTHING MEASURED IN THE SESSION:\n{_measured(ledger)}\n\n"
             f"EVERY READING OF THE SESSION, as the researcher's ledger holds them:\n{_looked(ledger)}\n\n"   # the readings, the rivals and the measurements, as at the ruling (the coherence audit, 2026-11-22)
-            f"THE HARNESS'S CHECKS (facts):\n{lines}\n\n" + (_test_terms(ledger, xid, hid) if xid else "") + f"\nYOUR RULING [{verdict['id']}]: {b['result']}. {b['because']}" + (f" Defect: {DEFECTS.get(b.get('defect'), '')}." if not b.get("fair", True) else "")
+            f"THE HARNESS'S CHECKS (facts):\n{lines}\n\n" + (values_before(ledger, xid, checks) + _test_terms(ledger, xid, hid) if xid else "") + f"\nYOUR RULING [{verdict['id']}]: {b['result']}. {b['because']}" + (f" Defect: {DEFECTS.get(b.get('defect'), '')}." if not b.get("fair", True) else "")
             + f"\n\nTHE RESEARCHER OBJECTS: {flat(objection)}\n\nLook at the records again. An objection is right only for what the records show, not for how sure it sounds. Does your ruling stand? "
               "First say whether the test was fair: one that could have come out the other way if the hypothesis were false (a rival that passes the rule too, or another setting that "
               "limited the result, makes it unfair). supported needs every check HELD and a fair test, refuted needs a check that FAILED and a fair test; otherwise inconclusive.")
@@ -2308,12 +2336,12 @@ The ledger is the complete record of the session. You have no other memory. Each
 4. hypotheses: a hypothesis is a measurable consequence of one guess: from_why (the guess's id, one in the ledger or one of this answer) and text (one sentence that a measurement can show to be false). The harness numbers them H1, H2, ... A hypothesis is stated to be tested: state at most <<OPEN_MOST>> in one answer, with the experiment that tests them, and while one is still open and untested no further hypothesis is accepted. Test what is open, or give it up in drop saying what you learned; the next hypothesis comes from what a test showed. A value you can simply read is an observation, not a hypothesis: ask for it in requests (measure, probe) and say it in a guess's result. A hypothesis is a consequence that would come out differently if your guess were wrong and the nearest other explanation were right; a test whose outcome every explanation shares is sent back.
 5. drop: open hypotheses you give up before they were tested (id, and why in one sentence).
 6. experiment: at most one per turn, or null.
-   - kind "test": tests lists the open hypotheses it tests; decision_rules has at least one rule for each. kind "explore": question says what you want to find out; tests and decision_rules stay empty.
+   - kind "test": tests lists the open hypotheses it tests; decision_rules has at least one rule for each, and a simulation no rule names is not run. kind "explore": question says what you want to find out; tests and decision_rules stay empty.
    - runs: the simulations, each with a label of its own (letters, digits and _, at most <<LABEL_MOST>> characters) and params: a value for EVERY knob of the brief (also one left as it was; a value outside its range is moved into it, as the record then says). A simulation with the same settings as an earlier one is not run again: its result is returned and costs nothing. The simulations one rule compares must differ in one setting only, so that a difference has one possible cause.
    - measurements: measurements of your own that this experiment takes of each of its simulations, beside the outputs; an empty list when the outputs are enough. Each has name (lower-case, for example <column>_max), of (a column a simulation records over time, or arithmetic over columns of one record: the columns the tools series and probe name in the brief), stat (one of the statistics the format lists), t_from and t_to (seconds; null: the measured seconds) and level (the number time_above and the like compare with; null otherwise). The harness computes them with taps that only listen: a measurement cannot change a result.
-   - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis), decision_rule, rival (the strongest competing explanation, one sentence) and rival_predicts (held or failed: what the rule gives if the rival is true; held is refused). Write it exactly in this form: numbers; measure@label (an output, or a measurement this experiment defines, in the simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; at most <<COMPARISONS_MOST>> comparisons, joined by AND and OR. A rule the harness cannot read comes back to you as a round of that test. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.
+   - decision_rules: for each tested hypothesis, the comparison that decides it, fixed BEFORE the simulations: for (the hypothesis), decision_rule, rival (the strongest competing explanation, one sentence) and rival_predicts (held or failed: what the rule gives if the rival is true; held is refused). Write it exactly in this form: numbers; measure@label (an output, or a measurement this experiment defines, in this experiment's simulation with that label); + - * / and parentheses; abs(), min(), max(); exactly one of < <= > >= == in each comparison; at most <<COMPARISONS_MOST>> comparisons, joined by AND and OR. A rule the harness cannot read comes back to you as a round of that test. The harness checks it from the measured values: HELD or FAILED. A rule must be able to fail: it names at least one result you do not know yet. A rule on a measurement of your own may be about simulations you already ran (the measurement is new), and then no simulation is spent.
 7. objections: if the records show that a ruling of the supervisor is wrong, object once: to (the ruling's id, for example V2) and because (the numbers it overlooked).
-8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings, evidence tables and readings that support it, for example C2, V1, E3, T7).
+8. report: null until you can answer the task; then the final report, which ends the session: goal (the goal your answer is best for; if the brief's goal is open, the one you chose and why), recommendation (a value for every knob of the brief), limit (what limits the result at your recommendation, and the ledger ids that show it; if you did not find it, say so), explanation (why, in a few sentences), claims (the statements your answer rests on, each with text and evidence: the ids of the checks, rulings, evidence tables and readings that support it).
 
 The budget counts simulations. Every turn says how many are left and how many new ones its experiment may run. When they run out you get <<FREE_TURNS>> more turns to look and to test on simulations already run, then one last turn for the report.
 
@@ -2837,7 +2865,7 @@ FINDINGS_TEXT = {
     "hypotheses": """
 
 FINDINGS. A finding is one thing the results do not yet explain. Each stays on the list at the top of every turn until you close it.
-- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings, for example E2, C3, T7) text (one sentence: what is unexplained, with its numbers) and name (at most <<NAME_WORDS>> words, to show it by). The harness numbers them F1, F2, ...{sup}
+- findings: each new one, once: about (the ids of the records it rests on: evidence tables, simulations, checks, verdicts or readings) text (one sentence: what is unexplained, with its numbers) and name (at most <<NAME_WORDS>> words, to show it by). The harness numbers them F1, F2, ...{sup}
 - decisions: one for each finding the list marks DUE, and for any other you act on: id (F1), action, and refs or reason. work: refs names the guess, hypothesis, experiment or reading that works on it (one of this answer by the id it will get; left empty, it counts as worked on but not as looked at). close: refs names the evidence, checks, verdicts or readings that explain it. same_as: refs names the finding it repeats. park: reason says why not now. A parked finding, and one you work on with nothing new about it for <<PARK_TURNS>> turns, comes back as DUE.
 - A guess of why whose about names a finding (for example F2) works on it.
 - A finding about a difference inside the tolerance, or about no measure the task names, may be parked with that reason; "it does not change the recommendation" alone is no reason.
@@ -3245,10 +3273,15 @@ def main():
         for hid in ex["tests"]:
             test = test_of(ex, hid)
             pre = prereviewed.pop(test_key(ex, hid, next((r["body"].get("text") for r in ledger if r["type"] == "hypothesis" and r["id"] == hid), "")), None)   # its answer in the batched first review
+            moved = restated_since(ledger, turn, ex, hid) if pre is not None else []
+            if moved:   # 2026-11-27 (s065 H3): that answer read a guess as first stated, and the guess was restated in this turn: the test is reviewed again, alone
+                pre = None
             try:
                 if pre is None:
                     stage("design", hid, 1)
                 rev, saw = review_or_cannot(lambda text, hid=hid: append(ledger, turn, "note", hid, {"text": text}), model, brief, ledger, ex, hid, pre=pre[0] if pre else None, pre_saw=pre[1] if pre else None)
+                if moved:
+                    rev["after_restatement"] = moved
             except (ValueError, KeyError, TypeError) as e:
                 append(ledger, turn, "note", hid, {"text": f"the supervisor's review of the test of {hid} could not be read ({type(e).__name__}): the test is run unreviewed"})
                 continue
@@ -3328,7 +3361,8 @@ def main():
                 + f"WHY IT WAS SENT BACK ({who}): {flat(feedback)}\n\n"
                 + (f"THE RECORDS THE FEEDBACK AND YOUR GUESS CITE:\n" + "\n".join(record_line(ids[i], ledger) for i in cited) + "\n\n" if cited else "")
                 + f"WHAT HAS BEEN MEASURED SO FAR:\n{_measured(ledger)}\n\n" + (f"THE MEASUREMENTS YOUR ANSWER DEFINES (a rule may name them as name@label):\n{mine}\n" if mine else "") + f"THE KNOBS: {knobs}\n\n"
-                "Repair this test only. decision_rule: the comparison that decides the hypothesis, in the form of your instructions (numbers; measure@label; + - * / and parentheses; abs(), "
+                "Repair this test only. The hypothesis's sentence and its guess stay as they are: a repair changes the rule, the guess it competes with and the simulations. If the objection is to the "
+                "sentence itself, no repair meets it: send the test as it stands, and if it is then not run, drop the hypothesis in your next reply and state a new one. decision_rule: the comparison that decides the hypothesis, in the form of your instructions (numbers; measure@label; + - * / and parentheses; abs(), "
                 f"min(), max(); one of < <= > >= == in each comparison; at most {COMPARISONS_MOST} comparisons, joined by AND and OR). "
                 + ("competes_with: the id of an existing live guess the rule tells yours from (not your hypothesis's own guess nor one linked to it by revises); a competing cause you have not written as a guess cannot be named here: write it as a guess in your next reply. "
                    "rival_predicts: what the rule gives if that guess is true and yours false (held is refused: choose simulations where the two differ). " if competitors else

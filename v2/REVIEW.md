@@ -39,6 +39,21 @@ tree's root); every text a stage changed stands, before and after, in `texts_<st
 (a repair of the page would change neither). Then the run plan: one session for each of `after_fix-2`, `three-hosts-2`, `three-hosts-link-2`,
 `three-hosts-moves`, each with `harness/fairness.py` and `harness/confirm.py`, before the rest.
 
+## After v2.1 (2026-11-27): what the fairness audits of s063 and s065 found, repaired at the operator's word ("fix everything now")
+
+`v2/s14_audit_fixes.py`, every text before and after in `v2/texts_stage14_audit_fixes.md` (15 changes). s066 was stopped at the operator's word for it.
+
+| # | What was wrong | Where it showed | The change |
+|---|---|---|---|
+| 1 | An approval given in the batched first review stood after a guess the test names was restated in the same turn | s065 H3: approved against Y10 as first written, ruled against Y10 as restated: inconclusive | `restated_since`: such a test is reviewed again, alone; the review's record keeps `after_restatement`. No text changed |
+| 2 | At the ruling, a test's own table of simulations not run again was taken for earlier records | s065 H8: Honest failed, V7 inconclusive against clear numbers | `values_before`: the ruling (and the second look after an objection) states beside the checks which compared values the test measured first and which stood before it ran |
+| 3 | A repair cannot change the hypothesis's sentence; no text said so | s065 H6: rounds 2 and 3 could not pass, turn 6 lost | the request for a repair says it, and what to do. The turn is still lost when the sentence is at fault: letting a repair rewrite the sentence would be a change of the design, not made |
+| 4 | Three rules the instructions did not state | s065 N2; s063 H4, H6; s063 turn 1 | the instructions say: in a test a simulation no rule names is not run; a rule names its own experiment's simulations; a queue is added only on a side that has none. Room: two lists of example ids left (9,978 -> 9,983 of 10,000 characters) |
+| 5 | "The measured seconds begin at t = 2", while a window holds the samples after t_from | s065 F12: "first" is the sample at 2.1 s | the tools measure and series say which samples a window holds. The code is unchanged (it is so since 2026-11-24, s059 H12) |
+
+Checked on the frozen tree `v2work/tree_s14`: `values_before` and `restated_since` on the real records of s065 (H8: all four values first measured by
+the test; turn 4, H3: Y10); `test_stage5`, section X (marker `P14`), 6 statements, with a scripted session for 1, 2 and 3.
+
 ## After v2.1 (2026-11-27): a cited review of a test showed "None" where its reason belongs
 
 Found by the fairness audit of s065 (`checks/fairness/s065.md`, item 7a), repaired at the operator's word ("fix it"); `v2/s13_review_line.py`,
