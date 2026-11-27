@@ -1277,7 +1277,7 @@ def record_line(r, ledger):
     if r["type"] == "result":   # in full, as the researcher's ledger holds it (until 2026-11-22: one line of 1,500 characters)
         return reading(r, {x["id"]: x for x in ledger})
     if r["type"] == "review":
-        return f"[{r['id']}] the {'harness' if r.get('by') == 'harness' else 'supervisor'}'s review of {b.get('for') or 'a guess'}: {b.get('decision')}. {flat(b.get('because'))}" + (f" The rival it named: {flat(b['rival'])}" if b.get("rival") else "")
+        return f"[{r['id']}] the {'harness' if r.get('by') == 'harness' else 'supervisor'}'s review of {b.get('for') or 'a guess'}: {b.get('decision')}." + (f" {flat(b['because'])}" if b.get("because") is not None else f" {flat(b['feedback'])}" if b.get("feedback") else "") + (f" The rival it named: {flat(b['rival'])}" if b.get("rival") else "")
     if r["type"] == "verdict":
         return f"[{r['id']}] ruling on {b['for']}: {b['result']}. {flat(b['because'])}"
     return f"[{r['id']}] {r['type']}: {flat(json.dumps(b))[:600]}"

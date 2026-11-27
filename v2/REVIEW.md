@@ -39,6 +39,24 @@ tree's root); every text a stage changed stands, before and after, in `texts_<st
 (a repair of the page would change neither). Then the run plan: one session for each of `after_fix-2`, `three-hosts-2`, `three-hosts-link-2`,
 `three-hosts-moves`, each with `harness/fairness.py` and `harness/confirm.py`, before the rest.
 
+## After v2.1 (2026-11-27): a cited review of a test showed "None" where its reason belongs
+
+Found by the fairness audit of s065 (`checks/fairness/s065.md`, item 7a), repaired at the operator's word ("fix it"); `v2/s13_review_line.py`,
+before and after in `v2/texts_stage13_review_line.md`. One line of `harness/loop.py` (`record_line`).
+
+- What was wrong: a review of a test, shown later as a cited record (to the supervisor, and to the researcher in a short call), read
+  "[G16] the supervisor's review of H3: held. None". The line printed the field `because`, which only the review of a guess has; the review of
+  a test keeps what it told the researcher in `feedback`. In the harness since the reviews of tests got their own form (the first session with
+  such lines is s055, 2026-11-23).
+- What it did in s065: in turn 4 the researcher cited G16 for what its feedback says; the supervisor, shown "held. None", sent the guess back as
+  not in the records; the guess was restated weaker, and the test approved against the first wording ended inconclusive (V3).
+- The change: the line shows the feedback of a review of a test, and nothing after the decision when there is none (an approved test). The
+  line of a review of a guess, and of a round the harness refused, is the same character for character.
+- Checked: `record_line` of every review, check and ruling of every recorded session (1,803 records), before and after: 128 lines differ, each
+  one a review of a test that ended in "None" (s055 to s066); no other line differs. `test_stage5`, section W (marker `P13`), plays the case of
+  s065 with a scripted session: it passes on this tree and fails on the tree before it.
+- Not changed: no rule, no instruction, no brief, no record. Recorded sessions stay as they are.
+
 ## After v2.1 (2026-11-25, evening): Follows in two parts, and the crash of s064
 
 `s12_follows.py`, `texts_stage12_follows.md` (5 changes), from the operator's sheet: Follows has two parts. (1) Strictly: the hypothesis is
