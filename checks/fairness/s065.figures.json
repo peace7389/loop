@@ -108,17 +108,17 @@
  },
  "parked": [
   {
-   "finding": null,
+   "finding": "F11",
    "turn": 10,
    "reason": "la_util is not the goal measure; the queue-backlog explanation fits but no simulations remain for a fair test."
   },
   {
-   "finding": null,
+   "finding": "F12",
    "turn": 10,
    "reason": "The q_fa_first sampling discrepancy does not affect fa_goodput_bps or fb_loss_frac, and no simulations remain."
   },
   {
-   "finding": null,
+   "finding": "F13",
    "turn": 10,
    "reason": "Bbr queue occupancy and la_util are not goal measures; no simulations remain to test the cause."
   }

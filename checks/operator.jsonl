@@ -1496,3 +1496,13 @@
 {"session": "s065", "id": "r011", "policy": "share", "seconds": 1.1}
 {"session": "s065", "id": "r012", "policy": "share", "seconds": 1.2}
 {"session": "s065", "id": "r013", "policy": "share", "seconds": 1.6}
+{"session": "s066", "id": "r001", "policy": "share", "seconds": 9.1}
+{"session": "s066", "id": "r002", "policy": "share", "seconds": 20.6}
+{"session": "s066", "id": "r003", "policy": "share", "seconds": 20.6}
+{"session": "s066", "id": "r004", "policy": "share", "seconds": 8.7}
+{"session": "s066", "id": "r005", "policy": "share", "seconds": 14.3}
+{"session": "s066", "id": "r006", "policy": "share", "seconds": 21.7}
+{"session": "s066", "id": "r007", "policy": "share", "seconds": 21.7}
+{"session": "s066", "id": "r008", "policy": "share", "seconds": 21.7}
+{"session": "s066", "id": "r009", "policy": "share", "seconds": 30.1}
+{"session": "s066", "id": "r010", "policy": "share", "seconds": 30.1}

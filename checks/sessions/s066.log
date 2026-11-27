@@ -1,0 +1,2 @@
+/home/chunguck.kim/miniforge3/bin/python3 /home/chunguck.kim/project/harness/loop.py --session s066 --brief simple_test --draft on --policy share --baseline on --arm supervised
+session s066 (brief simple_test): /home/chunguck.kim/project/sessions/s066

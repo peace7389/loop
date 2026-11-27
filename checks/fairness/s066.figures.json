@@ -1,0 +1,106 @@
+{
+ "session": "s066",
+ "brief": "simple_test",
+ "arm": "supervised",
+ "how": "stopped from outside",
+ "turns": 6,
+ "simulations": 9,
+ "allowed": 12,
+ "fairness": {
+  "chain_refusals": 0,
+  "cannot_tell": 2,
+  "unread_reviews": 0,
+  "approved_by_round": {
+   "1": 5
+  },
+  "not_approved": 1,
+  "turn_1": null
+ },
+ "rounds": {
+  "tests": 7,
+  "reviewed": 6,
+  "rounds": {
+   "mean": 1.33,
+   "max": 3
+  },
+  "approved_first": 5,
+  "repaired_approved": 0,
+  "contested": 0,
+  "dropped": 0,
+  "unsettled": 0,
+  "refused_by_harness": 1,
+  "not_run": 1
+ },
+ "guesses": {
+  "guesses": 18,
+  "warnings": 4,
+  "restated": 1,
+  "contested": 0
+ },
+ "boxes": {
+  "cannot_tell": 2,
+  "changed": {
+   "honest": 0,
+   "consistent": 0,
+   "correct": 0
+  },
+  "questions": {
+   "follows": {
+    "pass": 6,
+    "fail": 0
+   },
+   "honest": {
+    "pass": 6,
+    "fail": 0
+   },
+   "consistent": {
+    "pass": 5,
+    "fail": 1
+   },
+   "correct": {
+    "pass": 5,
+    "fail": 0
+   }
+  },
+  "approved_then_unfair": 0,
+  "misses": {
+   "honest": 0,
+   "consistent": 0,
+   "correct": 0
+  },
+  "found_by_result": {
+   "honest": 0,
+   "consistent": 0,
+   "correct": 0
+  },
+  "from_feedback": 0,
+  "refuted_by_competition": 4,
+  "held": 0
+ },
+ "findings": {
+  "raised": {
+   "researcher": 0,
+   "supervisor": 8
+  },
+  "ended": {
+   "closed": 3,
+   "same_as": 1,
+   "parked": 0,
+   "working": 4,
+   "unresolved": 0
+  },
+  "turns_open": {
+   "mean": 2.0,
+   "max": 5
+  },
+  "never_looked_at": 1,
+  "final": true
+ },
+ "parked": [],
+ "decided_by_less_than_the_tolerance": [],
+ "changed_by_harness": 0,
+ "notes_by_part": {
+  "test": 1
+ },
+ "confirmation": null
+}
